@@ -328,8 +328,10 @@ typedef struct JSValue {
 #define JS_VALUE_GET_SHORT_BIG_INT(v) ((v).u.short_big_int)
 #define JS_VALUE_GET_PTR(v) ((v).u.ptr)
 
-/* msvc doesn't understand designated initializers without /std:c++20 */
-#ifdef __cplusplus
+/* msvc doesn't understand designated initializers without /std:c++20;
+ * SAS/C 6.58 (C89) does not support compound literals or designated
+ * initializers, so use the same function-based approach. */
+#if defined(__cplusplus) || defined(__SASC__)
 static inline JSValue JS_MKPTR(int64_t tag, void *ptr)
 {
     JSValue v;
@@ -373,8 +375,8 @@ static inline JSValue __JS_NewFloat64(double d)
 
 static inline JSValue __JS_NewShortBigInt(JSContext *ctx, int64_t d)
 {
+    JSValue v; /* declaration must precede statements for C89 */
     (void)&ctx;
-    JSValue v;
     v.tag = JS_TAG_SHORT_BIG_INT;
     v.u.short_big_int = d;
     return v;

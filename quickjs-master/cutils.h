@@ -25,11 +25,16 @@
 #ifndef CUTILS_H
 #define CUTILS_H
 
+/* AmigaOS / SAS-C 6.58 compatibility -- must come first */
+#ifdef __SASC__
+#include "amiga/amiga_compat.h"
+#endif
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !defined(__SASC__)
 #include <sys/time.h>
 #endif
 #if defined(__APPLE__)
@@ -61,13 +66,17 @@ extern "C" {
 #include <windows.h>
 #include <process.h> /* _beginthread */
 #endif
-#if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP)
+#if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP) && !defined(__SASC__)
 #include <errno.h>
 #include <pthread.h>
 #endif
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__SASC__)
 #include <limits.h>
 #include <unistd.h>
+#endif
+#if defined(__SASC__)
+#include <errno.h>
+#include <limits.h>
 #endif
 
 #if defined(__sun)
@@ -81,6 +90,18 @@ extern "C" {
 #  define __maybe_unused
 #  define __attribute__(x)
 #  define __attribute(x)
+#elif defined(__SASC__)
+/* amiga_compat.h already defined these; guard against redefinition */
+#  ifndef likely
+#    define likely(x)    (x)
+#    define unlikely(x)  (x)
+#  endif
+#  ifndef no_inline
+#    define no_inline
+#  endif
+#  ifndef __maybe_unused
+#    define __maybe_unused
+#  endif
 #else
 #  define likely(x)       __builtin_expect(!!(x), 1)
 #  define unlikely(x)     __builtin_expect(!!(x), 0)
