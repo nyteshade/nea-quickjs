@@ -67,7 +67,7 @@ typedef enum {
 
 #define TMP_BUF_SIZE 128
 
-// invariant: is_unicode ^ unicode_sets (or neither, but not both)
+/* invariant: is_unicode ^ unicode_sets (or neither, but not both) */
 typedef struct {
     DynBuf byte_code;
     const uint8_t *buf_ptr;
@@ -603,7 +603,7 @@ static int parse_unicode_property(REParseState *s, CharRange *cr,
     if (*p != '}')
         return re_parse_error(s, "expecting '}'");
     p++;
-    //    printf("name=%s value=%s\n", name, value);
+    /*    printf("name=%s value=%s\n", name, value); */
 
     if (!strcmp(name, "Script") || !strcmp(name, "sc")) {
         script_ext = false;
@@ -741,7 +741,7 @@ static int get_class_atom(REParseState *s, CharRange *cr,
                     /* always valid to escape these characters */
                     goto normal_char;
                 } else if (s->is_unicode) {
-                    // special case: allowed inside [] but not outside
+                    /* special case: allowed inside [] but not outside */
                     if (ret == -2 && *p == '-' && inclass)
                         goto normal_char;
                 invalid_escape:
@@ -769,9 +769,9 @@ static int get_class_atom(REParseState *s, CharRange *cr,
                 return re_parse_error(s, "invalid UTF-8 sequence");
             p = p_next;
             if (c > 0xFFFF && !s->is_unicode) {
-                // TODO(chqrlie): should handle non BMP-1 code points in
-                //   the calling function and no require the source string
-                //   to be CESU-8 encoded if not s->is_unicode
+                /* TODO(chqrlie): should handle non BMP-1 code points in */
+                /*   the calling function and no require the source string */
+                /*   to be CESU-8 encoded if not s->is_unicode */
                 return re_parse_error(s, "malformed unicode char");
             }
         }
@@ -819,8 +819,8 @@ static int re_emit_range(REParseState *s, const CharRange *cr)
     return 0;
 }
 
-// s->unicode turns patterns like []] into syntax errors
-// s->unicode_sets turns more patterns into errors, like [a-] or [[]
+/* s->unicode turns patterns like []] into syntax errors */
+/* s->unicode_sets turns more patterns into errors, like [a-] or [[] */
 static int re_parse_char_class(REParseState *s, const uint8_t **pp)
 {
     const uint8_t *p;
@@ -841,8 +841,8 @@ static int re_parse_char_class(REParseState *s, const uint8_t **pp)
         const char *s = verboten;
         int n = 1;
         do {
-            // not memcmp because some implementations compare word instead
-            // of byte at a time and will happily read past end of input
+            /* not memcmp because some implementations compare word instead */
+            /* of byte at a time and will happily read past end of input */
             if (!strncmp(s, (const char *)p, n))
                 if (p[n] == ']')
                     goto invalid_class_range;
@@ -1049,7 +1049,7 @@ static int re_parse_group_name(char *buf, int buf_size, const uint8_t **pp)
         if (c == '\\') {
             if (*p != 'u')
                 return -1;
-            c = lre_parse_escape(&p, 2); // accept surrogate pairs
+            c = lre_parse_escape(&p, 2); /* accept surrogate pairs */
             if ((int)c < 0)
                 return -1;
         } else if (c == '>') {
@@ -2085,7 +2085,7 @@ static intptr_t lre_exec_backtrack(REExecContext *s, uint8_t **capture,
     cbuf_end = s->cbuf_end;
 
     for(;;) {
-        //        printf("top=%p: pc=%d\n", th_list.top, (int)(pc - (bc_buf + RE_HEADER_LEN)));
+        /*        printf("top=%p: pc=%d\n", th_list.top, (int)(pc - (bc_buf + RE_HEADER_LEN))); */
         opcode = *pc++;
         switch(opcode) {
         case REOP_match:
@@ -2563,12 +2563,12 @@ int lre_byte_swap(uint8_t *buf, size_t len, bool is_byte_swapped)
     if (len < RE_HEADER_LEN)
         return -1;
 
-    // format is:
-    //  <header>
-    //  <bytecode>
-    //  <capture group name 1>
-    //  <capture group name 2>
-    //  etc.
+    /* format is: */
+    /*  <header> */
+    /*  <bytecode> */
+    /*  <capture group name 1> */
+    /*  <capture group name 2> */
+    /*  etc. */
     inplace_bswap16(&p[RE_HEADER_FLAGS]);
 
     n = get_u32(&p[RE_HEADER_BYTECODE_LEN]);
@@ -2591,17 +2591,17 @@ int lre_byte_swap(uint8_t *buf, size_t len, bool is_byte_swapped)
             break;
         case 3:
             switch (*p) {
-            case REOP_save_reset: // has two 8 bit arguments
+            case REOP_save_reset: /* has two 8 bit arguments */
                 break;
-            case REOP_range32: // variable length
-                nw = get_u16(&p[1]);  // number of pairs of uint32_t
+            case REOP_range32: /* variable length */
+                nw = get_u16(&p[1]);  /* number of pairs of uint32_t */
                 if (is_byte_swapped)
                     n = bswap16(n);
                 for (r = 3 + 8 * nw; n < r; n += 4)
                     inplace_bswap32(&p[n]);
                 goto doswap16;
-            case REOP_range: // variable length
-                nw = get_u16(&p[1]);  // number of pairs of uint16_t
+            case REOP_range: /* variable length */
+                nw = get_u16(&p[1]);  /* number of pairs of uint16_t */
                 if (is_byte_swapped)
                     n = bswap16(n);
                 for (r = 3 + 4 * nw; n < r; n += 2)

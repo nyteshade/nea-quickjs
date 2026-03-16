@@ -45,7 +45,7 @@ extern const uint32_t qjsc_repl_size;
 extern const uint8_t qjsc_standalone[];
 extern const uint32_t qjsc_standalone_size;
 
-// Must match standalone.js
+/* Must match standalone.js */
 #define TRAILER_SIZE 12
 static const char trailer_magic[] = "quickjs2";
 static const int trailer_magic_size = sizeof(trailer_magic) - 1;
@@ -117,7 +117,7 @@ static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
         val = JS_Eval(ctx, buf, buf_len, filename,
                       eval_flags | JS_EVAL_FLAG_COMPILE_ONLY);
         if (!JS_IsException(val)) {
-            // ex. "<cmdline>" pr "/dev/stdin"
+            /* ex. "<cmdline>" pr "/dev/stdin" */
             use_realpath =
                 !(*filename == '<' || !strncmp(filename, "/dev/", 5));
             if (js_module_set_import_meta(ctx, val, use_realpath, true) < 0) {

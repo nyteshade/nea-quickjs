@@ -136,7 +136,7 @@ DEF(     define_var, 6, 0, 0, atom_u8)
 DEF(check_define_var, 6, 0, 0, atom_u8)
 DEF(    define_func, 6, 1, 0, atom_u8)
 
-// order matters, see IC counterparts
+/* order matters, see IC counterparts */
 DEF(      get_field, 5, 1, 1, atom)
 DEF(     get_field2, 5, 1, 2, atom)
 DEF(      put_field, 5, 2, 0, atom)
@@ -188,7 +188,7 @@ DEF(            ret, 1, 1, 0, none) /* used to return from the finally block */
 DEF(      nip_catch, 1, 2, 1, none) /* catch ... a -> a */
 
 DEF(      to_object, 1, 1, 1, none)
-//DEF(      to_string, 1, 1, 1, none)
+/*DEF(      to_string, 1, 1, 1, none) */
 DEF(     to_propkey, 1, 1, 1, none)
 DEF(    to_propkey2, 1, 2, 2, none)
 

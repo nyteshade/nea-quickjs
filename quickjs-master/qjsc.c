@@ -191,7 +191,7 @@ static int js_module_dummy_init(JSContext *ctx, JSModuleDef *m)
 {
     /* should never be called when compiling JS code */
     abort();
-    return -1; // pacify compiler
+    return -1; /* pacify compiler */
 }
 
 static void find_unique_cname(char *cname, size_t cname_size)
@@ -355,10 +355,10 @@ void help(void)
     exit(1);
 }
 
-// TODO(bnoordhuis) share with qjs.c maybe
+/* TODO(bnoordhuis) share with qjs.c maybe */
 static int64_t parse_limit(const char *arg) {
     char *p;
-    unsigned long unit = 1; // bytes for backcompat; qjs defaults to kilobytes
+    unsigned long unit = 1; /* bytes for backcompat; qjs defaults to kilobytes */
     double d = strtod(arg, &p);
 
     if (p == arg) {

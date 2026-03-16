@@ -184,23 +184,23 @@ enum {
 #define JSValueConst JSValue
 #endif
 
-// JS_CHECK_JSVALUE build mode does not produce working code but is here to
-// help catch reference counting bugs at compile time, by making it harder
-// to mix up JSValue and JSValueConst
-//
-// rules:
-//
-// - a function with a JSValue parameter takes ownership;
-//   caller must *not* call JS_FreeValue
-//
-// - a function with a JSValueConst parameter does not take ownership;
-//   caller *must* call JS_FreeValue
-//
-// - a function returning a JSValue transfers ownership to caller;
-//   caller *must* call JS_FreeValue
-//
-// - a function returning a JSValueConst does *not* transfer ownership;
-//   caller must *not* call JS_FreeValue
+/* JS_CHECK_JSVALUE build mode does not produce working code but is here to */
+/* help catch reference counting bugs at compile time, by making it harder */
+/* to mix up JSValue and JSValueConst */
+/* */
+/* rules: */
+/* */
+/* - a function with a JSValue parameter takes ownership; */
+/*   caller must *not* call JS_FreeValue */
+/* */
+/* - a function with a JSValueConst parameter does not take ownership; */
+/*   caller *must* call JS_FreeValue */
+/* */
+/* - a function returning a JSValue transfers ownership to caller; */
+/*   caller *must* call JS_FreeValue */
+/* */
+/* - a function returning a JSValueConst does *not* transfer ownership; */
+/*   caller must *not* call JS_FreeValue */
 #if defined(JS_CHECK_JSVALUE)
 
 typedef struct JSValue *JSValue;
@@ -476,9 +476,9 @@ typedef struct JSMallocFunctions {
     size_t (*js_malloc_usable_size)(const void *ptr);
 } JSMallocFunctions;
 
-// Debug trace system: the debug output will be produced to the dump stream (currently
-// stdout) if dumps are enabled and JS_SetDumpFlags is invoked with the corresponding
-// bit set.
+/* Debug trace system: the debug output will be produced to the dump stream (currently */
+/* stdout) if dumps are enabled and JS_SetDumpFlags is invoked with the corresponding */
+/* bit set. */
 #define JS_DUMP_BYTECODE_FINAL   0x01  /* dump pass 3 final byte code */
 #define JS_DUMP_BYTECODE_PASS2   0x02  /* dump pass 2 code */
 #define JS_DUMP_BYTECODE_PASS1   0x04  /* dump pass 1 code */
@@ -499,9 +499,9 @@ typedef struct JSMallocFunctions {
 #define JS_DUMP_ATOMS         0x40000  /* dump atoms in JS_FreeRuntime */
 #define JS_DUMP_SHAPES        0x80000  /* dump shapes in JS_FreeRuntime */
 
-// Finalizers run in LIFO order at the very end of JS_FreeRuntime.
-// Intended for cleanup of associated resources; the runtime itself
-// is no longer usable.
+/* Finalizers run in LIFO order at the very end of JS_FreeRuntime. */
+/* Intended for cleanup of associated resources; the runtime itself */
+/* is no longer usable. */
 typedef void JSRuntimeFinalizer(JSRuntime *rt, void *arg);
 
 typedef struct JSGCObjectHeader JSGCObjectHeader;
@@ -699,7 +699,7 @@ typedef struct JSEvalOptions {
   int eval_flags;
   const char *filename;
   int line_num;
-  // can add new fields in ABI-compatible manner by incrementing JS_EVAL_OPTIONS_VERSION
+  /* can add new fields in ABI-compatible manner by incrementing JS_EVAL_OPTIONS_VERSION */
 } JSEvalOptions;
 
 #define JS_INVALID_CLASS_ID 0
@@ -828,10 +828,10 @@ JS_EXTERN bool JS_IsError(JSValueConst val);
 JS_EXTERN bool JS_IsUncatchableError(JSValueConst val);
 JS_EXTERN void JS_SetUncatchableError(JSContext *ctx, JSValueConst val);
 JS_EXTERN void JS_ClearUncatchableError(JSContext *ctx, JSValueConst val);
-// Shorthand for:
-//  JSValue exc = JS_GetException(ctx);
-//  JS_ClearUncatchableError(ctx, exc);
-//  JS_Throw(ctx, exc);
+/* Shorthand for: */
+/*  JSValue exc = JS_GetException(ctx); */
+/*  JS_ClearUncatchableError(ctx, exc); */
+/*  JS_Throw(ctx, exc); */
 JS_EXTERN void JS_ResetUncatchableError(JSContext *ctx);
 JS_EXTERN JSValue JS_NewError(JSContext *ctx);
 JS_EXTERN JSValue JS_PRINTF_FORMAT_ATTR(2, 3) JS_NewInternalError(JSContext *ctx, JS_PRINTF_FORMAT const char *fmt, ...);
@@ -876,8 +876,8 @@ JS_EXTERN JSValue JS_NewStringLen(JSContext *ctx, const char *str1, size_t len1)
 static inline JSValue JS_NewString(JSContext *ctx, const char *str) {
     return JS_NewStringLen(ctx, str, strlen(str));
 }
-// makes a copy of the input; does not check if the input is valid UTF-16,
-// that is the responsibility of the caller
+/* makes a copy of the input; does not check if the input is valid UTF-16, */
+/* that is the responsibility of the caller */
 JS_EXTERN JSValue JS_NewStringUTF16(JSContext *ctx, const uint16_t *buf,
                                     size_t len);
 JS_EXTERN JSValue JS_NewAtomString(JSContext *ctx, const char *str);
@@ -892,10 +892,10 @@ static inline const char *JS_ToCString(JSContext *ctx, JSValueConst val1)
 {
     return JS_ToCStringLen2(ctx, NULL, val1, 0);
 }
-// returns a utf-16 version of the string in native endianness; the
-// string is not nul terminated and can contain unmatched surrogates
-// |*plen| is in uint16s, not code points; a surrogate pair such as
-// U+D834 U+DF06 has len=2; an unmatched surrogate has len=1
+/* returns a utf-16 version of the string in native endianness; the */
+/* string is not nul terminated and can contain unmatched surrogates */
+/* |*plen| is in uint16s, not code points; a surrogate pair such as */
+/* U+D834 U+DF06 has len=2; an unmatched surrogate has len=1 */
 JS_EXTERN const uint16_t *JS_ToCStringLenUTF16(JSContext *ctx, size_t *plen,
                                                JSValueConst val1);
 static inline const uint16_t *JS_ToCStringUTF16(JSContext *ctx,
@@ -913,11 +913,11 @@ JS_EXTERN JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValueConst proto,
 JS_EXTERN JSValue JS_NewObjectClass(JSContext *ctx, JSClassID class_id);
 JS_EXTERN JSValue JS_NewObjectProto(JSContext *ctx, JSValueConst proto);
 JS_EXTERN JSValue JS_NewObject(JSContext *ctx);
-// takes ownership of the values
+/* takes ownership of the values */
 JS_EXTERN JSValue JS_NewObjectFrom(JSContext *ctx, int count,
                                    const JSAtom *props,
                                    const JSValue *values);
-// takes ownership of the values
+/* takes ownership of the values */
 JS_EXTERN JSValue JS_NewObjectFromStr(JSContext *ctx, int count,
                                       const char **props,
                                       const JSValue *values);
@@ -937,13 +937,13 @@ JS_EXTERN bool JS_IsWeakMap(JSValueConst val);
 JS_EXTERN bool JS_IsDataView(JSValueConst val);
 
 JS_EXTERN JSValue JS_NewArray(JSContext *ctx);
-// takes ownership of the values
+/* takes ownership of the values */
 JS_EXTERN JSValue JS_NewArrayFrom(JSContext *ctx, int count,
                                   const JSValue *values);
-// reader beware: JS_IsArray used to "punch" through proxies and check
-// if the target object is an array but it no longer does; use JS_IsProxy
-// and JS_GetProxyTarget instead, and remember that the target itself can
-// also be a proxy, ad infinitum
+/* reader beware: JS_IsArray used to "punch" through proxies and check */
+/* if the target object is an array but it no longer does; use JS_IsProxy */
+/* and JS_GetProxyTarget instead, and remember that the target itself can */
+/* also be a proxy, ad infinitum */
 JS_EXTERN bool JS_IsArray(JSValueConst val);
 
 JS_EXTERN bool JS_IsProxy(JSValueConst val);
@@ -1061,9 +1061,9 @@ JS_EXTERN JSValue JS_NewArrayBufferCopy(JSContext *ctx, const uint8_t *buf, size
 JS_EXTERN void JS_DetachArrayBuffer(JSContext *ctx, JSValueConst obj);
 JS_EXTERN uint8_t *JS_GetArrayBuffer(JSContext *ctx, size_t *psize, JSValueConst obj);
 JS_EXTERN bool JS_IsArrayBuffer(JSValueConst obj);
-// returns true or false if obj is an ArrayBuffer, -1 otherwise
+/* returns true or false if obj is an ArrayBuffer, -1 otherwise */
 JS_EXTERN int JS_IsImmutableArrayBuffer(JSValueConst obj);
-// returns 0 if obj is an ArrayBuffer, -1 otherwise
+/* returns 0 if obj is an ArrayBuffer, -1 otherwise */
 JS_EXTERN int JS_SetImmutableArrayBuffer(JSValueConst obj, bool immutable);
 JS_EXTERN uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *psize, JSValueConst obj);
 
@@ -1103,7 +1103,7 @@ typedef struct {
 JS_EXTERN void JS_SetSharedArrayBufferFunctions(JSRuntime *rt, const JSSharedArrayBufferFunctions *sf);
 
 typedef enum JSPromiseStateEnum {
-    // argument to JS_PromiseState() was not in fact a promise
+    /* argument to JS_PromiseState() was not in fact a promise */
     JS_PROMISE_NOT_A_PROMISE = -1,
     JS_PROMISE_PENDING       =  0,
     JS_PROMISE_FULFILLED,
@@ -1120,16 +1120,16 @@ JS_EXTERN JSValue JS_NewSettledPromise(JSContext *ctx, bool is_reject, JSValueCo
 JS_EXTERN JSValue JS_NewSymbol(JSContext *ctx, const char *description, bool is_global);
 
 typedef enum JSPromiseHookType {
-    JS_PROMISE_HOOK_INIT,     // emitted when a new promise is created
-    JS_PROMISE_HOOK_BEFORE,   // runs right before promise.then is invoked
-    JS_PROMISE_HOOK_AFTER,    // runs right after promise.then is invoked
-    JS_PROMISE_HOOK_RESOLVE,  // not emitted for rejected promises
+    JS_PROMISE_HOOK_INIT,     /* emitted when a new promise is created */
+    JS_PROMISE_HOOK_BEFORE,   /* runs right before promise.then is invoked */
+    JS_PROMISE_HOOK_AFTER,    /* runs right after promise.then is invoked */
+    JS_PROMISE_HOOK_RESOLVE,  /* not emitted for rejected promises */
 } JSPromiseHookType;
 
-// parent_promise is only passed in when type == JS_PROMISE_HOOK_INIT and
-// is then either a promise object or JS_UNDEFINED if the new promise does
-// not have a parent promise; only promises created with promise.then have
-// a parent promise
+/* parent_promise is only passed in when type == JS_PROMISE_HOOK_INIT and */
+/* is then either a promise object or JS_UNDEFINED if the new promise does */
+/* not have a parent promise; only promises created with promise.then have */
+/* a parent promise */
 typedef void JSPromiseHook(JSContext *ctx, JSPromiseHookType type,
                            JSValueConst promise, JSValueConst parent_promise,
                            void *opaque);

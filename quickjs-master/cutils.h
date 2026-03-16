@@ -59,7 +59,7 @@ extern "C" {
 #elif defined(_WIN32)
 #include <winsock2.h>
 #include <windows.h>
-#include <process.h> // _beginthread
+#include <process.h> /* _beginthread */
 #endif
 #if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP)
 #include <errno.h>
@@ -197,11 +197,11 @@ static inline int64_t min_int64(int64_t a, int64_t b)
 
 static inline uint32_t hash32(uint32_t a)
 {
-    // use the negative of the golden ratio, it spreads out the bits nicely
-    // and is what the linux kernel does
-    //
-    // the golden ratio phi is defined as (1+sqrt(5))/2 or 1 + (sqrt(5)-1)/2
-    // (approx. 1.618033988), and negated is round(2**32/phi**2) = 0x61c88647
+    /* use the negative of the golden ratio, it spreads out the bits nicely */
+    /* and is what the linux kernel does */
+    /* */
+    /* the golden ratio phi is defined as (1+sqrt(5))/2 or 1 + (sqrt(5)-1)/2 */
+    /* (approx. 1.618033988), and negated is round(2**32/phi**2) = 0x61c88647 */
     return a * 0x61c88647;
 }
 
@@ -413,7 +413,7 @@ static inline uint16_t tofp16(double d) {
     double t;
     int e;
     s = 0;
-    if (copysign(1, d) < 0) { // preserve sign when |d| is negative zero
+    if (copysign(1, d) < 0) { /* preserve sign when |d| is negative zero */
         d = -d;
         s = 0x8000;
     }
@@ -426,7 +426,7 @@ static inline uint16_t tofp16(double d) {
     d = 2 * frexp(d, &e);
     e--;
     if (e > 15)
-        return s | 0x7C00; // out of range, return +/-infinity
+        return s | 0x7C00; /* out of range, return +/-infinity */
     if (e < -25) {
         d = 0;
         e = 0;
@@ -445,11 +445,11 @@ static inline uint16_t tofp16(double d) {
     if (t == 0.5)
         if ((f & 1) == 0)
             goto done;
-    // adjust for rounding
+    /* adjust for rounding */
     if (++f == 1024) {
         f = 0;
         if (++e == 31)
-            return s | 0x7C00; // out of range, return +/-infinity
+            return s | 0x7C00; /* out of range, return +/-infinity */
     }
 done:
     return s | (e << 10) | f;
@@ -531,11 +531,11 @@ static inline void dbuf_set_error(DynBuf *s)
 #define UTF8_CHAR_LEN_MAX 4
 
 enum {
-    UTF8_PLAIN_ASCII  = 0,  // 7-bit ASCII plain text
-    UTF8_NON_ASCII    = 1,  // has non ASCII code points (8-bit or more)
-    UTF8_HAS_16BIT    = 2,  // has 16-bit code points
-    UTF8_HAS_NON_BMP1 = 4,  // has non-BMP1 code points, needs UTF-16 surrogate pairs
-    UTF8_HAS_ERRORS   = 8,  // has encoding errors
+    UTF8_PLAIN_ASCII  = 0,  /* 7-bit ASCII plain text */
+    UTF8_NON_ASCII    = 1,  /* has non ASCII code points (8-bit or more) */
+    UTF8_HAS_16BIT    = 2,  /* has 16-bit code points */
+    UTF8_HAS_NON_BMP1 = 4,  /* has non-BMP1 code points, needs UTF-16 surrogate pairs */
+    UTF8_HAS_ERRORS   = 8,  /* has encoding errors */
 };
 static inline int utf8_scan(const char *buf, size_t len, size_t *plen);
 static inline size_t utf8_encode_len(uint32_t c);
@@ -549,17 +549,17 @@ static inline size_t utf8_encode_buf16(char *dest, size_t dest_len, const uint16
 
 static inline bool is_surrogate(uint32_t c)
 {
-    return (c >> 11) == (0xD800 >> 11); // 0xD800-0xDFFF
+    return (c >> 11) == (0xD800 >> 11); /* 0xD800-0xDFFF */
 }
 
 static inline bool is_hi_surrogate(uint32_t c)
 {
-    return (c >> 10) == (0xD800 >> 10); // 0xD800-0xDBFF
+    return (c >> 10) == (0xD800 >> 10); /* 0xD800-0xDBFF */
 }
 
 static inline bool is_lo_surrogate(uint32_t c)
 {
-    return (c >> 10) == (0xDC00 >> 10); // 0xDC00-0xDFFF
+    return (c >> 10) == (0xDC00 >> 10); /* 0xDC00-0xDFFF */
 }
 
 static inline uint32_t get_hi_surrogate(uint32_t c)
@@ -681,17 +681,17 @@ enum {
     JS_THREAD_CREATE_DETACHED = 1,
 };
 
-// creates threads with 2 MB stacks (glibc default)
+/* creates threads with 2 MB stacks (glibc default) */
 static inline int js_thread_create(js_thread_t *thrd, void (*start)(void *), void *arg,
                      int flags);
 static inline int js_thread_join(js_thread_t thrd);
 
 #endif /* !defined(EMSCRIPTEN) && !defined(__wasi__) */
 
-// JS requires strict rounding behavior. Turn on 64-bits double precision
-// and disable x87 80-bits extended precision for intermediate floating-point
-// results. 0x300 is extended  precision, 0x200 is double precision.
-// Note that `*&cw` in the asm constraints looks redundant but isn't.
+/* JS requires strict rounding behavior. Turn on 64-bits double precision */
+/* and disable x87 80-bits extended precision for intermediate floating-point */
+/* results. 0x300 is extended  precision, 0x200 is double precision. */
+/* Note that `*&cw` in the asm constraints looks redundant but isn't. */
 #if defined(__i386__) && !defined(_MSC_VER)
 #define JS_X87_FPCW_SAVE_AND_ADJUST(cw)                                     \
     unsigned short cw;                                                      \
@@ -995,7 +995,7 @@ static inline uint32_t utf8_decode(const uint8_t *p, const uint8_t **pp)
             *pp = p + 1;
             return ((c - 0xC0) << 6) + (*p - 0x80);
         }
-        // otherwise encoding error
+        /* otherwise encoding error */
         break;
     case 0xE0:
         lower = 0xA0;   /* reject invalid encoding */
@@ -1010,7 +1010,7 @@ static inline uint32_t utf8_decode(const uint8_t *p, const uint8_t **pp)
             *pp = p + 2;
             return ((c - 0xE0) << 12) + ((*p - 0x80) << 6) + (p[1] - 0x80);
         }
-        // otherwise encoding error
+        /* otherwise encoding error */
         break;
     case 0xF0:
         lower = 0x90;   /* reject invalid encoding */
@@ -1030,10 +1030,10 @@ static inline uint32_t utf8_decode(const uint8_t *p, const uint8_t **pp)
             return ((c - 0xF0) << 18) + ((*p - 0x80) << 12) +
                 ((p[1] - 0x80) << 6) + (p[2] - 0x80);
         }
-        // otherwise encoding error
+        /* otherwise encoding error */
         break;
     default:
-        // invalid lead byte
+        /* invalid lead byte */
         break;
     }
     *pp = p;
@@ -1086,7 +1086,7 @@ static inline int utf8_scan(const char *buf, size_t buf_len, size_t *plen)
     kind = UTF8_PLAIN_ASCII;
     cbits = 0;
     len = buf_len;
-    // TODO: handle more than 1 byte at a time
+    /* TODO: handle more than 1 byte at a time */
     for (i = 0; i < buf_len; i++)
         cbits |= buf[i];
     if (cbits >= 0x80) {
@@ -1566,7 +1566,7 @@ static inline void rqsort(void *base, size_t nmemb, size_t size, cmp_f cmp, void
 /*---- Portable time functions ----*/
 
 #ifdef _WIN32
- // From: https://stackoverflow.com/a/26085827
+ /* From: https://stackoverflow.com/a/26085827 */
 static int gettimeofday_msvc(struct timeval *tp)
 {
   static const uint64_t EPOCH = ((uint64_t)116444736000000000ULL);
@@ -1820,10 +1820,10 @@ static inline int js_thread_create(js_thread_t *thrd, void (*start)(void *), voi
         return -1;
     if (flags & JS_THREAD_CREATE_DETACHED)
         return 0;
-    // _endthread() automatically closes the handle but we want to wait on
-    // it so make a copy. Race-y for very short-lived threads. Can be solved
-    // by switching to _beginthreadex(CREATE_SUSPENDED) but means changing
-    // |start| from __cdecl to __stdcall.
+    /* _endthread() automatically closes the handle but we want to wait on */
+    /* it so make a copy. Race-y for very short-lived threads. Can be solved */
+    /* by switching to _beginthreadex(CREATE_SUSPENDED) but means changing */
+    /* |start| from __cdecl to __stdcall. */
     cp = GetCurrentProcess();
     if (DuplicateHandle(cp, h, cp, thrd, 0, FALSE, DUPLICATE_SAME_ACCESS))
         return 0;

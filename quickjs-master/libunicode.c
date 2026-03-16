@@ -31,7 +31,7 @@
 #include "libunicode.h"
 #include "libunicode-table.h"
 
-// note: stored as 4 bit tag, not much room left
+/* note: stored as 4 bit tag, not much room left */
 enum {
     RUN_TYPE_U,
     RUN_TYPE_L,
@@ -771,7 +771,7 @@ static int unicode_decomp_char(uint32_t *res, uint32_t c, bool is_compat1)
         v = unicode_decomp_table1[idx];
         code = v >> (32 - 18);
         len = (v >> (32 - 18 - 7)) & 0x7f;
-        //        printf("idx=%d code=%05x len=%d\n", idx, code, len);
+        /*        printf("idx=%d code=%05x len=%d\n", idx, code, len); */
         if (c < code) {
             idx_max = idx - 1;
         } else if (c >= code + len) {
@@ -1299,7 +1299,7 @@ static int unicode_case1(CharRange *cr, int case_mask)
         code = v >> (32 - 17);
         len = (v >> (32 - 17 - 7)) & 0x7f;
         if ((mask >> type) & 1) {
-            //            printf("%d: type=%d %04x %04x\n", idx, type, code, code + len - 1);
+            /*            printf("%d: type=%d %04x %04x\n", idx, type, code, code + len - 1); */
             switch(type) {
             case RUN_TYPE_UL:
                 if ((case_mask & CASE_U) && (case_mask & (CASE_L | CASE_F)))

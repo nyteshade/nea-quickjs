@@ -49,8 +49,8 @@
 
 #define CMD_NAME "run-test262"
 
-// not quite correct because in theory someone could compile quickjs.c
-// with a different compiler but in practice no one does that, right?
+/* not quite correct because in theory someone could compile quickjs.c */
+/* with a different compiler but in practice no one does that, right? */
 #ifdef __TINYC__
 #define CC_IS_TCC 1
 #else
@@ -74,7 +74,7 @@ typedef struct namelist_t {
     int size;
 } namelist_t;
 
-long nthreads; // invariant: 0 < nthreads < countof(threads)
+long nthreads; /* invariant: 0 < nthreads < countof(threads) */
 js_thread_t threads[32];
 js_thread_t progress_thread;
 js_cond_t progress_cond;
@@ -486,7 +486,7 @@ static JSValue js_print_262(JSContext *ctx, JSValueConst this_val,
     for (i = 0; i < argc; i++) {
         v = argv[i];
         s = JS_ToCString(ctx, v);
-        // same logic as js_print in quickjs-libc.c
+        /* same logic as js_print in quickjs-libc.c */
         if (local && !s && JS_IsObject(v)) {
             JS_FreeValue(ctx, JS_GetException(ctx));
             JSValue t = JS_ToObjectString(ctx, v);
@@ -604,7 +604,7 @@ static void agent_start(void *arg)
     int ret;
 
     agent = arg;
-    tls = agent->tls; // shares thread-local storage with parent thread
+    tls = agent->tls; /* shares thread-local storage with parent thread */
     rt = JS_NewRuntime();
     if (rt == NULL) {
         fatal(1, "JS_NewRuntime failure");
@@ -989,8 +989,8 @@ static JSModuleDef *js_module_loader_test(JSContext *ctx,
     char *filename, *slash, path[1024];
     int res;
 
-    // interpret import("bar.js") from path/to/foo.js as
-    // import("path/to/bar.js") but leave import("./bar.js") untouched
+    /* interpret import("bar.js") from path/to/foo.js as */
+    /* import("path/to/bar.js") but leave import("./bar.js") untouched */
     filename = opaque;
     if (!strchr(module_name, '/')) {
         slash = strrchr(filename, '/');
@@ -1113,7 +1113,7 @@ void update_exclude_dirs(void)
             if (*path == '!' && has_prefix(name, &path[1]))
                 include = strlen(&path[1]);
         }
-        // most specific include/exclude wins
+        /* most specific include/exclude wins */
         if (exclude > include) {
             test_excluded++;
             free(name);
@@ -1515,12 +1515,12 @@ static int eval_buf(JSContext *ctx, const char *buf, size_t buf_len,
             msg_val = JS_ToString(ctx, exception_val);
             msg = JS_ToCString(ctx, msg_val);
         }
-        if (is_negative) {  // expect error
+        if (is_negative) {  /* expect error */
             if (ret == 0) {
                 if (msg && s &&
                     (str_equal(s, "expected error") ||
                      js__strstart(s, "unexpected error type:", NULL) ||
-                     str_equal(s, msg))) {     // did not have error yet
+                     str_equal(s, msg))) {     /* did not have error yet */
                     if (!has_error_line) {
                         longest_match(buf, msg, pos, &pos, pos_line, &error_line);
                     }
@@ -1530,7 +1530,7 @@ static int eval_buf(JSContext *ctx, const char *buf, size_t buf_len,
                     is_unexpected_error = false;
                 }
             } else {
-                if (!s) {   // not yet reported
+                if (!s) {   /* not yet reported */
                     if (msg) {
                         fprintf(error_out, "%s:%d: %sunexpected error type: %s\n",
                                 filename, error_line, strict_mode, msg);
@@ -1541,7 +1541,7 @@ static int eval_buf(JSContext *ctx, const char *buf, size_t buf_len,
                     atomic_inc(&new_errors);
                 }
             }
-        } else {            // should not have error
+        } else {            /* should not have error */
             if (msg) {
                 if (!s || !str_equal(s, msg)) {
                     if (!has_error_line) {
@@ -1828,7 +1828,7 @@ int run_test_buf(ThreadLocalStorage *tls, const char *filename, char *harness,
         if (eval_file(ctx, harness, ip->array[i], JS_EVAL_TYPE_GLOBAL)) {
             fatal(1, "error including %s for %s", ip->array[i], filename);
         }
-        // hack to get useful stack traces from Test262Error exceptions
+        /* hack to get useful stack traces from Test262Error exceptions */
         if (verbose > 1 && str_equal(ip->array[i], "sta.js")) {
             static const char hack[] =
                 ";(function(C){"
@@ -1899,7 +1899,7 @@ int run_test(ThreadLocalStorage *tls, const char *filename, int *msec)
         p = find_tag(desc, "includes:", &state);
         if (p) {
             while ((ifile = get_option(&p, &state)) != NULL) {
-                // skip unsupported harness files
+                /* skip unsupported harness files */
                 if (find_word(harness_exclude, ifile)) {
                     skip |= 1;
                 } else {
@@ -2125,7 +2125,7 @@ int run_test262_harness_test(ThreadLocalStorage *tls, const char *filename,
 clock_t last_clock;
 
 void show_progress(void *unused) {
-    int interval = 1000*1000*1000 / 4; // 250 ms
+    int interval = 1000*1000*1000 / 4; /* 250 ms */
 
     js_mutex_lock(&progress_mutex);
     while (js_cond_timedwait(&progress_cond, &progress_mutex, interval)) {
@@ -2141,7 +2141,7 @@ void show_progress(void *unused) {
 
 enum { INCLUDE, EXCLUDE, SKIP };
 
-int include_exclude_or_skip(int i) // naming is hard...
+int include_exclude_or_skip(int i) /* naming is hard... */
 {
     if (namelist_find(&exclude_list, test_list.array[i]) >= 0)
         return EXCLUDE;
@@ -2225,7 +2225,7 @@ int main(int argc, char **argv)
     setenv("TZ", "America/Los_Angeles", 1);
 #endif
 
-    // minus one to not (over)commit the system completely
+    /* minus one to not (over)commit the system completely */
     nthreads = cpu_count() - 1;
 
     optind = 1;
@@ -2237,7 +2237,7 @@ int main(int argc, char **argv)
         if (strstr("-c -d -e -x -f -E -T -t", arg))
             optind++;
         if (strstr("-d -f", arg))
-            ignore = "testdir"; // run only the tests from -d or -f
+            ignore = "testdir"; /* run only the tests from -d or -f */
     }
 
     /* cannot use getopt because we want to pass the command line to
@@ -2335,7 +2335,7 @@ int main(int argc, char **argv)
                 stop_index = atoi(argv[optind++]);
             }
         }
-        // exclude_dir_list has already been sorted by update_exclude_dirs()
+        /* exclude_dir_list has already been sorted by update_exclude_dirs() */
         namelist_sort(&test_list);
         namelist_sort(&exclude_list);
         for (i = 0; i < test_list.count; i++) {

@@ -34,15 +34,15 @@
 #include "cutils.h"
 
 /* define it to be able to test unicode.c */
-//#define USE_TEST
+/*#define USE_TEST */
 /* profile tests */
-//#define PROFILE
+/*#define PROFILE */
 
-//#define DUMP_CASE_CONV_TABLE
-//#define DUMP_TABLE_SIZE
-//#define DUMP_CC_TABLE
-//#define DUMP_DECOMP_TABLE
-//#define DUMP_CASE_FOLDING_SPECIAL_CASES
+/*#define DUMP_CASE_CONV_TABLE */
+/*#define DUMP_TABLE_SIZE */
+/*#define DUMP_CC_TABLE */
+/*#define DUMP_DECOMP_TABLE */
+/*#define DUMP_CASE_FOLDING_SPECIAL_CASES */
 
 /* Ideas:
    - Generalize run length encoding + index for all tables
@@ -358,7 +358,7 @@ void parse_unicode_data(const char *filename)
             if (cc != 0) {
                 assert(code <= CHARCODE_MAX);
                 ci->combining_class = cc;
-                //                printf("%05x: %d\n", code, ci->combining_class);
+                /*                printf("%05x: %d\n", code, ci->combining_class); */
             }
         }
 
@@ -393,7 +393,7 @@ void parse_unicode_data(const char *filename)
         get_field_buf(buf1, sizeof(buf1), line, 1);
         if (strstr(buf1, " Last>")) {
             int i;
-            //            printf("range: 0x%x-%0x\n", last_code, code);
+            /*            printf("range: 0x%x-%0x\n", last_code, code); */
             assert(ci->decomp_len == 0);
             assert(ci->script_ext_len == 0);
             for(i = last_code + 1; i < code; i++) {
@@ -606,7 +606,7 @@ void parse_derived_core_properties(const char *filename)
             p++;
             p += strspn(p, " \t");
             q = buf;
-            static const char ignore[] = "\t #;"; // includes \0
+            static const char ignore[] = "\t #;"; /* includes \0 */
             while (!memchr(ignore, *p, sizeof(ignore))) {
                 if ((q - buf) < sizeof(buf) - 1)
                     *q++ = *p;
@@ -1100,7 +1100,7 @@ void find_run_type(TableEntry *te, CCInfo *tab, int code)
             te->ext_data[2] = ci->u_data[2];
             te->ext_len = 3;
         } else if (ci->u_len == 2 && ci->l_len == 0 && ci->f_len == 1) {
-            // U+FB05 LATIN SMALL LIGATURE LONG S T
+            /* U+FB05 LATIN SMALL LIGATURE LONG S T */
             assert(code == 0xFB05);
             te->len = 1;
             te->type = RUN_TYPE_UF_EXT2;
@@ -1108,8 +1108,8 @@ void find_run_type(TableEntry *te, CCInfo *tab, int code)
             te->ext_data[1] = ci->u_data[1];
             te->ext_len = 2;
         } else if (ci->u_len == 3 && ci->l_len == 0 && ci->f_len == 1) {
-            // U+1FD3 GREEK SMALL LETTER IOTA WITH DIALYTIKA AND OXIA or
-            // U+1FE3 GREEK SMALL LETTER UPSILON WITH DIALYTIKA AND OXIA
+            /* U+1FD3 GREEK SMALL LETTER IOTA WITH DIALYTIKA AND OXIA or */
+            /* U+1FE3 GREEK SMALL LETTER UPSILON WITH DIALYTIKA AND OXIA */
             assert(code == 0x1FD3 || code == 0x1FE3);
             te->len = 1;
             te->type = RUN_TYPE_UF_EXT3;
@@ -1489,7 +1489,7 @@ void build_prop_table(FILE *f, int prop_index, bool add_index)
         n = j - i;
         if (j == (CHARCODE_MAX + 1) && v == 0)
             break; /* no need to encode last zero run */
-        //printf("%05x: %d %d\n", i, n, v);
+        /*printf("%05x: %d %d\n", i, n, v); */
         dbuf_put_u32(dbuf1, n - 1);
         i += n;
     }
@@ -1643,7 +1643,7 @@ void build_general_category_table(FILE *f)
                 n = n1;
             }
         }
-        //        printf("%05x %05x %d\n", i, n, v);
+        /*        printf("%05x %05x %d\n", i, n, v); */
         cw_count++;
         n--;
         cw_start = dbuf->size;
@@ -1713,7 +1713,7 @@ void build_script_table(FILE *f)
         n = j - i;
         if (v == 0 && j == (CHARCODE_MAX + 1))
             break;
-        //        printf("%05x %05x %d\n", i, n, v);
+        /*        printf("%05x %05x %d\n", i, n, v); */
         cw_count++;
         n--;
         cw_start = dbuf->size;
@@ -2979,7 +2979,7 @@ void normalization_test(const char *filename)
         nfkc_str = get_field_str(&nfkc_len, p, 3);
         nfkd_str = get_field_str(&nfkd_len, p, 4);
 
-        //        dump_str("in", in_str, in_len);
+        /*        dump_str("in", in_str, in_len); */
 
         buf_len = unicode_normalize((uint32_t **)&buf, (uint32_t *)in_str, in_len, UNICODE_NFD, NULL, NULL);
         check_str("nfd", pos, in_str, in_len, buf, buf_len, nfd_str, nfd_len);
@@ -3059,7 +3059,7 @@ int main(int argc, char **argv)
              unicode_db_path);
     parse_prop_list(filename);
 
-    //    dump_unicode_data(unicode_db);
+    /*    dump_unicode_data(unicode_db); */
     build_conv_table(unicode_db);
 
 #ifdef DUMP_CASE_FOLDING_SPECIAL_CASES

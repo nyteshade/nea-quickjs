@@ -28,9 +28,9 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
-// #include <sys/time.h>
+/* #include <sys/time.h> */
 #include <math.h>
-// #include <setjmp.h>
+/* #include <setjmp.h> */
 
 #include "cutils.h"
 #include "dtoa.h"
@@ -1163,7 +1163,7 @@ int js_dtoa(char *buf, double d, int radix, int n_digits, int flags,
     /* remove the bias */
     e -= 1022;
     /* d = 2^(e-53)*m */
-    //    printf("m=0x%016" PRIx64 " e=%d\n", m, e);
+    /*    printf("m=0x%016" PRIx64 " e=%d\n", m, e); */
 #ifdef USE_FAST_INT
     if (fmt == JS_DTOA_FORMAT_FREE &&
         e >= 1 && e <= 53 &&
@@ -1215,7 +1215,7 @@ int js_dtoa(char *buf, double d, int radix, int n_digits, int flags,
             /* convert back to base 2 */
             mpb_set_u64(tmp1, mant);
             m1 = mul_pow_round_to_d(&e1, tmp1, radix1, radix_shift, E - P, JS_RNDN);
-            //            printf("P=%2d: m=0x%016" PRIx64 " e=%d m1=0x%016" PRIx64 " e1=%d\n", P, m, e, m1, e1);
+            /*            printf("P=%2d: m=0x%016" PRIx64 " e=%d m1=0x%016" PRIx64 " e1=%d\n", P, m, e, m1, e1); */
             /* Note: (m, e) is never zero here, so the exponent for m1
                = 0 does not matter */
             if (m1 == m && e1 == e) {

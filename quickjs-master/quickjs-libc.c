@@ -91,7 +91,7 @@ extern char **environ;
 
 #if JS_HAVE_THREADS
 #include "quickjs-c-atomics.h"
-#define USE_WORKER // enable os.Worker
+#define USE_WORKER /* enable os.Worker */
 #endif
 
 #ifndef S_IFBLK
@@ -102,7 +102,7 @@ extern char **environ;
 #define S_IFIFO 0
 #endif
 
-#ifndef MAX_SAFE_INTEGER // already defined in amalgamation builds
+#ifndef MAX_SAFE_INTEGER /* already defined in amalgamation builds */
 #define MAX_SAFE_INTEGER (((int64_t) 1 << 53) - 1)
 #endif
 
@@ -178,7 +178,7 @@ typedef struct {
     JSValue on_message_func;
 } JSWorkerMessageHandler;
 
-#endif // USE_WORKER
+#endif /* USE_WORKER */
 
 typedef struct JSThreadState {
     struct list_head os_rw_handlers; /* list of JSOSRWHandler.link */
@@ -194,7 +194,7 @@ typedef struct JSThreadState {
     JSWorkerMessagePipe *recv_pipe, *send_pipe;
 #else
     void *recv_pipe;
-#endif // USE_WORKER
+#endif /* USE_WORKER */
     JSClassID std_file_class_id;
     JSClassID worker_class_id;
 } JSThreadState;
@@ -230,7 +230,7 @@ static void js_set_thread_state(JSRuntime *rt, JSThreadState *ts)
 #ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#endif // __GNUC__
+#endif /* __GNUC__ */
 static JSValue js_printf_internal(JSContext *ctx,
                                   int argc, JSValueConst *argv, FILE *fp)
 {
@@ -334,7 +334,7 @@ static JSValue js_printf_internal(JSContext *ctx,
                 if (i >= argc)
                     goto missing;
                 if (JS_IsString(argv[i])) {
-                    // TODO(chqrlie) need an API to wrap charCodeAt and codePointAt */
+                    /* TODO(chqrlie) need an API to wrap charCodeAt and codePointAt */ */
                     string_arg = JS_ToCString(ctx, argv[i++]);
                     if (!string_arg)
                         goto fail;
@@ -344,7 +344,7 @@ static JSValue js_printf_internal(JSContext *ctx,
                     if (JS_ToInt32(ctx, &int32_arg, argv[i++]))
                         goto fail;
                 }
-                // XXX: throw an exception?
+                /* XXX: throw an exception? */
                 if ((unsigned)int32_arg > 0x10FFFF)
                     int32_arg = 0xFFFD;
                 /* ignore conversion flags, width and precision */
@@ -447,8 +447,8 @@ fail:
     return JS_EXCEPTION;
 }
 #ifdef __GNUC__
-#pragma GCC diagnostic pop // ignored "-Wformat-nonliteral"
-#endif // __GNUC__
+#pragma GCC diagnostic pop /* ignored "-Wformat-nonliteral" */
+#endif /* __GNUC__ */
 
 uint8_t *js_load_file(JSContext *ctx, size_t *pbuf_len, const char *filename)
 {
@@ -1126,7 +1126,7 @@ static JSValue js_evalScript(JSContext *ctx, JSValueConst this_val,
         flags |= JS_EVAL_FLAG_ASYNC;
     if (eval_function) {
         obj = JS_DupValue(ctx, argv[0]);
-        ret = JS_EvalFunction(ctx, obj); // takes ownership of |obj|
+        ret = JS_EvalFunction(ctx, obj); /* takes ownership of |obj| */
     } else {
         ret = JS_Eval(ctx, str, len, "<evalScript>", flags);
     }
@@ -1295,7 +1295,7 @@ static JSValue js_std_popen(JSContext *ctx, JSValueConst this_val,
     JS_FreeCString(ctx, mode);
     return JS_EXCEPTION;
 }
-#endif // !defined(__wasi__)
+#endif /* !defined(__wasi__) */
 
 static JSValue js_std_fdopen(JSContext *ctx, JSValueConst this_val,
                              int argc, JSValueConst *argv)
@@ -1762,7 +1762,7 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         dbuf_free(&cmd_buf);
         return JS_EXCEPTION;
     }
-    //    printf("%s\n", (char *)cmd_buf.buf);
+    /*    printf("%s\n", (char *)cmd_buf.buf); */
     f = popen((char *)cmd_buf.buf, "r");
     dbuf_free(&cmd_buf);
     if (!f) {
@@ -1857,7 +1857,7 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
     JS_FreeValue(ctx, response);
     return JS_EXCEPTION;
 }
-#endif // !defined(__wasi__)
+#endif /* !defined(__wasi__) */
 
 static JSClassDef js_std_file_class = {
     "FILE",
@@ -2414,8 +2414,8 @@ static void free_timer(JSRuntime *rt, JSOSTimer *th)
     js_free_rt(rt, th);
 }
 
-// TODO(bnoordhuis) accept string as first arg and eval at timer expiry
-// TODO(bnoordhuis) retain argv[2..] as args for callback if argc > 2
+/* TODO(bnoordhuis) accept string as first arg and eval at timer expiry */
+/* TODO(bnoordhuis) retain argv[2..] as args for callback if argc > 2 */
 static JSValue js_os_setTimeout(JSContext *ctx, JSValueConst this_val,
                                 int argc, JSValueConst *argv, int magic)
 {
@@ -2587,7 +2587,7 @@ static void js_waker_close(JSWaker *w)
     w->handle = INVALID_HANDLE_VALUE;
 }
 
-#else // !_WIN32
+#else /* !_WIN32 */
 
 static int js_waker_init(JSWaker *w)
 {
@@ -2635,7 +2635,7 @@ static void js_waker_close(JSWaker *w)
     w->write_fd = -1;
 }
 
-#endif // _WIN32
+#endif /* _WIN32 */
 
 static void js_free_message(JSWorkerMessage *msg);
 
@@ -2657,7 +2657,7 @@ static int handle_posted_message(JSRuntime *rt, JSContext *ctx,
         /* remove the message from the queue */
         list_del(&msg->link);
 
-        // drain read end of pipe
+        /* drain read end of pipe */
         if (list_empty(&ps->msg_queue))
             js_waker_clear(&ps->waker);
 
@@ -2697,7 +2697,7 @@ static int handle_posted_message(JSRuntime *rt, JSContext *ctx,
     return ret;
 }
 
-#endif // USE_WORKER
+#endif /* USE_WORKER */
 
 /* flags for js_os_poll_internal */
 #define JS_OS_POLL_RUN_TIMERS  (1 << 0)
@@ -2712,7 +2712,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
     int min_delay, count;
     JSOSRWHandler *rh;
     struct list_head *el;
-    HANDLE handles[MAXIMUM_WAIT_OBJECTS]; // 64
+    HANDLE handles[MAXIMUM_WAIT_OBJECTS]; /* 64 */
 
     /* XXX: handle signals if useful */
 
@@ -2722,7 +2722,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
         if (js_os_run_timers(rt, ctx, ts, &min_delay))
             return -1;
         if (min_delay == 0)
-            return 0; // expired timer
+            return 0; /* expired timer */
         if (min_delay < 0)
             if (list_empty(&ts->os_rw_handlers) && list_empty(&ts->port_list))
                 return -1; /* no more events */
@@ -2732,7 +2732,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
     list_for_each(el, &ts->os_rw_handlers) {
         rh = list_entry(el, JSOSRWHandler, link);
         if (rh->fd == 0 && !JS_IsNull(rh->rw_func[0]))
-            handles[count++] = (HANDLE)_get_osfhandle(rh->fd); // stdin
+            handles[count++] = (HANDLE)_get_osfhandle(rh->fd); /* stdin */
         if (count == (int)countof(handles))
             break;
     }
@@ -2796,7 +2796,7 @@ int js_std_poll_io(JSContext *ctx, int timeout_ms)
         return -2;
     return ret;
 }
-#else // !defined(_WIN32)
+#else /* !defined(_WIN32) */
 static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
 {
     JSRuntime *rt = JS_GetRuntime(ctx);
@@ -2829,7 +2829,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
         if (js_os_run_timers(rt, ctx, ts, &min_delay))
             return -1;
         if (min_delay == 0)
-            return 0; // expired timer
+            return 0; /* expired timer */
         if (min_delay < 0)
             if (list_empty(&ts->os_rw_handlers) && list_empty(&ts->port_list))
                 return -1; /* no more events */
@@ -2848,7 +2848,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             nfds += !JS_IsNull(port->on_message_func);
         }
     }
-#endif // USE_WORKER
+#endif /* USE_WORKER */
 
     if (nfds == 0) {
         if (min_delay > 0) {
@@ -2889,11 +2889,11 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             }
         }
     }
-#endif // USE_WORKER
+#endif /* USE_WORKER */
 
-    // FIXME(bnoordhuis) the loop below is quadratic in theory but
-    // linear-ish in practice because we bail out on the first hit,
-    // i.e., it's probably good enough for now
+    /* FIXME(bnoordhuis) the loop below is quadratic in theory but */
+    /* linear-ish in practice because we bail out on the first hit, */
+    /* i.e., it's probably good enough for now */
     ret = 0;
     nfds = poll(pfds, nfds, min_delay);
     if (nfds < 0) {
@@ -2929,7 +2929,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
                 }
             }
         }
-#endif // USE_WORKER
+#endif /* USE_WORKER */
     }
 done:
     if (pfds != pfds_local)
@@ -2951,7 +2951,7 @@ int js_std_poll_io(JSContext *ctx, int timeout_ms)
         return -2;
     return ret;
 }
-#endif // defined(_WIN32)
+#endif /* defined(_WIN32) */
 
 static JSValue make_obj_error(JSContext *ctx,
                               JSValue obj,
@@ -3154,7 +3154,7 @@ static JSValue js_os_mkdstemp(JSContext *ctx, JSValueConst this_val,
 }
 #undef PSZ
 #undef PAT
-#endif // !defined(_WIN32) && !defined(__wasi__)
+#endif /* !defined(_WIN32) && !defined(__wasi__) */
 
 #if !defined(_WIN32)
 static int64_t timespec_to_ms(const struct timespec *tv)
@@ -3691,8 +3691,8 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
     }
 
 #if !defined(EMSCRIPTEN) && !defined(__wasi__)
-    // should happen pre-fork because it calls dlsym()
-    // and that's not an async-signal-safe function
+    /* should happen pre-fork because it calls dlsym() */
+    /* and that's not an async-signal-safe function */
     js_once(&js_os_exec_once, js_os_exec_once_init);
 #endif
 
@@ -4410,7 +4410,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("now", 0, js_os_now ),
     JS_CFUNC_MAGIC_DEF("setTimeout", 2, js_os_setTimeout, 0 ),
     JS_CFUNC_MAGIC_DEF("setInterval", 2, js_os_setTimeout, 1 ),
-    // per spec: both functions can cancel timeouts and intervals
+    /* per spec: both functions can cancel timeouts and intervals */
     JS_CFUNC_DEF("clearTimeout", 1, js_os_clearTimeout ),
     JS_CFUNC_DEF("clearInterval", 1, js_os_clearTimeout ),
     JS_CFUNC_DEF("sleepAsync", 1, js_os_sleepAsync ),
@@ -4540,10 +4540,10 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val,
     }
     dbuf_putc(&b, '\n');
 #ifdef _WIN32
-    // use WriteConsoleA with CP_UTF8 for better Unicode handling vis-a-vis
-    // the mangling that happens when going through msvcrt's stdio layer,
-    // *except* when stdout is redirected to something that is not a console
-    handle = (HANDLE)_get_osfhandle(/*STDOUT_FILENO*/1); // don't CloseHandle
+    /* use WriteConsoleA with CP_UTF8 for better Unicode handling vis-a-vis */
+    /* the mangling that happens when going through msvcrt's stdio layer, */
+    /* *except* when stdout is redirected to something that is not a console */
+    handle = (HANDLE)_get_osfhandle(/*STDOUT_FILENO*/1); /* don't CloseHandle */
     if (GetFileType(handle) != FILE_TYPE_CHAR)
         goto fallback;
     if (!GetConsoleMode(handle, &mode))
@@ -4561,7 +4561,7 @@ fallback:
 #endif
     fwrite(b.buf, 1, b.size, stdout);
     fflush(stdout);
-    goto done; // avoid unused label warning
+    goto done; /* avoid unused label warning */
 done:
     dbuf_free(&b);
     return JS_UNDEFINED;
