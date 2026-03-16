@@ -26,7 +26,7 @@
 #define CUTILS_H
 
 /* AmigaOS / SAS-C 6.58 compatibility -- must come first */
-#ifdef __SASC__
+#ifdef __SASC
 #include "amiga/amiga_compat.h"
 #endif
 
@@ -34,8 +34,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <time.h>
-#if !defined(_MSC_VER) && !defined(__SASC__)
-#include <sys/time.h>
+#if !defined(_MSC_VER)
+#include <sys/time.h>  /* SAS/C ships this header; struct timeval defined there */
 #endif
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -66,15 +66,15 @@ extern "C" {
 #include <windows.h>
 #include <process.h> /* _beginthread */
 #endif
-#if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP) && !defined(__SASC__)
+#if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP) && !defined(__SASC)
 #include <errno.h>
 #include <pthread.h>
 #endif
-#if !defined(_WIN32) && !defined(__SASC__)
+#if !defined(_WIN32) && !defined(__SASC)
 #include <limits.h>
 #include <unistd.h>
 #endif
-#if defined(__SASC__)
+#if defined(__SASC)
 #include <errno.h>
 #include <limits.h>
 #endif
@@ -90,7 +90,7 @@ extern "C" {
 #  define __maybe_unused
 #  define __attribute__(x)
 #  define __attribute(x)
-#elif defined(__SASC__)
+#elif defined(__SASC)
 /* amiga_compat.h already defined these; guard against redefinition */
 #  ifndef likely
 #    define likely(x)    (x)
@@ -123,7 +123,8 @@ extern "C" {
 #define container_of(ptr, type, member) ((type *)((uint8_t *)(ptr) - offsetof(type, member)))
 #endif
 
-#if defined(_MSC_VER) || defined(__cplusplus)
+/* static array parameter syntax [static n] is C99; SAS/C C89 doesn't support it */
+#if defined(_MSC_VER) || defined(__cplusplus) || defined(__SASC)
 #define minimum_length(n) n
 #else
 #define minimum_length(n) static n
@@ -662,7 +663,8 @@ static inline int js_exepath(char* buffer, size_t* size);
 
 /* Cross-platform threading APIs. */
 
-#if defined(EMSCRIPTEN) || defined(__wasi__) || defined(__DJGPP)
+/* AmigaOS: single-threaded for now; workers not supported */
+#if defined(EMSCRIPTEN) || defined(__wasi__) || defined(__DJGPP) || defined(__SASC)
 
 #define JS_HAVE_THREADS 0
 
@@ -1630,11 +1632,11 @@ static inline uint64_t js__hrtime_ns(void) {
 }
 #else
 static inline uint64_t js__hrtime_ns(void) {
-#ifdef __DJGPP
+#if defined(__DJGPP) || defined(__SASC)
   struct timeval tv;
   if (gettimeofday(&tv, NULL))
     abort();
-  return tv.tv_sec * NANOSEC + tv.tv_usec * 1000;
+  return (uint64_t)tv.tv_sec * NANOSEC + (uint64_t)tv.tv_usec * 1000;
 #else
   struct timespec t;
 

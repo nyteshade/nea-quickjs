@@ -20,7 +20,7 @@
  * --------------------------------------------------------------------- */
 #define AMIGA_TO_UNIX_EPOCH  252460800L
 
-int gettimeofday(struct timeval *tv, struct timezone *tz)
+int gettimeofday(struct timeval *tv, void *tz)
 {
     struct DateStamp ds;
 
@@ -31,9 +31,7 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
                     + AMIGA_TO_UNIX_EPOCH;
         tv->tv_usec = (long)(ds.ds_Tick) * 20000L; /* 1/50s = 20000 us */
     }
-    if (tz != NULL) {
-        tz->tz_minuteswest = 0;
-        tz->tz_dsttime     = 0;
-    }
+    /* tz ignored -- timezone info not available without timer.device */
+    (void)tz;
     return 0;
 }

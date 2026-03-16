@@ -26,7 +26,7 @@ typedef unsigned long      uint32_t;
  * Use it if the compiler is invoked with CPU=68020 or higher, otherwise
  * fall back to a struct -- but struct won't work for arithmetic so the
  * 64-bit paths in quickjs.c will need further attention. */
-#ifdef __SASC__
+#ifdef __SASC
 typedef long long           int64_t;
 typedef unsigned long long  uint64_t;
 #else
@@ -70,17 +70,23 @@ typedef uint64_t  uintmax_t;
 #define INT16_MAX   32767
 #define INT32_MIN   (-2147483648L)
 #define INT32_MAX   2147483647L
-#define INT64_MIN   (-9223372036854775807LL - 1)
-#define INT64_MAX   9223372036854775807LL
+/* SAS/C: long long = long (32-bit); use 32-bit limits to avoid LL constants */
+#define INT64_MIN   (-2147483648L)
+#define INT64_MAX   2147483647L
 
 #define UINT8_MAX   255U
 #define UINT16_MAX  65535U
 #define UINT32_MAX  4294967295UL
-#define UINT64_MAX  18446744073709551615ULL
+#define UINT64_MAX  4294967295UL  /* SAS/C: uint64_t = unsigned long (32-bit) */
 
 #define INTPTR_MIN  INT32_MIN
 #define INTPTR_MAX  INT32_MAX
 #define UINTPTR_MAX UINT32_MAX
+
+/* size_t is unsigned long (32-bit) on AmigaOS */
+#ifndef SIZE_MAX
+#define SIZE_MAX    UINT32_MAX
+#endif
 
 #define INTMAX_MIN  INT64_MIN
 #define INTMAX_MAX  INT64_MAX

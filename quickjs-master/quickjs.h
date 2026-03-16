@@ -331,7 +331,7 @@ typedef struct JSValue {
 /* msvc doesn't understand designated initializers without /std:c++20;
  * SAS/C 6.58 (C89) does not support compound literals or designated
  * initializers, so use the same function-based approach. */
-#if defined(__cplusplus) || defined(__SASC__)
+#if defined(__cplusplus) || defined(__SASC)
 static inline JSValue JS_MKPTR(int64_t tag, void *ptr)
 {
     JSValue v;
@@ -384,14 +384,22 @@ static inline JSValue __JS_NewShortBigInt(JSContext *ctx, int64_t d)
 
 static inline bool JS_VALUE_IS_NAN(JSValue v)
 {
-    union {
-        double d;
-        uint64_t u64;
-    } u;
     if (v.tag != JS_TAG_FLOAT64)
         return 0;
-    u.d = v.u.float64;
-    return (u.u64 & 0x7fffffffffffffff) > 0x7ff0000000000000;
+#ifdef __SASC
+    /* SAS/C: uint64_t is 32-bit; use isnan() from math.h instead of
+     * bit-pattern comparison which requires true 64-bit arithmetic. */
+    return isnan(v.u.float64);
+#else
+    {
+        union {
+            double d;
+            uint64_t u64;
+        } u;
+        u.d = v.u.float64;
+        return (u.u64 & 0x7fffffffffffffff) > 0x7ff0000000000000;
+    }
+#endif
 }
 
 #endif /* !JS_NAN_BOXING */
@@ -1326,6 +1334,25 @@ typedef struct JSCFunctionListEntry {
     uint8_t prop_flags;
     uint8_t def_type;
     int16_t magic;
+#ifdef __SASC
+    /* SAS/C C89: length/cproto moved outside union; raw first member
+     * allows all cases to be initialized with positional initializers. */
+    uint8_t length;
+    uint8_t cproto;
+    uint16_t _pad;
+    union {
+        struct { void *_w0; void *_w1; } raw; /* FIRST: for C89 positional init */
+        JSCFunctionType cfunc;                /* same offset as raw._w0 */
+        struct { JSCFunctionType get; JSCFunctionType set; } getset;
+        struct { const char *name; int base; } alias;
+        struct { const struct JSCFunctionListEntry *tab; int len; } prop_list;
+        const char *str;
+        int32_t i32;
+        int64_t i64;
+        uint64_t u64;
+        double f64;
+    } u;
+#else
     union {
         struct {
             uint8_t length; /* XXX: should move outside union */
@@ -1350,7 +1377,20 @@ typedef struct JSCFunctionListEntry {
         uint64_t u64;
         double f64;
     } u;
+#endif
 } JSCFunctionListEntry;
+
+/* Access helpers: under SAS/C, length/cproto are top-level fields;
+ * elsewhere they live inside u.func. */
+#ifdef __SASC
+#define JSCFE_LENGTH(e) ((e)->length)
+#define JSCFE_CPROTO(e) ((e)->cproto)
+#define JSCFE_CFUNC(e)  ((e)->u.cfunc)
+#else
+#define JSCFE_LENGTH(e) ((e)->u.func.length)
+#define JSCFE_CPROTO(e) ((e)->u.func.cproto)
+#define JSCFE_CFUNC(e)  ((e)->u.func.cfunc)
+#endif
 
 #define JS_DEF_CFUNC          0
 #define JS_DEF_CGETSET        1
@@ -1366,6 +1406,7 @@ typedef struct JSCFunctionListEntry {
 #define JS_DEF_PROP_BOOL     11
 
 /* Note: c++ does not like nested designators */
+#ifndef __SASC
 #define JS_CFUNC_DEF(name, length, func1) { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, 0, { .func = { length, JS_CFUNC_generic, { .generic = func1 } } } }
 #define JS_CFUNC_DEF2(name, length, func1, prop_flags) { name, prop_flags, JS_DEF_CFUNC, 0, { .func = { length, JS_CFUNC_generic, { .generic = func1 } } } }
 #define JS_CFUNC_MAGIC_DEF(name, length, func1, magic) { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, magic, { .func = { length, JS_CFUNC_generic_magic, { .generic_magic = func1 } } } }
@@ -1385,6 +1426,78 @@ typedef struct JSCFunctionListEntry {
 #define JS_OBJECT_DEF(name, tab, len, prop_flags) { name, prop_flags, JS_DEF_OBJECT, 0, { .prop_list = { tab, len } } }
 #define JS_ALIAS_DEF(name, from) { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_ALIAS, 0, { .alias = { from, -1 } } }
 #define JS_ALIAS_BASE_DEF(name, from, base) { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_ALIAS, 0, { .alias = { from, base } } }
+#else
+/* SAS/C C89: use positional initializers via 'raw' first union member.
+ * Struct layout: name, prop_flags, def_type, magic, length, cproto, _pad,
+ *                { { _w0, _w1 } }
+ * All function pointers, data pointers, and integer values are cast to
+ * void* (same 4-byte size on 68k AmigaOS).  The runtime reads them back
+ * through the correctly-typed union members (getset.get/set, cfunc, str,
+ * i32, alias.name/base, prop_list.tab/len) which all alias raw._w0/_w1. */
+#define JS_CFUNC_DEF(name, length, func1) \
+    { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, 0, \
+      length, JS_CFUNC_generic, 0, { { (void*)(func1), (void*)0 } } }
+#define JS_CFUNC_DEF2(name, length, func1, prop_flags) \
+    { name, prop_flags, JS_DEF_CFUNC, 0, \
+      length, JS_CFUNC_generic, 0, { { (void*)(func1), (void*)0 } } }
+#define JS_CFUNC_MAGIC_DEF(name, length, func1, magic) \
+    { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, magic, \
+      length, JS_CFUNC_generic_magic, 0, { { (void*)(func1), (void*)0 } } }
+#define JS_CFUNC_SPECIAL_DEF(name, length, cproto, func1) \
+    { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, 0, \
+      length, JS_CFUNC_##cproto, 0, { { (void*)(func1), (void*)0 } } }
+#define JS_ITERATOR_NEXT_DEF(name, length, func1, magic) \
+    { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_CFUNC, magic, \
+      length, JS_CFUNC_iterator_next, 0, { { (void*)(func1), (void*)0 } } }
+#define JS_CGETSET_DEF(name, fgetter, fsetter) \
+    { name, JS_PROP_CONFIGURABLE, JS_DEF_CGETSET, 0, \
+      0, 0, 0, { { (void*)(fgetter), (void*)(fsetter) } } }
+#define JS_CGETSET_DEF2(name, fgetter, fsetter, prop_flags) \
+    { name, prop_flags, JS_DEF_CGETSET, 0, \
+      0, 0, 0, { { (void*)(fgetter), (void*)(fsetter) } } }
+#define JS_CGETSET_MAGIC_DEF(name, fgetter, fsetter, magic) \
+    { name, JS_PROP_CONFIGURABLE, JS_DEF_CGETSET_MAGIC, magic, \
+      0, 0, 0, { { (void*)(fgetter), (void*)(fsetter) } } }
+#define JS_PROP_STRING_DEF(name, cstr, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_STRING, 0, \
+      0, 0, 0, { { (void*)(cstr), (void*)0 } } }
+#define JS_PROP_INT32_DEF(name, val, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_INT32, 0, \
+      0, 0, 0, { { (void*)(long)(val), (void*)0 } } }
+#define JS_PROP_INT64_DEF(name, val, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_INT64, 0, \
+      0, 0, 0, { { (void*)(long)(val), (void*)0 } } }
+/* JS_PROP_DOUBLE_DEF and JS_PROP_U2D_DEF: double cannot be stored via
+ * void* cast in a C89 constant expression.  Use JS_PROP_DOUBLE_RAW_DEF
+ * at each call site, providing the big-endian IEEE 754 hi/lo word pair. */
+#define JS_PROP_DOUBLE_RAW_DEF(name, hi32, lo32, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_DOUBLE, 0, \
+      0, 0, 0, { { (void*)(unsigned long)(hi32), (void*)(unsigned long)(lo32) } } }
+#define JS_PROP_DOUBLE_DEF(name, val, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_DOUBLE, 0, \
+      0, 0, 0, { { (void*)0, (void*)0 } } } /* placeholder; use JS_PROP_DOUBLE_RAW_DEF */
+#define JS_PROP_U2D_DEF(name, val, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_DOUBLE, 0, \
+      0, 0, 0, { { (void*)0, (void*)0 } } } /* placeholder; use JS_PROP_DOUBLE_RAW_DEF */
+#define JS_PROP_UNDEFINED_DEF(name, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_UNDEFINED, 0, \
+      0, 0, 0, { { (void*)0, (void*)0 } } }
+#define JS_PROP_SYMBOL_DEF(name, val, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_SYMBOL, 0, \
+      0, 0, 0, { { (void*)(long)(val), (void*)0 } } }
+#define JS_PROP_BOOL_DEF(name, val, prop_flags) \
+    { name, prop_flags, JS_DEF_PROP_BOOL, 0, \
+      0, 0, 0, { { (void*)(long)(val), (void*)0 } } }
+#define JS_OBJECT_DEF(name, tab, len, prop_flags) \
+    { name, prop_flags, JS_DEF_OBJECT, 0, \
+      0, 0, 0, { { (void*)(tab), (void*)(long)(len) } } }
+#define JS_ALIAS_DEF(name, from) \
+    { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_ALIAS, 0, \
+      0, 0, 0, { { (void*)(from), (void*)(long)(-1) } } }
+#define JS_ALIAS_BASE_DEF(name, from, base) \
+    { name, JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE, JS_DEF_ALIAS, 0, \
+      0, 0, 0, { { (void*)(from), (void*)(long)(base) } } }
+#endif
 
 JS_EXTERN int JS_SetPropertyFunctionList(JSContext *ctx, JSValueConst obj,
                                           const JSCFunctionListEntry *tab,

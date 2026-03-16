@@ -19,7 +19,7 @@
 /* -----------------------------------------------------------------------
  * Compiler identification guard
  * --------------------------------------------------------------------- */
-#ifndef __SASC__
+#ifndef __SASC
 #warning "amiga_compat.h included on a non-SAS/C compiler"
 #endif
 
@@ -56,10 +56,10 @@
  * as a builtin.  Provide portable C89 fallbacks; performance is acceptable
  * since these are only used in hash/allocation hot paths.
  *
- * These are only defined under SAS/C (__SASC__) to avoid colliding with
+ * These are only defined under SAS/C (__SASC) to avoid colliding with
  * the real GCC/Clang builtins when cross-checking on a host compiler.
  * --------------------------------------------------------------------- */
-#ifdef __SASC__
+#ifdef __SASC
 
 static __inline int __builtin_clz(unsigned int x)
 {
@@ -104,13 +104,25 @@ static __inline int __builtin_ctzll(unsigned long long x)
 
 #define __builtin_ctzl(x)  __builtin_ctz((unsigned int)(x))
 
-#endif /* __SASC__ */
+#endif /* __SASC */
 
 /* -----------------------------------------------------------------------
  * Force DIRECT_DISPATCH off (no computed gotos in SAS/C)
  * Must appear before quickjs.c's own check.
  * --------------------------------------------------------------------- */
 #define DIRECT_DISPATCH  0
+
+/* -----------------------------------------------------------------------
+ * Force non-NAN_BOXING JSValue representation.
+ * The NAN_BOXING auto-detect uses #if INTPTR_MAX < INT64_MAX which
+ * requires the SAS/C preprocessor to evaluate a 64-bit LL constant --
+ * it cannot, and emits "invalid number".  Explicitly select the
+ * struct-based JSValue (tag + union) which works on 32-bit with 32-bit
+ * int64_t.
+ * --------------------------------------------------------------------- */
+#ifndef JS_NAN_BOXING
+#define JS_NAN_BOXING 0
+#endif
 
 /* -----------------------------------------------------------------------
  * Disable C11 atomics (no <stdatomic.h> in SAS/C)
@@ -122,29 +134,15 @@ static __inline int __builtin_ctzll(unsigned long long x)
 #define __STDC_NO_ATOMICS__  1
 
 /* -----------------------------------------------------------------------
- * sys/time.h stub -- define struct timeval and gettimeofday()
- *
- * AmigaOS provides timer.device; we open it once and cache the result.
- * For a minimal first build we use dos.library DateStamp which gives
- * 1/50s resolution, sufficient for JS timing.
+ * sys/time.h -- SAS/C 6.58 ships this header; use it directly.
+ * struct timeval is defined there.  gettimeofday() is NOT provided by
+ * SAS/C's runtime; our implementation lives in amiga_compat.c.
  * --------------------------------------------------------------------- */
-#ifndef _SYS_TIME_H
-#define _SYS_TIME_H
+#include <sys/time.h>
 
-struct timeval {
-    long tv_sec;
-    long tv_usec;
-};
-
-struct timezone {
-    int tz_minuteswest;
-    int tz_dsttime;
-};
-
-/* Implemented in amiga_compat.c */
-int gettimeofday(struct timeval *tv, struct timezone *tz);
-
-#endif /* _SYS_TIME_H */
+/* SAS/C's sys/time.h already defines struct timezone (as __timezone).
+ * Just declare gettimeofday() -- implementation in amiga_compat.c */
+int gettimeofday(struct timeval *tv, void *tz);
 
 /* -----------------------------------------------------------------------
  * Stub out malloc_usable_size (not available on AmigaOS)
@@ -177,11 +175,64 @@ int gettimeofday(struct timeval *tv, struct timezone *tz);
 #endif
 
 /* -----------------------------------------------------------------------
+ * C99 math macros: NAN, INFINITY
+ * SAS/C's math.h defines HUGE_VAL but not NAN or INFINITY.
+ * 68k with FPU: 1.0/0.0 produces Inf; 0.0/0.0 is undefined but
+ * generates NaN on 68881/68882.  Use HUGE_VAL for INFINITY.
+ * For NAN, use a volatile trick to avoid constant-folding.
+ * --------------------------------------------------------------------- */
+#include <math.h>
+#ifndef INFINITY
+#define INFINITY  HUGE_VAL
+#endif
+#ifndef NAN
+static double _amiga_nan_val(void) { double z = 0.0; return z / z; }
+#define NAN  (_amiga_nan_val())
+#endif
+
+/* -----------------------------------------------------------------------
+ * C99 math functions missing from SAS/C's math.h
+ *
+ * scalbn(x, n) == ldexp(x, n)  -- both scale by a power of 2
+ * copysign(x, y) -- x with the sign of y
+ * --------------------------------------------------------------------- */
+#ifndef _AMIGA_MATH_COMPAT
+#define _AMIGA_MATH_COMPAT
+#define scalbn(x, n)  ldexp((x), (n))
+
+static __inline double copysign(double x, double y)
+{
+    /* Use the sign bit of y applied to the magnitude of x */
+    return (y < 0.0) ? ((x < 0.0) ? x : -x)
+                     : ((x < 0.0) ? -x : x);
+}
+#endif /* _AMIGA_MATH_COMPAT */
+
+/* -----------------------------------------------------------------------
  * __typeof__ -- SAS/C doesn't have it; used rarely in quickjs.c
  * Replace with explicit casts where needed; this define at least
  * prevents hard errors in places where the type is obvious.
  * WARNING: this is a partial workaround only.
  * --------------------------------------------------------------------- */
 /* #define __typeof__(x)  int */ /* uncomment only if needed */
+
+/* -----------------------------------------------------------------------
+ * promise_trace -- uses variadic macros (__VA_ARGS__) which SAS/C 6.58
+ * does not support.  Define it as an object-like macro that expands to
+ * nothing; call sites become comma-expressions that are evaluated for
+ * side effects but discarded.
+ * --------------------------------------------------------------------- */
+#define promise_trace
+
+/* Note: Long identifiers (>31 chars) with shared prefixes have been
+ * renamed directly in quickjs.c for SAS/C compatibility (IDLEN=31):
+ *   JS_ThrowReferenceErrorUninitialized2        -> JS_ThrowRefErrUninit2
+ *   JS_ThrowReferenceErrorUninitialized         -> JS_ThrowRefErrUninit
+ *   JS_GENERATOR_STATE_SUSPENDED_YIELD_STAR     -> JS_GEN_STATE_SUSP_YSTAR
+ *   JS_ASYNC_GENERATOR_STATE_SUSPENDED_*        -> JS_ASGEN_STATE_SUSP_*
+ *   js_async_from_sync_iterator_unwrap_func_create -> js_afsi_unwrap_func_create
+ *   js_async_generator_resolve_function_create  -> js_asgen_resolve_func_create
+ *   js_object_getOwnPropertyDescriptors         -> js_obj_getOwnPropDescriptors
+ */
 
 #endif /* _AMIGA_COMPAT_H */
