@@ -1710,21 +1710,21 @@ int unicode_prop(CharRange *cr, const char *prop_name)
     case UNICODE_PROP_Changes_When_Titlecased:
         ret = unicode_prop_ops(cr,
                                POP_CASE, CASE_U,
-                               POP_PROP, UNICODE_PROP_Changes_When_Titlecased1,
+                               POP_PROP, UNICODE_PROP_CW_Titlecased1,
                                POP_XOR,
                                POP_END);
         break;
     case UNICODE_PROP_Changes_When_Casefolded:
         ret = unicode_prop_ops(cr,
                                POP_CASE, CASE_F,
-                               POP_PROP, UNICODE_PROP_Changes_When_Casefolded1,
+                               POP_PROP, UNICODE_PROP_CW_Casefolded1,
                                POP_XOR,
                                POP_END);
         break;
     case UNICODE_PROP_Changes_When_NFKC_Casefolded:
         ret = unicode_prop_ops(cr,
                                POP_CASE, CASE_F,
-                               POP_PROP, UNICODE_PROP_Changes_When_NFKC_Casefolded1,
+                               POP_PROP, UNICODE_PROP_CW_NFKC_Casefold1,
                                POP_XOR,
                                POP_END);
         break;

@@ -13893,7 +13893,13 @@ static __exception int JS_ToArrayLengthFree(JSContext *ctx, uint32_t *plen,
     return 0;
 }
 
+#ifdef __SASC
+/* SAS/C int64_t is 32-bit; (1<<53)-1 overflows to -1, breaking length clamps.
+ * Use INT32_MAX (2^31-1); Amiga arrays can't exceed 2 GB anyway. */
+#define MAX_SAFE_INTEGER 2147483647L
+#else
 #define MAX_SAFE_INTEGER (((int64_t)1 << 53) - 1)
+#endif
 
 static bool is_safe_integer(double d)
 {

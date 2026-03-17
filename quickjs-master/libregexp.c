@@ -2000,7 +2000,7 @@ typedef struct REExecState {
     size_t count; /* only used for RE_EXEC_STATE_GREEDY_QUANT */
     const uint8_t *cptr;
     const uint8_t *pc;
-    void *buf[];
+    void *buf[1]; /* C89: was buf[] (C99 flexible array); size=1, actual space via alloc */
 } REExecState;
 
 typedef struct {

@@ -22,6 +22,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+/* AmigaOS / SAS-C 6.58: pull in inline/attribute/etc. shims before quickjs.h */
+#ifdef __SASC
+#include "cutils.h"
+#endif
 #include "quickjs.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -55,6 +59,17 @@
 #define rmdir _rmdir
 #define getcwd _getcwd
 #define chdir _chdir
+#elif defined(__SASC)
+/* AmigaOS / SAS-C 6.58: use stub headers from qjs:amiga/ via IDIR */
+#include <sys/ioctl.h>
+#include <poll.h>
+#include <dlfcn.h>
+#include <termios.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <grp.h>
+typedef void (*sighandler_t)(int);
+extern char **environ;
 #else
 #include <sys/ioctl.h>
 #include <poll.h>
@@ -83,7 +98,7 @@ typedef sig_t sighandler_t;
 extern char **environ;
 #endif
 
-#endif /* _WIN32 */
+#endif /* _WIN32 / __SASC */
 
 #include "cutils.h"
 #include "list.h"
@@ -100,6 +115,26 @@ extern char **environ;
 
 #ifndef S_IFIFO
 #define S_IFIFO 0
+#endif
+
+#ifndef S_IFCHR
+#define S_IFCHR 0
+#endif
+
+#ifndef S_IFSOCK
+#define S_IFSOCK 0
+#endif
+
+#ifndef S_IFLNK
+#define S_IFLNK 0
+#endif
+
+#ifndef S_ISGID
+#define S_ISGID 0
+#endif
+
+#ifndef S_ISUID
+#define S_ISUID 0
 #endif
 
 #ifndef MAX_SAFE_INTEGER /* already defined in amalgamation builds */
@@ -334,7 +369,7 @@ static JSValue js_printf_internal(JSContext *ctx,
                 if (i >= argc)
                     goto missing;
                 if (JS_IsString(argv[i])) {
-                    /* TODO(chqrlie) need an API to wrap charCodeAt and codePointAt */ */
+                    /* TODO(chqrlie) need an API to wrap charCodeAt and codePointAt */
                     string_arg = JS_ToCString(ctx, argv[i++]);
                     if (!string_arg)
                         goto fail;
@@ -1860,8 +1895,11 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
 #endif /* !defined(__wasi__) */
 
 static JSClassDef js_std_file_class = {
-    "FILE",
-    .finalizer = js_std_file_finalizer,
+    "FILE",                    /* class_name */
+    js_std_file_finalizer,     /* finalizer */
+    NULL,                      /* gc_mark */
+    NULL,                      /* call */
+    NULL,                      /* exotic */
 };
 
 static const JSCFunctionListEntry js_std_error_props[] = {
@@ -2852,14 +2890,24 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
 
     if (nfds == 0) {
         if (min_delay > 0) {
-            struct timespec ts_sleep = {
-                .tv_sec = min_delay / 1000,
-                .tv_nsec = (min_delay % 1000) * 1000000L
-            };
-            uint64_t mask = os_pending_signals;
-            while (nanosleep(&ts_sleep, &ts_sleep)
-                && errno == EINTR
-                && mask == os_pending_signals);
+#ifdef __SASC
+            /* AmigaOS: Delay() is in 50Hz ticks; 1 tick = 20ms */
+            extern void Delay(unsigned long ticks);
+            long sleep_ticks = (min_delay * 50L) / 1000;
+            if (sleep_ticks < 1) sleep_ticks = 1;
+            Delay((unsigned long)sleep_ticks);
+#else
+            {
+                struct timespec ts_sleep;
+                uint64_t mask;
+                ts_sleep.tv_sec = min_delay / 1000;
+                ts_sleep.tv_nsec = (min_delay % 1000) * 1000000L;
+                mask = os_pending_signals;
+                while (nanosleep(&ts_sleep, &ts_sleep)
+                    && errno == EINTR
+                    && mask == os_pending_signals);
+            }
+#endif
         }
         return 0;
     }
@@ -2875,8 +2923,12 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
         rh = list_entry(el, JSOSRWHandler, link);
         r = POLLIN * !JS_IsNull(rh->rw_func[0]);
         w = POLLOUT * !JS_IsNull(rh->rw_func[1]);
-        if (r || w)
-            *pfd++ = (struct pollfd){rh->fd, r|w, 0};
+        if (r || w) {
+            pfd->fd = rh->fd;
+            pfd->events = (short)(r|w);
+            pfd->revents = 0;
+            pfd++;
+        }
     }
 
 #ifdef USE_WORKER
@@ -2885,7 +2937,10 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
             JSWorkerMessageHandler *port = list_entry(el, JSWorkerMessageHandler, link);
             if (!JS_IsNull(port->on_message_func)) {
                 JSWorkerMessagePipe *ps = port->recv_pipe;
-                *pfd++ = (struct pollfd){ps->waker.read_fd, POLLIN, 0};
+                pfd->fd = ps->waker.read_fd;
+                pfd->events = POLLIN;
+                pfd->revents = 0;
+                pfd++;
             }
         }
     }
@@ -3156,7 +3211,7 @@ static JSValue js_os_mkdstemp(JSContext *ctx, JSValueConst this_val,
 #undef PAT
 #endif /* !defined(_WIN32) && !defined(__wasi__) */
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__SASC)
 static int64_t timespec_to_ms(const struct timespec *tv)
 {
     return (int64_t)tv->tv_sec * 1000 + (tv->tv_nsec / 1000000);
@@ -3215,12 +3270,13 @@ static JSValue js_os_stat(JSContext *ctx, JSValueConst this_val,
         JS_DefinePropertyValueStr(ctx, obj, "size",
                                   JS_NewInt64(ctx, st.st_size),
                                   JS_PROP_C_W_E);
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__SASC)
         JS_DefinePropertyValueStr(ctx, obj, "blocks",
                                   JS_NewInt64(ctx, st.st_blocks),
                                   JS_PROP_C_W_E);
 #endif
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(__SASC)
+        /* Windows and AmigaOS: timestamps in seconds only */
         JS_DefinePropertyValueStr(ctx, obj, "atime",
                                   JS_NewInt64(ctx, (int64_t)st.st_atime * 1000),
                                   JS_PROP_C_W_E);
@@ -3312,6 +3368,15 @@ static JSValue js_os_sleep(JSContext *ctx, JSValueConst this_val,
         if (delay > INT32_MAX)
             delay = INT32_MAX;
         Sleep(delay);
+        ret = 0;
+    }
+#elif defined(__SASC)
+    {
+        /* AmigaOS: Delay() in 50Hz ticks */
+        extern void Delay(unsigned long ticks);
+        long sleep_ticks = ((long)delay * 50L) / 1000L;
+        if (sleep_ticks < 1 && delay > 0) sleep_ticks = 1;
+        if (sleep_ticks > 0) Delay((unsigned long)sleep_ticks);
         ret = 0;
     }
 #else
@@ -3524,7 +3589,7 @@ static int my_execvpe(const char *filename, char **argv, char **envp)
 
 static void (*js_os_exec_closefrom)(int);
 
-#if !defined(EMSCRIPTEN) && !defined(__wasi__)
+#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC)
 
 static js_once_t js_os_exec_once = JS_ONCE_INIT;
 
@@ -3690,7 +3755,7 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
 
     }
 
-#if !defined(EMSCRIPTEN) && !defined(__wasi__)
+#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC)
     /* should happen pre-fork because it calls dlsym() */
     /* and that's not an async-signal-safe function */
     js_once(&js_os_exec_once, js_os_exec_once_init);
@@ -4019,8 +4084,11 @@ static void js_worker_finalizer(JSRuntime *rt, JSValueConst val)
 }
 
 static JSClassDef js_worker_class = {
-    "Worker",
-    .finalizer = js_worker_finalizer,
+    "Worker",                  /* class_name */
+    js_worker_finalizer,       /* finalizer */
+    NULL,                      /* gc_mark */
+    NULL,                      /* call */
+    NULL,                      /* exotic */
 };
 
 static void worker_func(void *opaque)
@@ -4392,7 +4460,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     OS_FLAG(SIGILL),
     OS_FLAG(SIGSEGV),
     OS_FLAG(SIGTERM),
-#if !defined(_WIN32) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC)
     OS_FLAG(SIGQUIT),
     OS_FLAG(SIGPIPE),
     OS_FLAG(SIGALRM),
@@ -4516,6 +4584,7 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val,
     DWORD mode;
 #endif
     const char *s;
+    JSValue t;
     JSValueConst v;
     DynBuf b;
     int i;
@@ -4526,7 +4595,7 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val,
         s = JS_ToCString(ctx, v);
         if (!s && JS_IsObject(v)) {
             JS_FreeValue(ctx, JS_GetException(ctx));
-            JSValue t = JS_ToObjectString(ctx, v);
+            t = JS_ToObjectString(ctx, v);
             s = JS_ToCString(ctx, t);
             JS_FreeValue(ctx, t);
         }

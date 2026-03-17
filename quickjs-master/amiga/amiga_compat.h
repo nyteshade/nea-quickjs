@@ -24,6 +24,15 @@
 #endif
 
 /* -----------------------------------------------------------------------
+ * C99 fixed-width integer types (stdint.h / inttypes.h)
+ * SAS/C 6.58 does not ship these headers; include our portable replacements.
+ * The relative path works because this file lives in qjs:amiga/ and the
+ * custom stdint.h / stdbool.h / inttypes.h are siblings.
+ * --------------------------------------------------------------------- */
+#include "stdint.h"
+#include "stdbool.h"
+
+/* -----------------------------------------------------------------------
  * C99 keywords not in C89 SAS/C
  * --------------------------------------------------------------------- */
 #define inline    __inline

@@ -68,7 +68,7 @@ typedef intptr_t mp_size_t;
 /* the represented number is sum(i, tab[i]*2^(LIMB_BITS * i)) */
 typedef struct {
     int len; /* >= 1 */
-    limb_t tab[];
+    limb_t tab[1]; /* C89: was tab[] (C99 flex array); actual size via allocation */
 } mpb_t;
 
 static limb_t mp_add_ui(limb_t *tab, limb_t b, size_t n)
@@ -614,16 +614,16 @@ size_t i32toa(char *buf, int32_t n)
 #ifdef USE_FAST_INT
 size_t u64toa(char *buf, uint64_t n)
 {
-    if (n < 0x100000000) {
+    if (n < ((uint64_t)1 << 32)) {
         return u32toa(buf, n);
     } else {
         uint64_t n1;
         char *q = buf;
         uint32_t n2;
-        
+
         n1 = n / 1000000000;
         n %= 1000000000;
-        if (n1 >= 0x100000000) {
+        if (n1 >= ((uint64_t)1 << 32)) {
             n2 = n1 / 1000000000;
             n1 = n1 % 1000000000;
             /* at most two digits */
@@ -1027,11 +1027,387 @@ void js_dtoa_dump_stats(void)
 }
 #endif
 
+#ifdef __SASC
+/* -----------------------------------------------------------------------
+ * SAS/C replacement implementations for js_dtoa_max_len, js_dtoa,
+ * js_atod.
+ *
+ * SAS/C treats "long long" (and thus uint64_t) as 32-bit, so the normal
+ * IEEE 754 bit manipulation via uint64_t is broken.  Additionally,
+ * printf %g/%e/%f format specifiers do not work in scnb.lib without
+ * float printf support being compiled in.
+ *
+ * These versions use direct 68881 FPU arithmetic for digit extraction,
+ * avoiding all float printf specifiers.
+ * --------------------------------------------------------------------- */
+
+/* Extract the high and low 32-bit words of a double's IEEE 754 bit
+ * pattern.  On big-endian 68k, bytes 0-3 are the high word. */
+static uint32_t sasc_dbl_hi(double d)
+{
+    unsigned char *p = (unsigned char *)&d;
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] <<  8) |  (uint32_t)p[3];
+}
+
+static uint32_t sasc_dbl_lo(double d)
+{
+    unsigned char *p = (unsigned char *)&d;
+    return ((uint32_t)p[4] << 24) | ((uint32_t)p[5] << 16) |
+           ((uint32_t)p[6] <<  8) |  (uint32_t)p[7];
+}
+
+/*
+ * Extract up to max_digits decimal digits of absval (finite, positive,
+ * nonzero) into digits[0..max_digits-1] ('0'..'9').
+ * Returns dec_exp such that:
+ *   digits[0] * 10^dec_exp + digits[1] * 10^(dec_exp-1) + ... ≈ absval
+ * digits[max_digits] is set to '\0'.
+ */
+static int sasc_extract_digits(char *digits, int max_digits, double absval)
+{
+    double tmp;
+    int dec_exp, i, dig;
+
+    tmp = absval;
+    dec_exp = 0;
+    if (tmp >= 1.0) {
+        while (tmp >= 10.0) { tmp /= 10.0; dec_exp++; }
+    } else {
+        while (tmp < 1.0)   { tmp *= 10.0; dec_exp--; }
+    }
+    /* tmp is now in [1.0, 10.0) */
+    for (i = 0; i < max_digits; i++) {
+        dig = (int)tmp;
+        if (dig > 9) dig = 9;
+        if (dig < 0) dig = 0;
+        digits[i] = (char)('0' + dig);
+        tmp = (tmp - (double)dig) * 10.0;
+    }
+    digits[max_digits] = '\0';
+    return dec_exp;
+}
+
+/*
+ * Round digits[0..len-1] at position round_pos: if digits[round_pos] >= '5'
+ * carry 1 into digits[round_pos-1] and propagate.
+ * Returns 1 if carry propagated out of digits[0] (dec_exp must be incremented
+ * by caller); in that case digits[0]='1', digits[1..round_pos-1]='0'.
+ * Returns 0 otherwise.
+ */
+static int sasc_round_digits(char *digits, int len, int round_pos)
+{
+    int carry, i, d;
+    (void)len;
+    if (round_pos <= 0) return 0;
+    carry = (digits[round_pos] >= '5') ? 1 : 0;
+    for (i = round_pos - 1; carry && i >= 0; i--) {
+        d = (digits[i] - '0') + carry;
+        carry = d / 10;
+        digits[i] = (char)('0' + (d % 10));
+    }
+    if (carry) {
+        digits[0] = '1';
+        return 1;
+    }
+    return 0;
+}
+
+/* Append exponent in "+D" / "-DD" / "+DDD" form to buf[len], return new len.
+ * JavaScript uses minimal exponent width (no leading zeros). */
+static int sasc_append_exp(char *buf, int len, int dec_exp)
+{
+    buf[len++] = 'e';
+    if (dec_exp >= 0) {
+        buf[len++] = '+';
+    } else {
+        buf[len++] = '-';
+        dec_exp = -dec_exp;
+    }
+    if (dec_exp >= 100) buf[len++] = (char)('0' + dec_exp / 100);
+    if (dec_exp >= 10)  buf[len++] = (char)('0' + (dec_exp / 10) % 10);
+    buf[len++] = (char)('0' + dec_exp % 10);
+    return len;
+}
+
+/*
+ * Convert a double to JavaScript "free format" string (used by toString()).
+ * Uses 17 significant digits (always sufficient for round-trip).
+ */
+static int sasc_dtoa_free(char *buf, double d, int flags)
+{
+    uint32_t hi, lo;
+    int sgn, bexp;
+    char digits[20]; /* 18 digits + NUL = 19 bytes needed; 20 provides slack */
+    int dec_exp, ndigits, len, i;
+    double absval;
+
+    hi   = sasc_dbl_hi(d);
+    lo   = sasc_dbl_lo(d);
+    sgn  = (int)((hi >> 31) & 1);
+    bexp = (int)((hi >> 20) & 0x7ff);
+
+    /* NaN */
+    if (bexp == 0x7ff && ((hi & 0x000ffffful) | lo) != 0) {
+        memcpy(buf, "NaN", 3); buf[3] = '\0'; return 3;
+    }
+    /* Infinity */
+    if (bexp == 0x7ff) {
+        if (sgn) { memcpy(buf, "-Infinity", 9); buf[9] = '\0'; return 9; }
+        memcpy(buf, "Infinity", 8); buf[8] = '\0'; return 8;
+    }
+    /* Zero (including -0) */
+    if (bexp == 0 && (hi & 0x000ffffful) == 0 && lo == 0) {
+        if (sgn && (flags & JS_DTOA_MINUS_ZERO)) {
+            buf[0] = '-'; buf[1] = '0'; buf[2] = '\0'; return 2;
+        }
+        buf[0] = '0'; buf[1] = '\0'; return 1;
+    }
+
+    absval = sgn ? -d : d;
+    /* Extract 18 digits and round at 17: fixes accumulated 68881 FPU
+     * precision error (e.g. 210.0 extracts as "20999..." → rounds to
+     * "21000...").  Mirrors the sasc_dtoa_fixed approach. */
+    dec_exp = sasc_extract_digits(digits, 18, absval);
+    {
+        int carry = sasc_round_digits(digits, 18, 17);
+        dec_exp += carry;
+    }
+    ndigits = 17;
+
+    /* Strip trailing zeros */
+    while (ndigits > 1 && digits[ndigits - 1] == '0')
+        ndigits--;
+
+    len = 0;
+    if (sgn) buf[len++] = '-';
+
+    /*
+     * JavaScript Number::toString() formatting rules:
+     *   dec_exp in [0, 21):  fixed format  XXXXX.YYYY
+     *   dec_exp in [-6, 0):  0.000...ddd  format
+     *   otherwise:           exponential  X.YYYe+ZZ
+     */
+    if (dec_exp >= 0 && dec_exp < 21) {
+        int int_digits = dec_exp + 1;
+        for (i = 0; i < int_digits; i++)
+            buf[len++] = (i < ndigits) ? digits[i] : '0';
+        if (int_digits < ndigits) {
+            buf[len++] = '.';
+            for (i = int_digits; i < ndigits; i++)
+                buf[len++] = digits[i];
+        }
+    } else if (dec_exp < 0 && dec_exp >= -6) {
+        int lz = -dec_exp - 1; /* leading zeros after decimal */
+        buf[len++] = '0';
+        buf[len++] = '.';
+        for (i = 0; i < lz; i++) buf[len++] = '0';
+        for (i = 0; i < ndigits; i++) buf[len++] = digits[i];
+    } else {
+        /* Exponential */
+        buf[len++] = digits[0];
+        if (ndigits > 1) {
+            buf[len++] = '.';
+            for (i = 1; i < ndigits; i++) buf[len++] = digits[i];
+        }
+        len = sasc_append_exp(buf, len, dec_exp);
+    }
+    buf[len] = '\0';
+    return len;
+}
+
+/*
+ * FIXED format: n_digits significant digits.
+ * Used by toPrecision(p) [EXP_AUTO] and toExponential(n) [EXP_ENABLED].
+ */
+static int sasc_dtoa_fixed(char *buf, double d, int n_digits, int exp_flag)
+{
+    uint32_t hi, lo;
+    int sgn, bexp;
+    char digits[24];
+    int dec_exp, len, i, carry;
+    double absval;
+
+    hi   = sasc_dbl_hi(d);
+    lo   = sasc_dbl_lo(d);
+    sgn  = (int)((hi >> 31) & 1);
+    bexp = (int)((hi >> 20) & 0x7ff);
+
+    if (bexp == 0x7ff && ((hi & 0x000ffffful) | lo) != 0) {
+        memcpy(buf, "NaN", 3); buf[3] = '\0'; return 3;
+    }
+    if (bexp == 0x7ff) {
+        if (sgn) { memcpy(buf, "-Infinity", 9); buf[9] = '\0'; return 9; }
+        memcpy(buf, "Infinity", 8); buf[8] = '\0'; return 8;
+    }
+
+    len = 0;
+    if (sgn) buf[len++] = '-';
+
+    /* Zero */
+    if (bexp == 0 && (hi & 0x000ffffful) == 0 && lo == 0) {
+        buf[len++] = '0';
+        if (n_digits > 1) { buf[len++] = '.'; for (i=1;i<n_digits;i++) buf[len++]='0'; }
+        if (exp_flag == JS_DTOA_EXP_ENABLED) len = sasc_append_exp(buf, len, 0);
+        buf[len] = '\0'; return len;
+    }
+
+    absval = sgn ? -d : d;
+    dec_exp = sasc_extract_digits(digits, n_digits + 1, absval);
+    carry   = sasc_round_digits(digits, n_digits + 1, n_digits);
+    dec_exp += carry;
+    digits[n_digits] = '0'; /* ensure valid after carry-out */
+
+    if (exp_flag == JS_DTOA_EXP_ENABLED) {
+        /* X.YYYe+ZZ */
+        buf[len++] = digits[0];
+        if (n_digits > 1) {
+            buf[len++] = '.';
+            for (i = 1; i < n_digits; i++) buf[len++] = digits[i];
+        }
+        len = sasc_append_exp(buf, len, dec_exp);
+    } else if (exp_flag == JS_DTOA_EXP_DISABLED) {
+        /* Forced fixed, no exponential */
+        int int_dig = dec_exp + 1;
+        if (int_dig <= 0) {
+            buf[len++] = '0'; buf[len++] = '.';
+            for (i = 0; i < -int_dig && i < n_digits; i++) buf[len++] = '0';
+            for (i = 0; i < n_digits + int_dig; i++) buf[len++] = digits[i];
+        } else if (int_dig >= n_digits) {
+            for (i = 0; i < int_dig; i++)
+                buf[len++] = (i < n_digits) ? digits[i] : '0';
+        } else {
+            for (i = 0; i < int_dig; i++) buf[len++] = digits[i];
+            buf[len++] = '.';
+            for (i = int_dig; i < n_digits; i++) buf[len++] = digits[i];
+        }
+    } else {
+        /* EXP_AUTO: exponential when dec_exp < -6 or dec_exp >= n_digits */
+        int int_dig = dec_exp + 1;
+        if (dec_exp >= 0 && dec_exp < n_digits) {
+            for (i = 0; i < int_dig; i++) buf[len++] = digits[i];
+            if (int_dig < n_digits) {
+                buf[len++] = '.';
+                for (i = int_dig; i < n_digits; i++) buf[len++] = digits[i];
+            }
+        } else if (dec_exp >= n_digits) {
+            for (i = 0; i < n_digits; i++) buf[len++] = digits[i];
+            for (i = n_digits; i <= dec_exp; i++) buf[len++] = '0';
+        } else if (dec_exp >= -6) {
+            int lz = -int_dig;
+            buf[len++] = '0'; buf[len++] = '.';
+            for (i = 0; i < lz; i++) buf[len++] = '0';
+            for (i = 0; i < n_digits; i++) buf[len++] = digits[i];
+        } else {
+            buf[len++] = digits[0];
+            if (n_digits > 1) {
+                buf[len++] = '.';
+                for (i = 1; i < n_digits; i++) buf[len++] = digits[i];
+            }
+            len = sasc_append_exp(buf, len, dec_exp);
+        }
+    }
+    buf[len] = '\0';
+    return len;
+}
+
+/*
+ * FRAC format: n_digits digits after the decimal point.
+ * Used by toFixed(n).
+ */
+static int sasc_dtoa_frac(char *buf, double d, int n_digits)
+{
+    uint32_t hi, lo;
+    int sgn, bexp;
+    char digits[128]; /* dec_exp up to 20 + n_digits up to 100 + 2 = 122 */
+    int dec_exp, n_sig, int_dig, len, i, carry;
+    double absval;
+
+    hi   = sasc_dbl_hi(d);
+    lo   = sasc_dbl_lo(d);
+    sgn  = (int)((hi >> 31) & 1);
+    bexp = (int)((hi >> 20) & 0x7ff);
+
+    if (bexp == 0x7ff && ((hi & 0x000ffffful) | lo) != 0) {
+        memcpy(buf, "NaN", 3); buf[3] = '\0'; return 3;
+    }
+    if (bexp == 0x7ff) {
+        if (sgn) { memcpy(buf, "-Infinity", 9); buf[9] = '\0'; return 9; }
+        memcpy(buf, "Infinity", 8); buf[8] = '\0'; return 8;
+    }
+
+    len = 0;
+    if (sgn) buf[len++] = '-';
+
+    if (bexp == 0 && (hi & 0x000ffffful) == 0 && lo == 0) {
+        buf[len++] = '0';
+        if (n_digits > 0) { buf[len++] = '.'; for (i=0;i<n_digits;i++) buf[len++]='0'; }
+        buf[len] = '\0'; return len;
+    }
+
+    absval = sgn ? -d : d;
+
+    /* Quick dec_exp probe to compute int_dig */
+    {
+        double tmp = absval;
+        dec_exp = 0;
+        if (tmp >= 1.0) { while (tmp >= 10.0) { tmp /= 10.0; dec_exp++; } }
+        else            { while (tmp < 1.0)   { tmp *= 10.0; dec_exp--; } }
+    }
+    int_dig = (dec_exp >= 0) ? dec_exp + 1 : 0;
+
+    /* Significant digits needed: integer part + fractional part */
+    n_sig = int_dig + n_digits;
+    if (n_sig <= 0) {
+        /* d is too small: all fractional digits are '0' */
+        buf[len++] = '0';
+        if (n_digits > 0) { buf[len++] = '.'; for (i=0;i<n_digits;i++) buf[len++]='0'; }
+        buf[len] = '\0'; return len;
+    }
+    if (n_sig > 121) n_sig = 121;
+
+    dec_exp = sasc_extract_digits(digits, n_sig + 1, absval);
+    carry   = sasc_round_digits(digits, n_sig + 1, n_sig);
+    dec_exp += carry;
+    digits[n_sig] = '0'; /* guard for carry-out edge case */
+
+    /* Recompute int_dig after possible dec_exp change */
+    int_dig = (dec_exp >= 0) ? dec_exp + 1 : 0;
+
+    /* Integer part */
+    if (int_dig > 0) {
+        for (i = 0; i < int_dig; i++) buf[len++] = digits[i];
+    } else {
+        buf[len++] = '0';
+    }
+
+    /* Fractional part */
+    if (n_digits > 0) {
+        buf[len++] = '.';
+        if (dec_exp < 0) {
+            int lz = -dec_exp - 1; /* leading zeros before first sig digit */
+            for (i = 0; i < lz && i < n_digits; i++) buf[len++] = '0';
+            for (i = 0; i < n_digits - lz; i++) buf[len++] = digits[i];
+        } else {
+            for (i = 0; i < n_digits; i++) buf[len++] = digits[int_dig + i];
+        }
+    }
+    buf[len] = '\0';
+    return len;
+}
+#endif /* __SASC */
+
 /* return a maximum bound of the string length. The bound depends on
    'd' only if format = JS_DTOA_FORMAT_FRAC or if JS_DTOA_EXP_DISABLED
    is enabled. */
 int js_dtoa_max_len(double d, int radix, int n_digits, int flags)
 {
+#ifdef __SASC
+    /* Conservative upper bound: sign + 21 digits + '.' + "e+" + 4-digit
+     * exp + NUL.  64 bytes covers all cases. */
+    (void)d; (void)radix; (void)n_digits; (void)flags;
+    return 64;
+#else
     int fmt = flags & JS_DTOA_FORMAT_MASK;
     int n, e;
     uint64_t a;
@@ -1078,8 +1454,10 @@ int js_dtoa_max_len(double d, int radix, int n_digits, int flags)
         }
     }
     return max_int(n, 9); /* also include NaN and [-]Infinity */
+#endif /* __SASC */
 }
 
+#ifndef __SASC  /* dtoa_malloc/dtoa_free only needed by the full js_dtoa */
 #if defined(__SANITIZE_ADDRESS__) && 0
 static void *dtoa_malloc(uint64_t **pptr, size_t size)
 {
@@ -1102,11 +1480,24 @@ static void dtoa_free(void *ptr)
 {
 }
 #endif
+#endif /* !__SASC */
 
 /* return the length */
 int js_dtoa(char *buf, double d, int radix, int n_digits, int flags,
             JSDTOATempMem *tmp_mem)
 {
+#ifdef __SASC
+    int fmt = flags & JS_DTOA_FORMAT_MASK;
+    (void)tmp_mem;
+
+    if (fmt == JS_DTOA_FORMAT_FREE) {
+        return sasc_dtoa_free(buf, d, flags);
+    } else if (fmt == JS_DTOA_FORMAT_FIXED) {
+        return sasc_dtoa_fixed(buf, d, n_digits, flags & JS_DTOA_EXP_MASK);
+    } else { /* JS_DTOA_FORMAT_FRAC */
+        return sasc_dtoa_frac(buf, d, n_digits);
+    }
+#else
     uint64_t a, m, *mptr = tmp_mem->mem;
     int e, sgn, l, E, P, i, E_max, radix1, radix_shift;
     char *q;
@@ -1314,6 +1705,7 @@ int js_dtoa(char *buf, double d, int radix, int n_digits, int flags,
     dtoa_free(mant_max);
     dtoa_free(tmp1);
     return q - buf;
+#endif /* !__SASC */
 }
 
 static inline int to_digit(int c)
@@ -1353,6 +1745,40 @@ static void mpb_mul1_base(mpb_t *r, limb_t radix_base, limb_t a)
 double js_atod(const char *str, const char **pnext, int radix, int flags,
                JSATODTempMem *tmp_mem)
 {
+#ifdef __SASC
+    /* SAS/C replacement: use strtod() / strtoul() which call the 68881 FPU.
+     * The full js_atod uses uint64_t for assembling the IEEE 754 bit
+     * pattern, which is broken when uint64_t is 32-bit. */
+    const char *p = str;
+    const char *q;
+    char *end;
+    double dval;
+    int is_neg = 0;
+
+    (void)flags; (void)tmp_mem;
+
+    if (*p == '-') { is_neg = 1; p++; }
+    else if (*p == '+') { p++; }
+
+    /* Handle Infinity (strtod may not accept it on all platforms) */
+    if (js__strstart(p, "Infinity", &q)) {
+        dval = is_neg ? -INFINITY : INFINITY;
+        if (pnext) *pnext = q;
+        return dval;
+    }
+
+    if (radix == 10 || radix == 0) {
+        /* strtod handles sign, decimal, exponent correctly */
+        dval = strtod(str, &end);
+        if (pnext) *pnext = end;
+    } else {
+        /* Non-decimal integer: use strtoul */
+        dval = (double)strtoul(p, &end, radix);
+        if (is_neg) dval = -dval;
+        if (pnext) *pnext = end;
+    }
+    return dval;
+#else
     uint64_t *mptr = tmp_mem->mem;
     const char *p, *p_start;
     limb_t cur_limb, radix_base, extra_digits;
@@ -1616,4 +2042,5 @@ double js_atod(const char *str, const char **pnext, int radix, int flags,
  fail:
     dval = NAN;
     goto done1;
+#endif /* !__SASC */
 }

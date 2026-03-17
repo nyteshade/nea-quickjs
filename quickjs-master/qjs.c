@@ -57,12 +57,14 @@ static char **qjs__argv;
 
 static bool is_standalone(const char *exe)
 {
-    FILE *exe_f = fopen(exe, "rb");
+    FILE *exe_f;
+    uint8_t buf[TRAILER_SIZE];
+
+    exe_f = fopen(exe, "rb");
     if (!exe_f)
         return false;
     if (fseek(exe_f, -trailer_size, SEEK_END) < 0)
         goto fail;
-    uint8_t buf[TRAILER_SIZE];
     if (fread(buf, 1, trailer_size, exe_f) != trailer_size)
         goto fail;
     fclose(exe_f);
@@ -223,6 +225,9 @@ static const JSCFunctionListEntry global_obj[] = {
 static JSContext *JS_NewCustomContext(JSRuntime *rt)
 {
     JSContext *ctx;
+    JSValue global, args, navigator_proto, navigator;
+    int i;
+
     ctx = JS_NewContext(rt);
     if (!ctx)
         return NULL;
@@ -231,18 +236,17 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     js_init_module_os(ctx, "qjs:os");
     js_init_module_bjson(ctx, "qjs:bjson");
 
-    JSValue global = JS_GetGlobalObject(ctx);
+    global = JS_GetGlobalObject(ctx);
     JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj));
-    JSValue args = JS_NewArray(ctx);
-    int i;
+    args = JS_NewArray(ctx);
     for(i = 0; i < qjs__argc; i++) {
         JS_SetPropertyUint32(ctx, args, i, JS_NewString(ctx, qjs__argv[i]));
     }
     JS_SetPropertyStr(ctx, global, "execArgv", args);
     JS_SetPropertyStr(ctx, global, "argv0", JS_NewString(ctx, qjs__argv[0]));
-    JSValue navigator_proto = JS_NewObject(ctx);
+    navigator_proto = JS_NewObject(ctx);
     JS_SetPropertyFunctionList(ctx, navigator_proto, navigator_proto_funcs, countof(navigator_proto_funcs));
-    JSValue navigator = JS_NewObjectProto(ctx, navigator_proto);
+    navigator = JS_NewObjectProto(ctx, navigator_proto);
     JS_DefinePropertyValueStr(ctx, global, "navigator", navigator, JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
     JS_FreeValue(ctx, global);
     JS_FreeValue(ctx, navigator_proto);
@@ -420,6 +424,7 @@ int main(int argc, char **argv)
     int load_std = 0;
     char *include_list[32];
     int i, include_count = 0;
+    JSValue ns, func, call_args[3]; /* C89: hoisted from later if-blocks */
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
 
@@ -647,32 +652,31 @@ start:
         }
 
         if (standalone) {
-            JSValue ns = load_standalone_module(ctx);
+            ns = load_standalone_module(ctx);
             if (JS_IsException(ns))
                 goto fail;
-            JSValue func = JS_GetPropertyStr(ctx, ns, "runStandalone");
+            func = JS_GetPropertyStr(ctx, ns, "runStandalone");
             JS_FreeValue(ctx, ns);
             if (JS_IsException(func))
                 goto fail;
             ret = JS_Call(ctx, func, JS_UNDEFINED, 0, NULL);
             JS_FreeValue(ctx, func);
         } else if (compile_file) {
-            JSValue ns = load_standalone_module(ctx);
+            ns = load_standalone_module(ctx);
             if (JS_IsException(ns))
                 goto fail;
-            JSValue func = JS_GetPropertyStr(ctx, ns, "compileStandalone");
+            func = JS_GetPropertyStr(ctx, ns, "compileStandalone");
             JS_FreeValue(ctx, ns);
             if (JS_IsException(func))
                 goto fail;
-            JSValue args[3];
-            args[0] = JS_NewString(ctx, compile_file);
-            args[1] = JS_NewString(ctx, out);
-            args[2] = exe != NULL ? JS_NewString(ctx, exe) : JS_UNDEFINED;
-            ret = JS_Call(ctx, func, JS_UNDEFINED, 3, (JSValueConst *)args);
+            call_args[0] = JS_NewString(ctx, compile_file);
+            call_args[1] = JS_NewString(ctx, out);
+            call_args[2] = exe != NULL ? JS_NewString(ctx, exe) : JS_UNDEFINED;
+            ret = JS_Call(ctx, func, JS_UNDEFINED, 3, (JSValueConst *)call_args);
             JS_FreeValue(ctx, func);
-            JS_FreeValue(ctx, args[0]);
-            JS_FreeValue(ctx, args[1]);
-            JS_FreeValue(ctx, args[2]);
+            JS_FreeValue(ctx, call_args[0]);
+            JS_FreeValue(ctx, call_args[1]);
+            JS_FreeValue(ctx, call_args[2]);
         } else if (expr) {
             int flags = module ? JS_EVAL_TYPE_MODULE : 0;
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags))

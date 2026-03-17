@@ -162,11 +162,16 @@ static inline int js__strstart(const char *str, const char *val, const char **pt
 static inline int js__has_suffix(const char *str, const char *suffix);
 
 static inline uint8_t is_be(void) {
+#ifdef __SASC
+    /* Amiga/68k is always big-endian */
+    return 1;
+#else
     union {
         uint16_t a;
         uint8_t  b;
     } u = { 0x100 };
     return u.b;
+#endif
 }
 
 static inline int max_int(int a, int b)
