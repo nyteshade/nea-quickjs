@@ -2156,6 +2156,122 @@ static JSValue js_os_ttySetRaw(JSContext *ctx, JSValueConst this_val,
     }
     return JS_UNDEFINED;
 }
+#elif defined(__SASC)
+/* -----------------------------------------------------------------------
+ * AmigaOS / SAS-C 6.58 tty implementation
+ *
+ * ttyGetWinSize: send "CSI 0 q" Window Status Request to the console
+ * device; parse the "CSI 1;1;<rows>;<cols> r" Window Bounds Report back.
+ * This works on real AmigaOS consoles (ViNCEd, NewShell, etc.).
+ * On non-interactive handles (redirected I/O, vamos) IsInteractive()
+ * returns FALSE and we return JS_NULL, letting repl.js default to 80.
+ *
+ * ttySetRaw: use AmigaOS SetMode(fh, 1) to put the console device into
+ * raw (single-character) mode.  Restores cooked mode on exit.
+ * --------------------------------------------------------------------- */
+#include <exec/types.h>
+#include <dos/dos.h>
+#include <proto/dos.h>
+
+static BPTR amiga_raw_fh;  /* file handle put into raw mode, for cleanup */
+
+static void amiga_term_exit(void)
+{
+    if (amiga_raw_fh)
+        SetMode(amiga_raw_fh, 0);  /* 0 = cooked/line mode */
+}
+
+static JSValue js_os_ttyGetWinSize(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv)
+{
+    int fd;
+    BPTR in_fh, out_fh;
+    /* CSI "0 q" = Window Status Request (AmigaOS console extension) */
+    static const char csi_req[] = "\x9B\x30\x20\x71";  /* CSI 0 SP q */
+    char buf[64];
+    LONG got, rc;
+    char ch;
+    long r, c;
+    JSValue obj;
+
+    if (JS_ToInt32(ctx, &fd, argv[0]))
+        return JS_EXCEPTION;
+
+    in_fh  = Input();
+    out_fh = Output();
+
+    /* Only works on interactive (console) file handles */
+    if (!IsInteractive(in_fh) || !IsInteractive(out_fh))
+        return JS_NULL;
+
+    /* Send the query */
+    if (Write(out_fh, (APTR)csi_req, (LONG)(sizeof(csi_req) - 1)) !=
+        (LONG)(sizeof(csi_req) - 1))
+        return JS_NULL;
+
+    /*
+     * Read the Window Bounds Report.  The console device injects it into
+     * the input stream synchronously; Read() blocks until data arrives.
+     * Stop at 'r' (end of CSI sequence) or when the buffer is full.
+     */
+    r = 0; c = 0;
+    got = 0;
+    while (got < (LONG)(sizeof(buf) - 1)) {
+        rc = Read(in_fh, &ch, 1);
+        if (rc <= 0)
+            break;
+        buf[got++] = ch;
+        if (ch == 'r')
+            break;
+    }
+    if (got <= 0)
+        return JS_NULL;
+    buf[got] = '\0';
+
+    /*
+     * Parse: CSI 1;1;<rows>;<cols> r
+     * CSI may arrive as 0x9B (single-byte) or ESC '[' (two-byte).
+     */
+    if ((unsigned char)buf[0] == 0x9B) {
+        if (sscanf(buf + 1, "1;1;%ld;%ld r", &r, &c) != 2)
+            return JS_NULL;
+    } else if (got >= 2 && (unsigned char)buf[0] == 0x1B &&
+               (unsigned char)buf[1] == '[') {
+        if (sscanf(buf + 2, "1;1;%ld;%ld r", &r, &c) != 2)
+            return JS_NULL;
+    } else {
+        return JS_NULL;
+    }
+
+    if (c < 4 || r < 4)
+        return JS_NULL;
+
+    obj = JS_NewArray(ctx);
+    if (JS_IsException(obj))
+        return obj;
+    JS_DefinePropertyValueUint32(ctx, obj, 0, JS_NewInt32(ctx, (int)c), JS_PROP_C_W_E);
+    JS_DefinePropertyValueUint32(ctx, obj, 1, JS_NewInt32(ctx, (int)r), JS_PROP_C_W_E);
+    return obj;
+}
+
+static JSValue js_os_ttySetRaw(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv)
+{
+    int fd;
+    BPTR fh;
+
+    if (JS_ToInt32(ctx, &fd, argv[0]))
+        return JS_EXCEPTION;
+
+    fh = Input();
+    if (IsInteractive(fh)) {
+        SetMode(fh, 1);       /* 1 = raw (single-character) mode */
+        amiga_raw_fh = fh;
+        atexit(amiga_term_exit);
+    }
+    return JS_UNDEFINED;
+}
+
 #elif !defined(__wasi__)
 static JSValue js_os_ttyGetWinSize(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv)
@@ -2892,7 +3008,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
         if (min_delay > 0) {
 #ifdef __SASC
             /* AmigaOS: Delay() is in 50Hz ticks; 1 tick = 20ms */
-            extern void Delay(unsigned long ticks);
+            /* Delay() declared at file scope via <proto/dos.h> */
             long sleep_ticks = (min_delay * 50L) / 1000;
             if (sleep_ticks < 1) sleep_ticks = 1;
             Delay((unsigned long)sleep_ticks);
@@ -3372,8 +3488,7 @@ static JSValue js_os_sleep(JSContext *ctx, JSValueConst this_val,
     }
 #elif defined(__SASC)
     {
-        /* AmigaOS: Delay() in 50Hz ticks */
-        extern void Delay(unsigned long ticks);
+        /* AmigaOS: Delay() in 50Hz ticks; declared at file scope via <proto/dos.h> */
         long sleep_ticks = ((long)delay * 50L) / 1000L;
         if (sleep_ticks < 1 && delay > 0) sleep_ticks = 1;
         if (sleep_ticks > 0) Delay((unsigned long)sleep_ticks);

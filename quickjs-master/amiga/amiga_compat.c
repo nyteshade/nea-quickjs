@@ -7,6 +7,7 @@
 /* AmigaOS headers */
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/tasks.h>     /* SIGBREAKF_CTRL_C */
 #include <devices/timer.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
@@ -15,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>         /* raise(), SIGINT */
 
 /* -----------------------------------------------------------------------
  * gettimeofday() via AmigaOS DateStamp (50Hz resolution)
@@ -131,21 +133,96 @@ int execvp(const char *file, char *const argv[])
 }
 
 /* -----------------------------------------------------------------------
- * poll.h stub
- * poll() with timeout -- uses Delay() for approximate sleep
+ * poll() -- AmigaOS implementation using WaitForChar
+ *
+ * On POSIX, poll() watches file descriptors for I/O readiness.
+ * Here we only handle fd 0 (stdin / console input), which is the only
+ * fd the QuickJS REPL ever registers a read handler on.
+ *
+ * WaitForChar(BPTR fh, LONG usec_timeout) blocks up to usec_timeout
+ * microseconds and returns TRUE if at least one character is available.
+ *
+ * For timeout == -1 (block forever) we loop in 200 ms slices so we can
+ * check for Ctrl-C (SIGBREAKF_CTRL_C) between slices.
  * --------------------------------------------------------------------- */
 typedef unsigned int nfds_t;
 struct pollfd { int fd; short events; short revents; };
 
+/* POLLIN / POLLOUT / POLLERR / etc. are defined in poll.h; redeclare the
+ * macro guard values here so this TU compiles standalone. */
+#ifndef POLLIN
+#define POLLIN  0x0001
+#define POLLOUT 0x0004
+#define POLLERR 0x0008
+#define POLLHUP 0x0010
+#endif
+
 int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
-    (void)fds; (void)nfds;
-    if (timeout > 0) {
-        long ticks = ((long)timeout * 50L) / 1000L;
-        if (ticks < 1) ticks = 1;
-        Delay((unsigned long)ticks);
+    BPTR in_fh;
+    LONG usec;
+    nfds_t i;
+    int nready = 0;
+
+    /* Clear revents */
+    for (i = 0; i < nfds; i++)
+        fds[i].revents = 0;
+
+    if (nfds == 0) {
+        /* Nothing to watch; honour the timeout as a plain sleep. */
+        if (timeout > 0) {
+            long ticks = ((long)timeout * 50L) / 1000L;
+            if (ticks < 1) ticks = 1;
+            Delay((unsigned long)ticks);
+        }
+        return 0;
     }
-    return 0; /* no events */
+
+    in_fh = Input();
+
+    /*
+     * Convert the millisecond timeout to microseconds for WaitForChar.
+     * timeout < 0 means "block forever"; we use 200 ms slices so that
+     * Ctrl-C can interrupt the wait between iterations.
+     */
+    if (timeout == 0)
+        usec = 0L;
+    else if (timeout > 0)
+        usec = (LONG)timeout * 1000L;   /* ms -> us */
+    else
+        usec = 200000L;                  /* -1 = infinite: 200 ms slice */
+
+    for (;;) {
+        /*
+         * Check for Ctrl-C break signal.  SetSignal clears the bit and
+         * returns the previous signal mask; if CTRL_C was set, exit.
+         */
+        if (SetSignal(0L, (ULONG)SIGBREAKF_CTRL_C) & (ULONG)SIGBREAKF_CTRL_C) {
+            errno = EINTR;
+            return -1;
+        }
+
+        /* Check each fd.  We only support fd 0 (stdin/console). */
+        for (i = 0; i < nfds; i++) {
+            if (fds[i].events & POLLIN) {
+                if (fds[i].fd == 0 && IsInteractive(in_fh)) {
+                    if (WaitForChar(in_fh, usec)) {
+                        fds[i].revents = POLLIN;
+                        nready++;
+                    }
+                    /* Only one WaitForChar per pass; remaining fds can't
+                     * be monitored without an fd->BPTR mapping table. */
+                    usec = 0L;
+                }
+            }
+        }
+
+        if (nready > 0 || timeout >= 0)
+            break;
+        /* Infinite wait: loop for another slice */
+    }
+
+    return nready;
 }
 
 /* -----------------------------------------------------------------------

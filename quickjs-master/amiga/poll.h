@@ -18,7 +18,7 @@ struct pollfd {
 
 typedef unsigned int nfds_t;
 
-/* stub -- always returns 0 (timeout) */
+/* AmigaOS impl: uses WaitForChar for fd 0; see amiga_compat.c */
 int poll(struct pollfd *fds, nfds_t nfds, int timeout);
 
 #endif /* _AMIGA_POLL_H */
