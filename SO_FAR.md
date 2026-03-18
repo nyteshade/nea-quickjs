@@ -7,21 +7,24 @@ standalone JS runner.  Target: 68020+ hardware with or without FPU.
 
 ---
 
-## Current State (session 6 — FPU confirmed, two-build strategy, REPL bugs investigated)
+## Current State (session 7 — INT32_MIN bug, toString bug, REPL partially working)
 
 ```
-print(100+110)              → 210                      ✓
-print(Math.sqrt(2))         → 1.4142135623730951        ✓
+print(100+110)              → 210                      ✓ (was 210.00000000000001)
+print(Math.sqrt(2))         → 1.4142135623730952        ✓
 JSON.stringify([1,2,3])     → [1,2,3]                   ✓
 print(3.14)                 → 3.1400000000000001        (known, acceptable)
+(5).toString()              → "5"                       ✓ (was "0000000000000000005")
 qjs -e '...'                → WORKS fully               ✓
 REPL starts                 → WORKS (no termInit crash)  ✓
 REPL receives keystrokes    → WORKS (poll+WaitForChar)   ✓
-REPL display (typing p,r,i) → BROKEN: shows prpirp, evals as "irp" (reversed!)
-Backspace in REPL           → BROKEN: freezes REPL, Ctrl-C unresponsive
-Ctrl-C in REPL              → exits qjs via EINTR        (OK when not frozen)
+REPL forward typing         → WORKS ✓ (INT32_MIN fix)
+REPL eval (Enter)           → WORKS ✓
+REPL backspace              → CRASHES SYSTEM (hard lock, no guru)
+Ctrl-C in REPL              → exits qjs via EINTR        ✓
 Amiberry + FPU enabled      → WORKS ✓ (error #8000000B gone when FPU on)
 Amiberry without FPU        → CRASHES #8000000B (no-FPU build not yet linked)
+Integer addition            → FIXED (was producing float64 due to INT32_MIN bug)
 ```
 
 **Two binaries needed (session 6 decision):**
@@ -71,8 +74,8 @@ The character repetition might ALSO be caused by something else:
 | Compiler | SAS/C 6.58 |
 | Host | macOS, vamos emulator |
 | vamos build config | `quickjs-master/amiga/vamos_build.cfg` |
-| vamos run config | `/Users/bharrison4/sasc/vamos.cfg` |
-| SAS/C installation | `/Users/bharrison4/sasc/` (mapped as `sc:`) |
+| vamos run config | `~/.vamos/vamos.cfg` (varies by machine) |
+| SAS/C installation | `/Users/brie/sasc658/` (mapped as `sc:`) |
 | Source tree | `quickjs-master/` (mapped as `qjs:` in vamos) |
 | Test CPU | `-C 68040 -m 65536 -H disable -s 2048` |
 
@@ -375,24 +378,78 @@ visible: `210.0` produces `"209.99999999999999"`.
 Caused by Bug 4 (MAX_SAFE_INTEGER = -1).  `JS_ToLengthFree(64)` clamped
 to -1 → RangeError.  **Fixed** by Bug 4 fix.
 
-### Bug 11: REPL characters inserted in reverse order (session 6 — NOT YET FIXED)
-Typing "pri" shows "prpirp" on screen; pressing Enter evaluates "irp" (reversed).
-Confirmed: input bytes arrive in correct order; VT100 sequences work (test_display.js).
-Root cause: cursor_pos appears to be 0 at each insert(), causing each new char to
-be prepended (insert at front) instead of appended.  The cursor_pos variable should
-be incremented by insert(), but something resets it to 0 between keystrokes.
-**Leading hypothesis:** QuickJS closure variable access bug on 32-bit AmigaOS —
-JSValue is 12 bytes (vs 8 on 64-bit), so closure var array index may be off.
-**Next step:** Add debug print to insert() in repl.js, regenerate gen/repl.c,
-recompile gen/repl.o, relink, test.
+### Bug 11: REPL characters inserted in reverse order — FIXED (session 7)
+Typing "pri" showed "prpirp" on screen; pressing Enter evaluated "irp" (reversed).
+**Root cause:** Bug 13 (INT32_MIN defined as positive value). Every integer addition
+produced a JS_TAG_FLOAT64 result instead of JS_TAG_INT. When these float values
+were passed to `String.prototype.substring()`, `JS_ToInt32SatFree` compared them
+against the buggy positive INT32_MIN, clamping all values in [0, 2^31-1] to
+INT32_MIN → then clamped to 0 by JS_ToInt32Clamp. So `cmd.substring(0, pos)`
+always returned `""` (pos clamped to 0) and `cmd.substring(pos)` returned the
+full string — prepending each new character instead of appending.
+**Fix:** Bug 13 fix (INT32_MIN definition).
 
-### Bug 12: Backspace freezes REPL, Ctrl-C unresponsive (session 6 — NOT YET FIXED)
-After pressing backspace, no further key presses are processed.  The REPL
-appears to hang; even Ctrl-C break signal does not kill qjs.
-Root cause: unknown.  May be related to Bug 11 (wrong cursor_pos state),
-or poll()/WaitForChar deadlock, or readline_state getting stuck.
-**Next step:** Same debug approach as Bug 11 — add debug output to
-backward_delete_char() and handle_key() in repl.js.
+### Bug 12: Backspace crashes/freezes system — NOT YET FIXED (session 7)
+After pressing backspace in the REPL, the entire Amiga system hard-locks (no guru).
+**Root cause:** NOT Bug 13 (INT32_MIN was fixed, but backspace still crashes).
+The crash occurs in the full-redraw path of `update()` in repl.js, which outputs
+VT100 escape sequences (`\x1b[ND` for cursor-left, `\x1b[K`/`\x1b[J` for erase).
+Forward typing works fine (uses the optimize path, no escape sequences).
+
+**What was tried (all still crash):**
+- ESC+[ (`\x1b[`) sequences → crash
+- Native AmigaOS CSI (`\x9b`) sequences → garbled (UTF-8 encoding turns 1 byte into 2)
+- `\x1b[K` (erase line) instead of `\x1b[J` (erase display) → still crash
+- `\r` + re-output + BS-based erase (no escape sequences at all) → still crash
+- Debug file logging to `ram:` → locks file, system crashes (ram: I/O might contribute)
+
+**Current state (end of session 7):** The update() function now uses a
+`\r` + re-output + backspace approach with NO escape sequences. Still crashes.
+This suggests the crash is not from escape sequences but possibly from:
+- SAS/C `fwrite()`/`Write()` bug when writing certain byte sequences
+- Stack overflow in the JS interpreter during update()
+- Memory corruption from the string concatenation in `dupchar()` or `update()`
+
+**Next steps for investigation:**
+1. Create a standalone C test program (no JS) that outputs `\r`, backspaces,
+   etc. to the console in raw mode — see if it crashes
+2. Try using `os.write(1, ...)` (raw fd write) instead of `std.puts` (fwrite)
+3. Add a simple `qjs -e` test that outputs the same byte sequence as update()
+   without the REPL event loop, to isolate whether the crash is in output
+   or in the event loop/poll interaction
+4. Try disabling raw mode before the full-redraw output and re-enabling after
+
+### Bug 14: `(5).toString()` returns "0000000000000000005" — FIXED (session 7)
+`Number.prototype.toString()` for integers calls `i64toa_radix` → `u64toa_radix`
+→ `u64toa`. In `u64toa`, the fast-path check `n < ((uint64_t)1 << 32)` always
+fails because `(uint64_t)1 << 32` is undefined behavior on 32-bit (produces 0).
+So ALL values take the large-number path, which splits into 3 groups of 9 digits,
+producing 19 zero-padded characters for small values like 5.
+**Fix:** `#ifdef __SASC` to always use `u32toa` since uint64_t == uint32_t.
+
+### Bug 13: INT32_MIN defined as positive value — THE ROOT CAUSE (session 7)
+`amiga/stdint.h` defined `INT32_MIN` as `(-2147483648L)`. On SAS/C where
+`long` is 32-bit, the literal `2147483648L` exceeds `LONG_MAX` (2147483647).
+Under C89 rules, this makes it `unsigned long` (0x80000000). Then
+`-2147483648L` = `-(unsigned long)0x80000000` = `(unsigned long)0x80000000`
+= **positive 2147483648** (unsigned negation wraps).
+
+This caused the OP_add integer overflow check:
+```c
+if (r < INT32_MIN || r > INT32_MAX)
+    sp[-2] = js_float64(r);  /* overflow → float */
+else
+    sp[-2] = js_int32(r);    /* fits → int */
+```
+to ALWAYS evaluate as true for values 0..2^31-1, because:
+`(long)1 < (unsigned long)2147483648` → unsigned promotion → `1u < 2147483648u` → true.
+
+**Every integer addition in the entire VM produced a float64 instead of int32.**
+This cascaded into: substring args clamped to 0 (Bug 11), REPL cursor corruption
+(Bug 12), and `print(100+110)` showing `210.00000000000001` instead of `210`.
+
+**Fix:** `#define INT32_MIN (-2147483647L - 1L)` — the standard C idiom that
+avoids the 2^31 literal overflow. Also fixed INT64_MIN similarly.
 
 ### Bug 10: AmigaOS CSI (0x9B) not translated to VT100 ESC+[ (session 5)
 repl.js `handle_char()` only recognises `\x1b` (ESC=0x1B) as escape sequence
@@ -419,75 +476,15 @@ default.  **Fixed** with CSI escape sequence approach in quickjs-libc.c.
 
 ## What Doesn't Work Yet (Known Issues)
 
-### REPL display — characters appear in REVERSE ORDER (Bug 11)
-Typing "pri" shows "prpirp" on screen and evaluates as "irp" (reversed).
-Confirmed on WinUAE with VT100 sequences working (test_display.js T3=pri ✓).
+### REPL forward typing + eval — FIXED (Bug 11 + Bug 13 + Bug 14)
+Character reversal was caused by Bug 13 (INT32_MIN). REPL number display
+was caused by Bug 14 (u64toa 32-bit shift). Both fixed.
 
-**What we know:**
-- hexdump.js confirms input bytes arrive in correct order: 'p'=0x70, 'r'=0x72, 'i'=0x69
-- test_display.js T3 (exact sequences the REPL emits for typing "pri") shows "pri" correctly
-- The current binary includes NO_COLOR=1 default → show_colors=false → optimize path active
-- Yet cmd evaluates as "irp" → cursor_pos must be 0 at each insert(), causing prepend not append
-
-**Hypotheses (not yet confirmed):**
-
-A) `term_cursor_x` accumulation bug in optimize path:
-   In `update()` (repl.js:339): `term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width`
-   In the optimize path, only `cmd.substring(last_cursor_pos)` is output (the suffix),
-   but the code adds `ucs_length(cmd)` (full length) instead of the suffix length.
-   For each character typed, term_cursor_x is over-incremented by `last_cursor_pos`.
-   After typing "pri" (3 chars, prompt_len=6):
-   - Real cursor: column 9; term_cursor_x: 12 (off by 3)
-   The display still LOOKS correct for forward typing (no move_cursor calls), but
-   term_cursor_x is wrong for subsequent backspace/arrow operations.
-
-B) QuickJS closure variable bug on 32-bit:
-   `cursor_pos` is a closure variable. If QuickJS's closure var access has an
-   offset bug on 32-bit (JSValue struct = 12 bytes vs 8 bytes on 64-bit), then
-   `cursor_pos += str.length` in insert() might write to the wrong address.
-   This would cause cursor_pos to read as 0 on the next call → prepend behavior.
-
-**Diagnostic plan:**
-Add `std.err.printf("insert: pos=%d cmd=%s\n", cursor_pos, cmd)` to insert()
-in `repl.js`, regenerate `gen/repl.c` on macOS with `/opt/homebrew/bin/qjsc`,
-recompile `gen/repl.o`, relink. The stderr output won't mess up the REPL display.
-
-**qjsc is available** on the host macOS machine:
-```
-/opt/homebrew/bin/qjsc -ss -o gen/repl.c -m repl.js
-```
-(version 2025-09-13 confirmed present)
-
-### REPL backspace — freezes REPL, Ctrl-C unresponsive (Bug 12)
-After pressing backspace in the REPL, typing anything further is ignored.
-Ctrl-C (break signal) does NOT kill qjs — it appears completely frozen.
-
-**What we know:**
-- hexdump.js confirms backspace sends 0x08 or 0x7F (correct, mapped to backward_delete_char)
-- The freeze appears to leave qjs running (no crash, no exit)
-- Ctrl-C normally works via `SetSignal(0, SIGBREAKF_CTRL_C)` in poll() before WaitForChar
-
-**Hypotheses:**
-A) `term_cursor_x` wraps to 0 causing cursor-up loop:
-   If term_cursor_x overflows past term_width and wraps to 0, then move_cursor(-N)
-   would emit `\x1b[1A` (cursor-up) instead of `\x1b[nD` (cursor-left). This
-   outputs cursor-up repeatedly, confusing the terminal. But for short commands
-   this shouldn't happen (tcx stays low).
-
-B) poll()/WaitForChar deadlock after backspace:
-   backward_delete_char() may return a non-zero value (JS runtime bug returns
-   garbage instead of undefined). handle_key's switch would match case -1 or -2,
-   calling readline_cb(cmd) or readline_cb(null) — ending the readline session.
-   The REPL would then... do what? Possibly re-enter readline_start which calls
-   os.setReadHandler. If the handler registration fails, no more input arrives.
-
-C) Escape sequence state corruption:
-   If some key pressed before backspace left readline_state non-zero (awaiting
-   escape sequence continuation), the backspace byte gets absorbed into the escape
-   sequence. The readline_state might get stuck in a state waiting for more bytes.
-
-**Next step:** Same as Bug 11 — add debug output to backward_delete_char and
-handle_key to see what's happening.
+### REPL backspace — CRASHES SYSTEM (Bug 12, NOT FIXED)
+Pressing backspace in the REPL causes a hard system lock (no guru meditation).
+This happens even with an escape-sequence-free implementation using only `\r`,
+printable characters, space, and `\b` (0x08). See Bug 12 description for
+full details and investigation notes.
 
 ### REPL keyboard input — FIXED
 `poll()` now uses `WaitForChar(Input(), usec)` for fd 0.
@@ -549,53 +546,29 @@ SO_FAR.md             — This file.
 
 ## Next Steps (priority order)
 
-### 1. Add debug output to REPL to diagnose cursor_pos bug (MOST URGENT)
-The character reversal (Bug 11) and backspace freeze (Bug 12) need root cause
-confirmation before we can fix them.  The plan:
+### 1. Diagnose and fix REPL backspace crash (MOST URGENT)
+Backspace causes a hard system lock. The crash occurs even with an implementation
+that uses NO escape sequences (only `\r`, space, `\b`). Investigation plan:
 
-**Step 1:** Add debug prints to `repl.js`:
-```javascript
-// In insert():
-function insert(str) {
-    if (str) {
-        std.err.printf("insert: str=%s pos_before=%d cmd_before=%s\n",
-                       str, cursor_pos, cmd);  // ADD THIS
-        cmd = cmd.substring(0, cursor_pos) + str + cmd.substring(cursor_pos);
-        cursor_pos += str.length;
-        std.err.printf("insert: pos_after=%d cmd_after=%s\n",
-                       cursor_pos, cmd);  // ADD THIS
-    }
-}
-```
-**Step 2:** Regenerate `gen/repl.c` on the macOS host:
-```sh
-/opt/homebrew/bin/qjsc -ss -o gen/repl.c -m repl.js
-```
-(qjsc version 2025-09-13 is at `/opt/homebrew/bin/qjsc`)
+**Step 1:** Create a standalone `qjs -e` test that simulates what update() does
+during backspace — output `\r`, prompt, cmd, spaces, backspaces — without the
+REPL event loop. If this crashes, the issue is in the output. If it doesn't,
+the issue is in the event loop or the interaction between output and input.
 
-**Step 3:** Recompile `gen/repl.o` (FPU or no-FPU flags as needed) and relink.
+**Step 2:** If the output test passes, create a test that does raw mode +
+poll/WaitForChar + output in a loop, to test the interaction.
 
-**Step 4:** Run on Amiga.  The stderr output goes to a separate file descriptor
-so it won't corrupt the REPL display.  Watch what cursor_pos is on each insert.
+**Step 3:** If the output test crashes, try `os.write(1, buf, len)` instead
+of `std.puts()` (fwrite) to bypass SAS/C stdio.
 
-### 2. Fix REPL term_cursor_x bug in optimize path
-In `repl.js` `update()`, line 339:
-```javascript
-term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
-```
-In the optimize path, only `cmd.substring(last_cursor_pos)` is output.
-The correct calculation for the optimize path:
-```javascript
-// Inside the optimize path:
-term_cursor_x = (term_cursor_x + ucs_length(cmd.substring(last_cursor_pos))) % term_width;
-// NOT (term_cursor_x + ucs_length(cmd))
-```
-But `last_cursor_pos` changes within the if block — it's set to `cmd.length` after
-the print (line 347). The fix needs to capture `last_cursor_pos` BEFORE that assignment.
-This bug may not directly cause the character reversal (cursor_pos isn't affected) but
-it will cause wrong cursor positioning for backspace/arrow keys after forward typing.
+**Step 4:** Consider stack size. The JS interpreter is deeply nested when
+running the REPL (event loop → poll → read handler → handle_byte →
+handle_char → handle_key → backward_delete_char → delete_char_dir → update →
+dupchar → string concat). If the Amiga stack is too small, deep calls crash.
+Try increasing stack size: `stack 65536` in AmigaDOS before running qjs,
+or increase `-s` in vamos.
 
-### 3. Complete no-FPU build
+### 2. Complete no-FPU build
 Compile the remaining 7 source files without `MATH=68881` and link as `qjs_soft`.
 See §No-FPU build status above for the list.  Compile order doesn't matter.
 

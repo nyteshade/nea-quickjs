@@ -614,6 +614,10 @@ size_t i32toa(char *buf, int32_t n)
 #ifdef USE_FAST_INT
 size_t u64toa(char *buf, uint64_t n)
 {
+#ifdef __SASC
+    /* SAS/C: uint64_t is 32-bit, so always use the 32-bit path */
+    return u32toa(buf, (uint32_t)n);
+#else
     if (n < ((uint64_t)1 << 32)) {
         return u32toa(buf, n);
     } else {
@@ -641,6 +645,7 @@ size_t u64toa(char *buf, uint64_t n)
         q += 9;
         return q - buf;
     }
+#endif /* !__SASC */
 }
 
 size_t i64toa(char *buf, int64_t n)

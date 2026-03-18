@@ -32,6 +32,8 @@ import * as bjson from "qjs:bjson";
     g.os = os;
     g.std = std;
 
+    function dbg(msg) { }
+
     /* close global objects */
     var Object = g.Object;
     var String = g.String;
@@ -193,8 +195,10 @@ import * as bjson from "qjs:bjson";
     function term_read_handler() {
         var l, i;
         l = os.read(term_fd, term_read_buf.buffer, 0, term_read_buf.length);
+        dbg("term_read: got " + l + " bytes");
         for(i = 0; i < l; i++)
             handle_byte(term_read_buf[i]);
+        dbg("term_read: done processing");
     }
 
     function handle_byte(c) {
@@ -316,41 +320,53 @@ import * as bjson from "qjs:bjson";
         }
     }
 
+    /* AmigaOS-safe: generate N copies of a character */
+    function dupchar(ch, n) {
+        var s = "";
+        while (n-- > 0) s += ch;
+        return s;
+    }
+
     function update() {
         var i, cmd_len;
         /* cursor_pos is the position in 16 bit characters inside the
            UTF-16 string 'cmd' */
         if (cmd != last_cmd) {
             if (!show_colors && last_cmd.substring(0, last_cursor_pos) == cmd.substring(0, last_cursor_pos)) {
-                /* optimize common case */
+                /* optimize common case — only output the new suffix */
                 std.puts(cmd.substring(last_cursor_pos));
+                term_cursor_x = (term_cursor_x + ucs_length(cmd.substring(last_cursor_pos))) % term_width;
             } else {
-                /* goto the start of the line */
-                move_cursor(-ucs_length(last_cmd.substring(0, last_cursor_pos)));
-                if (show_colors) {
-                    var str = mexpr ? mexpr + '\n' + cmd : cmd;
-                    var start = str.length - cmd.length;
-                    var colorstate = colorize_js(str);
-                    print_color_text(str, start, colorstate[2]);
-                } else {
-                    std.puts(cmd);
+                /* Full redraw — AmigaOS safe: use \r + re-output, no CSI sequences.
+                 * \r returns cursor to column 0, then we re-output prompt + cmd
+                 * and pad with spaces to erase any leftover characters. */
+                var old_total = ucs_length(prompt) + ucs_length(last_cmd);
+                std.puts("\r");
+                std.puts(prompt);
+                std.puts(cmd);
+                var new_total = ucs_length(prompt) + ucs_length(cmd);
+                /* pad with spaces to cover old content, then backspace over them */
+                if (old_total > new_total) {
+                    var pad = old_total - new_total;
+                    std.puts(dupchar(" ", pad));
+                    std.puts(dupchar("\x08", pad));
                 }
+                term_cursor_x = new_total % term_width;
             }
-            term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
-            if (term_cursor_x == 0) {
-                /* show the cursor on the next line */
-                std.puts(" \x08");
-            }
-            /* remove the trailing characters */
-            std.puts("\x1b[J");
             last_cmd = cmd;
             last_cursor_pos = cmd.length;
         }
-        if (cursor_pos > last_cursor_pos) {
-            move_cursor(ucs_length(cmd.substring(last_cursor_pos, cursor_pos)));
-        } else if (cursor_pos < last_cursor_pos) {
-            move_cursor(-ucs_length(cmd.substring(cursor_pos, last_cursor_pos)));
+        /* reposition cursor if not at end of cmd */
+        if (cursor_pos < last_cursor_pos) {
+            /* move cursor back using backspaces */
+            std.puts(dupchar("\x08", ucs_length(cmd.substring(cursor_pos, last_cursor_pos))));
+            term_cursor_x -= ucs_length(cmd.substring(cursor_pos, last_cursor_pos));
+        } else if (cursor_pos > last_cursor_pos) {
+            /* move cursor forward by re-outputting the characters */
+            std.puts(cmd.substring(last_cursor_pos, cursor_pos));
+            term_cursor_x += ucs_length(cmd.substring(last_cursor_pos, cursor_pos));
         }
+        term_cursor_x = ((term_cursor_x % term_width) + term_width) % term_width;
         last_cursor_pos = cursor_pos;
         std.out.flush();
     }
@@ -892,6 +908,7 @@ import * as bjson from "qjs:bjson";
 
     function handle_char(c1) {
         var c;
+        dbg("handle_char: c1=0x" + c1.toString(16) + " state=" + readline_state);
         c = String.fromCodePoint(c1);
         switch(readline_state) {
         case 0:
@@ -937,7 +954,10 @@ import * as bjson from "qjs:bjson";
             quote_flag = false;
         } else if (fun = commands[keys]) {
             this_fun = fun;
-            switch (fun(keys)) {
+            dbg("handle_key: calling cmd fn for 0x" + keys.codePointAt(0).toString(16));
+            var ret = fun(keys);
+            dbg("handle_key: cmd fn returned " + ret);
+            switch (ret) {
             case -1:
                 readline_cb(cmd);
                 return;
@@ -957,12 +977,15 @@ import * as bjson from "qjs:bjson";
             insert(keys);
             last_fun = insert;
         } else {
+            dbg("handle_key: alert for keys=0x" + keys.codePointAt(0).toString(16));
             alert(); /* beep! */
         }
 
         cursor_pos = (cursor_pos < 0) ? 0 :
             (cursor_pos > cmd.length) ? cmd.length : cursor_pos;
+        dbg("handle_key: before update, pos=" + cursor_pos + " cmd='" + cmd + "'");
         update();
+        dbg("handle_key: after update");
     }
 
     function number_to_string(a, radix) {

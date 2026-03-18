@@ -68,10 +68,10 @@ typedef uint64_t  uintmax_t;
 #define INT8_MAX    127
 #define INT16_MIN   (-32768)
 #define INT16_MAX   32767
-#define INT32_MIN   (-2147483648L)
+#define INT32_MIN   (-2147483647L - 1L)
 #define INT32_MAX   2147483647L
 /* SAS/C: long long = long (32-bit); use 32-bit limits to avoid LL constants */
-#define INT64_MIN   (-2147483648L)
+#define INT64_MIN   (-2147483647L - 1L)
 #define INT64_MAX   2147483647L
 
 #define UINT8_MAX   255U
