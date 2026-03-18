@@ -364,7 +364,9 @@
       "Bash(vamos -S -C 68040 -m 65536 -H disable -s 2048 -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" -- qjs:qjs -e 'print\\(\\(5\\).toString\\(\\)\\); print\\(\\(123\\).toString\\(\\)\\); print\\(typeof 5\\)')",
       "Bash(vamos -S -C 68040 -m 65536 -H disable -s 2048 -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" -- qjs:qjs -e 'print\\(5\\); print\\(\"\"---\"\"\\); print\\(\\(5\\).toString\\(\\)\\); print\\(\"\"---\"\"\\); print\\(\"\"\"\"+5\\)')",
       "Bash(vamos -c /Volumes/Code/Amiga/nea-quickjs/quickjs-master/amiga/vamos_build.cfg -V \"sc:/Users/brie/sasc658\" -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" sc:c/sc \"qjs:dtoa.c\" MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \"IDIR=qjs:\" \"IDIR=qjs:amiga\" \"IDIR=sc:include\" NOICONS)",
-      "Bash(vamos -S -C 68040 -m 65536 -H disable -s 2048 -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" -- qjs:qjs -e 'print\\(\\(5\\).toString\\(\\)\\); print\\(\\(123\\).toString\\(\\)\\); print\\(\\(-42\\).toString\\(\\)\\); print\\(\\(0\\).toString\\(\\)\\)')"
+      "Bash(vamos -S -C 68040 -m 65536 -H disable -s 2048 -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" -- qjs:qjs -e 'print\\(\\(5\\).toString\\(\\)\\); print\\(\\(123\\).toString\\(\\)\\); print\\(\\(-42\\).toString\\(\\)\\); print\\(\\(0\\).toString\\(\\)\\)')",
+      "Read(//Volumes/Code/Amiga/nea-js/$HOME/sasc658/**)",
+      "Bash(bash -n /Volumes/Code/Amiga/nea-js/amiga-env.sh)"
     ]
   }
 }

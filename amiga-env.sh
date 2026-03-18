@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+# amiga-env.sh — source this file to get helper functions for the QuickJS/AmigaOS build.
+#
+# Usage (from the project root):
+#   source ./amiga-env.sh
+#
+# Functions provided:
+#   amiga_clear           — wipe the vamos RAM volume (run before every vamos call)
+#   amiga_compile  FILE [EXTRA_FLAGS...]  — compile FILE for FPU build (with MATH=68881)
+#   amiga_compile_soft FILE [EXTRA_FLAGS...] — compile FILE for no-FPU build
+#   amiga_link            — link FPU build → quickjs-master/qjs
+#   amiga_link_soft       — link no-FPU build → quickjs-master/qjs_soft
+#   amiga_run  [QJS_ARGS...]    — run FPU qjs via vamos
+#   amiga_run_soft [QJS_ARGS...] — run no-FPU qjs_soft via vamos
+#   amiga_build_fpu       — compile all sources + link for FPU build (full rebuild)
+#
+# FILE is always relative to quickjs-master/, e.g.:
+#   amiga_compile quickjs.c CODE=FAR
+#   amiga_compile amiga/amiga_compat.c
+#   amiga_run -e 'print(1+1)'
+
+# ---------------------------------------------------------------------------
+# Environment setup
+# ---------------------------------------------------------------------------
+
+# Resolve $SC if not already in the environment.
+# Priority: in-repo sasc658/ → $HOME/sasc658/ → warn
+if [ -z "$SC" ]; then
+    _amiga_self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "$_amiga_self/sasc658/setup.sh" ]; then
+        # shellcheck source=/dev/null
+        source "$_amiga_self/sasc658/setup.sh"
+    elif [ -f "$HOME/sasc658/setup.sh" ]; then
+        # shellcheck source=/dev/null
+        source "$HOME/sasc658/setup.sh"
+    else
+        echo "amiga-env: WARNING: \$SC not set and no sasc658/setup.sh found." >&2
+        echo "amiga-env: Expected: $(pwd)/sasc658/setup.sh or \$HOME/sasc658/setup.sh" >&2
+    fi
+    unset _amiga_self
+fi
+
+# Absolute path to the project root (works whether sourced as ./amiga-env.sh
+# or as /full/path/to/amiga-env.sh).
+_AMIGA_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_AMIGA_QJS_ROOT="$_AMIGA_PROJECT_ROOT/quickjs-master"
+_AMIGA_VAMOS_CFG="$_AMIGA_QJS_ROOT/amiga/vamos_build.cfg"
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+_amiga_check_env() {
+    if [ -z "$SC" ]; then
+        echo "amiga-env: ERROR: \$SC is not set. Run: source \$HOME/sasc658/setup.sh" >&2
+        return 1
+    fi
+    if [ ! -d "$_AMIGA_QJS_ROOT" ]; then
+        echo "amiga-env: ERROR: quickjs-master not found at $_AMIGA_QJS_ROOT" >&2
+        return 1
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------------------
+# Public functions
+# ---------------------------------------------------------------------------
+
+# amiga_clear
+# Wipe the vamos RAM volume. Call before every vamos invocation to avoid
+# stale state from previous runs.
+amiga_clear() {
+    rm -rf "$HOME/.vamos/volumes/ram"
+}
+
+# amiga_compile FILE [EXTRA_FLAGS...]
+# Compile FILE (path relative to quickjs-master/) for the FPU build.
+# Includes MATH=68881. Pass CODE=FAR for large files (quickjs.c, quickjs-libc.c).
+#
+# Examples:
+#   amiga_compile dtoa.c
+#   amiga_compile quickjs.c CODE=FAR
+#   amiga_compile amiga/amiga_compat.c
+amiga_compile() {
+    _amiga_check_env || return 1
+    local file="$1"; shift
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/sc "qjs:$file" \
+        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS \
+        "$@"
+}
+
+# amiga_compile_soft FILE [EXTRA_FLAGS...]
+# Same as amiga_compile but without MATH=68881 — for the no-FPU (qjs_soft) build.
+# NOTE: .o files land next to the .c file and will overwrite FPU .o files.
+# Compile and link qjs_soft immediately after, then recompile FPU build if needed.
+#
+# Examples:
+#   amiga_compile_soft dtoa.c
+#   amiga_compile_soft quickjs.c CODE=FAR
+amiga_compile_soft() {
+    _amiga_check_env || return 1
+    local file="$1"; shift
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/sc "qjs:$file" \
+        DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS \
+        "$@"
+}
+
+# amiga_link
+# Link all .o files into the FPU binary at quickjs-master/qjs.
+# All .o files must have been compiled with MATH=68881.
+amiga_link() {
+    _amiga_check_env || return 1
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/slink \
+        sc:lib/c.o \
+        qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
+        qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+        qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+        TO qjs:qjs \
+        LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
+}
+
+# amiga_link_soft
+# Link all .o files into the no-FPU binary at quickjs-master/qjs_soft.
+# All .o files must have been compiled WITHOUT MATH=68881 first.
+amiga_link_soft() {
+    _amiga_check_env || return 1
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/slink \
+        sc:lib/c.o \
+        qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
+        qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+        qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+        TO qjs:qjs_soft \
+        LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
+}
+
+# amiga_run [QJS_ARGS...]
+# Run the FPU qjs binary under vamos.
+#
+# Examples:
+#   amiga_run -e 'print(1+1)'
+#   amiga_run hexdump.js
+#   amiga_run                    (starts REPL)
+amiga_run() {
+    _amiga_check_env || return 1
+    vamos -S -C 68040 -m 65536 -H disable -s 2048 \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -- qjs:qjs "$@"
+}
+
+# amiga_run_soft [QJS_ARGS...]
+# Same as amiga_run but uses the no-FPU binary (qjs_soft).
+amiga_run_soft() {
+    _amiga_check_env || return 1
+    vamos -S -C 68040 -m 65536 -H disable -s 2048 \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -- qjs:qjs_soft "$@"
+}
+
+# amiga_build_fpu
+# Full FPU rebuild: compile all source files then link qjs.
+# Equivalent to running amiga_compile on every file individually.
+amiga_build_fpu() {
+    _amiga_check_env || return 1
+    echo "==> FPU build: compiling all sources..." &&
+    amiga_compile qjs.c &&
+    amiga_compile dtoa.c &&
+    amiga_compile libregexp.c &&
+    amiga_compile libunicode.c &&
+    amiga_compile amiga/amiga_compat.c &&
+    amiga_compile gen/repl.c &&
+    amiga_compile gen/standalone.c &&
+    amiga_compile quickjs-libc.c CODE=FAR &&
+    amiga_compile quickjs.c CODE=FAR &&
+    echo "==> FPU build: linking..." &&
+    amiga_link &&
+    echo "==> FPU build complete: $_AMIGA_QJS_ROOT/qjs"
+}
+
+# ---------------------------------------------------------------------------
+
+echo "amiga-env loaded  USER=$USER  SC=${SC:-(not set)}"
+echo "  amiga_clear / amiga_compile [soft] / amiga_link [soft] / amiga_run [soft] / amiga_build_fpu"

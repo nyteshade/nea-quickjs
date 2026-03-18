@@ -1,0 +1,3 @@
+if [[ -d sasc658 ]]; then
+  source sasc658/setup.sh
+fi

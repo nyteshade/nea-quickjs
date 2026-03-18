@@ -1,5 +1,85 @@
 # QuickJS → AmigaOS Port — SO_FAR
 
+## Getting Started (read this first)
+
+This repo is worked on across multiple machines with different usernames.
+**Before running any vamos command or referencing file paths, resolve the
+current user from the environment — never hardcode a username.**
+
+```sh
+# First action in any session:
+echo $USER          # → e.g. bharrison4, brie, whoever
+echo $HOME          # → /Users/$USER
+echo $SC            # → set by $HOME/sasc658/setup.sh if sourced
+```
+
+### SAS/C setup
+A copy of SAS/C 6.58 lives in the repo at `sasc658/`. This is the preferred
+source so the build works on any machine without extra installation.
+`$SC` is exported by `sasc658/setup.sh` and points to the `sasc658/` directory.
+
+Priority for resolving `$SC`:
+1. Already set in environment — use it as-is
+2. `./sasc658/setup.sh` exists in the repo root — source it  ← **preferred**
+3. `$HOME/sasc658/setup.sh` exists — fall back to user's home install
+
+`amiga-env.sh` handles this automatically when sourced. To do it manually:
+
+```sh
+[ -z "$SC" ] && source ./sasc658/setup.sh
+echo $SC            # → /path/to/repo/sasc658
+```
+
+All vamos invocations use `-V sc:$SC` — never a hardcoded path.
+
+### vamos invocation template
+```sh
+# Compile a source file (substitute $USER / $SC from environment):
+rm -rf ~/.vamos/volumes/ram
+vamos \
+  -c quickjs-master/amiga/vamos_build.cfg \
+  -V sc:$SC \
+  -V qjs:/path/to/quickjs-master \
+  sc:c/sc qjs:FILE.c [MATH=68881] DATA=FARONLY [CODE=FAR] NOSTACKCHECK NOCHKABORT ABSFP \
+  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
+```
+
+### Source tree
+The repo may be checked out in different locations on different machines.
+The `qjs:` vamos volume always maps to the `quickjs-master/` directory
+within wherever the repo lives. Use `$(pwd)/quickjs-master` or a
+shell variable to avoid hardcoding the checkout path.
+
+### amiga-env.sh — shell helper functions
+`amiga-env.sh` in the project root provides wrapper functions so you never
+have to type the full vamos command. Source it once per session:
+
+```sh
+source ./amiga-env.sh
+```
+
+| Function | What it does |
+|----------|-------------|
+| `amiga_clear` | `rm -rf ~/.vamos/volumes/ram` — run before every vamos call |
+| `amiga_compile FILE [FLAGS]` | Compile FILE (relative to `quickjs-master/`) with FPU flags |
+| `amiga_compile_soft FILE [FLAGS]` | Same without `MATH=68881` (no-FPU build) |
+| `amiga_link` | Link all `.o` files → `quickjs-master/qjs` (FPU) |
+| `amiga_link_soft` | Link all `.o` files → `quickjs-master/qjs_soft` (no-FPU) |
+| `amiga_run [ARGS]` | Run `qjs` via vamos with standard 68040 flags |
+| `amiga_run_soft [ARGS]` | Same but runs `qjs_soft` |
+| `amiga_build_fpu` | Full FPU rebuild: compile all sources + link |
+
+Pass `CODE=FAR` as an extra flag for large files (`quickjs.c`, `quickjs-libc.c`):
+```sh
+amiga_compile quickjs.c CODE=FAR
+amiga_run -e 'print(1+1)'
+```
+
+As new tasks arise, **add convenience functions to `amiga-env.sh`** rather than
+writing out raw vamos commands. Keep the function table above in sync when you do.
+
+---
+
 ## Original Goal
 Port QuickJS (Fabrice Bellard's lightweight JavaScript engine) to run on
 AmigaOS 2.x+ using SAS/C 6.58.  The target binary is `qjs` — a REPL and
@@ -75,7 +155,7 @@ The character repetition might ALSO be caused by something else:
 | Host | macOS, vamos emulator |
 | vamos build config | `quickjs-master/amiga/vamos_build.cfg` |
 | vamos run config | `~/.vamos/vamos.cfg` (varies by machine) |
-| SAS/C installation | `/Users/brie/sasc658/` (mapped as `sc:`) |
+| SAS/C installation | `sasc658/` in repo root (preferred) or `$HOME/sasc658/` — `$SC` set via `source ./sasc658/setup.sh`; mapped as `sc:` in vamos |
 | Source tree | `quickjs-master/` (mapped as `qjs:` in vamos) |
 | Test CPU | `-C 68040 -m 65536 -H disable -s 2048` |
 
@@ -151,47 +231,35 @@ The object files for the no-FPU build should be kept separate (e.g., in a `obj_s
 subdirectory) so FPU and no-FPU builds can coexist.
 
 ### vamos invocation patterns
+Prefer the helper functions from `amiga-env.sh` (see Getting Started above).
+Raw commands are preserved here for reference and for cases where the script
+is not sourced.
+
 ```sh
 # Compile a file for FPU build (example: dtoa.c):
+amiga_compile dtoa.c
+# or raw:
 rm -rf ~/.vamos/volumes/ram
-vamos \
-  -c quickjs-master/amiga/vamos_build.cfg \
-  -V sc:/Users/bharrison4/sasc \
-  -V qjs:/path/to/quickjs-master \
+vamos -c quickjs-master/amiga/vamos_build.cfg -V sc:$SC \
+  -V qjs:$(pwd)/quickjs-master \
   sc:c/sc qjs:dtoa.c MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
   IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
 
 # Compile a file for no-FPU build (drop MATH=68881):
-rm -rf ~/.vamos/volumes/ram
-vamos \
-  -c quickjs-master/amiga/vamos_build.cfg \
-  -V sc:/Users/bharrison4/sasc \
-  -V qjs:/path/to/quickjs-master \
-  sc:c/sc qjs:dtoa.c DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
-  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
+amiga_compile_soft dtoa.c
 
 # Run qjs in vamos (note -- separator to stop vamos option parsing):
-vamos -S -C 68040 -m 65536 -H disable -s 2048 \
-  -V qjs:/path/to/quickjs-master \
-  -- qjs:qjs -e 'print(1+1)'
+amiga_run -e 'print(1+1)'
 
 # Link FPU build:
-vamos \
-  -c quickjs-master/amiga/vamos_build.cfg \
-  -V sc:/Users/bharrison4/sasc \
-  -V qjs:/path/to/quickjs-master \
-  sc:c/slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
-  qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
-  qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
-  TO qjs:qjs \
-  LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
+amiga_link
 
-# Link no-FPU build (after all no-FPU .o files compiled):
-# Same but use scmnb.lib instead of scm881nb.lib, and TO qjs:qjs_soft
+# Link no-FPU build:
+amiga_link_soft
 ```
 
 **Notes:**
-- Always `rm -rf ~/.vamos/volumes/ram` before vamos invocations.
+- Always `amiga_clear` (or `rm -rf ~/.vamos/volumes/ram`) before vamos invocations.
 - `OBJDIR=qjs:` is silently rejected by SAS/C 6.58; object files land next
   to the source file (which is fine since source is `qjs:file.c`).
 - `-S` skips vamos config files; use with explicit `-H disable` or
@@ -544,6 +612,98 @@ SO_FAR.md             — This file.
 
 ---
 
+## qjsc — The QuickJS Compiler
+
+`qjsc` is NOT a native binary compiler in the traditional sense. It compiles JavaScript
+source to QuickJS bytecode and embeds that bytecode in a C source file as `uint8_t[]` arrays.
+You then compile that C file with a C compiler to get a native executable.
+
+### Output modes
+| Flag | Output | Description |
+|------|--------|-------------|
+| (none) | `.c` file | bytecode as `uint8_t[]` + no `main()` — for linking into a larger app |
+| `-e` | `.c` file | bytecode + full `main()` + `#include "quickjs-libc.h"` → compile to standalone binary |
+| `-b` | raw `.bc` file | raw bytecode blob (not loadable by `qjs` from command line; for embedding) |
+
+### qjsc workflow for Amiga
+1. Run `qjsc -e -o myapp.c myapp.js` on the host Mac (qjsc is a host tool)
+2. Copy `myapp.c` into the source tree
+3. Compile `myapp.c` with SAS/C on vamos: same flags as other files + link against all QuickJS `.o` files
+4. Result: a standalone Amiga binary with JS bytecode baked in — no `.js` file needed at runtime
+
+### Known issues / not yet done
+- **SAS/C identifier length limit (31 chars):** `qjsc` generates C names from filenames (e.g.
+  `qjsc_my_script_name`). If the JS filename is long, the generated C identifier may exceed
+  31 characters and be silently truncated by SAS/C, causing linker errors.
+  Fix: use `qjsc -N shortname` to override the generated C identifier.
+- **Generated `inttypes.h` include:** the non-`-e` output includes `#include <inttypes.h>`,
+  which maps to our `amiga/inttypes.h` stub — should compile correctly.
+- **Status: NOT YET TESTED** on Amiga. The build/link workflow needs to be verified.
+
+---
+
+## Amiga File Path Handling
+
+AmigaOS uses `Volume:Directory/File` paths (e.g. `RAM:scripts/main.js`, `Work:tools/qjs`).
+POSIX code in quickjs-libc.c and quickjs.c assumes Unix-style paths (`/dir/file`).
+
+### What already works
+- `fopen()` / `fclose()` / `fread()` / `fwrite()`: SAS/C's runtime maps these to
+  `dos.library Open()/Read()/Write()` — Amiga paths work natively.
+- `js_load_file()` (used by module loader and `qjs script.js`): calls `fopen()` → works.
+- `std.open()` (`js_std_open`): calls `fopen()` → works with Amiga paths.
+- `realpath()` stub: just copies the path unchanged — adequate since AmigaOS has no symlinks.
+
+### Bug 15: Module path normalizer breaks for volume-root files
+`js_default_module_normalize_name()` in `quickjs.c` uses:
+```c
+r = strrchr(base_name, '/');
+if (r) len = r - base_name;
+else   len = 0;   /* ← BUG: ignores the colon */
+```
+For `RAM:main.js` (file at volume root, no `/`), `strrchr` returns NULL → len=0 →
+base directory = "" → `import './util'` resolves to `util` instead of `RAM:util`.
+For `RAM:scripts/main.js`, strrchr finds the `/` correctly → `RAM:scripts/util` ✓
+
+**Fix needed:** In `#ifdef __SASC`, modify (or replace via `JS_SetModuleLoaderFunc2`
+normalizer hook) to treat `:` as a path separator when no `/` is found:
+```c
+r = strrchr(base_name, '/');
+if (!r) r = strrchr(base_name, ':');  /* Amiga: colon is volume separator */
+```
+With this, `RAM:main.js` → len points after `:` → base = `RAM:` → result = `RAM:util` ✓
+
+### Bug 16: `import.meta.url` set to bare Amiga path (no `file://` prefix)
+`js_module_set_import_meta()` checks `if (!strchr(module_name, ':'))` to decide whether
+to prepend `file://`. Since ALL Amiga paths contain `:` (e.g. `RAM:foo.js`), the check
+fires and `import.meta.url` is set to `RAM:foo.js` rather than `file://RAM:foo.js`.
+This is inconsistent but functionally harmless unless user code parses the URL.
+Could be left as-is or handled by always prepending `amiga://` for `__SASC`.
+
+### Bug 17: `os.open()` / POSIX `open()` with Amiga paths — UNKNOWN
+`js_os_open()` calls POSIX `open(filename, flags, mode)`. SAS/C's `open()` may or may
+not handle `RAM:foo.txt` — needs testing. If it doesn't, `os.open()` will silently
+fail for Amiga paths while `std.open()` (fopen-based) works fine.
+
+### Bug 18: `os.getcwd()` returns AmigaOS-format path
+`js_os_getcwd()` calls `getcwd()`. SAS/C's `getcwd()` returns the AmigaOS current
+directory as a string like `Work:scripts` (no leading `/`). Code that expects a Unix
+path (starts with `/`) and tries to do path manipulation on the result will break.
+The value is correct for passing back to AmigaOS functions but may confuse JS code.
+
+### Bug 19: `os.chdir()` — UNKNOWN
+`js_os_chdir()` calls `chdir(target)`. SAS/C provides `chdir()` via its POSIX layer,
+which calls `dos.library CurrentDir()`. Amiga paths should work but needs testing.
+
+### What to implement
+1. Fix Bug 15 (module normalizer) in `quickjs.c` — `#ifdef __SASC` block, ~line 29207.
+2. Test `os.open()`, `os.getcwd()`, `os.chdir()` with Amiga paths via `qjs -e`.
+3. Implement `os.realpath()` for Amiga: call `dos.library` `GetDeviceName()` or
+   `NameFromLock()` after `Lock()` to canonicalize device names (e.g. `RAM:` vs `Ram Disk:`).
+   The current stub (copy path) is adequate for basic use but won't canonicalize.
+
+---
+
 ## Next Steps (priority order)
 
 ### 1. Diagnose and fix REPL backspace crash (MOST URGENT)
@@ -572,43 +732,52 @@ or increase `-s` in vamos.
 Compile the remaining 7 source files without `MATH=68881` and link as `qjs_soft`.
 See §No-FPU build status above for the list.  Compile order doesn't matter.
 
-For each file, the pattern is:
+With `amiga-env.sh` sourced, the pattern for each file is:
 ```sh
-rm -rf ~/.vamos/volumes/ram
-vamos -c quickjs-master/amiga/vamos_build.cfg \
-  -V sc:/Users/bharrison4/sasc \
-  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \
-  sc:c/sc qjs:FILENAME.c DATA=FARONLY [CODE=FAR] NOSTACKCHECK NOCHKABORT ABSFP \
-  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
+amiga_compile_soft FILENAME.c          # most files
+amiga_compile_soft quickjs.c CODE=FAR  # large files need CODE=FAR
+amiga_compile_soft quickjs-libc.c CODE=FAR
 ```
-`CODE=FAR` is required for `quickjs.c` and `quickjs-libc.c` (large files).
-
 Then link:
 ```sh
-vamos -c quickjs-master/amiga/vamos_build.cfg \
-  -V sc:/Users/bharrison4/sasc \
-  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \
-  sc:c/slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
-  qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
-  qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
-  TO qjs:qjs_soft \
-  LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
+amiga_link_soft
 ```
+
+### 3. Fix Amiga file path handling (Bug 15 — module normalizer)
+The most impactful fix: `import './util'` from a file at volume root (e.g. `RAM:main.js`)
+resolves to `util` instead of `RAM:util`. One-line fix in `quickjs.c` ~line 29207:
+```c
+#ifdef __SASC
+    if (!r) r = strrchr(base_name, ':');  /* treat : as path separator */
+#endif
+```
+After the fix, test with: `qjs RAM:main.js` where `main.js` does `import './lib'`.
+
+Also test the other os.* path functions (Bugs 16-19) with simple `qjs -e` scripts.
 
 ### 4. Build script / smakefile
 Create `quickjs-master/amiga/build.sh` — a shell script on the macOS host that
 drives vamos to compile all files and link both the FPU and no-FPU binaries.
 This replaces the manual vamos invocations and makes rebuilding reproducible.
 
-### 5. Shortest-decimal (Grisu/Ryu)
+### 5. Test qjsc workflow on Amiga
+Verify the compile-to-C → SAS/C → Amiga binary pipeline:
+1. On host: `qjsc -e -o quickjs-master/amiga/hello.c quickjs-master/examples/hello.js`
+   (if `qjsc` not yet built for host, build it with `make qjsc` on macOS)
+2. Compile `hello.c` with SAS/C via vamos (same flags as other files)
+3. Link against all QuickJS `.o` files, produce `hello` binary
+4. Run `vamos ... hello` — should print without needing a `.js` file present
+Watch for: identifier length issues (use `-N shortname` if needed).
+
+### 6. Shortest-decimal (Grisu/Ryu)
 `sasc_dtoa_free` always uses 17 significant digits.  `(3.14).toString()`
 → `"3.1400000000000001"` instead of `"3.14"`.  Technically wrong per the
 ES spec (§7.1.12.1 requires shortest round-trip) but doesn't break normal
 programs.  Implementing Grisu2 or Ryu in C89 without 64-bit integers is
 non-trivial; defer until 64-bit emulation is available.
 
-### 6. Comprehensive JS test suite
+### 7. Comprehensive JS test suite
 Run QuickJS's built-in test suite under vamos, document what passes/fails.
 
-### 7. AmiSSL integration
+### 8. AmiSSL integration
 Enable HTTPS fetch() via AmiSSL (SDK already installed at `sc:sdks/AmiSSL`).
