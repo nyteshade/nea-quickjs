@@ -980,6 +980,15 @@ static JSValue js_std_getenv(JSContext *ctx, JSValueConst this_val,
     if (!name)
         return JS_EXCEPTION;
     str = getenv(name);
+#ifdef __SASC
+    /* AmigaOS default: treat NO_COLOR as "1" if not set in the environment.
+     * This disables ANSI SGR color codes in the REPL, activating the optimize
+     * display path (outputs only the new suffix chars; no \x1b[nD cursor
+     * movement needed for forward typing).
+     * Override with:  setenv NO_COLOR 0   (AmigaDOS shell) */
+    if (!str && strcmp(name, "NO_COLOR") == 0)
+        str = "1";
+#endif
     JS_FreeCString(ctx, name);
     if (!str)
         return JS_UNDEFINED;
