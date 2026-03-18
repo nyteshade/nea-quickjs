@@ -3,12 +3,11 @@
 ## Original Goal
 Port QuickJS (Fabrice Bellard's lightweight JavaScript engine) to run on
 AmigaOS 2.x+ using SAS/C 6.58.  The target binary is `qjs` — a REPL and
-standalone JS runner.  The port runs on 68020+ hardware with a 68881/68882
-FPU (or 68040/68060 internal FPU).
+standalone JS runner.  Target: 68020+ hardware with or without FPU.
 
 ---
 
-## Current State (session 5 — CSI translation fix applied, testing needed)
+## Current State (session 6 — FPU confirmed, two-build strategy, REPL bugs investigated)
 
 ```
 print(100+110)              → 210                      ✓
@@ -18,11 +17,25 @@ print(3.14)                 → 3.1400000000000001        (known, acceptable)
 qjs -e '...'                → WORKS fully               ✓
 REPL starts                 → WORKS (no termInit crash)  ✓
 REPL receives keystrokes    → WORKS (poll+WaitForChar)   ✓
-REPL display/editing        → CSI fix applied (session 5), needs real-Amiga test
-Ctrl-C in REPL              → exits qjs via EINTR        (acceptable)
+REPL display (typing p,r,i) → BROKEN: shows prpirp, evals as "irp" (reversed!)
+Backspace in REPL           → BROKEN: freezes REPL, Ctrl-C unresponsive
+Ctrl-C in REPL              → exits qjs via EINTR        (OK when not frozen)
+Amiberry + FPU enabled      → WORKS ✓ (error #8000000B gone when FPU on)
+Amiberry without FPU        → CRASHES #8000000B (no-FPU build not yet linked)
 ```
 
-The binary is at `quickjs-master/qjs` (~967 KB, rebuilt Mar 17 17:38 2026).
+**Two binaries needed (session 6 decision):**
+
+| Binary | MATH flag | Math lib | Requires | Status |
+|--------|-----------|----------|----------|--------|
+| `qjs` (FPU build) | `MATH=68881` | `scm881nb.lib` | 68881/68882 or 68040/68060 FPU | **Done** — 945 KB, Mar 17 18:18 |
+| `qjs_soft` (no-FPU) | *(none)* | `scmnb.lib` | 68020+ any | **In progress** — see §no-FPU build below |
+
+The current `qjs` binary (945 KB, Mar 17 18:18:27):
+- Compiled WITH `MATH=68881` (uses inline 68881 FPU opcodes)
+- Linked with `scm881nb.lib`
+- Includes the `NO_COLOR=1` default fix (show_colors=false → optimize REPL path)
+- Includes CSI→VT100 translation fix
 
 **What was fixed in session 5 (CSI translation):**
 AmigaOS raw mode sends special keys as CSI sequences starting with 0x9B:
@@ -65,12 +78,23 @@ The character repetition might ALSO be caused by something else:
 
 ### Compile flags (per source file)
 
+**FPU build** (`qjs`):
+
 | File | Flags |
 |------|-------|
 | `quickjs.c` | `MATH=68881 DATA=FARONLY CODE=FAR NOSTACKCHECK NOCHKABORT ABSFP` |
 | `quickjs-libc.c` | `MATH=68881 DATA=FARONLY CODE=FAR NOSTACKCHECK NOCHKABORT ABSFP` |
 | `dtoa.c` | `MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP` |
 | All others | `MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP` |
+
+**No-FPU build** (`qjs_soft`) — drop `MATH=68881`, everything else identical:
+
+| File | Flags |
+|------|-------|
+| `quickjs.c` | `DATA=FARONLY CODE=FAR NOSTACKCHECK NOCHKABORT ABSFP` |
+| `quickjs-libc.c` | `DATA=FARONLY CODE=FAR NOSTACKCHECK NOCHKABORT ABSFP` |
+| `dtoa.c` | `DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP` |
+| All others | `DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP` |
 
 `CODE=FAR` is required when the object file exceeds ~32 KB (16-bit PC-relative
 branches can't reach across more than 32 KB).  `ABSFP` is required for any
@@ -80,7 +104,7 @@ file whose functions have cross-module calls (otherwise the linker gets
 ### IDIR (include search path)
 `IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include`
 
-### Link command
+### Link command (FPU build → `qjs`)
 ```
 slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
       qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
@@ -88,11 +112,44 @@ slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
       TO qjs:qjs \
       LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
 ```
-(`scm881nb.lib` = math library for 68881, no buffering)
+(`scm881nb.lib` = software+881 math library, no buffering)
+
+### Link command (no-FPU build → `qjs_soft`)
+```
+slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
+      qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+      qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+      TO qjs:qjs_soft \
+      LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
+```
+(`scmnb.lib` = pure software-float math, no buffering — confirmed present at `sc:lib/scmnb.lib`)
+
+**IMPORTANT:** All `.o` files fed to the no-FPU link must be compiled *without*
+`MATH=68881`.  Object files compiled WITH and WITHOUT `MATH=68881` must not
+be mixed in the same link — the 68881 ones emit FPU opcodes that crash on
+CPUs without FPU.
+
+### No-FPU build status (as of session 6)
+
+| File | .o compiled without MATH=68881? | Notes |
+|------|--------------------------------|-------|
+| `qjs.c` | ✓ `qjs.o` (21 KB, Mar 17 21:30) | Done |
+| `dtoa.c` | ✓ `dtoa.o` (18 KB, Mar 17 21:31) | Done |
+| `quickjs.c` | ✗ `quickjs.o` (711 KB, Mar 16) | **Still needs no-FPU recompile** |
+| `quickjs-libc.c` | ✗ `quickjs-libc.o` (62 KB, Mar 17 18:18) | **Still needs no-FPU recompile** |
+| `libregexp.c` | ✗ `libregexp.o` (29 KB, Mar 16) | **Still needs no-FPU recompile** |
+| `libunicode.c` | ✗ `libunicode.o` (62 KB, Mar 16) | **Still needs no-FPU recompile** |
+| `amiga/amiga_compat.c` | ✗ `amiga/amiga_compat.o` (9.7 KB, Mar 16) | **Still needs no-FPU recompile** |
+| `gen/repl.c` | ✗ `gen/repl.o` (24 KB, Mar 16) | **Still needs no-FPU recompile** |
+| `gen/standalone.c` | ✗ `gen/standalone.o` (2.6 KB, Mar 16) | **Still needs no-FPU recompile** |
+
+To complete the no-FPU build, compile each remaining file, then link to `qjs_soft`.
+The object files for the no-FPU build should be kept separate (e.g., in a `obj_soft/`
+subdirectory) so FPU and no-FPU builds can coexist.
 
 ### vamos invocation patterns
 ```sh
-# Compile a file (example: dtoa.c):
+# Compile a file for FPU build (example: dtoa.c):
 rm -rf ~/.vamos/volumes/ram
 vamos \
   -c quickjs-master/amiga/vamos_build.cfg \
@@ -101,17 +158,33 @@ vamos \
   sc:c/sc qjs:dtoa.c MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
   IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
 
+# Compile a file for no-FPU build (drop MATH=68881):
+rm -rf ~/.vamos/volumes/ram
+vamos \
+  -c quickjs-master/amiga/vamos_build.cfg \
+  -V sc:/Users/bharrison4/sasc \
+  -V qjs:/path/to/quickjs-master \
+  sc:c/sc qjs:dtoa.c DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
+
 # Run qjs in vamos (note -- separator to stop vamos option parsing):
 vamos -S -C 68040 -m 65536 -H disable -s 2048 \
   -V qjs:/path/to/quickjs-master \
   -- qjs:qjs -e 'print(1+1)'
 
-# Link (run after all .o files are current):
+# Link FPU build:
 vamos \
   -c quickjs-master/amiga/vamos_build.cfg \
   -V sc:/Users/bharrison4/sasc \
   -V qjs:/path/to/quickjs-master \
-  sc:c/slink sc:lib/c.o qjs:qjs.o ... TO qjs:qjs LIB ...
+  sc:c/slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
+  qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+  qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+  TO qjs:qjs \
+  LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
+
+# Link no-FPU build (after all no-FPU .o files compiled):
+# Same but use scmnb.lib instead of scm881nb.lib, and TO qjs:qjs_soft
 ```
 
 **Notes:**
@@ -242,6 +315,21 @@ mode).  Restores cooked mode on exit via `atexit(amiga_term_exit)`.
 local declarations (lines ~3011, ~3492) were replaced with comments since
 `Delay` is now declared at file scope by `<proto/dos.h>`.
 
+**`js_std_getenv` — `NO_COLOR=1` default (session 6):**
+When `NO_COLOR` env var is not set, returns `"1"` under `#ifdef __SASC`.
+This sets `show_colors=false` in repl.js, activating the "optimize" display
+path (outputs only the new suffix on forward typing; no full-line redraw).
+Rationale: the full-redraw "else" path with colorize_js may be causing the
+character reversal bug; the optimize path is simpler and faster.
+Override with `setenv NO_COLOR 0` in AmigaDOS shell to re-enable colors.
+
+```c
+#ifdef __SASC
+    if (!str && strcmp(name, "NO_COLOR") == 0)
+        str = "1";
+#endif
+```
+
 ---
 
 ## Key Bugs Found and Fixed
@@ -287,6 +375,25 @@ visible: `210.0` produces `"209.99999999999999"`.
 Caused by Bug 4 (MAX_SAFE_INTEGER = -1).  `JS_ToLengthFree(64)` clamped
 to -1 → RangeError.  **Fixed** by Bug 4 fix.
 
+### Bug 11: REPL characters inserted in reverse order (session 6 — NOT YET FIXED)
+Typing "pri" shows "prpirp" on screen; pressing Enter evaluates "irp" (reversed).
+Confirmed: input bytes arrive in correct order; VT100 sequences work (test_display.js).
+Root cause: cursor_pos appears to be 0 at each insert(), causing each new char to
+be prepended (insert at front) instead of appended.  The cursor_pos variable should
+be incremented by insert(), but something resets it to 0 between keystrokes.
+**Leading hypothesis:** QuickJS closure variable access bug on 32-bit AmigaOS —
+JSValue is 12 bytes (vs 8 on 64-bit), so closure var array index may be off.
+**Next step:** Add debug print to insert() in repl.js, regenerate gen/repl.c,
+recompile gen/repl.o, relink, test.
+
+### Bug 12: Backspace freezes REPL, Ctrl-C unresponsive (session 6 — NOT YET FIXED)
+After pressing backspace, no further key presses are processed.  The REPL
+appears to hang; even Ctrl-C break signal does not kill qjs.
+Root cause: unknown.  May be related to Bug 11 (wrong cursor_pos state),
+or poll()/WaitForChar deadlock, or readline_state getting stuck.
+**Next step:** Same debug approach as Bug 11 — add debug output to
+backward_delete_char() and handle_key() in repl.js.
+
 ### Bug 10: AmigaOS CSI (0x9B) not translated to VT100 ESC+[ (session 5)
 repl.js `handle_char()` only recognises `\x1b` (ESC=0x1B) as escape sequence
 start.  AmigaOS raw mode sends 0x9B for all CSI sequences.  Without
@@ -312,16 +419,81 @@ default.  **Fixed** with CSI escape sequence approach in quickjs-libc.c.
 
 ## What Doesn't Work Yet (Known Issues)
 
-### REPL keyboard input — FIXED, NEEDS REAL-AMIGA VERIFICATION
-`poll()` now uses `WaitForChar(Input(), usec)` for fd 0.  This should
-allow the REPL's read handler to fire when keys are pressed.
+### REPL display — characters appear in REVERSE ORDER (Bug 11)
+Typing "pri" shows "prpirp" on screen and evaluates as "irp" (reversed).
+Confirmed on WinUAE with VT100 sequences working (test_display.js T3=pri ✓).
+
+**What we know:**
+- hexdump.js confirms input bytes arrive in correct order: 'p'=0x70, 'r'=0x72, 'i'=0x69
+- test_display.js T3 (exact sequences the REPL emits for typing "pri") shows "pri" correctly
+- The current binary includes NO_COLOR=1 default → show_colors=false → optimize path active
+- Yet cmd evaluates as "irp" → cursor_pos must be 0 at each insert(), causing prepend not append
+
+**Hypotheses (not yet confirmed):**
+
+A) `term_cursor_x` accumulation bug in optimize path:
+   In `update()` (repl.js:339): `term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width`
+   In the optimize path, only `cmd.substring(last_cursor_pos)` is output (the suffix),
+   but the code adds `ucs_length(cmd)` (full length) instead of the suffix length.
+   For each character typed, term_cursor_x is over-incremented by `last_cursor_pos`.
+   After typing "pri" (3 chars, prompt_len=6):
+   - Real cursor: column 9; term_cursor_x: 12 (off by 3)
+   The display still LOOKS correct for forward typing (no move_cursor calls), but
+   term_cursor_x is wrong for subsequent backspace/arrow operations.
+
+B) QuickJS closure variable bug on 32-bit:
+   `cursor_pos` is a closure variable. If QuickJS's closure var access has an
+   offset bug on 32-bit (JSValue struct = 12 bytes vs 8 bytes on 64-bit), then
+   `cursor_pos += str.length` in insert() might write to the wrong address.
+   This would cause cursor_pos to read as 0 on the next call → prepend behavior.
+
+**Diagnostic plan:**
+Add `std.err.printf("insert: pos=%d cmd=%s\n", cursor_pos, cmd)` to insert()
+in `repl.js`, regenerate `gen/repl.c` on macOS with `/opt/homebrew/bin/qjsc`,
+recompile `gen/repl.o`, relink. The stderr output won't mess up the REPL display.
+
+**qjsc is available** on the host macOS machine:
+```
+/opt/homebrew/bin/qjsc -ss -o gen/repl.c -m repl.js
+```
+(version 2025-09-13 confirmed present)
+
+### REPL backspace — freezes REPL, Ctrl-C unresponsive (Bug 12)
+After pressing backspace in the REPL, typing anything further is ignored.
+Ctrl-C (break signal) does NOT kill qjs — it appears completely frozen.
+
+**What we know:**
+- hexdump.js confirms backspace sends 0x08 or 0x7F (correct, mapped to backward_delete_char)
+- The freeze appears to leave qjs running (no crash, no exit)
+- Ctrl-C normally works via `SetSignal(0, SIGBREAKF_CTRL_C)` in poll() before WaitForChar
+
+**Hypotheses:**
+A) `term_cursor_x` wraps to 0 causing cursor-up loop:
+   If term_cursor_x overflows past term_width and wraps to 0, then move_cursor(-N)
+   would emit `\x1b[1A` (cursor-up) instead of `\x1b[nD` (cursor-left). This
+   outputs cursor-up repeatedly, confusing the terminal. But for short commands
+   this shouldn't happen (tcx stays low).
+
+B) poll()/WaitForChar deadlock after backspace:
+   backward_delete_char() may return a non-zero value (JS runtime bug returns
+   garbage instead of undefined). handle_key's switch would match case -1 or -2,
+   calling readline_cb(cmd) or readline_cb(null) — ending the readline session.
+   The REPL would then... do what? Possibly re-enter readline_start which calls
+   os.setReadHandler. If the handler registration fails, no more input arrives.
+
+C) Escape sequence state corruption:
+   If some key pressed before backspace left readline_state non-zero (awaiting
+   escape sequence continuation), the backspace byte gets absorbed into the escape
+   sequence. The readline_state might get stuck in a state waiting for more bytes.
+
+**Next step:** Same as Bug 11 — add debug output to backward_delete_char and
+handle_key to see what's happening.
+
+### REPL keyboard input — FIXED
+`poll()` now uses `WaitForChar(Input(), usec)` for fd 0.
 Ctrl-C: detected via `SetSignal(0, SIGBREAKF_CTRL_C)` → EINTR → qjs exits.
 Ctrl-D: arrives as raw byte 0x04 → repl.js handles it as EOF.
-
-**Remaining concern:** We call `IsInteractive(in_fh)` in poll().  If the
-console handle changes between `ttySetRaw` and `poll()` (unlikely), or
-if vamos doesn't fully emulate WaitForChar, the REPL might still not work
-under vamos.  Real-Amiga testing is the verification path.
+**Status: Working (Ctrl-C works when REPL is NOT frozen by backspace bug)**
 
 ### Shortest-decimal (Grisu/Ryu)
 `sasc_dtoa_free` always uses 17 significant digits.  `(3.14).toString()`
@@ -377,53 +549,93 @@ SO_FAR.md             — This file.
 
 ## Next Steps (priority order)
 
-### 1. Real-Amiga testing tonight
-Copy `quickjs-master/qjs` to the Amiga and test:
-- `qjs -e 'print(1+1)'` → should print `2`
-- `qjs -e 'print(100+110)'` → should print `210`
-- `qjs -e 'print(Math.sqrt(2))'` → should print `1.4142135623730951`
-- `qjs -e 'print(JSON.stringify([1,2,3]))'` → should print `[1,2,3]`
-- `qjs` (REPL) → should no longer crash with `RangeError` at startup
-- Report whether the REPL accepts input / works at all
+### 1. Add debug output to REPL to diagnose cursor_pos bug (MOST URGENT)
+The character reversal (Bug 11) and backspace freeze (Bug 12) need root cause
+confirmation before we can fix them.  The plan:
 
-### 2. REPL display/editing — verify CSI fix on real Amiga (NEXT)
-Session 5 applied the CSI→VT100 translation fix.  Test on real Amiga:
+**Step 1:** Add debug prints to `repl.js`:
+```javascript
+// In insert():
+function insert(str) {
+    if (str) {
+        std.err.printf("insert: str=%s pos_before=%d cmd_before=%s\n",
+                       str, cursor_pos, cmd);  // ADD THIS
+        cmd = cmd.substring(0, cursor_pos) + str + cmd.substring(cursor_pos);
+        cursor_pos += str.length;
+        std.err.printf("insert: pos_after=%d cmd_after=%s\n",
+                       cursor_pos, cmd);  // ADD THIS
+    }
+}
+```
+**Step 2:** Regenerate `gen/repl.c` on the macOS host:
+```sh
+/opt/homebrew/bin/qjsc -ss -o gen/repl.c -m repl.js
+```
+(qjsc version 2025-09-13 is at `/opt/homebrew/bin/qjsc`)
 
-**Step 1:** Run `qjs hexdump.js` and press keys, verifying bytes:
-- Normal chars (a, b, c): `61`, `62`, `63`
-- Cursor-up: should now show `1B 5B 41` (after CSI fix)
-- Cursor-down: `1B 5B 42`
-- Cursor-left: `1B 5B 44`
-- Cursor-right: `1B 5B 43`
-- Backspace key: `08` or `7F` (either is handled by repl.js)
-- Delete key: might be `7F` or `1B 5B 50` (CSI P → delete-char)
+**Step 3:** Recompile `gen/repl.o` (FPU or no-FPU flags as needed) and relink.
 
-**Step 2:** Test the REPL.  Expected improvements:
-- Cursor keys should work (history, line movement)
-- Backspace should work IF the key sends `0x08` or `0x7F`
-- If backspace still doesn't work, check hexdump.js output
+**Step 4:** Run on Amiga.  The stderr output goes to a separate file descriptor
+so it won't corrupt the REPL display.  Watch what cursor_pos is on each insert.
 
-**Step 3:** If backspace sends `0x7F` but still doesn't work, check that
-`write(1, buf, n)` / `std.puts()` correctly flushes to ViNCEd.  Look for
-any output buffering in SAS/C `write()`.
+### 2. Fix REPL term_cursor_x bug in optimize path
+In `repl.js` `update()`, line 339:
+```javascript
+term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
+```
+In the optimize path, only `cmd.substring(last_cursor_pos)` is output.
+The correct calculation for the optimize path:
+```javascript
+// Inside the optimize path:
+term_cursor_x = (term_cursor_x + ucs_length(cmd.substring(last_cursor_pos))) % term_width;
+// NOT (term_cursor_x + ucs_length(cmd))
+```
+But `last_cursor_pos` changes within the if block — it's set to `cmd.length` after
+the print (line 347). The fix needs to capture `last_cursor_pos` BEFORE that assignment.
+This bug may not directly cause the character reversal (cursor_pos isn't affected) but
+it will cause wrong cursor positioning for backspace/arrow keys after forward typing.
 
-**Step 4:** If chars still repeat, the issue may be something other than
-CSI — likely echo still enabled.  Investigate `SetMode(1)` and echo
-behavior in rkrm-dos.pdf.
+### 3. Complete no-FPU build
+Compile the remaining 7 source files without `MATH=68881` and link as `qjs_soft`.
+See §No-FPU build status above for the list.  Compile order doesn't matter.
 
-### 3. Shortest-decimal (Grisu/Ryu)
-Implement a C89-compatible shortest-decimal algorithm for `sasc_dtoa_free`.
-Options:
-a. Grisu2 lite: try 15-digit output first, verify round-trip via `strtod`,
-   fall back to 17 if needed. Requires `strtod` to be accurate (verify first).
-b. Full Ryu implementation adapted for 32-bit arithmetic (complex but correct).
+For each file, the pattern is:
+```sh
+rm -rf ~/.vamos/volumes/ram
+vamos -c quickjs-master/amiga/vamos_build.cfg \
+  -V sc:/Users/bharrison4/sasc \
+  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \
+  sc:c/sc qjs:FILENAME.c DATA=FARONLY [CODE=FAR] NOSTACKCHECK NOCHKABORT ABSFP \
+  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS
+```
+`CODE=FAR` is required for `quickjs.c` and `quickjs-libc.c` (large files).
 
-### 4. Makefile.amiga
-Create a proper smakefile or shell script for reproducible builds.  Should
-handle: compile all objects, detect which need recompilation, link.
+Then link:
+```sh
+vamos -c quickjs-master/amiga/vamos_build.cfg \
+  -V sc:/Users/bharrison4/sasc \
+  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \
+  sc:c/slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
+  qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+  qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+  TO qjs:qjs_soft \
+  LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
+```
 
-### 5. Comprehensive JS test suite
+### 4. Build script / smakefile
+Create `quickjs-master/amiga/build.sh` — a shell script on the macOS host that
+drives vamos to compile all files and link both the FPU and no-FPU binaries.
+This replaces the manual vamos invocations and makes rebuilding reproducible.
+
+### 5. Shortest-decimal (Grisu/Ryu)
+`sasc_dtoa_free` always uses 17 significant digits.  `(3.14).toString()`
+→ `"3.1400000000000001"` instead of `"3.14"`.  Technically wrong per the
+ES spec (§7.1.12.1 requires shortest round-trip) but doesn't break normal
+programs.  Implementing Grisu2 or Ryu in C89 without 64-bit integers is
+non-trivial; defer until 64-bit emulation is available.
+
+### 6. Comprehensive JS test suite
 Run QuickJS's built-in test suite under vamos, document what passes/fails.
 
-### 6. AmiSSL integration
+### 7. AmiSSL integration
 Enable HTTPS fetch() via AmiSSL (SDK already installed at `sc:sdks/AmiSSL`).

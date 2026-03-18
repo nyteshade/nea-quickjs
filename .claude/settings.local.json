@@ -321,7 +321,8 @@
       "Bash(rm -rf ~/.vamos/volumes/ram && vamos \\\\\n  -c /Volumes/Code/Amiga/nea-js/quickjs-master/amiga/vamos_build.cfg \\\\\n  -V sc:/Users/bharrison4/sasc \\\\\n  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \\\\\n  sc:c/sc qjs:qjs.c DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \\\\\n  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS 2>&1 | tail -5)",
       "Bash(rm -rf ~/.vamos/volumes/ram && vamos \\\\\n  -c /Volumes/Code/Amiga/nea-js/quickjs-master/amiga/vamos_build.cfg \\\\\n  -V sc:/Users/bharrison4/sasc \\\\\n  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \\\\\n  sc:c/sc qjs:dtoa.c DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \\\\\n  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS 2>&1 | tail -5)",
       "Bash(ls /Volumes/Code/Amiga/nea-js/quickjs-master/*.sh 2>/dev/null; ls /Volumes/Code/Amiga/nea-js/quickjs-master/build* 2>/dev/null; ls /Users/bharrison4/c/Amiga/nea-js/ 2>/dev/null)",
-      "Bash(ls /Volumes/Code/Amiga/nea-js/quickjs-master/*.sh; find /Volumes/Code/Amiga/nea-js/quickjs-master -name \"build*.sh\" -o -name \"compile*.sh\" -o -name \"*.bat\" 2>/dev/null | head -20)"
+      "Bash(ls /Volumes/Code/Amiga/nea-js/quickjs-master/*.sh; find /Volumes/Code/Amiga/nea-js/quickjs-master -name \"build*.sh\" -o -name \"compile*.sh\" -o -name \"*.bat\" 2>/dev/null | head -20)",
+      "Bash(qjsc --version 2>/dev/null || /opt/homebrew/bin/qjsc --version 2>/dev/null)"
     ]
   }
 }
