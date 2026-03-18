@@ -8,7 +8,7 @@ FPU (or 68040/68060 internal FPU).
 
 ---
 
-## Current State (session 4 end — REPL I/O partially working, display broken)
+## Current State (session 5 — CSI translation fix applied, testing needed)
 
 ```
 print(100+110)              → 210                      ✓
@@ -18,54 +18,36 @@ print(3.14)                 → 3.1400000000000001        (known, acceptable)
 qjs -e '...'                → WORKS fully               ✓
 REPL starts                 → WORKS (no termInit crash)  ✓
 REPL receives keystrokes    → WORKS (poll+WaitForChar)   ✓
-REPL display/editing        → BROKEN — chars repeat, backspace does nothing ✗
+REPL display/editing        → CSI fix applied (session 5), needs real-Amiga test
 Ctrl-C in REPL              → exits qjs via EINTR        (acceptable)
 ```
 
-The binary is at `quickjs-master/qjs` (967 KB, built Mon Mar 16 22:23 2026).
+The binary is at `quickjs-master/qjs` (~967 KB, rebuilt Mar 17 17:38 2026).
 
-**What was fixed in session 4:**
-`poll()` stub now uses `WaitForChar(Input(), usec)` so the REPL's stdin
-read handler actually fires. Keystrokes ARE received. Progress.
+**What was fixed in session 5 (CSI translation):**
+AmigaOS raw mode sends special keys as CSI sequences starting with 0x9B:
+  cursor-up = `0x9B 0x41`, cursor-down = `0x9B 0x42`, etc.
+repl.js `handle_char()` only understands VT100 ESC+[ (`0x1B 0x5B`).
+Without translation, pressing cursor-up inserts garbage (`\u009b` + 'A')
+into the command buffer, causing the "characters repeat many times" symptom.
 
-**What is still broken — REPL display/editing:**
-Observed on real Amiga: after typing 'h', 'e', the characters repeat many
-times; backspace does nothing. Two likely root causes (investigate tomorrow):
+**Fix:** `amiga_read_stdin()` in `quickjs-libc.c` intercepts `os.read(fd=0, ...)`
+and translates every `0x9B` byte to `0x1B 0x5B` before the JS sees it.
+This is done at the C level so repl.js bytecode doesn't need regeneration.
 
-1. **AmigaOS CSI vs VT100 escape sequences:**
-   AmigaOS raw mode sends special keys as CSI sequences starting with 0x9B
-   (e.g., cursor-up = `\x9B A`).  The repl.js state machine only understands
-   VT100 ESC+[ (`\x1b\x5b...`), not native AmigaOS CSI (0x9B).
-   Backspace on AmigaOS sends `\x9B P` (delete-char CSI), not `\x7f`/`\x08`.
-   Fix: translate 0x9B → `\x1b[` in our read() or poll() path; OR map
-   0x9B sequences to the expected keys in a pre-filter.
+**Diagnostic tool:** `quickjs-master/hexdump.js`
+Run `qjs hexdump.js` on the Amiga to see the exact hex bytes each key sends.
+This confirms what ViNCEd sends for backspace, delete, and arrow keys.
+Expected after fix (cursor-up should send `1B 5B 41`, not `9B 41`).
 
-2. **term_cursor_x tracking goes wrong → display corruption:**
-   repl.js tracks cursor position in `term_cursor_x` and uses VT100 cursor
-   movement sequences (`\x1b[nC`, `\x1b[nD`, etc.) for output.  If ViNCEd
-   doesn't handle these exactly, `term_cursor_x` drifts and the REPL
-   re-renders the whole line from the wrong offset → visual repetition.
-   Investigate: does ViNCEd handle `\x1b[nC`/`\x1b[nD` for cursor movement?
-
-**From reading repl.js (key facts for tomorrow's fix):**
-- `term_read_handler()` calls `os.read(fd, buf, 0, len)` → reads up to
-  `term_read_buf.length` bytes at once (typically 64)
-- `handle_byte()` decodes UTF-8; `handle_char()` decodes escape sequences
-- State machine: `\x1b` → state 1; `\x1b[` → state 2 (CSI via ESC);
-  anything else passes to `handle_key()`
-- **0x9B (native AmigaOS CSI) is NOT handled** → passed as raw character
-  → interpreted as 0x9B = some high unicode char → ignored or causes confusion
-- Backspace command mapped to `\x7f` (DEL) and `\x08` (^H)
-- Delete key mapped to `\x1b[3~`
-- Arrow keys: `\x1b[A/B/C/D`
-
-**Investigation plan for tomorrow:**
-1. Write a small diagnostic `qjs -e` script that reads raw bytes and prints
-   their hex values — find out exactly what ViNCEd sends for backspace,
-   delete, arrows
-2. Add a CSI-to-VT100 translation layer in `term_read_handler` (or in C's
-   `read()` for fd 0): translate 0x9B → `\x1b[`
-3. Test whether the character repetition stops once CSI is handled correctly
+**What MIGHT still be broken after the CSI fix:**
+The character repetition might ALSO be caused by something else:
+- If backspace sends something other than `0x08` or `0x7f` (which repl.js
+  maps to backward_delete_char), backspace still won't work
+- If ViNCEd doesn't interpret `\x1b[nD` (cursor-left-n) correctly, cursor
+  tracking will be wrong and the REPL will display garbage on re-render
+- Unknown: whether SAS/C's `write(1, buf, n)` and `std.puts()` correctly
+  deliver all output bytes to ViNCEd without buffering issues
 
 ---
 
@@ -305,6 +287,16 @@ visible: `210.0` produces `"209.99999999999999"`.
 Caused by Bug 4 (MAX_SAFE_INTEGER = -1).  `JS_ToLengthFree(64)` clamped
 to -1 → RangeError.  **Fixed** by Bug 4 fix.
 
+### Bug 10: AmigaOS CSI (0x9B) not translated to VT100 ESC+[ (session 5)
+repl.js `handle_char()` only recognises `\x1b` (ESC=0x1B) as escape sequence
+start.  AmigaOS raw mode sends 0x9B for all CSI sequences.  Without
+translation, cursor keys insert garbage; the whole line gets re-rendered
+→ "characters repeat many times" symptom.
+**Fix:** `amiga_read_stdin()` in `quickjs-libc.c` (`#ifdef __SASC` block
+just before `js_os_read_write`) intercepts `os.read(0, ...)` and replaces
+every `0x9B` byte with `0x1B 0x5B`.  A one-byte `amiga_csi_pending` stores
+the second byte if the buffer was exactly full.
+
 ### Bug 9: poll() never returning POLLIN — REPL input broken
 `poll()` stub returned 0 unconditionally.  REPL uses `os.setReadHandler(0, fn)`
 which calls `poll([{fd:0, events:POLLIN}], 1, timeout)` — handler never fired.
@@ -394,33 +386,30 @@ Copy `quickjs-master/qjs` to the Amiga and test:
 - `qjs` (REPL) → should no longer crash with `RangeError` at startup
 - Report whether the REPL accepts input / works at all
 
-### 2. REPL display/editing — fix CSI translation (NEXT PRIORITY)
-Keystrokes are received but display is broken: chars repeat, backspace
-does nothing.  Root cause: AmigaOS sends CSI (0x9B) sequences; repl.js
-only understands VT100 (0x1B 0x5B).
+### 2. REPL display/editing — verify CSI fix on real Amiga (NEXT)
+Session 5 applied the CSI→VT100 translation fix.  Test on real Amiga:
 
-**Step 1:** Write a hex-dump diagnostic to find exact byte sequences for
-each key on ViNCEd:
-```javascript
-// qjs -e (run on real Amiga, raw mode):
-// Or add a debug mode to print hex of each received byte
-```
+**Step 1:** Run `qjs hexdump.js` and press keys, verifying bytes:
+- Normal chars (a, b, c): `61`, `62`, `63`
+- Cursor-up: should now show `1B 5B 41` (after CSI fix)
+- Cursor-down: `1B 5B 42`
+- Cursor-left: `1B 5B 44`
+- Cursor-right: `1B 5B 43`
+- Backspace key: `08` or `7F` (either is handled by repl.js)
+- Delete key: might be `7F` or `1B 5B 50` (CSI P → delete-char)
 
-**Step 2:** Add CSI→VT100 translation.  Two options:
-a. In JavaScript: patch `handle_byte()` in repl.js to treat 0x9B as
-   ESC+[ (set state=2 directly when byte 0x9B is seen)
-b. In C: intercept in `js_os_read()` or a wrapper around SAS/C `read()`,
-   translate 0x9B → `\x1b[` inline.
-Option (a) is cleaner — repl.js is compiled to bytecode in gen/, which
-means we'd patch `repl.js` and recompile to gen/repl.c via qjsc.
+**Step 2:** Test the REPL.  Expected improvements:
+- Cursor keys should work (history, line movement)
+- Backspace should work IF the key sends `0x08` or `0x7F`
+- If backspace still doesn't work, check hexdump.js output
 
-**Step 3:** Verify cursor movement sequences.  repl.js emits `\x1b[nC`
-(right n), `\x1b[nD` (left n), `\x1b[A` (up), `\x1b[B` (down).
-ViNCEd should handle these; if not, this is a separate issue.
+**Step 3:** If backspace sends `0x7F` but still doesn't work, check that
+`write(1, buf, n)` / `std.puts()` correctly flushes to ViNCEd.  Look for
+any output buffering in SAS/C `write()`.
 
-**Step 4:** Check echo.  `SetMode(Input(), 1)` should disable OS-level
-echo; if it doesn't, we'd see double characters.  AmigaOS 2+ raw mode
-does disable echo — verify on real hardware.
+**Step 4:** If chars still repeat, the issue may be something other than
+CSI — likely echo still enabled.  Investigate `SetMode(1)` and echo
+behavior in rkrm-dos.pdf.
 
 ### 3. Shortest-decimal (Grisu/Ryu)
 Implement a C89-compatible shortest-decimal algorithm for `sasc_dtoa_free`.

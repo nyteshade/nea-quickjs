@@ -297,7 +297,22 @@
       "Bash(rm -rf ~/.vamos/volumes/ram && vamos \\\\\n  -c /Volumes/Code/Amiga/nea-js/quickjs-master/amiga/vamos_build.cfg \\\\\n  -V sc:/Users/bharrison4/sasc \\\\\n  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \\\\\n  sc:c/sc qjs:amiga/amiga_compat.c \\\\\n  MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \\\\\n  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS 2>&1)",
       "Bash(rm -rf ~/.vamos/volumes/ram && vamos \\\\\n  -c /Volumes/Code/Amiga/nea-js/quickjs-master/amiga/vamos_build.cfg \\\\\n  -V sc:/Users/bharrison4/sasc \\\\\n  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \\\\\n  sc:c/slink \\\\\n  sc:lib/c.o \\\\\n  qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \\\\\n  qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \\\\\n  qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \\\\\n  TO qjs:qjs \\\\\n  LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS 2>&1)",
       "Bash(vamos -S -C 68040 -m 65536 -H disable -s 2048 \\\\\n  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \\\\\n  -- qjs:qjs -e 'print\\(100+110\\); print\\(Math.sqrt\\(2\\)\\)' 2>&1)",
-      "Bash(cat /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js | tr -d '\\\\0' | grep -c \"tty\" 2>/dev/null; xxd /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js | head -3)"
+      "Bash(cat /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js | tr -d '\\\\0' | grep -c \"tty\" 2>/dev/null; xxd /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js | head -3)",
+      "Bash(ls /usr/local/bin/qjs*)",
+      "Bash(ls ~/bin/qjs*)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(qjsc --version 2>/dev/null || qjsc -h 2>&1 | head -5)",
+      "Bash(grep -rn \"qjsc\\\\|gen/repl\\\\|repl\\\\.c\" /Volumes/Code/Amiga/nea-js/quickjs-master/Makefile | head -20; grep -rn \"qjsc\" /Volumes/Code/Amiga/nea-js/quickjs-master/*.cmake 2>/dev/null | head -5; find /Volumes/Code/Amiga/nea-js/quickjs-master -name \"CMakeLists.txt\" | head -3)",
+      "Bash(grep -rn \"qjsc\" /Volumes/Code/Amiga/nea-js/quickjs-master/ --include=\"*.txt\" --include=\"*.mk\" --include=\"Makefile\" 2>/dev/null | head -10; ls /Volumes/Code/Amiga/nea-js/quickjs-master/*.mk 2>/dev/null)",
+      "Bash(grep -rn \"qjsc\" /Volumes/Code/Amiga/nea-js/ --include=\"*.txt\" --include=\"*.sh\" --include=\"Makefile\" --include=\"*.py\" 2>/dev/null | grep -v \".git\" | head -15)",
+      "Bash(git -C /Volumes/Code/Amiga/nea-js/quickjs-master log --oneline -3 2>/dev/null || true; grep -m2 \"2025\\\\|2024\" /Volumes/Code/Amiga/nea-js/quickjs-master/quickjs.c | head -3)",
+      "Bash(cd /Volumes/Code/Amiga/nea-js/quickjs-master && qjsc -c -N qjsc_repl -o /tmp/repl_test.c repl.js 2>&1 | head -5; head -8 /tmp/repl_test.c; wc -c /tmp/repl_test.c /Volumes/Code/Amiga/nea-js/quickjs-master/gen/repl.c)",
+      "Bash(qjsc -c -N qjsc_repl -o /tmp/repl_test.c /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js 2>&1 | head -5\nhead -8 /tmp/repl_test.c\nwc -c /tmp/repl_test.c /Volumes/Code/Amiga/nea-js/quickjs-master/gen/repl.c)",
+      "Read(//opt/homebrew/Cellar/quickjs/2025-09-13-2/bin/**)",
+      "Bash(/opt/homebrew/Cellar/quickjs/2025-09-13-2/bin/qjs --version)",
+      "Bash(grep -m3 \"quickjs-ng\\\\|QuickJS-ng\" /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js | head -3; /opt/homebrew/bin/qjsc --help 2>&1 | head -3)",
+      "Bash(qjsc -c -N qjsc_repl -D qjs:std -D qjs:os -D qjs:bjson \\\\\n  -o /tmp/repl_test.c /Volumes/Code/Amiga/nea-js/quickjs-master/repl.js 2>&1\nhead -8 /tmp/repl_test.c\nwc -c /tmp/repl_test.c /Volumes/Code/Amiga/nea-js/quickjs-master/gen/repl.c)",
+      "Bash(rm -rf ~/.vamos/volumes/ram && vamos \\\\\n  -c /Volumes/Code/Amiga/nea-js/quickjs-master/amiga/vamos_build.cfg \\\\\n  -V sc:/Users/bharrison4/sasc \\\\\n  -V qjs:/Volumes/Code/Amiga/nea-js/quickjs-master \\\\\n  sc:c/sc qjs:quickjs-libc.c \\\\\n  MATH=68881 DATA=FARONLY CODE=FAR NOSTACKCHECK NOCHKABORT ABSFP \\\\\n  IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS 2>&1)"
     ]
   }
 }

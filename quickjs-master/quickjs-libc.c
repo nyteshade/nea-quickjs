@@ -2076,6 +2076,74 @@ static JSValue js_os_seek(JSContext *ctx, JSValueConst this_val,
         return JS_NewInt64(ctx, ret);
 }
 
+#ifdef __SASC
+/* -----------------------------------------------------------------------
+ * amiga_read_stdin() -- read fd 0 with AmigaOS CSI → VT100 translation
+ *
+ * AmigaOS raw mode sends special keys as CSI (0x9B) sequences:
+ *   cursor-up    = CSI A  (0x9B 0x41)
+ *   cursor-down  = CSI B
+ *   cursor-right = CSI C
+ *   cursor-left  = CSI D
+ *   delete       = CSI P  (0x9B 0x50)
+ *
+ * repl.js's handle_char() state machine understands VT100 ESC+[ (0x1B 0x5B)
+ * but NOT native CSI (0x9B).  We translate here so the REPL works on
+ * AmigaOS terminals (ViNCEd, NewShell, etc.) without patching the JS.
+ *
+ * A single pending byte is kept for the rare case where the output buffer
+ * is exactly full after emitting 0x1B but before we can append 0x5B.
+ * In practice os.read is always called with len=64 so this never triggers.
+ * --------------------------------------------------------------------- */
+#include <proto/dos.h>  /* Read(), Input() */
+
+static unsigned char amiga_csi_pending = 0;  /* pending '[' after ESC */
+
+static ssize_t amiga_read_stdin(uint8_t *buf, size_t count)
+{
+    unsigned char raw[128];
+    LONG rc;
+    int i;
+    size_t out;
+
+    if (count == 0) return 0;
+
+    /* Drain pending '[' from a previous CSI translation */
+    if (amiga_csi_pending) {
+        buf[0] = amiga_csi_pending;
+        amiga_csi_pending = 0;
+        return 1;
+    }
+
+    /* Read raw bytes from the console handle */
+    {
+        LONG want = (LONG)(count < sizeof(raw) ? count : sizeof(raw));
+        rc = Read(Input(), raw, want);
+    }
+    if (rc <= 0) return (ssize_t)rc;
+
+    /* Translate 0x9B (AmigaOS CSI) → 0x1B 0x5B (VT100 ESC + '[') */
+    out = 0;
+    for (i = 0; i < (int)rc; i++) {
+        if (raw[i] == (unsigned char)0x9B) {
+            if (out + 1 < count) {
+                buf[out++] = 0x1B;
+                buf[out++] = 0x5B;
+            } else if (out < count) {
+                buf[out++] = 0x1B;
+                amiga_csi_pending = 0x5B;  /* return '[' on next call */
+                break;
+            }
+            /* else: buffer full, drop — shouldn't happen with count=64 */
+        } else {
+            if (out < count)
+                buf[out++] = raw[i];
+        }
+    }
+    return (ssize_t)out;
+}
+#endif /* __SASC */
+
 static JSValue js_os_read_write(JSContext *ctx, JSValueConst this_val,
                                 int argc, JSValueConst *argv, int magic)
 {
@@ -2096,10 +2164,17 @@ static JSValue js_os_read_write(JSContext *ctx, JSValueConst this_val,
         return JS_EXCEPTION;
     if (pos + len > size)
         return JS_ThrowRangeError(ctx, "read/write array buffer overflow");
-    if (magic)
+    if (magic) {
         ret = js_get_errno(write(fd, buf + pos, len));
-    else
+    } else {
+#ifdef __SASC
+        /* For stdin in raw mode, translate AmigaOS CSI (0x9B) to VT100 ESC+[ */
+        if (fd == 0)
+            ret = amiga_read_stdin(buf + pos, (size_t)len);
+        else
+#endif
         ret = js_get_errno(read(fd, buf + pos, len));
+    }
     return JS_NewInt64(ctx, ret);
 }
 
