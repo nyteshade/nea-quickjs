@@ -63,9 +63,10 @@ source ./amiga-env.sh
 | `amiga_clear` | `rm -rf ~/.vamos/volumes/ram` — run before every vamos call |
 | `amiga_compile FILE [FLAGS]` | Compile FILE (relative to `quickjs-master/`) with FPU flags |
 | `amiga_compile_soft FILE [FLAGS]` | Same without `MATH=68881` (no-FPU build) |
-| `amiga_link` | Link all `.o` files → `quickjs-master/qjs` (FPU) |
-| `amiga_link_soft` | Link all `.o` files → `quickjs-master/qjs_soft` (no-FPU) |
+| `amiga_link` | Link all `.o` files → `quickjs-master/amiga/bin/qjs` (FPU) |
+| `amiga_link_soft` | Link all `.o` files → `quickjs-master/amiga/bin/qjs_soft` (no-FPU) |
 | `amiga_run [ARGS]` | Run `qjs` via vamos with standard 68040 flags |
+| `amiga_run_stack N [ARGS]` | Same but with N bytes of vamos stack (for stack-overflow diagnosis) |
 | `amiga_run_soft [ARGS]` | Same but runs `qjs_soft` |
 | `amiga_build_fpu` | Full FPU rebuild: compile all sources + link |
 
@@ -84,6 +85,9 @@ writing out raw vamos commands. Keep the function table above in sync when you d
 Port QuickJS (Fabrice Bellard's lightweight JavaScript engine) to run on
 AmigaOS 2.x+ using SAS/C 6.58.  The target binary is `qjs` — a REPL and
 standalone JS runner.  Target: 68020+ hardware with or without FPU.
+
+**Upstream QuickJS:** `git@github.com:bellard/quickjs.git`
+Use when pulling upstream changes or checking whether a bug exists in unmodified QuickJS.
 
 ---
 
@@ -111,10 +115,10 @@ Integer addition            → FIXED (was producing float64 due to INT32_MIN bu
 
 | Binary | MATH flag | Math lib | Requires | Status |
 |--------|-----------|----------|----------|--------|
-| `qjs` (FPU build) | `MATH=68881` | `scm881nb.lib` | 68881/68882 or 68040/68060 FPU | **Done** — 945 KB, Mar 17 18:18 |
-| `qjs_soft` (no-FPU) | *(none)* | `scmnb.lib` | 68020+ any | **In progress** — see §no-FPU build below |
+| `qjs` (FPU build) | `MATH=68881` | `scm881nb.lib` | 68881/68882 or 68040/68060 FPU | **Done** — 945 KB, Mar 17 18:18 → `amiga/bin/qjs` |
+| `qjs_soft` (no-FPU) | *(none)* | `scmnb.lib` | 68020+ any | **In progress** — see §no-FPU build below → `amiga/bin/qjs_soft` |
 
-The current `qjs` binary (945 KB, Mar 17 18:18:27):
+The current `qjs` binary (945 KB, Mar 17 18:18:27) — **now output to `quickjs-master/amiga/bin/qjs`**:
 - Compiled WITH `MATH=68881` (uses inline 68881 FPU opcodes)
 - Linked with `scm881nb.lib`
 - Includes the `NO_COLOR=1` default fix (show_colors=false → optimize REPL path)
@@ -144,6 +148,48 @@ The character repetition might ALSO be caused by something else:
   tracking will be wrong and the REPL will display garbage on re-render
 - Unknown: whether SAS/C's `write(1, buf, n)` and `std.puts()` correctly
   deliver all output bytes to ViNCEd without buffering issues
+
+---
+
+## Console Handler: ViNCEd vs ROM CON:
+
+Most modern AmigaOS installations use **ViNCEd** (handler `VNC:vincèd.handler`)
+instead of or in addition to the ROM-provided `CON:` handler.  This matters for
+the REPL because all terminal I/O goes through whichever handler owns the window.
+
+### Two deployment patterns
+
+| Pattern | What you see | Effect on qjs |
+|---------|-------------|---------------|
+| ROM CON: only | `assign CON:` → ROM handler | Conservative: handles `\r`, `\x08`, spaces; limited VT100 |
+| ViNCEd installed, CON: **not** remounted | CLI windows still use ROM CON:; ViNCEd windows are `VNC:` | Same as above for CLI |
+| ViNCEd installed, CON: **remounted to VNC:** | `assign CON: VNC:vincèd.handler` → all programs get ViNCEd | More VT100 sequences available; raw Write() dispatch may differ |
+
+### What to check on the target Amiga
+
+Run `assign CON:` — the output tells you which handler is active.  Also run
+`assign` (no args) to see all active assigns; look for `VNC:`.
+
+### How this affects the backspace crash investigation
+
+- ROM CON: and ViNCEd handle multiple sequential `Write(Output(), ...)` calls
+  within a raw-mode read callback **differently** — one may be safe, the other
+  may not.
+- ViNCEd may parse `\r` followed immediately by output as a cursor-home
+  + new content, which is different from how ROM CON: processes it.
+- If the crash only happens with one handler and not the other, that pins down
+  whether the issue is in ViNCEd's CSI dispatch or a ROM CON: limitation.
+
+### Detection approach (future work)
+Detect at runtime in `quickjs-libc.c` using `GetConsoleTask()` +
+`DeviceName()` (or examine the FileInfoBlock device name for `Input()`) to
+identify whether the active handler is ViNCEd's `vincèd.handler` or the ROM
+handler. Then adjust: send VT100 erase-to-EOL (`\x1b[K`) when ViNCEd is
+confirmed (it supports it reliably); fall back to space-padding + backspaces for
+ROM CON:.
+
+For now: the `assign CON:` command in Group V of `amiberry_tests.txt` tells us
+which path we're on.
 
 ---
 
@@ -187,22 +233,22 @@ file whose functions have cross-module calls (otherwise the linker gets
 ### IDIR (include search path)
 `IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include`
 
-### Link command (FPU build → `qjs`)
+### Link command (FPU build → `amiga/bin/qjs`)
 ```
 slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
       qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
       qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
-      TO qjs:qjs \
+      TO qjs:amiga/bin/qjs \
       LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
 ```
 (`scm881nb.lib` = software+881 math library, no buffering)
 
-### Link command (no-FPU build → `qjs_soft`)
+### Link command (no-FPU build → `amiga/bin/qjs_soft`)
 ```
 slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
       qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
       qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
-      TO qjs:qjs_soft \
+      TO qjs:amiga/bin/qjs_soft \
       LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
 ```
 (`scmnb.lib` = pure software-float math, no buffering — confirmed present at `sc:lib/scmnb.lib`)
@@ -459,33 +505,39 @@ full string — prepending each new character instead of appending.
 
 ### Bug 12: Backspace crashes/freezes system — NOT YET FIXED (session 7)
 After pressing backspace in the REPL, the entire Amiga system hard-locks (no guru).
-**Root cause:** NOT Bug 13 (INT32_MIN was fixed, but backspace still crashes).
-The crash occurs in the full-redraw path of `update()` in repl.js, which outputs
-VT100 escape sequences (`\x1b[ND` for cursor-left, `\x1b[K`/`\x1b[J` for erase).
-Forward typing works fine (uses the optimize path, no escape sequences).
 
-**What was tried (all still crash):**
-- ESC+[ (`\x1b[`) sequences → crash
-- Native AmigaOS CSI (`\x9b`) sequences → garbled (UTF-8 encoding turns 1 byte into 2)
-- `\x1b[K` (erase line) instead of `\x1b[J` (erase display) → still crash
-- `\r` + re-output + BS-based erase (no escape sequences at all) → still crash
-- Debug file logging to `ram:` → locks file, system crashes (ram: I/O might contribute)
+**Current state:** `update()` uses `\r` + reprint + space padding + `\x08` backspaces —
+no VT100 escape sequences at all. Still hard-locks.
 
-**Current state (end of session 7):** The update() function now uses a
-`\r` + re-output + backspace approach with NO escape sequences. Still crashes.
-This suggests the crash is not from escape sequences but possibly from:
-- SAS/C `fwrite()`/`Write()` bug when writing certain byte sequences
-- Stack overflow in the JS interpreter during update()
-- Memory corruption from the string concatenation in `dupchar()` or `update()`
+**Stack overflow ruled out: 2MB stack confirmed still crashes.**
 
-**Next steps for investigation:**
-1. Create a standalone C test program (no JS) that outputs `\r`, backspaces,
-   etc. to the console in raw mode — see if it crashes
-2. Try using `os.write(1, ...)` (raw fd write) instead of `std.puts` (fwrite)
-3. Add a simple `qjs -e` test that outputs the same byte sequence as update()
-   without the REPL event loop, to isolate whether the crash is in output
-   or in the event loop/poll interaction
-4. Try disabling raw mode before the full-redraw output and re-enabling after
+**Active hypotheses (in priority order):**
+1. Multiple `Write(Output(), ...)` calls in rapid sequence inside a raw-mode read callback — AmigaOS console device (CON: or ViNCEd VNC:) may not handle this safely
+2. `std.out.flush()` with `scnb.lib` — `fflush()` on an unbuffered stream may dereference a null buffer pointer
+3. `\r` or another output byte triggers an unexpected console response injected into the input stream (similar to how ttyGetWinSize works), causing WaitForChar to fire on garbage bytes → potentially an infinite handler loop
+4. Backspace sends something other than `0x08` (e.g. `0x9B 0x50` = CSI P = Delete), sending handle_char down a different code path than expected
+
+**Previous attempts that still crashed (all confirmed escape-sequence-free):**
+- ESC+[ sequences, native CSI (0x9B), `\x1b[K`, `\x1b[J`
+- Pure `\r` + reprint + spaces + `\x08` — still crashes
+- 2MB stack — still crashes (stack overflow ruled out)
+- Debug logging to `ram:` — also locked system
+
+**Diagnostic tests queued:**
+
+Step 1 — from Mac (no binary transfer needed):
+```sh
+source ./amiga-env.sh
+bash quickjs-master/amiga/tests/vamos_diag.sh
+```
+
+Step 2 — on Amiberry:
+```
+See quickjs-master/amiga/tests/amiberry_tests.txt
+```
+Run groups in order: K (key bytes) → E (output in -e mode) → R (raw mode).
+The E group is the critical discriminator: if `qjs -e` with the same output
+sequences does NOT crash, the bug is in the raw-mode/event-loop interaction.
 
 ### Bug 14: `(5).toString()` returns "0000000000000000005" — FIXED (session 7)
 `Number.prototype.toString()` for integers calls `i64toa_radix` → `u64toa_radix`
@@ -549,10 +601,12 @@ Character reversal was caused by Bug 13 (INT32_MIN). REPL number display
 was caused by Bug 14 (u64toa 32-bit shift). Both fixed.
 
 ### REPL backspace — CRASHES SYSTEM (Bug 12, NOT FIXED)
-Pressing backspace in the REPL causes a hard system lock (no guru meditation).
-This happens even with an escape-sequence-free implementation using only `\r`,
-printable characters, space, and `\b` (0x08). See Bug 12 description for
-full details and investigation notes.
+Hard system lock on backspace, no guru.  Stack overflow ruled out (2MB stack
+confirmed still crashes).  Active hypotheses: multiple sequential `Write(Output())`
+calls inside a raw-mode read callback; `fflush()` with scnb.lib; `\r` triggering
+a console response injected into the input stream; or backspace sending `0x9B 0x50`
+(CSI P) rather than `0x08`.  ViNCEd vs ROM CON: behaviour is a variable.
+Diagnostic tests queued — see Bug 12 in the Key Bugs section above.
 
 ### REPL keyboard input — FIXED
 `poll()` now uses `WaitForChar(Input(), usec)` for fd 0.
@@ -707,26 +761,30 @@ which calls `dos.library CurrentDir()`. Amiga paths should work but needs testin
 ## Next Steps (priority order)
 
 ### 1. Diagnose and fix REPL backspace crash (MOST URGENT)
-Backspace causes a hard system lock. The crash occurs even with an implementation
-that uses NO escape sequences (only `\r`, space, `\b`). Investigation plan:
 
-**Step 1:** Create a standalone `qjs -e` test that simulates what update() does
-during backspace — output `\r`, prompt, cmd, spaces, backspaces — without the
-REPL event loop. If this crashes, the issue is in the output. If it doesn't,
-the issue is in the event loop or the interaction between output and input.
+All diagnostic tests and the proposed fix are staged.  Run them as a single
+batch — no iterative back-and-forth needed.
 
-**Step 2:** If the output test passes, create a test that does raw mode +
-poll/WaitForChar + output in a loop, to test the interaction.
+**Step A — vamos tests (run from Mac, no binary transfer):**
+```sh
+source ./amiga-env.sh
+bash quickjs-master/amiga/tests/vamos_diag.sh
+```
+Reports pass/fail for output isolation (Group O), stack depth probe (Group S),
+full `update()` simulation (Group U), and large-stack repeats (Group L).
 
-**Step 3:** If the output test crashes, try `os.write(1, buf, len)` instead
-of `std.puts()` (fwrite) to bypass SAS/C stdio.
+**Step B — Amiberry tests (requires binary transfer):**
+Follow `quickjs-master/amiga/tests/amiberry_tests.txt`.
+Most important test: `stack 65536` then `qjs:amiga/bin/qjs`, press backspace.
 
-**Step 4:** Consider stack size. The JS interpreter is deeply nested when
-running the REPL (event loop → poll → read handler → handle_byte →
-handle_char → handle_key → backward_delete_char → delete_char_dir → update →
-dupchar → string concat). If the Amiga stack is too small, deep calls crash.
-Try increasing stack size: `stack 65536` in AmigaDOS before running qjs,
-or increase `-s` in vamos.
+**Step C — After test results: apply targeted fix and retest:**
+The fix depends on what the E and R groups reveal.  If E-group crashes → fix is in the
+output path (likely remove/defer `std.out.flush()` calls or batch all `puts` into one
+`Write()`).  If R-group reveals the event-loop as the culprit → fix is in how
+`term_read_handler` calls `update()` (e.g. use a single buffered `Write()` instead of
+multiple `fwrite` calls).  See the active hypotheses in Bug 12 for details.
+After applying a fix: `amiga_compile quickjs-libc.c CODE=FAR` + `amiga_link`, transfer
+to Amiberry, run the amiberry_tests.txt groups again.
 
 ### 2. Complete no-FPU build
 Compile the remaining 7 source files without `MATH=68881` and link as `qjs_soft`.
@@ -755,12 +813,24 @@ After the fix, test with: `qjs RAM:main.js` where `main.js` does `import './lib'
 
 Also test the other os.* path functions (Bugs 16-19) with simple `qjs -e` scripts.
 
-### 4. Build script / smakefile
+### 4. ViNCEd detection and conditional terminal sequences
+Once the backspace crash is fixed, add runtime console handler detection in
+`quickjs-libc.c`:
+- Use `GetConsoleTask()` on the `Input()` file handle, then inspect `FindTask()`
+  or the `DeviceName()` of the message port to identify the handler.
+- If ViNCEd is confirmed: use `\x1b[K` (erase-to-EOL) in `update()` instead of
+  the space-padding + `\x08` loop — fewer bytes, more reliable on VT100-capable
+  consoles.
+- If ROM CON: is detected: keep the conservative space + backspace approach.
+- Expose as `os.isViNCEd()` or via an internal flag in the REPL init.
+This is low priority until the backspace crash is resolved, but should be tracked.
+
+### 5. Build script / smakefile
 Create `quickjs-master/amiga/build.sh` — a shell script on the macOS host that
 drives vamos to compile all files and link both the FPU and no-FPU binaries.
 This replaces the manual vamos invocations and makes rebuilding reproducible.
 
-### 5. Test qjsc workflow on Amiga
+### 6. Test qjsc workflow on Amiga
 Verify the compile-to-C → SAS/C → Amiga binary pipeline:
 1. On host: `qjsc -e -o quickjs-master/amiga/hello.c quickjs-master/examples/hello.js`
    (if `qjsc` not yet built for host, build it with `make qjsc` on macOS)
@@ -769,15 +839,15 @@ Verify the compile-to-C → SAS/C → Amiga binary pipeline:
 4. Run `vamos ... hello` — should print without needing a `.js` file present
 Watch for: identifier length issues (use `-N shortname` if needed).
 
-### 6. Shortest-decimal (Grisu/Ryu)
+### 7. Shortest-decimal (Grisu/Ryu)
 `sasc_dtoa_free` always uses 17 significant digits.  `(3.14).toString()`
 → `"3.1400000000000001"` instead of `"3.14"`.  Technically wrong per the
 ES spec (§7.1.12.1 requires shortest round-trip) but doesn't break normal
 programs.  Implementing Grisu2 or Ryu in C89 without 64-bit integers is
 non-trivial; defer until 64-bit emulation is available.
 
-### 7. Comprehensive JS test suite
+### 8. Comprehensive JS test suite
 Run QuickJS's built-in test suite under vamos, document what passes/fails.
 
-### 8. AmiSSL integration
+### 9. AmiSSL integration
 Enable HTTPS fetch() via AmiSSL (SDK already installed at `sc:sdks/AmiSSL`).

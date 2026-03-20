@@ -366,7 +366,15 @@
       "Bash(vamos -c /Volumes/Code/Amiga/nea-quickjs/quickjs-master/amiga/vamos_build.cfg -V \"sc:/Users/brie/sasc658\" -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" sc:c/sc \"qjs:dtoa.c\" MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \"IDIR=qjs:\" \"IDIR=qjs:amiga\" \"IDIR=sc:include\" NOICONS)",
       "Bash(vamos -S -C 68040 -m 65536 -H disable -s 2048 -V \"qjs:/Volumes/Code/Amiga/nea-quickjs/quickjs-master\" -- qjs:qjs -e 'print\\(\\(5\\).toString\\(\\)\\); print\\(\\(123\\).toString\\(\\)\\); print\\(\\(-42\\).toString\\(\\)\\); print\\(\\(0\\).toString\\(\\)\\)')",
       "Read(//Volumes/Code/Amiga/nea-js/$HOME/sasc658/**)",
-      "Bash(bash -n /Volumes/Code/Amiga/nea-js/amiga-env.sh)"
+      "Bash(bash -n /Volumes/Code/Amiga/nea-js/amiga-env.sh)",
+      "Bash(bash -n /Volumes/Code/Amiga/nea-js/quickjs-master/amiga/tests/vamos_diag.sh)",
+      "Bash(ls /Volumes/Code/Amiga/nea-js/quickjs-master/*.c)",
+      "Bash(ls /Volumes/Code/Amiga/nea-js/quickjs-master/*.h)",
+      "Bash(make -n)",
+      "Bash(bash -c \"cd /Volumes/Code/Amiga/nea-js/quickjs-master && make -n 2>&1 | head -30\")",
+      "Bash(bash -c \"cd /Volumes/Code/Amiga/nea-js/quickjs-master && cmake -B build_test -DCMAKE_BUILD_TYPE=Release 2>&1 | tail -5\")",
+      "Bash(bash -c \"cd /Volumes/Code/Amiga/nea-js/quickjs-master && cmake --build build_test -j 8 2>&1 | tail -20\")",
+      "Bash(python3:*)"
     ]
   }
 }

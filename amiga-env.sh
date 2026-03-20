@@ -118,7 +118,8 @@ amiga_compile_soft() {
 }
 
 # amiga_link
-# Link all .o files into the FPU binary at quickjs-master/qjs.
+# Link all .o files into the FPU binary.
+# Output: quickjs-master/amiga/bin/qjs
 # All .o files must have been compiled with MATH=68881.
 amiga_link() {
     _amiga_check_env || return 1
@@ -132,12 +133,13 @@ amiga_link() {
         qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
         qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
         qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
-        TO qjs:qjs \
+        TO qjs:amiga/bin/qjs \
         LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
 }
 
 # amiga_link_soft
-# Link all .o files into the no-FPU binary at quickjs-master/qjs_soft.
+# Link all .o files into the no-FPU binary.
+# Output: quickjs-master/amiga/bin/qjs_soft
 # All .o files must have been compiled WITHOUT MATH=68881 first.
 amiga_link_soft() {
     _amiga_check_env || return 1
@@ -151,7 +153,7 @@ amiga_link_soft() {
         qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
         qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
         qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
-        TO qjs:qjs_soft \
+        TO qjs:amiga/bin/qjs_soft \
         LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
 }
 
@@ -166,7 +168,20 @@ amiga_run() {
     _amiga_check_env || return 1
     vamos -S -C 68040 -m 65536 -H disable -s 2048 \
         -V qjs:"$_AMIGA_QJS_ROOT" \
-        -- qjs:qjs "$@"
+        -- qjs:amiga/bin/qjs "$@"
+}
+
+# amiga_run_stack STACK_BYTES [QJS_ARGS...]
+# Like amiga_run but with a custom vamos stack size (in bytes).
+#
+# Example:
+#   amiga_run_stack 65536 -e 'print("hello")'
+amiga_run_stack() {
+    _amiga_check_env || return 1
+    local stack="$1"; shift
+    vamos -S -C 68040 -m 65536 -H disable -s "$stack" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -- qjs:amiga/bin/qjs "$@"
 }
 
 # amiga_run_soft [QJS_ARGS...]
@@ -175,7 +190,7 @@ amiga_run_soft() {
     _amiga_check_env || return 1
     vamos -S -C 68040 -m 65536 -H disable -s 2048 \
         -V qjs:"$_AMIGA_QJS_ROOT" \
-        -- qjs:qjs_soft "$@"
+        -- qjs:amiga/bin/qjs_soft "$@"
 }
 
 # amiga_build_fpu
@@ -195,7 +210,7 @@ amiga_build_fpu() {
     amiga_compile quickjs.c CODE=FAR &&
     echo "==> FPU build: linking..." &&
     amiga_link &&
-    echo "==> FPU build complete: $_AMIGA_QJS_ROOT/qjs"
+    echo "==> FPU build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs"
 }
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,233 @@
+AMIBERRY BACKSPACE CRASH DIAGNOSTIC TESTS
+==========================================
+Stack size is NOT the cause (2MB stack confirmed still crashes).
+These tests narrow down which specific mechanism is responsible.
+
+Run tests in order.  Each group answers a specific question.
+Report for each test: CRASH / NO CRASH / WRONG OUTPUT + what you observed.
+
+
+=== FIRST: Run the vamos tests from the Mac ===
+
+Before running anything on Amiberry, run this from the Mac project root:
+
+  source ./amiga-env.sh
+  bash quickjs-master/amiga/tests/vamos_diag.sh
+
+Report all pass/fail results.  This tells us whether the crash is in
+C/JS logic (reproducible in vamos) or in Amiberry-specific console I/O.
+
+
+=== GROUP V: Console handler identification ===
+Which console device is active?  This affects how raw Write() calls behave
+and which byte sequences are safe for cursor movement.
+
+V1: Check AmigaDOS assigns — look for VNC: (ViNCEd) or standard CON:
+  assign
+  (look for VNC:, VINCÈD:, or similar ViNCEd-related assigns)
+
+V2: Check CON: handler specifically
+  assign CON:
+  (if it shows VNC: or vincèd.handler → ViNCEd is remounted as CON:)
+  (if it shows ROM CON handler → standard AmigaOS console)
+
+V3: TERM environment variable (if set)
+  echo $TERM
+  (may reveal: amiga, vt100, xterm, etc. — or "not set")
+
+V4: ViNCEd version (only if ViNCEd is installed)
+  version VNC:vincèd.handler
+  (report version number shown)
+
+Why this matters:
+  ROM CON: and ViNCEd handle rapid sequential Write() calls differently.
+  ViNCEd provides more complete VT100 emulation (cursor-up/down, erase-to-EOL)
+  but the internal dispatch for multiple Write() calls within a raw-mode read
+  callback may behave differently than ROM CON:.
+  Sometimes ViNCEd is installed but CON: is NOT remounted — apps using
+  OpenWindow()/console.device get ViNCEd while CLI programs still use ROM CON:.
+
+Report V1-V4 before running any other group.
+
+
+=== GROUP K: Key identification ===
+What bytes does backspace actually send on this terminal?
+
+K1: Run hexdump.js and press each key in order.
+    Report the exact hex bytes shown for each key.
+
+  stack 65536
+  qjs:qjs hexdump.js
+
+  Keys to press (one at a time, then Ctrl-C to exit):
+    - Backspace key
+    - Delete key
+    - Left arrow
+    - Right arrow
+    - Up arrow
+    - Down arrow
+    - Home (or Ctrl-A)
+    - End (or Ctrl-E)
+    - Enter
+
+  Expected for backspace: either 08  or  7F  or  9B 50  (or something else)
+  This is critical — if backspace sends 9B 50 (CSI P = Delete), the REPL
+  is processing a different key than expected, possibly hitting a complex
+  code path.
+
+
+=== GROUP E: Output sequences in -e mode (NO raw mode, NO event loop) ===
+These tests run qjs -e, so there is no SetMode(raw), no WaitForChar, no
+event loop.  They test whether the output bytes themselves cause a crash
+on Amiberry's console device.
+
+E1: Single CR to stdout
+  qjs -e 'std.puts("\r"); std.out.flush(); print("E1 OK")'
+
+E2: CR + reprint + space + backspace (minimal backspace sequence)
+  qjs -e 'std.puts("\rqjs > hell \x08"); std.out.flush(); print("E2 OK")'
+
+E3: Same sequence 10 times in a loop
+  qjs -e 'for(var i=0;i<10;i++){std.puts("\rqjs > hell \x08");} std.out.flush(); print("E3 OK")'
+
+E4: std.out.flush() alone — does fflush(stdout) crash with scnb.lib?
+  qjs -e 'std.out.flush(); print("E4 OK")'
+
+E5: fflush called after multiple writes
+  qjs -e 'std.puts("a"); std.out.flush(); std.puts("b"); std.out.flush(); std.puts("c"); std.out.flush(); print("E5 OK")'
+
+E6: Full update() backspace simulation in -e mode (copy-paste as one line)
+  qjs -e 'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;} function dupchar(ch,n){var s="";while(n-->0)s+=ch;return s;} var prompt="qjs > ";var last_cmd="hello";var cmd="hell";var old_total=ucs_length(prompt)+ucs_length(last_cmd);std.puts("\r");std.puts(prompt);std.puts(cmd);var new_total=ucs_length(prompt)+ucs_length(cmd);if(old_total>new_total){var pad=old_total-new_total;std.puts(dupchar(" ",pad));std.puts(dupchar("\x08",pad));}std.out.flush();print("E6 OK")'
+
+If ANY of E1-E6 crash: the crash is in the output bytes / fwrite / console interaction,
+not in the REPL event loop.  The fix would be in the output path.
+
+If ALL of E1-E6 pass: the crash is in the raw-mode + event loop interaction.
+Continue to Group R.
+
+
+=== GROUP R: Raw mode interaction ===
+(Only run if Group E all passed.)
+These tests isolate the raw-mode + poll() + output interaction.
+
+R1: Enter raw mode, output one line, exit (no read, no loop)
+  Create RAM:r1.js with this content, then run: qjs:qjs RAM:r1.js
+
+  --- RAM:r1.js ---
+  import * as os from "os";
+  import * as std from "std";
+  os.ttySetRaw(0);
+  std.puts("\r\nRAW MODE ENTERED\r\n");
+  std.out.flush();
+  std.puts("R1 OK\r\n");
+  std.out.flush();
+  --- end ---
+
+  If this crashes: raw mode + output is the problem.
+  If this does not crash: read on.
+
+R2: Raw mode + ONE WaitForChar + output (no REPL machinery)
+  Create RAM:r2.js then run: qjs:qjs RAM:r2.js
+  Press ONE key when prompted.
+
+  --- RAM:r2.js ---
+  import * as os from "os";
+  import * as std from "std";
+  var buf = new Uint8Array(8);
+  os.ttySetRaw(0);
+  std.puts("Press any key: ");
+  std.out.flush();
+  var n = os.read(0, buf.buffer, 0, 8);
+  /* output the exact bytes the backspace update() sends */
+  std.puts("\r");
+  std.puts("qjs > ");
+  std.puts("hell");
+  std.puts(" ");
+  std.puts("\x08");
+  std.out.flush();
+  std.puts("\r\nR2 OK, got " + n + " bytes\r\n");
+  std.out.flush();
+  --- end ---
+
+  Press backspace when prompted.
+  If this crashes: the crash is in Write(Output()) after Read(Input()) in raw mode.
+  If this does not crash: the crash requires the poll()/event-loop machinery.
+
+R3: Minimal event loop with backspace handler
+  Create RAM:r3.js then run: qjs:qjs RAM:r3.js
+  Press one key (try a normal key first, then backspace separately).
+
+  --- RAM:r3.js ---
+  import * as os from "os";
+  import * as std from "std";
+  var buf = new Uint8Array(8);
+  var done = false;
+  os.ttySetRaw(0);
+  std.puts("Press a key (Ctrl-C to exit):\r\n");
+  std.out.flush();
+  os.setReadHandler(0, function() {
+      var n = os.read(0, buf.buffer, 0, 8);
+      if (n > 0 && buf[0] === 3) { done = true; return; }  /* Ctrl-C */
+      /* output the backspace update() sequence */
+      std.puts("\r");
+      std.puts("qjs > ");
+      std.puts("test");
+      std.puts(" ");
+      std.puts("\x08");
+      std.out.flush();
+      std.err.puts("R3 handler fired, byte=0x" + buf[0].toString(16) + "\n");
+  });
+  while (!done) {
+      os.poll([{fd: 0, events: 1}], 1, 200);
+      /* poll returns, check if handler was fired */
+  }
+  std.puts("\r\nR3 OK\r\n");
+  --- end ---
+
+  Press a normal key (e.g., 'a') first.  Does it crash?
+  If 'a' does not crash: try pressing backspace.
+  Note at which key the crash occurs.
+
+  If R3 crashes on 'a': the crash is in the poll/output interaction (independent of backspace bytes).
+  If R3 crashes only on backspace: the crash is triggered by specific input bytes.
+
+
+=== GROUP F: Flush isolation ===
+(Only if vamos_diag Group O passed and E tests passed on Amiberry)
+Tests whether std.out.flush() is the problem in context.
+
+F1: Lots of puts without flush — does omitting flush help?
+  Modify the REPL test: type "hello" then backspace.
+  If it does NOT crash without flush, flush is the culprit.
+  (Requires recompile with std.out.flush() removed from update() in repl.js)
+
+
+=== Reporting template ===
+
+vamos_diag.sh results: [all pass / first failure: XXX]
+
+Group V (console handler):
+  CON: assign target:  [ROM CON / VNC:vincèd.handler / other]
+  ViNCEd remounts CON?: [yes / no / unknown]
+  TERM variable:        [value or not set]
+  ViNCEd version:       [if applicable]
+
+Group K (key bytes):
+  Backspace sends: [hex bytes]
+  Delete sends:    [hex bytes]
+  Left arrow:      [hex bytes]
+
+Group E:
+  E1: [CRASH/OK]
+  E2: [CRASH/OK]
+  E3: [CRASH/OK]
+  E4: [CRASH/OK]
+  E5: [CRASH/OK]
+  E6: [CRASH/OK]
+
+Group R (if E all passed):
+  R1: [CRASH/OK]
+  R2: [CRASH/OK at which point]
+  R3: [CRASH on 'a' / CRASH on backspace only / OK]
+
+Any other observations (guru codes, what was visible on screen before crash, etc.):
