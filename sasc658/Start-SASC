@@ -1,0 +1,30 @@
+.bra {
+.ket }
+.key DIR/K,REMOVE/S
+.def DIR SASC6.58:
+
+If "{REMOVE}" Eq "REMOVE"
+  Skip Removal
+Endif
+
+; Mandatory assignments
+Assign sc: "{DIR}"
+Assign lib: sc:lib
+Assign include: sc:include
+Assign cxxinclude: sc:cxxinclude
+
+; Ensure you can use it from anyplace
+Path Add sc:c
+Skip Done
+
+Lab Removal
+  Failat 21
+  Assign lib: remove
+  Assign include: remove
+  Assign cxxinclude: remove
+  Path Remove sc:c
+  Assign sc: remove
+  Skip Done
+
+Lab Done
+  ; Just exit without quitting
