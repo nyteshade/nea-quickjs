@@ -99,23 +99,30 @@ Use when pulling upstream changes or checking whether a bug exists in unmodified
 
 ---
 
-## Current State (session 8 — batched REPL output, vamos diagnostics, no-FPU build)
+## Current State (session 8–9, version 0.15)
 
 ```
-print(100+110)              → 210                      ✓ (was 210.00000000000001)
+print(100+110)              → 210                      ✓
 print(Math.sqrt(2))         → 1.4142135623730952        ✓
 JSON.stringify([1,2,3])     → [1,2,3]                   ✓
-print(3.14)                 → 3.1400000000000001        (known, acceptable)
-(5).toString()              → "5"                       ✓ (was "0000000000000000005")
+print(3.14)                 → 3.1400000000000001        (known, 17-digit dtoa)
+(5).toString()              → "5"                       ✓
+print({x:1})                → { x: 1 }                  ✓ (JS_PrintValue)
+print([1,2,3])              → [ 1, 2, 3 ]               ✓ (JS_PrintValue)
 qjs -e '...'                → WORKS fully               ✓
 REPL starts                 → WORKS (no termInit crash)  ✓
 REPL receives keystrokes    → WORKS (poll+WaitForChar)   ✓
 REPL forward typing         → WORKS ✓ (INT32_MIN fix)
 REPL eval (Enter)           → WORKS ✓
-REPL backspace              → WORKS ✓ (surrogate loop fix, session 8)
+REPL backspace              → WORKS ✓ (surrogate loop fix)
 REPL left/right arrows      → WORKS ✓
 REPL eval (Enter)           → WORKS ✓
-typing `os` or `std` in REPL → Abnormal program termination (new bug, session 8)
+REPL object display         → WORKS ✓ (JS_PrintValue ported)
+S:QJS-Config.txt            → WORKS ✓ (default CLI flags)
+S:QJS-Startup.js            → WORKS ✓ (auto-run on startup)
+Symbol.for('qjs.inspect')   → WORKS ✓ (custom object display)
+os.exec()                   → FAILS (fork stub, needs AmigaOS adaptation)
+Workers                     → FAILS (needs AmigaOS process/thread support)
 Ctrl-C in REPL              → exits qjs via EINTR        ✓
 Amiberry + FPU enabled      → WORKS ✓ (error #8000000B gone when FPU on)
 Amiberry without FPU        → NEEDS RETEST (qjs_soft now built and linked)
@@ -871,3 +878,81 @@ Run QuickJS's built-in test suite under vamos, document what passes/fails.
 
 ### 9. AmiSSL integration
 Enable HTTPS fetch() via AmiSSL (SDK already installed at `sc:sdks/AmiSSL`).
+
+### 10. Standard library audit and AmigaOS adaptation (PRIORITY)
+All `os` and `std` module functions must work on AmigaOS.  Currently many
+POSIX stubs return errors.  Needs AmigaOS-native implementations:
+
+**os module — needs work:**
+- `os.exec()` → use `dos.library SystemTagList()` or `Execute()`
+- `os.pipe()` → use `PIPE:` device
+- `os.kill()` → use `Signal()` with AmigaOS break flags
+- `os.waitpid()` → process completion tracking
+- `os.dup/dup2()` → may need custom AmigaOS implementation
+- `os.symlink/readlink()` → not applicable on AmigaOS (no symlinks)
+- Workers → currently uses pthreads; needs `CreateNewProc()`
+
+**os module — needs testing:**
+- `os.open/read/write/close` on files (verified for stdin only)
+- `os.stat/lstat` with Amiga paths
+- `os.mkdir/remove/rename` via SAS/C POSIX layer
+- `os.chdir/getcwd` with Amiga paths
+
+**std module — needs testing/work:**
+- `std.popen()` → needs `PIPE:` or `Execute()`
+- `std.tmpfile()` → should use `T:` volume
+- `std.open/loadFile/writeFile` with Amiga paths
+
+**bjson module:**
+- Needs testing — likely works if no 64-bit issues in serialization
+
+**Test suite:** `quickjs-master/amiga/tests/amiga_test.js` covers basic math,
+strings, arrays, JSON, and object display.  Extend to cover all os/std functions.
+
+---
+
+## Symbol.for('qjs.inspect') — Custom object display (session 9)
+
+Objects with a `Symbol.for('qjs.inspect')` method get custom display in
+`print()` and the REPL, similar to Node.js's `Symbol.for('nodejs.util.inspect.custom')`.
+
+```js
+class Foo {
+    [Symbol.for('qjs.inspect')]() {
+        return 'Foo<custom>';
+    }
+}
+print(new Foo());  // prints: Foo<custom>
+```
+
+The method is called during `JS_PrintValue` (used by `print()` and REPL eval
+result display).  If the method throws or returns a non-string, the default
+object rendering is used as fallback.  The symbol atom is resolved once per
+`JS_PrintValue` call via `JS_Eval("Symbol.for('qjs.inspect')")` and cached
+for the duration of the print operation.
+
+This is a candidate for upstreaming to QuickJS-ng.
+
+---
+
+## S:QJS-Config.txt — Default CLI flags (session 9)
+
+Place a text file at `S:QJS-Config.txt` with one CLI option per line.
+Lines starting with `#` are comments.  Example:
+
+```
+# Always load std, os, bjson as globals
+--std
+```
+
+Options from the config file are prepended to the command line, so
+explicit CLI arguments override them.  The file is optional — if absent,
+qjs starts normally.
+
+## S:QJS-Startup.js — Auto-run startup script (session 9)
+
+If `S:QJS-Startup.js` exists, it is evaluated before any user code
+(both REPL and script modes).  Use it to set up globals, register
+REPL hooks, or configure the environment.  Errors in the startup
+script are non-fatal.  The script is loaded with module auto-detection
+(use `import` statements if needed).

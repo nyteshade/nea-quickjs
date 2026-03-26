@@ -38,8 +38,72 @@
 
 #ifdef __SASC
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.14 (25.3.2026)";
-#endif
+static const char amiga_ver[] = "$VER: qjs 0.15 (25.3.2026)";
+
+#include <proto/dos.h>
+
+/* Read S:QJS-Config.txt and inject options into argc/argv.
+ * Format: one option per line (e.g. "--std").  Blank lines and
+ * lines starting with '#' are ignored.  CLI args override config. */
+static void amiga_load_config(int *pargc, char ***pargv)
+{
+    static char config_buf[1024];
+    static char *new_argv[64];
+    FILE *f;
+    int new_argc, orig_argc, i;
+    char *p, *end;
+
+    f = fopen("S:QJS-Config.txt", "r");
+    if (!f) return;
+
+    i = fread(config_buf, 1, sizeof(config_buf) - 1, f);
+    fclose(f);
+    if (i <= 0) return;
+    config_buf[i] = '\0';
+
+    orig_argc = *pargc;
+    /* argv[0] is the program name */
+    new_argc = 0;
+    new_argv[new_argc++] = (*pargv)[0];
+
+    /* parse config lines into argv entries */
+    p = config_buf;
+    end = config_buf + i;
+    while (p < end && new_argc < 60) {
+        /* skip whitespace */
+        while (p < end && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
+            p++;
+        if (p >= end) break;
+        /* skip comment lines */
+        if (*p == '#') {
+            while (p < end && *p != '\n') p++;
+            continue;
+        }
+        /* extract token */
+        new_argv[new_argc++] = p;
+        while (p < end && *p != '\n' && *p != '\r')
+            p++;
+        if (p < end) *p++ = '\0';
+        /* trim trailing whitespace */
+        {
+            char *t = new_argv[new_argc - 1] + strlen(new_argv[new_argc - 1]) - 1;
+            while (t >= new_argv[new_argc - 1] && (*t == ' ' || *t == '\t'))
+                *t-- = '\0';
+        }
+        /* skip empty after trim */
+        if (new_argv[new_argc - 1][0] == '\0')
+            new_argc--;
+    }
+
+    /* append original argv[1..] (CLI overrides config) */
+    for (i = 1; i < orig_argc && new_argc < 63; i++)
+        new_argv[new_argc++] = (*pargv)[i];
+
+    new_argv[new_argc] = NULL;
+    *pargc = new_argc;
+    *pargv = new_argv;
+}
+#endif /* __SASC */
 
 #ifdef QJS_USE_MIMALLOC
 #include <mimalloc.h>
@@ -433,6 +497,11 @@ int main(int argc, char **argv)
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
 
+#ifdef __SASC
+    /* Load S:QJS-Config.txt — injects default flags before CLI args */
+    amiga_load_config(&argc, &argv);
+#endif
+
     /* save for later */
     qjs__argc = argc;
     qjs__argv = argv;
@@ -655,6 +724,19 @@ start:
             if (eval_file(ctx, include_list[i], 0))
                 goto fail;
         }
+
+#ifdef __SASC
+        /* Load S:QJS-Startup.js if it exists — runs before user code.
+         * Uses Lock()/UnLock() to check existence without error messages. */
+        {
+            BPTR lock = Lock("S:QJS-Startup.js", ACCESS_READ);
+            if (lock) {
+                UnLock(lock);
+                eval_file(ctx, "S:QJS-Startup.js", -1);
+                /* errors are non-fatal — startup script is optional */
+            }
+        }
+#endif
 
         if (standalone) {
             ns = load_standalone_module(ctx);

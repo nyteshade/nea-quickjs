@@ -60630,6 +60630,7 @@ typedef struct {
     void *write_opaque;
     int level;
     JSObject *print_stack[JS_PRINT_MAX_DEPTH];
+    JSAtom inspect_atom; /* cached Symbol.for('qjs.inspect') atom */
 } JSPrintValueState;
 
 static void js_print_value(JSPrintValueState *s, JSValueConst val);
@@ -60837,6 +60838,30 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
     int comma_state;
     bool is_array;
     uint32_t i;
+
+    /* Check for Symbol.for('qjs.inspect') custom inspect method.
+     * If present and returns a string, use that instead of default rendering.
+     * Similar to Node.js Symbol.for('nodejs.util.inspect.custom'). */
+    if (s->ctx && !s->options.raw_dump && s->inspect_atom != JS_ATOM_NULL) {
+        JSValue obj_val = JS_MKPTR(JS_TAG_OBJECT, p);
+        JSValue method = JS_GetProperty(s->ctx, obj_val, s->inspect_atom);
+        if (JS_IsFunction(s->ctx, method)) {
+            JSValue result = JS_Call(s->ctx, method, obj_val, 0, NULL);
+            JS_FreeValue(s->ctx, method);
+            if (!JS_IsException(result)) {
+                const char *str = JS_ToCString(s->ctx, result);
+                if (str) {
+                    js_pv_puts(s, str);
+                    JS_FreeCString(s->ctx, str);
+                }
+                JS_FreeValue(s->ctx, result);
+                return;
+            }
+            JS_FreeValue(s->ctx, JS_GetException(s->ctx));
+        } else {
+            JS_FreeValue(s->ctx, method);
+        }
+    }
 
     comma_state = 0;
     is_array = FALSE;
@@ -61093,7 +61118,24 @@ static void JS_PrintValueInternal(JSRuntime *rt, JSContext *ctx,
     s->write_func = write_func;
     s->write_opaque = write_opaque;
     s->level = 0;
+    s->inspect_atom = JS_ATOM_NULL;
+
+    /* Resolve Symbol.for('qjs.inspect') once per print call */
+    if (ctx) {
+        JSValue sym = JS_Eval(ctx, "Symbol.for('qjs.inspect')",
+                              25, "<inspect>", JS_EVAL_TYPE_GLOBAL);
+        if (!JS_IsException(sym)) {
+            s->inspect_atom = JS_ValueToAtom(ctx, sym);
+            JS_FreeValue(ctx, sym);
+        } else {
+            JS_FreeValue(ctx, JS_GetException(ctx));
+        }
+    }
+
     js_print_value(s, val);
+
+    if (s->inspect_atom != JS_ATOM_NULL)
+        JS_FreeAtom(ctx, s->inspect_atom);
 }
 
 void JS_PrintValueRT(JSRuntime *rt, JSPrintValueWrite *write_func,
