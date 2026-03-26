@@ -16,6 +16,16 @@
 #ifndef _AMIGA_COMPAT_H
 #define _AMIGA_COMPAT_H
 
+/* Disable assert() for the SAS/C build.  The QuickJS engine has
+ * shutdown-time assertions that fail due to 32-bit int64_t causing
+ * subtle corruption (atom hash, weak refs, etc).
+ *
+ * We define NDEBUG to suppress assert(), BUT this also disables
+ * ENABLE_DUMPS in quickjs.c which exposes C99 variadic macros
+ * (bc_read_trace etc).  Those are patched separately in quickjs.c
+ * with #ifdef __SASC guards. */
+#define NDEBUG 1
+
 /* -----------------------------------------------------------------------
  * Compiler identification guard
  * --------------------------------------------------------------------- */

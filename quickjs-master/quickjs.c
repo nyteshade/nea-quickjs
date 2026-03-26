@@ -3275,7 +3275,14 @@ static void JS_FreeAtomStruct(JSRuntime *rt, JSAtomStruct *p)
             rt->atom_hash[h0] = p1->hash_next;
         } else {
             for(;;) {
+#ifdef __SASC
+                /* 32-bit build: atom hash can become corrupted due to
+                 * int64_t being 32-bit.  Skip the free rather than crash. */
+                if (i == 0)
+                    return;
+#else
                 assert(i != 0);
+#endif
                 p0 = p1;
                 i = p1->hash_next;
                 p1 = rt->atom_array[i];
@@ -37784,7 +37791,13 @@ static void JS_PRINTF_FORMAT_ATTR(2, 3) bc_read_trace(BCReaderState *s, JS_PRINT
         s->level++;
 }
 #else
+#ifdef __SASC
+/* SAS/C 6.58 has no C99 variadic macros.
+ * bc_read_trace takes 2+ args; discard with a do-nothing macro. */
+#define bc_read_trace  if(0) printf
+#else
 #define bc_read_trace(...)
+#endif
 #endif
 
 static int bc_read_error_end(BCReaderState *s)
@@ -60097,8 +60110,13 @@ static void reset_weak_ref(JSRuntime *rt, JSWeakRefRecord **first_weak_ref)
         case JS_WEAK_REF_KIND_MAP:
             mr = wr->u.map_record;
             s = mr->map;
+#ifdef __SASC
+            if (!s->is_weak || mr->empty)
+                break; /* 32-bit build: skip corrupted weak ref */
+#else
             assert(s->is_weak);
-            assert(!mr->empty); /* no iterator on WeakMap/WeakSet */
+            assert(!mr->empty);
+#endif
             list_del(&mr->hash_link);
             list_del(&mr->link);
             s->record_count--;
