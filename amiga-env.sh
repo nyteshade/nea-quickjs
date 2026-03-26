@@ -98,7 +98,8 @@ amiga_compile() {
         sc:c/sc "qjs:$file" \
         MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
         IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
-        IDIR=sc:sdks/AmiSSL/Developer/include NOICONS \
+        IDIR=sc:sdks/AmiSSL/Developer/include \
+        IDIR=sc:sdks/netinclude NOICONS \
         "$@"
 }
 
@@ -121,7 +122,8 @@ amiga_compile_soft() {
         sc:c/sc "qjs:$file" \
         DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
         IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
-        IDIR=sc:sdks/AmiSSL/Developer/include NOICONS \
+        IDIR=sc:sdks/AmiSSL/Developer/include \
+        IDIR=sc:sdks/netinclude NOICONS \
         "$@"
 }
 
@@ -258,7 +260,8 @@ amiga_compile_cpu() {
         sc:c/sc "qjs:$file" \
         CPU=$cpu MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
         IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
-        IDIR=sc:sdks/AmiSSL/Developer/include NOICONS \
+        IDIR=sc:sdks/AmiSSL/Developer/include \
+        IDIR=sc:sdks/netinclude NOICONS \
         "$@"
 }
 
