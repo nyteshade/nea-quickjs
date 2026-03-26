@@ -14,6 +14,7 @@
 
 /* Standard C headers */
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <signal.h>         /* raise(), SIGINT */

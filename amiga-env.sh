@@ -239,7 +239,90 @@ amiga_build_soft() {
     echo "==> No-FPU build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs_soft"
 }
 
+# amiga_compile_cpu FILE CPU [EXTRA_FLAGS...]
+# Compile FILE for a specific CPU with FPU. CPU is e.g. 68040 or 68060.
+amiga_compile_cpu() {
+    _amiga_check_env || return 1
+    local file="$1"; local cpu="$2"; shift 2
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/sc "qjs:$file" \
+        CPU=$cpu MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS \
+        "$@"
+}
+
+# amiga_link_cpu CPU SUFFIX
+# Link all .o files into a CPU-specific FPU binary.
+# Output: quickjs-master/amiga/bin/qjs.SUFFIX (e.g. qjs.040, qjs.060)
+amiga_link_cpu() {
+    _amiga_check_env || return 1
+    local cpu="$1" suffix="$2"
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/slink \
+        sc:lib/c.o \
+        qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
+        qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+        qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+        TO "qjs:amiga/bin/qjs.$suffix" \
+        LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
+}
+
+# amiga_build_040
+# Full 68040-optimized FPU build → qjs.040
+amiga_build_040() {
+    _amiga_check_env || return 1
+    echo "==> 68040 build: compiling all sources..." &&
+    amiga_compile_cpu qjs.c 68040 &&
+    amiga_compile_cpu dtoa.c 68040 &&
+    amiga_compile_cpu libregexp.c 68040 &&
+    amiga_compile_cpu libunicode.c 68040 &&
+    amiga_compile_cpu amiga/amiga_compat.c 68040 &&
+    amiga_compile_cpu gen/repl.c 68040 &&
+    amiga_compile_cpu gen/standalone.c 68040 &&
+    amiga_compile_cpu quickjs-libc.c 68040 CODE=FAR &&
+    amiga_compile_cpu quickjs.c 68040 CODE=FAR &&
+    echo "==> 68040 build: linking..." &&
+    amiga_link_cpu 68040 040 &&
+    echo "==> 68040 build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs.040"
+}
+
+# amiga_build_060
+# Full 68060-optimized FPU build → qjs.060
+amiga_build_060() {
+    _amiga_check_env || return 1
+    echo "==> 68060 build: compiling all sources..." &&
+    amiga_compile_cpu qjs.c 68060 &&
+    amiga_compile_cpu dtoa.c 68060 &&
+    amiga_compile_cpu libregexp.c 68060 &&
+    amiga_compile_cpu libunicode.c 68060 &&
+    amiga_compile_cpu amiga/amiga_compat.c 68060 &&
+    amiga_compile_cpu gen/repl.c 68060 &&
+    amiga_compile_cpu gen/standalone.c 68060 &&
+    amiga_compile_cpu quickjs-libc.c 68060 CODE=FAR &&
+    amiga_compile_cpu quickjs.c 68060 CODE=FAR &&
+    echo "==> 68060 build: linking..." &&
+    amiga_link_cpu 68060 060 &&
+    echo "==> 68060 build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs.060"
+}
+
+# amiga_build_all
+# Build all variants: qjs (020/FPU), qjs_soft (020/no-FPU), qjs.040, qjs.060
+amiga_build_all() {
+    amiga_build_soft &&
+    amiga_build_fpu &&
+    amiga_build_040 &&
+    amiga_build_060
+}
+
 # ---------------------------------------------------------------------------
 
 echo "amiga-env loaded  USER=$USER  SC=${SC:-(not set)}"
-echo "  amiga_clear / amiga_compile [soft] / amiga_link [soft] / amiga_run [soft] / amiga_build_fpu / amiga_build_soft"
+echo "  amiga_build_fpu / amiga_build_soft / amiga_build_040 / amiga_build_060 / amiga_build_all"
