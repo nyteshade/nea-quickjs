@@ -4,6 +4,59 @@ This document tracks all differences between the Amiga port and the
 upstream QuickJS-ng codebase.  Features marked with [upstream candidate]
 are generic enough to propose for inclusion in the main project.
 
+## Release History
+
+### 0.16 (25.3.2026)
+- Fix `--color` flag (extern linkage fix for SAS/C)
+- Add `--color` flag to enable REPL syntax highlighting
+- Add `S:QJS-Config.txt` — default CLI flags (one per line)
+- Add `S:QJS-Startup.js` — auto-run startup script
+- Add `Symbol.for('qjs.inspect')` — custom object display
+- Fix `JS_PrintValue` float display (`%.17g` → dtoa path)
+
+### 0.15 (25.3.2026)
+- Port `JS_PrintValue` from upstream (~350 lines) — proper object
+  inspection in `print()` and REPL (`{ x: 1 }` instead of `[object Object]`)
+- Add `std.__printObject` binding
+- Update `js_print` to use `JS_PrintValue` for non-string values
+- Update `repl.js` `print_eval_result` to use `std.__printObject`
+- Add `JSPrintValueOptions` type to `quickjs.h`
+
+### 0.14 (25.3.2026)
+- Fix float display in `JS_PrintValue` — SAS/C `scnb.lib` outputs
+  `%.17g` literally; switched to `JS_ToCString`/dtoa path
+
+### 0.13 (23.3.2026)
+- Fix REPL backspace crash — remove `is_trailing_surrogate` while-loops
+  from `forward_char`, `backward_char`, `delete_char_dir` in repl.js
+  (caused hard system lock on 68060 hardware)
+- Fix REPL display — restore `std.out.flush()` (needed on real hardware)
+- Revert `update()` to upstream (batched output was not the fix)
+
+### 0.12 (22.3.2026)
+- Complete no-FPU build (`qjs_soft`) — all sources compiled without
+  `MATH=68881`, linked with `scmnb.lib`
+- Fix module path normalizer (Bug 15) — treat `:` as path separator
+  for AmigaOS volume-root files
+- Add `$VER:` version string for AmigaDOS `version` command
+- Fix `amiga-env.sh` path resolution for zsh
+- Fix `vamos_diag.sh` — add `qjs:std` imports, fix stack KiB units
+- Add `amiga_build_soft` convenience function
+- Add `amiga_test.js` test suite
+
+### Pre-0.12 (sessions 1–7)
+- Initial SAS/C 6.58 port of QuickJS-ng 0.12.1
+- Fix `int64_t` = 32-bit: custom dtoa, MAX_SAFE_INTEGER cap, u64toa
+- Fix `INT32_MIN` unsigned promotion (all integer math produced float64)
+- Fix `scmieee.lib` crash with DATA=FARONLY — software math in amiga_compat.c
+- Fix `printf %g/%e/%f` broken in `scnb.lib` — FPU digit extraction
+- Fix `(5).toString()` — u64toa 32-bit shift undefined behavior
+- Add AmigaOS console I/O: ttyGetWinSize, ttySetRaw, CSI translation
+- Add poll() via WaitForChar, Ctrl-C via SetSignal
+- Add POSIX stubs: gettimeofday, opendir, vsnprintf, etc.
+- Add `NO_COLOR=1` default for AmigaOS REPL
+- Long identifier renames for SAS/C 31-char IDLEN limit
+
 ## New Features
 
 ### Symbol.for('qjs.inspect') — Custom Object Display [upstream candidate]

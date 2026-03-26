@@ -38,7 +38,10 @@
 
 #ifdef __SASC
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.15 (25.3.2026)";
+static const char amiga_ver[] = "$VER: qjs 0.16 (25.3.2026)";
+
+/* Flag set by --color to override NO_COLOR default */
+int amiga_force_color = 0;
 
 #include <proto/dos.h>
 
@@ -464,7 +467,8 @@ void help(void)
            "    --exe          select the executable to use as the base, defaults to the current one\n"
            "    --memory-limit n       limit the memory usage to 'n' Kbytes\n"
            "    --stack-size n         limit the stack size to 'n' Kbytes\n"
-           "-q  --quit         just instantiate the interpreter and quit\n", JS_GetVersion());
+           "-q  --quit         just instantiate the interpreter and quit\n"
+           "    --color        enable colored REPL output (AmigaOS default: off)\n", JS_GetVersion());
     exit(1);
 }
 
@@ -598,6 +602,13 @@ int main(int argc, char **argv)
                 load_std = 1;
                 continue;
             }
+#ifdef __SASC
+            if (!strcmp(longopt, "color")) {
+                /* Override NO_COLOR default — enable REPL colors */
+                amiga_force_color = 1;
+                continue;
+            }
+#endif
             if (opt == 'q' || !strcmp(longopt, "quit")) {
                 empty_run++;
                 continue;
