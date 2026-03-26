@@ -91,6 +91,12 @@ int SSL_connect(SSL *ssl);
 int SSL_read(SSL *ssl, void *buf, int num);
 int SSL_write(SSL *ssl, const void *buf, int num);
 int SSL_shutdown(SSL *ssl);
+/* SNI (Server Name Indication) — required by most modern servers */
+long SSL_ctrl(SSL *ssl, int cmd, long larg, void *parg);
+#define SSL_CTRL_SET_TLSEXT_HOSTNAME 55
+#define TLSEXT_NAMETYPE_host_name 0
+#define SSL_set_tlsext_host_name(ssl, name) \
+    SSL_ctrl(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, (void *)name)
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -271,15 +277,19 @@ int amiga_http_get(const char *url,
     if (amiga_ssl_init() != 0)
         return -1;
 
+    /* Check HTTPS capability early */
+    if (is_https && !ssl_ctx)
+        return -2;  /* SSL context failed during init */
+
     /* Resolve hostname */
     he = gethostbyname((UBYTE *)host);
     if (!he)
-        return -1;
+        return -3;  /* DNS lookup failed */
 
     /* Create socket */
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0)
-        return -1;
+        return -4;
 
     /* Connect */
     memset(&addr, 0, sizeof(addr));
@@ -290,25 +300,23 @@ int amiga_http_get(const char *url,
 
     if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
         CloseSocket(sock);
-        return -1;
+        return -4;  /* connection failed */
     }
 
     /* Set up SSL for HTTPS */
     if (is_https) {
-        if (!ssl_ctx) {
-            CloseSocket(sock);
-            return -1;
-        }
         ssl = SSL_new(ssl_ctx);
         if (!ssl) {
             CloseSocket(sock);
-            return -1;
+            return -2;  /* SSL_new failed */
         }
         SSL_set_fd(ssl, (int)sock);
+        /* SNI — required by most modern HTTPS servers */
+        SSL_set_tlsext_host_name(ssl, host);
         if (SSL_connect(ssl) <= 0) {
             SSL_free(ssl);
             CloseSocket(sock);
-            return -1;
+            return -5;  /* SSL handshake failed */
         }
     }
 

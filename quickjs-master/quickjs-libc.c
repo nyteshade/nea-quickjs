@@ -1829,11 +1829,24 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
                 "cannot initialize network: is your TCP/IP stack running? "
                 "(bsdsocket.library v4+ and amisslmaster.library required)");
         }
-        if (amiga_http_get(url, &body, &body_len, &http_status,
-                           NULL, NULL) < 0 || !body) {
-            JS_FreeCString(ctx, url);
-            free(body);
-            return JS_ThrowTypeError(ctx, "HTTP request failed");
+        {
+            int rc = amiga_http_get(url, &body, &body_len, &http_status,
+                                    NULL, NULL);
+            if (rc < 0 || !body) {
+                const char *url_copy = url; /* for error message */
+                JS_FreeCString(ctx, url);
+                free(body);
+                if (rc == -2)
+                    return JS_ThrowTypeError(ctx, "HTTPS not available "
+                        "(AmiSSL not installed or SSL context failed)");
+                else if (rc == -3)
+                    return JS_ThrowTypeError(ctx, "DNS lookup failed");
+                else if (rc == -4)
+                    return JS_ThrowTypeError(ctx, "connection failed");
+                else if (rc == -5)
+                    return JS_ThrowTypeError(ctx, "SSL handshake failed");
+                return JS_ThrowTypeError(ctx, "HTTP request failed");
+            }
         }
         JS_FreeCString(ctx, url);
 
