@@ -241,7 +241,10 @@ int amiga_http_get(const char *url,
                    int *status_out,
                    char **headers_out, int *headers_len_out)
 {
-    char host[256], path[1024], request[2048];
+    /* Use static buffers to avoid 3KB+ stack allocation */
+    static char host[256];
+    static char path[1024];
+    static char request[2048];
     int is_https, port;
     LONG sock;
     struct hostent *he;
@@ -250,7 +253,6 @@ int amiga_http_get(const char *url,
     char *data = NULL;
     int data_len = 0, data_cap = 0;
     int n, req_len;
-    int header_done = 0;
     char *header_end;
     int content_start = 0;
 
@@ -282,7 +284,8 @@ int amiga_http_get(const char *url,
     /* Connect */
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_port = (unsigned short)((port >> 8) | ((port & 0xFF) << 8)); /* htons */
+    /* 68k is big-endian: htons is a no-op */
+    addr.sin_port = (unsigned short)port;
     memcpy(&addr.sin_addr, he->h_addr, he->h_length);
 
     if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {

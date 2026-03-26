@@ -38,7 +38,8 @@
 
 #ifdef __SASC
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.23 (26.3.2026)";
+static const char amiga_ver[] = "$VER: qjs 0.26 (26.3.2026)";
+#include "amiga/amiga_ssl.h"
 
 /* Flag set by --color to override NO_COLOR default */
 int amiga_force_color = 0;
@@ -813,6 +814,11 @@ start:
         JS_ComputeMemoryUsage(rt, &stats);
         JS_DumpMemoryUsage(stdout, &stats, rt);
     }
+#ifdef __SASC
+    /* Clean up AmiSSL before freeing JS runtime — SSL resources
+     * must be released while the runtime is still valid */
+    amiga_ssl_cleanup();
+#endif
     js_std_free_handlers(rt);
     JS_FreeContext(ctx);
     JS_FreeRuntime(rt);

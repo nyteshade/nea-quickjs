@@ -96,7 +96,7 @@ amiga_compile() {
         -V sc:"$SC" \
         -V qjs:"$_AMIGA_QJS_ROOT" \
         sc:c/sc "qjs:$file" \
-        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP DEFINE NDEBUG \
         IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
         IDIR=sc:sdks/AmiSSL/Developer/include \
         IDIR=sc:sdks/netinclude NOICONS \
@@ -120,7 +120,7 @@ amiga_compile_soft() {
         -V sc:"$SC" \
         -V qjs:"$_AMIGA_QJS_ROOT" \
         sc:c/sc "qjs:$file" \
-        DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+        DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP DEFINE NDEBUG \
         IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
         IDIR=sc:sdks/AmiSSL/Developer/include \
         IDIR=sc:sdks/netinclude NOICONS \
