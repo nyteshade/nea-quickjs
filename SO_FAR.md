@@ -66,14 +66,22 @@ source ./amiga-env.sh
 | `amiga_link` | Link all `.o` files → `quickjs-master/amiga/bin/qjs` (FPU) |
 | `amiga_link_soft` | Link all `.o` files → `quickjs-master/amiga/bin/qjs_soft` (no-FPU) |
 | `amiga_run [ARGS]` | Run `qjs` via vamos with standard 68040 flags |
-| `amiga_run_stack N [ARGS]` | Same but with N bytes of vamos stack (for stack-overflow diagnosis) |
+| `amiga_run_stack N [ARGS]` | Same but with N KiB of vamos stack (for stack-overflow diagnosis) |
 | `amiga_run_soft [ARGS]` | Same but runs `qjs_soft` |
 | `amiga_build_fpu` | Full FPU rebuild: compile all sources + link |
+| `amiga_build_soft` | Full no-FPU rebuild: compile all sources + link (overwrites .o files) |
 
 Pass `CODE=FAR` as an extra flag for large files (`quickjs.c`, `quickjs-libc.c`):
 ```sh
 amiga_compile quickjs.c CODE=FAR
 amiga_run -e 'print(1+1)'
+```
+
+**Module imports in `-e` mode:** `std` and `os` are NOT available as globals in
+`-e` mode.  Use explicit imports with the `qjs:` prefix:
+```sh
+amiga_run -e 'import * as std from "qjs:std"; std.puts("hello\n")'
+amiga_run -e 'import * as os from "qjs:os"; print(os.platform)'
 ```
 
 As new tasks arise, **add convenience functions to `amiga-env.sh`** rather than
@@ -91,7 +99,7 @@ Use when pulling upstream changes or checking whether a bug exists in unmodified
 
 ---
 
-## Current State (session 7 — INT32_MIN bug, toString bug, REPL partially working)
+## Current State (session 8 — batched REPL output, vamos diagnostics, no-FPU build)
 
 ```
 print(100+110)              → 210                      ✓ (was 210.00000000000001)
@@ -104,25 +112,36 @@ REPL starts                 → WORKS (no termInit crash)  ✓
 REPL receives keystrokes    → WORKS (poll+WaitForChar)   ✓
 REPL forward typing         → WORKS ✓ (INT32_MIN fix)
 REPL eval (Enter)           → WORKS ✓
-REPL backspace              → CRASHES SYSTEM (hard lock, no guru)
+REPL backspace              → WORKS ✓ (surrogate loop fix, session 8)
+REPL left/right arrows      → WORKS ✓
+REPL eval (Enter)           → WORKS ✓
+typing `os` or `std` in REPL → Abnormal program termination (new bug, session 8)
 Ctrl-C in REPL              → exits qjs via EINTR        ✓
 Amiberry + FPU enabled      → WORKS ✓ (error #8000000B gone when FPU on)
-Amiberry without FPU        → CRASHES #8000000B (no-FPU build not yet linked)
+Amiberry without FPU        → NEEDS RETEST (qjs_soft now built and linked)
 Integer addition            → FIXED (was producing float64 due to INT32_MIN bug)
+vamos diagnostics           → 17/17 PASS (O/S/U groups)  ✓
 ```
 
 **Two binaries needed (session 6 decision):**
 
 | Binary | MATH flag | Math lib | Requires | Status |
 |--------|-----------|----------|----------|--------|
-| `qjs` (FPU build) | `MATH=68881` | `scm881nb.lib` | 68881/68882 or 68040/68060 FPU | **Done** — 945 KB, Mar 17 18:18 → `amiga/bin/qjs` |
-| `qjs_soft` (no-FPU) | *(none)* | `scmnb.lib` | 68020+ any | **In progress** — see §no-FPU build below → `amiga/bin/qjs_soft` |
+| `qjs` (FPU build) | `MATH=68881` | `scm881nb.lib` | 68881/68882 or 68040/68060 FPU | **Done** — 934 KB, Mar 22 → `amiga/bin/qjs` |
+| `qjs_soft` (no-FPU) | *(none)* | `scmnb.lib` | 68020+ any | **Done** — 942 KB, Mar 22 → `amiga/bin/qjs_soft` |
 
-The current `qjs` binary (945 KB, Mar 17 18:18:27) — **now output to `quickjs-master/amiga/bin/qjs`**:
+The current `qjs` binary (934 KB, Mar 22) — **output to `quickjs-master/amiga/bin/qjs`**:
 - Compiled WITH `MATH=68881` (uses inline 68881 FPU opcodes)
 - Linked with `scm881nb.lib`
 - Includes the `NO_COLOR=1` default fix (show_colors=false → optimize REPL path)
 - Includes CSI→VT100 translation fix
+- Includes batched REPL output fix (session 8: single Write() per update())
+
+The `qjs_soft` binary (942 KB, Mar 22) — **output to `quickjs-master/amiga/bin/qjs_soft`**:
+- Compiled WITHOUT `MATH=68881` (software floating point only)
+- Linked with `scmnb.lib` (pure software-float math, no buffering)
+- Runs on any 68020+ without FPU
+- All math functions provided by `amiga_compat.c` software implementations
 
 **What was fixed in session 5 (CSI translation):**
 AmigaOS raw mode sends special keys as CSI sequences starting with 0x9B:
@@ -258,23 +277,14 @@ slink sc:lib/c.o qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
 be mixed in the same link — the 68881 ones emit FPU opcodes that crash on
 CPUs without FPU.
 
-### No-FPU build status (as of session 6)
+### No-FPU build status (completed session 8)
 
-| File | .o compiled without MATH=68881? | Notes |
-|------|--------------------------------|-------|
-| `qjs.c` | ✓ `qjs.o` (21 KB, Mar 17 21:30) | Done |
-| `dtoa.c` | ✓ `dtoa.o` (18 KB, Mar 17 21:31) | Done |
-| `quickjs.c` | ✗ `quickjs.o` (711 KB, Mar 16) | **Still needs no-FPU recompile** |
-| `quickjs-libc.c` | ✗ `quickjs-libc.o` (62 KB, Mar 17 18:18) | **Still needs no-FPU recompile** |
-| `libregexp.c` | ✗ `libregexp.o` (29 KB, Mar 16) | **Still needs no-FPU recompile** |
-| `libunicode.c` | ✗ `libunicode.o` (62 KB, Mar 16) | **Still needs no-FPU recompile** |
-| `amiga/amiga_compat.c` | ✗ `amiga/amiga_compat.o` (9.7 KB, Mar 16) | **Still needs no-FPU recompile** |
-| `gen/repl.c` | ✗ `gen/repl.o` (24 KB, Mar 16) | **Still needs no-FPU recompile** |
-| `gen/standalone.c` | ✗ `gen/standalone.o` (2.6 KB, Mar 16) | **Still needs no-FPU recompile** |
+All 9 source files compiled without `MATH=68881` and linked as `qjs_soft` (942 KB).
+Smoke-tested: integer math, floating point (software), JSON, toString all pass.
 
-To complete the no-FPU build, compile each remaining file, then link to `qjs_soft`.
-The object files for the no-FPU build should be kept separate (e.g., in a `obj_soft/`
-subdirectory) so FPU and no-FPU builds can coexist.
+**Note:** FPU and no-FPU `.o` files share the same directory; a full rebuild of one
+overwrites the other.  Use `amiga_build_fpu` to restore FPU `.o` files after a soft build.
+The link step is fast; the compile step dominates build time (~1 min per large file).
 
 ### vamos invocation patterns
 Prefer the helper functions from `amiga-env.sh` (see Getting Started above).
@@ -408,6 +418,13 @@ elements → `JSON.stringify([1,2,3])` → `[]`.  Also causes
 - `js_async_generator_resolve_function_create` → `js_asgen_resolve_func_create`
 - `js_object_getOwnPropertyDescriptors` → `js_obj_getOwnPropDescriptors`
 
+### `qjs.c` — version string (session 8)
+AmigaOS `$VER:` string embedded under `#ifdef __SASC`:
+```c
+static const char amiga_ver[] = "$VER: qjs 0.12.1 (22.3.2026)";
+```
+Queryable via AmigaDOS `version qjs` command.
+
 ### `quickjs-libc.c`
 
 **AmigaOS tty block** (inserted as `#elif defined(__SASC)` before
@@ -503,41 +520,38 @@ always returned `""` (pos clamped to 0) and `cmd.substring(pos)` returned the
 full string — prepending each new character instead of appending.
 **Fix:** Bug 13 fix (INT32_MIN definition).
 
-### Bug 12: Backspace crashes/freezes system — NOT YET FIXED (session 7)
-After pressing backspace in the REPL, the entire Amiga system hard-locks (no guru).
+### Bug 12: Backspace / cursor movement crashes system — FIXED (session 8)
+After pressing backspace or right-arrow past EOL in the REPL, the entire Amiga system
+hard-locks (no guru).  Left arrow also crashes when cursor reaches end of typed text.
 
-**Current state:** `update()` uses `\r` + reprint + space padding + `\x08` backspaces —
-no VT100 escape sequences at all. Still hard-locks.
+**Session 8 fix v2 (after real-Amiga testing):**
+- Fix v1 (removed `std.out.flush()`) caused invisible prompt/typing — `fflush(stdout)`
+  IS needed on real Amiga even with `scnb.lib`.
+- **Fix v2:** `update()` batches all output into a single string → one `std.puts()` call
+  → one `Write(Output(), ...)` syscall, followed by `std.out.flush()`.  Previously used
+  5+ separate `std.puts()` calls per update.  The single-Write approach should prevent
+  the console device from being overwhelmed by rapid sequential writes in raw mode.
+- Bytecode regenerated with QuickJS-ng qjsc.
+- Both FPU and no-FPU binaries rebuilt.
+- **Needs real-Amiga retest** for backspace, left arrow, right arrow at EOL.
 
-**Stack overflow ruled out: 2MB stack confirmed still crashes.**
+**Root cause:** The `while (is_trailing_surrogate(cmd.charAt(...)))` loops in
+`forward_char`, `backward_char`, and `delete_char_dir` cause a hard system lock
+on real Amiga hardware (68060 AA3000+). The loops never execute their body for
+ASCII input, but the mere evaluation of the loop condition triggers the crash.
+Both `charCodeAt` and `codePointAt` variants crash — the while loop itself is
+the trigger. Narrowed down through 21 incremental test files (T8–T21).
+Does NOT reproduce in vamos.
 
-**Active hypotheses (in priority order):**
-1. Multiple `Write(Output(), ...)` calls in rapid sequence inside a raw-mode read callback — AmigaOS console device (CON: or ViNCEd VNC:) may not handle this safely
-2. `std.out.flush()` with `scnb.lib` — `fflush()` on an unbuffered stream may dereference a null buffer pointer
-3. `\r` or another output byte triggers an unexpected console response injected into the input stream (similar to how ttyGetWinSize works), causing WaitForChar to fire on garbage bytes → potentially an infinite handler loop
-4. Backspace sends something other than `0x08` (e.g. `0x9B 0x50` = CSI P = Delete), sending handle_char down a different code path than expected
+**Fix:** Removed the surrogate while loops. Surrogate pairs won't appear in
+AmigaOS console input (ASCII/Latin-1 only). `update()` reverted to upstream.
 
-**Previous attempts that still crashed (all confirmed escape-sequence-free):**
-- ESC+[ sequences, native CSI (0x9B), `\x1b[K`, `\x1b[J`
-- Pure `\r` + reprint + spaces + `\x08` — still crashes
-- 2MB stack — still crashes (stack overflow ruled out)
-- Debug logging to `ram:` — also locked system
-
-**Diagnostic tests queued:**
-
-Step 1 — from Mac (no binary transfer needed):
-```sh
-source ./amiga-env.sh
-bash quickjs-master/amiga/tests/vamos_diag.sh
-```
-
-Step 2 — on Amiberry:
-```
-See quickjs-master/amiga/tests/amiberry_tests.txt
-```
-Run groups in order: K (key bytes) → E (output in -e mode) → R (raw mode).
-The E group is the critical discriminator: if `qjs -e` with the same output
-sequences does NOT crash, the bug is in the raw-mode/event-loop interaction.
+### Bug 20: Typing `os` or `std` in REPL → Abnormal program termination (session 8)
+Typing `os` or `std` at the REPL prompt and pressing Enter causes "Abnormal program
+termination". This is a SAS/C runtime abort (not a hard lock like Bug 12).
+Likely cause: `util.inspect()` or `print()` on the module object triggers a code path
+that calls `abort()` — possibly deep recursion in object inspection, a failed assertion,
+or a 32-bit type issue in the formatting code. Needs investigation.
 
 ### Bug 14: `(5).toString()` returns "0000000000000000005" — FIXED (session 7)
 `Number.prototype.toString()` for integers calls `i64toa_radix` → `u64toa_radix`
@@ -600,13 +614,11 @@ default.  **Fixed** with CSI escape sequence approach in quickjs-libc.c.
 Character reversal was caused by Bug 13 (INT32_MIN). REPL number display
 was caused by Bug 14 (u64toa 32-bit shift). Both fixed.
 
-### REPL backspace — CRASHES SYSTEM (Bug 12, NOT FIXED)
-Hard system lock on backspace, no guru.  Stack overflow ruled out (2MB stack
-confirmed still crashes).  Active hypotheses: multiple sequential `Write(Output())`
-calls inside a raw-mode read callback; `fflush()` with scnb.lib; `\r` triggering
-a console response injected into the input stream; or backspace sending `0x9B 0x50`
-(CSI P) rather than `0x08`.  ViNCEd vs ROM CON: behaviour is a variable.
-Diagnostic tests queued — see Bug 12 in the Key Bugs section above.
+### REPL backspace — FIX APPLIED, NEEDS AMIBERRY RETEST (Bug 12)
+Hard system lock on backspace, no guru.  Session 8: vamos diagnostics (17/17 pass)
+confirmed the crash is NOT in JS/C logic — it only occurs on real Amiberry hardware.
+**Fix applied:** `update()` now batches all output into one `std.puts()` call (single
+`Write()`) and removed `std.out.flush()`.  Binary rebuilt.  Needs Amiberry retest.
 
 ### REPL keyboard input — FIXED
 `poll()` now uses `WaitForChar(Input(), usec)` for fd 0.
@@ -663,6 +675,29 @@ rkrm-dos.pdf          — AmigaOS ROM Kernel Reference Manual: Libraries (DOS).
                          Reference for console.device, dos.library, event loop.
 SO_FAR.md             — This file.
 ```
+
+---
+
+## Regenerating repl.js bytecode
+
+When `repl.js` is modified, the bytecode in `gen/repl.c` must be regenerated using the
+QuickJS-ng qjsc (NOT the bellard QuickJS qjsc — bytecode formats are incompatible).
+
+```sh
+# Build the QuickJS-ng qjsc from the repo source (one-time):
+cmake -B quickjs-master/build -S quickjs-master -DCMAKE_BUILD_TYPE=Release
+cmake --build quickjs-master/build --target qjsc -j 8
+
+# Regenerate bytecode (-ss strips source, -m = module mode):
+quickjs-master/build/qjsc -ss -o quickjs-master/gen/repl.c -m quickjs-master/repl.js
+
+# Then recompile and relink for the Amiga:
+source ./amiga-env.sh
+amiga_compile gen/repl.c && amiga_link
+```
+
+The host `/opt/homebrew/bin/qjsc` is bellard's QuickJS (version 2025-09-13); the repo is
+QuickJS-ng v0.12.1.  Using the wrong qjsc produces bytecode that crashes at runtime.
 
 ---
 
@@ -786,32 +821,17 @@ multiple `fwrite` calls).  See the active hypotheses in Bug 12 for details.
 After applying a fix: `amiga_compile quickjs-libc.c CODE=FAR` + `amiga_link`, transfer
 to Amiberry, run the amiberry_tests.txt groups again.
 
-### 2. Complete no-FPU build
-Compile the remaining 7 source files without `MATH=68881` and link as `qjs_soft`.
-See §No-FPU build status above for the list.  Compile order doesn't matter.
+### 2. ~~Complete no-FPU build~~ — DONE (session 8)
+`qjs_soft` (942 KB) built and tested.  All 9 files compiled without `MATH=68881`,
+linked with `scmnb.lib`.  Integer math, floating point (software), JSON all pass in vamos.
 
-With `amiga-env.sh` sourced, the pattern for each file is:
-```sh
-amiga_compile_soft FILENAME.c          # most files
-amiga_compile_soft quickjs.c CODE=FAR  # large files need CODE=FAR
-amiga_compile_soft quickjs-libc.c CODE=FAR
-```
-Then link:
-```sh
-amiga_link_soft
-```
+### 3. ~~Fix Amiga file path handling (Bug 15 — module normalizer)~~ — DONE (session 8)
+Fixed in `quickjs.c` `js_default_module_normalize_name()`: when no `/` is found,
+falls back to `strrchr(base_name, ':')` and includes the colon in the base path.
+`RAM:main.js` → base = `RAM:` → `import './util'` → `RAM:util` ✓
+Compiled into FPU binary.  Needs recompile for `qjs_soft` if module imports are needed.
 
-### 3. Fix Amiga file path handling (Bug 15 — module normalizer)
-The most impactful fix: `import './util'` from a file at volume root (e.g. `RAM:main.js`)
-resolves to `util` instead of `RAM:util`. One-line fix in `quickjs.c` ~line 29207:
-```c
-#ifdef __SASC
-    if (!r) r = strrchr(base_name, ':');  /* treat : as path separator */
-#endif
-```
-After the fix, test with: `qjs RAM:main.js` where `main.js` does `import './lib'`.
-
-Also test the other os.* path functions (Bugs 16-19) with simple `qjs -e` scripts.
+Still to test: other os.* path functions (Bugs 16-19) with simple `qjs -e` scripts.
 
 ### 4. ViNCEd detection and conditional terminal sequences
 Once the backspace crash is fixed, add runtime console handler detection in

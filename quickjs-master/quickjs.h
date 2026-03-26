@@ -1531,6 +1531,26 @@ JS_EXTERN const char* JS_GetVersion(void);
 /* Integration point for quickjs-libc.c, not for public use. */
 JS_EXTERN uintptr_t js_std_cmd(int cmd, ...);
 
+/* debug value output */
+
+typedef struct {
+    int show_hidden : 8;
+    int raw_dump : 8;
+    uint32_t max_depth;
+    uint32_t max_string_length;
+    uint32_t max_item_count;
+} JSPrintValueOptions;
+
+typedef void JSPrintValueWrite(void *opaque, const char *buf, size_t len);
+
+JS_EXTERN void JS_PrintValueSetDefaultOptions(JSPrintValueOptions *options);
+JS_EXTERN void JS_PrintValueRT(JSRuntime *rt, JSPrintValueWrite *write_func,
+                                void *write_opaque, JSValueConst val,
+                                const JSPrintValueOptions *options);
+JS_EXTERN void JS_PrintValue(JSContext *ctx, JSPrintValueWrite *write_func,
+                              void *write_opaque, JSValueConst val,
+                              const JSPrintValueOptions *options);
+
 #ifdef __cplusplus
 } /* extern "C" { */
 #endif

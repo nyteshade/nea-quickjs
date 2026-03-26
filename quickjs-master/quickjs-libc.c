@@ -1928,6 +1928,10 @@ static const JSCFunctionListEntry js_std_error_props[] = {
 #undef DEF
 };
 
+/* forward declaration — defined later near js_print */
+static JSValue js_std_file_printObject(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv);
+
 static const JSCFunctionListEntry js_std_funcs[] = {
     JS_CFUNC_DEF("exit", 1, js_std_exit ),
     JS_CFUNC_DEF("gc", 0, js_std_gc ),
@@ -1943,6 +1947,7 @@ static const JSCFunctionListEntry js_std_funcs[] = {
     JS_CFUNC_DEF("loadFile", 1, js_std_loadFile ),
     JS_CFUNC_DEF("writeFile", 2, js_std_writeFile ),
     JS_CFUNC_DEF("strerror", 1, js_std_strerror ),
+    JS_CFUNC_DEF("__printObject", 1, js_std_file_printObject ),
 
     /* FILE I/O */
     JS_CFUNC_DEF("open", 2, js_std_open ),
@@ -4775,64 +4780,52 @@ JSModuleDef *js_init_module_os(JSContext *ctx, const char *module_name)
 
 /**********************************************************/
 
+static void js_print_value_write(void *opaque, const char *buf, size_t len)
+{
+    FILE *fo = opaque;
+    fwrite(buf, 1, len, fo);
+}
+
+static JSValue js_std_file_printObject(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv)
+{
+    JS_PrintValue(ctx, js_print_value_write, stdout, argv[0], NULL);
+    return JS_UNDEFINED;
+}
+
 static JSValue js_print(JSContext *ctx, JSValueConst this_val,
                         int argc, JSValueConst *argv)
 {
-#ifdef _WIN32
-    HANDLE handle;
-    DWORD mode;
-#endif
-    const char *s;
-    JSValue t;
-    JSValueConst v;
-    DynBuf b;
     int i;
+    JSValueConst v;
 
-    dbuf_init(&b);
     for(i = 0; i < argc; i++) {
+        if (i != 0)
+            putchar(' ');
         v = argv[i];
-        s = JS_ToCString(ctx, v);
-        if (!s && JS_IsObject(v)) {
-            JS_FreeValue(ctx, JS_GetException(ctx));
-            t = JS_ToObjectString(ctx, v);
-            s = JS_ToCString(ctx, t);
-            JS_FreeValue(ctx, t);
-        }
-        if (s) {
-            dbuf_printf(&b, "%s%s", &" "[!i], s);
-            JS_FreeCString(ctx, s);
+        if (JS_IsString(v)) {
+            const char *str;
+            size_t len;
+            str = JS_ToCStringLen(ctx, &len, v);
+            if (!str)
+                return JS_EXCEPTION;
+            fwrite(str, 1, len, stdout);
+            JS_FreeCString(ctx, str);
         } else {
-            dbuf_printf(&b, "%s<exception>", &" "[!i]);
-            JS_FreeValue(ctx, JS_GetException(ctx));
+            JS_PrintValue(ctx, js_print_value_write, stdout, v, NULL);
         }
     }
-    dbuf_putc(&b, '\n');
-#ifdef _WIN32
-    /* use WriteConsoleA with CP_UTF8 for better Unicode handling vis-a-vis */
-    /* the mangling that happens when going through msvcrt's stdio layer, */
-    /* *except* when stdout is redirected to something that is not a console */
-    handle = (HANDLE)_get_osfhandle(/*STDOUT_FILENO*/1); /* don't CloseHandle */
-    if (GetFileType(handle) != FILE_TYPE_CHAR)
-        goto fallback;
-    if (!GetConsoleMode(handle, &mode))
-        goto fallback;
-    handle = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (handle == INVALID_HANDLE_VALUE)
-        goto fallback;
-    mode = GetConsoleOutputCP();
-    SetConsoleOutputCP(CP_UTF8);
-    WriteConsoleA(handle, b.buf, b.size, NULL, NULL);
-    SetConsoleOutputCP(mode);
-    FlushFileBuffers(handle);
-    goto done;
-fallback:
-#endif
-    fwrite(b.buf, 1, b.size, stdout);
-    fflush(stdout);
-    goto done; /* avoid unused label warning */
-done:
-    dbuf_free(&b);
+    putchar('\n');
     return JS_UNDEFINED;
+}
+
+static JSValue js_console_log(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    JSValue ret;
+    ret = js_print(ctx, this_val, argc, argv);
+    fflush(stdout);
+    return ret;
 }
 
 void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
@@ -4845,7 +4838,7 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
 
     console = JS_NewObject(ctx);
     JS_SetPropertyStr(ctx, console, "log",
-                      JS_NewCFunction(ctx, js_print, "log", 1));
+                      JS_NewCFunction(ctx, js_console_log, "log", 1));
     JS_SetPropertyStr(ctx, global_obj, "console", console);
 
     /* same methods as the mozilla JS shell */

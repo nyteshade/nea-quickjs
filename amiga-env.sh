@@ -41,8 +41,14 @@ if [ -z "$SC" ]; then
 fi
 
 # Absolute path to the project root (works whether sourced as ./amiga-env.sh
-# or as /full/path/to/amiga-env.sh).
-_AMIGA_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# or as /full/path/to/amiga-env.sh).  Supports both bash and zsh.
+if [ -n "${BASH_SOURCE[0]+x}" ] && [ -n "${BASH_SOURCE[0]}" ]; then
+    _AMIGA_PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+elif [ -n "${ZSH_VERSION}" ]; then
+    _AMIGA_PROJECT_ROOT="${0:A:h}"
+else
+    _AMIGA_PROJECT_ROOT="$(pwd)"
+fi
 _AMIGA_QJS_ROOT="$_AMIGA_PROJECT_ROOT/quickjs-master"
 _AMIGA_VAMOS_CFG="$_AMIGA_QJS_ROOT/amiga/vamos_build.cfg"
 
@@ -171,11 +177,11 @@ amiga_run() {
         -- qjs:amiga/bin/qjs "$@"
 }
 
-# amiga_run_stack STACK_BYTES [QJS_ARGS...]
-# Like amiga_run but with a custom vamos stack size (in bytes).
+# amiga_run_stack STACK_KIB [QJS_ARGS...]
+# Like amiga_run but with a custom vamos stack size (in KiB, vamos -s).
 #
 # Example:
-#   amiga_run_stack 65536 -e 'print("hello")'
+#   amiga_run_stack 64 -e 'print("hello")'  # 64 KiB stack
 amiga_run_stack() {
     _amiga_check_env || return 1
     local stack="$1"; shift
@@ -213,7 +219,27 @@ amiga_build_fpu() {
     echo "==> FPU build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs"
 }
 
+# amiga_build_soft
+# Full no-FPU rebuild: compile all source files without MATH=68881, then link qjs_soft.
+# WARNING: overwrites .o files — run amiga_build_fpu afterwards to restore FPU build.
+amiga_build_soft() {
+    _amiga_check_env || return 1
+    echo "==> No-FPU build: compiling all sources..." &&
+    amiga_compile_soft qjs.c &&
+    amiga_compile_soft dtoa.c &&
+    amiga_compile_soft libregexp.c &&
+    amiga_compile_soft libunicode.c &&
+    amiga_compile_soft amiga/amiga_compat.c &&
+    amiga_compile_soft gen/repl.c &&
+    amiga_compile_soft gen/standalone.c &&
+    amiga_compile_soft quickjs-libc.c CODE=FAR &&
+    amiga_compile_soft quickjs.c CODE=FAR &&
+    echo "==> No-FPU build: linking..." &&
+    amiga_link_soft &&
+    echo "==> No-FPU build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs_soft"
+}
+
 # ---------------------------------------------------------------------------
 
 echo "amiga-env loaded  USER=$USER  SC=${SC:-(not set)}"
-echo "  amiga_clear / amiga_compile [soft] / amiga_link [soft] / amiga_run [soft] / amiga_build_fpu"
+echo "  amiga_clear / amiga_compile [soft] / amiga_link [soft] / amiga_run [soft] / amiga_build_fpu / amiga_build_soft"

@@ -25,6 +25,10 @@ source ./amiga-env.sh
 
 PASS=0; FAIL=0; SKIP=0
 
+# Module imports needed in -e mode (registered as "qjs:std" / "qjs:os")
+_STD='import * as std from "qjs:std";'
+_OS='import * as os from "qjs:os";'
+
 run_test() {
     local id="$1" desc="$2" expr="$3"
     printf "%-6s %-50s ... " "$id" "$desc"
@@ -49,9 +53,10 @@ run_test_large_stack() {
     local id="$1" desc="$2" expr="$3"
     printf "%-6s %-50s ... " "$id" "$desc"
     local out
-    if out=$(amiga_run_stack 65536 -e "$expr" 2>&1); then
+    # Note: vamos -s is in KiB, so 64 = 64 KiB stack
+    if out=$(amiga_run_stack 64 -e "$expr" 2>&1); then
         if echo "$out" | grep -q "PASS"; then
-            echo "PASS (with 65536 byte stack)"
+            echo "PASS (with 64 KiB stack)"
             PASS=$((PASS+1))
         else
             echo "FAIL (no PASS marker)"
@@ -77,22 +82,22 @@ echo "--- Group O: Output sequences (outside REPL, no raw mode) ---"
 # ---------------------------------------------------------------------------
 
 run_test O1 "CR + string to stdout" \
-    'std.puts("\rhello\r"); std.out.flush(); print("PASS")'
+    "${_STD}"'std.puts("\rhello\r"); std.out.flush(); print("PASS")'
 
 run_test O2 "Single backspace char (0x08)" \
-    'std.puts("hello\x08X"); std.out.flush(); print("PASS")'
+    "${_STD}"'std.puts("hello\x08X"); std.out.flush(); print("PASS")'
 
 run_test O3 "Multiple backspaces" \
-    'std.puts("hello\x08\x08\x08\x08\x08world"); std.out.flush(); print("PASS")'
+    "${_STD}"'std.puts("hello\x08\x08\x08\x08\x08world"); std.out.flush(); print("PASS")'
 
 run_test O4 "CR + reprint + space-erase (exact backspace pattern)" \
-    'var p="qjs > "; var cmd="hell"; std.puts("\r"); std.puts(p); std.puts(cmd); std.puts(" "); std.puts("\x08"); std.out.flush(); print("PASS")'
+    "${_STD}"'var p="qjs > "; var cmd="hell"; std.puts("\r"); std.puts(p); std.puts(cmd); std.puts(" "); std.puts("\x08"); std.out.flush(); print("PASS")'
 
 run_test O5 "CR + reprint + multi space-erase + cursor reposition" \
-    'var p="qjs > "; std.puts("\r"); std.puts(p); std.puts("hel"); std.puts("  "); std.puts("\x08\x08"); std.puts("\x08\x08\x08"); std.out.flush(); print("PASS")'
+    "${_STD}"'var p="qjs > "; std.puts("\r"); std.puts(p); std.puts("hel"); std.puts("  "); std.puts("\x08\x08"); std.puts("\x08\x08\x08"); std.out.flush(); print("PASS")'
 
 run_test O6 "Sequential std.puts calls x20" \
-    'for(var i=0;i<20;i++) std.puts("."); std.puts("\n"); print("PASS")'
+    "${_STD}"'for(var i=0;i<20;i++) std.puts("."); std.puts("\n"); print("PASS")'
 
 echo ""
 
@@ -118,7 +123,7 @@ run_test S4 "JS recursion depth 200" \
     'function f(n){if(n<=0)return 0;return 1+f(n-1);} try{f(200);print("PASS")}catch(e){print("FAIL depth=200: "+e)}'
 
 run_test S5 "Nested std.puts 6 calls deep (mirrors backspace depth)" \
-    'function f6(){std.puts(".");}
+    "${_STD}"'function f6(){std.puts(".");}
 function f5(){f6();}
 function f4(){std.puts(".");f5();std.puts(".");}
 function f3(){f4();}
@@ -150,7 +155,7 @@ run_test U2 "dupchar() with backspace char" \
 var r=dupchar("\x08",3); if(r.length===3) print("PASS"); else print("FAIL len:"+r.length)'
 
 run_test U3 "Full update() backspace simulation (hello->hell, cursor at end)" \
-    'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;}
+    "${_STD}"'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;}
 function dupchar(ch,n){var s="";while(n-->0)s+=ch;return s;}
 var prompt="qjs > ";
 var last_cmd="hello"; var cmd="hell";
@@ -165,7 +170,7 @@ std.out.flush();
 print("PASS")'
 
 run_test U4 "Full update() backspace simulation (cursor in middle: ab->b, pos=0)" \
-    'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;}
+    "${_STD}"'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;}
 function dupchar(ch,n){var s="";while(n-->0)s+=ch;return s;}
 var prompt="qjs > "; var last_cmd="ab"; var cmd="b";
 var last_cursor_pos=1; var cursor_pos=0;
@@ -197,7 +202,7 @@ run_test_large_stack L1 "Recursion depth 200 (large stack)" \
     'function f(n){if(n<=0)return 0;return 1+f(n-1);} try{f(200);print("PASS")}catch(e){print("FAIL: "+e)}'
 
 run_test_large_stack L2 "Full update() sim (large stack)" \
-    'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;}
+    "${_STD}"'function ucs_length(s){var n=0,i;for(i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0xdc00||c>=0xe000)n++;}return n;}
 function dupchar(ch,n){var s="";while(n-->0)s+=ch;return s;}
 var prompt="qjs > "; var last_cmd="hello"; var cmd="hell";
 var old_total=ucs_length(prompt)+ucs_length(last_cmd);
@@ -207,7 +212,7 @@ var pad=old_total-new_total; if(pad>0){std.puts(dupchar(" ",pad));std.puts(dupch
 std.out.flush(); print("PASS")'
 
 run_test_large_stack L3 "Nested std.puts 6 deep (large stack)" \
-    'function f6(){std.puts(".");}
+    "${_STD}"'function f6(){std.puts(".");}
 function f5(){f6();}
 function f4(){std.puts(".");f5();std.puts(".");}
 function f3(){f4();}

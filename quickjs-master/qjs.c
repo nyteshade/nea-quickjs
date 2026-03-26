@@ -36,6 +36,11 @@
 #include "quickjs.h"
 #include "quickjs-libc.h"
 
+#ifdef __SASC
+/* AmigaOS version string — queryable via the "version" CLI command */
+static const char amiga_ver[] = "$VER: qjs 0.14 (25.3.2026)";
+#endif
+
 #ifdef QJS_USE_MIMALLOC
 #include <mimalloc.h>
 #endif

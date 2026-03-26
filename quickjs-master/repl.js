@@ -333,40 +333,35 @@ import * as bjson from "qjs:bjson";
            UTF-16 string 'cmd' */
         if (cmd != last_cmd) {
             if (!show_colors && last_cmd.substring(0, last_cursor_pos) == cmd.substring(0, last_cursor_pos)) {
-                /* optimize common case — only output the new suffix */
+                /* optimize common case */
                 std.puts(cmd.substring(last_cursor_pos));
-                term_cursor_x = (term_cursor_x + ucs_length(cmd.substring(last_cursor_pos))) % term_width;
             } else {
-                /* Full redraw — AmigaOS safe: use \r + re-output, no CSI sequences.
-                 * \r returns cursor to column 0, then we re-output prompt + cmd
-                 * and pad with spaces to erase any leftover characters. */
-                var old_total = ucs_length(prompt) + ucs_length(last_cmd);
-                std.puts("\r");
-                std.puts(prompt);
-                std.puts(cmd);
-                var new_total = ucs_length(prompt) + ucs_length(cmd);
-                /* pad with spaces to cover old content, then backspace over them */
-                if (old_total > new_total) {
-                    var pad = old_total - new_total;
-                    std.puts(dupchar(" ", pad));
-                    std.puts(dupchar("\x08", pad));
+                /* goto the start of the line */
+                move_cursor(-ucs_length(last_cmd.substring(0, last_cursor_pos)));
+                if (show_colors) {
+                    var str = mexpr ? mexpr + '\n' + cmd : cmd;
+                    var start = str.length - cmd.length;
+                    var colorstate = colorize_js(str);
+                    print_color_text(str, start, colorstate[2]);
+                } else {
+                    std.puts(cmd);
                 }
-                term_cursor_x = new_total % term_width;
             }
+            term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
+            if (term_cursor_x == 0) {
+                /* show the cursor on the next line */
+                std.puts(" \x08");
+            }
+            /* remove the trailing characters */
+            std.puts("\x1b[J");
             last_cmd = cmd;
             last_cursor_pos = cmd.length;
         }
-        /* reposition cursor if not at end of cmd */
-        if (cursor_pos < last_cursor_pos) {
-            /* move cursor back using backspaces */
-            std.puts(dupchar("\x08", ucs_length(cmd.substring(cursor_pos, last_cursor_pos))));
-            term_cursor_x -= ucs_length(cmd.substring(cursor_pos, last_cursor_pos));
-        } else if (cursor_pos > last_cursor_pos) {
-            /* move cursor forward by re-outputting the characters */
-            std.puts(cmd.substring(last_cursor_pos, cursor_pos));
-            term_cursor_x += ucs_length(cmd.substring(last_cursor_pos, cursor_pos));
+        if (cursor_pos > last_cursor_pos) {
+            move_cursor(ucs_length(cmd.substring(last_cursor_pos, cursor_pos)));
+        } else if (cursor_pos < last_cursor_pos) {
+            move_cursor(-ucs_length(cmd.substring(cursor_pos, last_cursor_pos)));
         }
-        term_cursor_x = ((term_cursor_x % term_width) + term_width) % term_width;
         last_cursor_pos = cursor_pos;
         std.out.flush();
     }
@@ -403,16 +398,15 @@ import * as bjson from "qjs:bjson";
     function forward_char() {
         if (cursor_pos < cmd.length) {
             cursor_pos++;
-            while (is_trailing_surrogate(cmd.charAt(cursor_pos)))
-                cursor_pos++;
+            /* surrogate loop removed — crashes on AmigaOS/SAS-C 32-bit build.
+               Amiga console input is ASCII/Latin-1 only, no surrogates. */
         }
     }
 
     function backward_char() {
         if (cursor_pos > 0) {
             cursor_pos--;
-            while (is_trailing_surrogate(cmd.charAt(cursor_pos)))
-                cursor_pos--;
+            /* surrogate loop removed — see forward_char */
         }
     }
 
@@ -506,12 +500,10 @@ import * as bjson from "qjs:bjson";
         start = cursor_pos;
         if (dir < 0) {
             start--;
-            while (is_trailing_surrogate(cmd.charAt(start)))
-                start--;
+            /* surrogate loops removed — crashes on AmigaOS/SAS-C 32-bit build.
+               Amiga console input is ASCII/Latin-1 only, no surrogates. */
         }
         end = start + 1;
-        while (is_trailing_surrogate(cmd.charAt(end)))
-            end++;
 
         if (start >= 0 && start < cmd.length) {
             if (last_fun === kill_region) {
@@ -1620,9 +1612,25 @@ import * as bjson from "qjs:bjson";
     }
 
     function print_eval_result(result) {
+        var default_print = true;
+
         result = result.value;
         eval_time = os.now() - eval_start_time;
-        print(result);
+        if (hex_mode) {
+            if (typeof result == "number" &&
+                result === Math.floor(result)) {
+                std.puts(number_to_string_hex(result));
+                default_print = false;
+            } else if (typeof result == "bigint") {
+                std.puts(number_to_string_hex(result));
+                std.puts("n");
+                default_print = false;
+            }
+        }
+        if (default_print) {
+            std.__printObject(result);
+        }
+        std.puts("\n");
         /* set the last result */
         g._ = result;
 

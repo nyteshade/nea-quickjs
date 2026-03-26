@@ -29207,6 +29207,12 @@ static char *js_default_module_normalize_name(JSContext *ctx,
     r = strrchr(base_name, '/');
     if (r)
         len = r - base_name;
+#ifdef __SASC
+    /* AmigaOS: treat ':' as path separator for volume-root files (e.g. RAM:main.js).
+     * Include the colon in the base so RAM:main.js → base="RAM:" not "RAM" */
+    else if ((r = strrchr(base_name, ':')) != NULL)
+        len = r - base_name + 1;  /* include ':' in base path */
+#endif
     else
         len = 0;
 
@@ -60608,6 +60614,503 @@ bool JS_DetectModule(const char *input, size_t input_len)
     return false;
 #endif /* QJS_DISABLE_PARSER */
 }
+
+/* -----------------------------------------------------------------------
+ * JS_PrintValue — rich object inspection for print() and REPL display
+ * Ported from clean QuickJS-ng for the AmigaOS build.
+ * --------------------------------------------------------------------- */
+
+#define JS_PRINT_MAX_DEPTH 8
+
+typedef struct {
+    JSRuntime *rt;
+    JSContext *ctx; /* may be NULL */
+    JSPrintValueOptions options;
+    JSPrintValueWrite *write_func;
+    void *write_opaque;
+    int level;
+    JSObject *print_stack[JS_PRINT_MAX_DEPTH];
+} JSPrintValueState;
+
+static void js_print_value(JSPrintValueState *s, JSValueConst val);
+
+static void js_pv_putc(JSPrintValueState *s, char c)
+{
+    s->write_func(s->write_opaque, &c, 1);
+}
+
+static void js_pv_puts(JSPrintValueState *s, const char *str)
+{
+    s->write_func(s->write_opaque, str, strlen(str));
+}
+
+static void js_pv_printf(JSPrintValueState *s, const char *fmt, ...)
+{
+    va_list ap;
+    char buf[256];
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    s->write_func(s->write_opaque, buf, strlen(buf));
+}
+
+static void js_pv_print_float64(JSPrintValueState *s, double d)
+{
+    if (s->ctx) {
+        /* Use JS_ToCString which goes through our custom dtoa code —
+           snprintf %g is broken on SAS/C scnb.lib (outputs format literally) */
+        JSValue v = JS_NewFloat64(s->ctx, d);
+        const char *str = JS_ToCString(s->ctx, v);
+        if (str) {
+            js_pv_puts(s, str);
+            JS_FreeCString(s->ctx, str);
+        }
+        JS_FreeValue(s->ctx, v);
+    } else {
+        char buf[64];
+        snprintf(buf, sizeof(buf), "%.17g", d);
+        js_pv_puts(s, buf);
+    }
+}
+
+/* pretty print the first 'len' characters of string 'p' */
+static void js_pv_print_string1(JSPrintValueState *s, JSString *p, int len, int sep)
+{
+    uint8_t ubuf[UTF8_CHAR_LEN_MAX];
+    int l, i, c, c1;
+    for (i = 0; i < len; i++) {
+        c = string_get(p, i);
+        switch (c) {
+        case '\t': c = 't'; goto pv_quote;
+        case '\r': c = 'r'; goto pv_quote;
+        case '\n': c = 'n'; goto pv_quote;
+        case '\b': c = 'b'; goto pv_quote;
+        case '\f': c = 'f'; goto pv_quote;
+        case '\\':
+        pv_quote:
+            js_pv_putc(s, '\\');
+            js_pv_putc(s, c);
+            break;
+        default:
+            if (c == sep)
+                goto pv_quote;
+            if (c >= 32 && c <= 126) {
+                js_pv_putc(s, c);
+            } else if (c < 32 || (c >= 0x7f && c <= 0x9f)) {
+            pv_escape:
+                js_pv_printf(s, "\\u%04x", c);
+            } else {
+                if (is_hi_surrogate(c)) {
+                    if ((i + 1) >= len) goto pv_escape;
+                    c1 = string_get(p, i + 1);
+                    if (!is_lo_surrogate(c1)) goto pv_escape;
+                    i++;
+                    c = from_surrogate(c, c1);
+                } else if (is_lo_surrogate(c)) {
+                    goto pv_escape;
+                }
+                l = utf8_encode(ubuf, c);
+                s->write_func(s->write_opaque, (char *)ubuf, l);
+            }
+            break;
+        }
+    }
+}
+
+static void js_pv_print_string_rec(JSPrintValueState *s, JSValueConst val,
+                                   int sep, uint32_t pos)
+{
+    if (JS_VALUE_GET_TAG(val) == JS_TAG_STRING) {
+        JSString *p = JS_VALUE_GET_STRING(val);
+        uint32_t len;
+        if (pos < s->options.max_string_length) {
+            len = min_uint32(p->len, s->options.max_string_length - pos);
+            js_pv_print_string1(s, p, len, sep);
+        }
+    } else if (JS_VALUE_GET_TAG(val) == JS_TAG_STRING_ROPE) {
+        JSStringRope *r = JS_VALUE_GET_PTR(val);
+        js_pv_print_string_rec(s, r->left, sep, pos);
+        js_pv_print_string_rec(s, r->right, sep,
+                               pos + (JS_VALUE_GET_TAG(r->left) == JS_TAG_STRING ?
+                                      JS_VALUE_GET_STRING(r->left)->len : 0));
+    }
+}
+
+static void js_pv_print_string(JSPrintValueState *s, JSValueConst val)
+{
+    js_pv_putc(s, '\"');
+    js_pv_print_string_rec(s, val, '\"', 0);
+    js_pv_putc(s, '\"');
+}
+
+static bool js_pv_is_ascii_ident(const JSString *p)
+{
+    int i, c;
+    if (p->len == 0) return false;
+    for (i = 0; i < p->len; i++) {
+        c = string_get(p, i);
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c == '_' || c == '$') || (c >= '0' && c <= '9' && i > 0)))
+            return false;
+    }
+    return true;
+}
+
+static void js_pv_print_atom(JSPrintValueState *s, JSAtom atom)
+{
+    if (__JS_AtomIsTaggedInt(atom)) {
+        js_pv_printf(s, "%u", __JS_AtomToUInt32(atom));
+    } else if (atom == JS_ATOM_NULL) {
+        js_pv_puts(s, "<null>");
+    } else {
+        JSString *p;
+        assert(atom < s->rt->atom_size);
+        p = s->rt->atom_array[atom];
+        if (js_pv_is_ascii_ident(p)) {
+            int i;
+            for (i = 0; i < p->len; i++)
+                js_pv_putc(s, string_get(p, i));
+        } else {
+            js_pv_putc(s, '"');
+            js_pv_print_string1(s, p, p->len, '\"');
+            js_pv_putc(s, '"');
+        }
+    }
+}
+
+static uint32_t js_pv_array_get_length(JSObject *p)
+{
+    JSProperty *pr;
+    JSShapeProperty *prs;
+    prs = find_own_property(&pr, p, JS_ATOM_length);
+    if (!prs) return 0;
+    if ((prs->flags & JS_PROP_TMASK) != JS_PROP_NORMAL) return 0;
+    switch (JS_VALUE_GET_NORM_TAG(pr->u.value)) {
+    case JS_TAG_INT: return JS_VALUE_GET_INT(pr->u.value);
+    case JS_TAG_FLOAT64: return (uint32_t)JS_VALUE_GET_FLOAT64(pr->u.value);
+    default: return 0;
+    }
+}
+
+static void js_pv_comma(JSPrintValueState *s, int *pc)
+{
+    switch (*pc) {
+    case 0: break;
+    case 1: js_pv_puts(s, ", "); break;
+    case 2: js_pv_puts(s, " { "); break;
+    }
+    *pc = 1;
+}
+
+static void js_pv_more(JSPrintValueState *s, int *pc, uint32_t n)
+{
+    js_pv_comma(s, pc);
+    js_pv_printf(s, "... %u more item%s", n, n > 1 ? "s" : "");
+}
+
+/* helper: get a string property without side effects */
+static const char *js_pv_get_prop_string(JSContext *ctx, JSValueConst obj, JSAtom prop)
+{
+    JSObject *p;
+    JSProperty *pr;
+    JSShapeProperty *prs;
+    if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT) return NULL;
+    p = JS_VALUE_GET_OBJ(obj);
+    prs = find_own_property(&pr, p, prop);
+    if (!prs) {
+        p = p->shape->proto;
+        if (!p) return NULL;
+        prs = find_own_property(&pr, p, prop);
+        if (!prs) return NULL;
+    }
+    if ((prs->flags & JS_PROP_TMASK) != JS_PROP_NORMAL) return NULL;
+    if (JS_VALUE_GET_TAG(pr->u.value) != JS_TAG_STRING) return NULL;
+    return JS_ToCString(ctx, pr->u.value);
+}
+
+static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
+{
+    JSRuntime *rt = s->rt;
+    JSShape *sh;
+    JSShapeProperty *prs;
+    JSProperty *pr;
+    int comma_state;
+    bool is_array;
+    uint32_t i;
+
+    comma_state = 0;
+    is_array = FALSE;
+
+    if (p->class_id == JS_CLASS_ARRAY) {
+        is_array = TRUE;
+        js_pv_puts(s, "[ ");
+        if (p->fast_array) {
+            uint32_t len, len1, n;
+            len = js_pv_array_get_length(p);
+            len1 = min_uint32(p->u.array.count, s->options.max_item_count);
+            for (i = 0; i < len1; i++) {
+                js_pv_comma(s, &comma_state);
+                js_print_value(s, p->u.array.u.values[i]);
+            }
+            if (len1 < p->u.array.count)
+                js_pv_more(s, &comma_state, p->u.array.count - len1);
+            if (p->u.array.count < len) {
+                n = len - p->u.array.count;
+                js_pv_comma(s, &comma_state);
+                js_pv_printf(s, "<%u empty item%s>", n, n > 1 ? "s" : "");
+            }
+        }
+    } else if (p->class_id == JS_CLASS_BYTECODE_FUNCTION ||
+               (rt->class_array[p->class_id].call != NULL &&
+                p->class_id != JS_CLASS_PROXY)) {
+        js_pv_puts(s, "[Function");
+        if (s->ctx) {
+            const char *func_name_str;
+            js_pv_putc(s, ' ');
+            func_name_str = js_pv_get_prop_string(s->ctx,
+                JS_MKPTR(JS_TAG_OBJECT, p), JS_ATOM_name);
+            if (!func_name_str || func_name_str[0] == '\0')
+                js_pv_puts(s, "(anonymous)");
+            else
+                js_pv_puts(s, func_name_str);
+            JS_FreeCString(s->ctx, func_name_str);
+        }
+        js_pv_puts(s, "]");
+        comma_state = 2;
+    } else if (p->class_id == JS_CLASS_MAP || p->class_id == JS_CLASS_SET) {
+        JSMapState *ms = p->u.opaque;
+        struct list_head *el;
+        if (!ms) goto pv_default_obj;
+        js_pv_print_atom(s, rt->class_array[p->class_id].class_name);
+        js_pv_printf(s, "(%u) { ", ms->record_count);
+        i = 0;
+        list_for_each(el, &ms->records) {
+            JSMapRecord *mr = list_entry(el, JSMapRecord, link);
+            js_pv_comma(s, &comma_state);
+            if (mr->empty) continue;
+            js_print_value(s, mr->key);
+            if (p->class_id == JS_CLASS_MAP) {
+                js_pv_puts(s, " => ");
+                js_print_value(s, mr->value);
+            }
+            i++;
+            if (i >= s->options.max_item_count) break;
+        }
+        if (i < ms->record_count)
+            js_pv_more(s, &comma_state, ms->record_count - i);
+    } else if (p->class_id == JS_CLASS_REGEXP && s->ctx) {
+        /* simple regexp display */
+        JSRegExp *re = &p->u.regexp;
+        if (re->pattern && re->bytecode) {
+            js_pv_putc(s, '/');
+            js_pv_print_string1(s, re->pattern, re->pattern->len, '/');
+            js_pv_putc(s, '/');
+        } else {
+            js_pv_puts(s, "/[regexp]/");
+        }
+        comma_state = 2;
+    } else if (p->class_id == JS_CLASS_DATE && s->ctx) {
+        JSValue str = get_date_string(s->ctx, JS_MKPTR(JS_TAG_OBJECT, p),
+                                      0, NULL, 0x23);
+        if (!JS_IsException(str)) {
+            const char *cstr;
+            size_t len;
+            cstr = JS_ToCStringLen(s->ctx, &len, str);
+            if (cstr) {
+                s->write_func(s->write_opaque, cstr, len);
+                JS_FreeCString(s->ctx, cstr);
+            }
+            JS_FreeValue(s->ctx, str);
+            comma_state = 2;
+        } else {
+            JS_FreeValue(s->ctx, JS_GetException(s->ctx));
+            goto pv_default_obj;
+        }
+    } else if (p->class_id == JS_CLASS_ERROR && s->ctx) {
+        const char *str;
+        str = js_pv_get_prop_string(s->ctx, JS_MKPTR(JS_TAG_OBJECT, p), JS_ATOM_name);
+        if (!str) js_pv_puts(s, "Error");
+        else { js_pv_puts(s, str); JS_FreeCString(s->ctx, str); }
+        str = js_pv_get_prop_string(s->ctx, JS_MKPTR(JS_TAG_OBJECT, p), JS_ATOM_message);
+        if (str && str[0] != '\0') { js_pv_puts(s, ": "); js_pv_puts(s, str); }
+        JS_FreeCString(s->ctx, str);
+        comma_state = 2;
+    } else {
+    pv_default_obj:
+        if (p->class_id != JS_CLASS_OBJECT) {
+            js_pv_print_atom(s, rt->class_array[p->class_id].class_name);
+            js_pv_puts(s, " ");
+        }
+        js_pv_puts(s, "{ ");
+    }
+
+    /* enumerate own properties */
+    sh = p->shape;
+    if (sh) {
+        uint32_t j = 0;
+        for (i = 0, prs = sh->prop; i < sh->prop_count; i++, prs++) {
+            if (prs->atom != JS_ATOM_NULL) {
+                if (!(prs->flags & JS_PROP_ENUMERABLE) && !s->options.show_hidden)
+                    continue;
+                if (j < s->options.max_item_count) {
+                    pr = &p->prop[i];
+                    js_pv_comma(s, &comma_state);
+                    js_pv_print_atom(s, prs->atom);
+                    js_pv_puts(s, ": ");
+                    if ((prs->flags & JS_PROP_TMASK) == JS_PROP_GETSET) {
+                        if (pr->u.getset.getter && pr->u.getset.setter)
+                            js_pv_puts(s, "[Getter/Setter]");
+                        else if (pr->u.getset.setter)
+                            js_pv_puts(s, "[Setter]");
+                        else
+                            js_pv_puts(s, "[Getter]");
+                    } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_VARREF) {
+                        js_print_value(s, *pr->u.var_ref->pvalue);
+                    } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_AUTOINIT) {
+                        js_pv_puts(s, "[autoinit]");
+                    } else {
+                        js_print_value(s, pr->u.value);
+                    }
+                }
+                j++;
+            }
+        }
+        if (j > s->options.max_item_count)
+            js_pv_more(s, &comma_state, j - s->options.max_item_count);
+    }
+
+    if (!is_array) {
+        if (comma_state != 2)
+            js_pv_puts(s, " }");
+    } else {
+        js_pv_puts(s, " ]");
+    }
+}
+
+static int js_pv_stack_index(JSPrintValueState *s, JSObject *p)
+{
+    int i;
+    for (i = 0; i < s->level; i++)
+        if (s->print_stack[i] == p) return i;
+    return -1;
+}
+
+static void js_print_value(JSPrintValueState *s, JSValueConst val)
+{
+    uint32_t tag = JS_VALUE_GET_NORM_TAG(val);
+    const char *str;
+
+    switch (tag) {
+    case JS_TAG_INT:
+        js_pv_printf(s, "%d", JS_VALUE_GET_INT(val));
+        break;
+    case JS_TAG_BOOL:
+        str = JS_VALUE_GET_BOOL(val) ? "true" : "false";
+        goto pv_print_str;
+    case JS_TAG_NULL:
+        str = "null";
+        goto pv_print_str;
+    case JS_TAG_EXCEPTION:
+        str = "exception";
+        goto pv_print_str;
+    case JS_TAG_UNINITIALIZED:
+        str = "uninitialized";
+        goto pv_print_str;
+    case JS_TAG_UNDEFINED:
+        str = "undefined";
+    pv_print_str:
+        js_pv_puts(s, str);
+        break;
+    case JS_TAG_FLOAT64:
+        js_pv_print_float64(s, JS_VALUE_GET_FLOAT64(val));
+        break;
+    case JS_TAG_STRING:
+    case JS_TAG_STRING_ROPE:
+        js_pv_print_string(s, val);
+        break;
+    case JS_TAG_OBJECT:
+        {
+            JSObject *p = JS_VALUE_GET_OBJ(val);
+            int idx = js_pv_stack_index(s, p);
+            if (idx >= 0) {
+                js_pv_printf(s, "[circular %d]", idx);
+            } else if (s->level < s->options.max_depth) {
+                s->print_stack[s->level++] = p;
+                js_pv_print_object(s, p);
+                s->level--;
+            } else {
+                JSAtom atom = s->rt->class_array[p->class_id].class_name;
+                js_pv_putc(s, '[');
+                js_pv_print_atom(s, atom);
+                js_pv_putc(s, ']');
+            }
+        }
+        break;
+    case JS_TAG_SYMBOL:
+        {
+            JSAtomStruct *p = JS_VALUE_GET_PTR(val);
+            js_pv_puts(s, "Symbol(");
+            js_pv_print_atom(s, js_get_atom_index(s->rt, p));
+            js_pv_putc(s, ')');
+        }
+        break;
+    case JS_TAG_MODULE:
+        js_pv_puts(s, "[module]");
+        break;
+    default:
+        js_pv_printf(s, "[tag %d]", tag);
+        break;
+    }
+}
+
+void JS_PrintValueSetDefaultOptions(JSPrintValueOptions *options)
+{
+    memset(options, 0, sizeof(*options));
+    options->max_depth = 2;
+    options->max_string_length = 1000;
+    options->max_item_count = 100;
+}
+
+static void JS_PrintValueInternal(JSRuntime *rt, JSContext *ctx,
+                                  JSPrintValueWrite *write_func, void *write_opaque,
+                                  JSValueConst val, const JSPrintValueOptions *options)
+{
+    JSPrintValueState ss, *s = &ss;
+    if (options)
+        s->options = *options;
+    else
+        JS_PrintValueSetDefaultOptions(&s->options);
+    if (s->options.max_depth <= 0)
+        s->options.max_depth = JS_PRINT_MAX_DEPTH;
+    else
+        s->options.max_depth = min_int(s->options.max_depth, JS_PRINT_MAX_DEPTH);
+    if (s->options.max_string_length == 0)
+        s->options.max_string_length = UINT32_MAX;
+    if (s->options.max_item_count == 0)
+        s->options.max_item_count = UINT32_MAX;
+    s->rt = rt;
+    s->ctx = ctx;
+    s->write_func = write_func;
+    s->write_opaque = write_opaque;
+    s->level = 0;
+    js_print_value(s, val);
+}
+
+void JS_PrintValueRT(JSRuntime *rt, JSPrintValueWrite *write_func,
+                     void *write_opaque, JSValueConst val,
+                     const JSPrintValueOptions *options)
+{
+    JS_PrintValueInternal(rt, NULL, write_func, write_opaque, val, options);
+}
+
+void JS_PrintValue(JSContext *ctx, JSPrintValueWrite *write_func,
+                   void *write_opaque, JSValueConst val,
+                   const JSPrintValueOptions *options)
+{
+    JS_PrintValueInternal(ctx->rt, ctx, write_func, write_opaque, val, options);
+}
+
+/* --- end JS_PrintValue --- */
 
 uintptr_t js_std_cmd(int cmd, ...) {
     JSContext *ctx;
