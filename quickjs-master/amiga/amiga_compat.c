@@ -92,9 +92,23 @@ int dup2(int oldfd, int newfd)
 
 int pipe(int pipefd[2])
 {
-    (void)pipefd;
-    errno = ENOSYS;
-    return -1;
+    /* Use PIPE: device for inter-process pipes */
+    char pipe_name[80];
+    static int pipe_cnt = 0;
+    BPTR fh_write, fh_read;
+
+    snprintf(pipe_name, sizeof(pipe_name), "PIPE:qjs_%ld_%d",
+             (long)FindTask(NULL), pipe_cnt++);
+
+    fh_write = Open((STRPTR)pipe_name, MODE_NEWFILE);
+    if (!fh_write) { errno = EIO; return -1; }
+
+    fh_read = Open((STRPTR)pipe_name, MODE_OLDFILE);
+    if (!fh_read) { Close(fh_write); errno = EIO; return -1; }
+
+    pipefd[0] = (int)fh_read;
+    pipefd[1] = (int)fh_write;
+    return 0;
 }
 
 int isatty(int fd)

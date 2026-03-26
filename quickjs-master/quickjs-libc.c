@@ -2156,6 +2156,121 @@ static ssize_t amiga_read_stdin(uint8_t *buf, size_t count)
     }
     return (ssize_t)out;
 }
+
+/* -----------------------------------------------------------------------
+ * AmigaOS variable system — os.getvar() / os.setvar()
+ *
+ * AmigaOS has two variable systems:
+ *   - getenv/setenv: older, file-based (ENV: volume)
+ *   - GetVar/SetVar: modern, memory-based (local process vars + ENV:)
+ *
+ * os.getvar(name [, flags]) — read a variable
+ *   flags: "local" = process-local only, "global" = ENV: only (default: both)
+ *   Returns string or undefined if not found.
+ *
+ * os.setvar(name, value [, flags]) — set a variable
+ *   flags: "local", "global" (default), "save" (= global + ENVARC: persistent)
+ *   Returns 0 on success, -1 on error.
+ * --------------------------------------------------------------------- */
+#include <dos/var.h>
+
+static JSValue js_os_getvar(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv)
+{
+    const char *name, *flags_str = NULL;
+    char buf[1024];
+    LONG rc;
+    ULONG gv_flags = 0;  /* default: search local then global */
+
+    name = JS_ToCString(ctx, argv[0]);
+    if (!name) return JS_EXCEPTION;
+
+    if (argc >= 2 && JS_IsString(argv[1])) {
+        flags_str = JS_ToCString(ctx, argv[1]);
+        if (flags_str) {
+            if (strcmp(flags_str, "local") == 0)
+                gv_flags = GVF_LOCAL_ONLY;
+            else if (strcmp(flags_str, "global") == 0)
+                gv_flags = GVF_GLOBAL_ONLY;
+            JS_FreeCString(ctx, flags_str);
+        }
+    }
+
+    rc = GetVar((STRPTR)name, (STRPTR)buf, sizeof(buf), gv_flags | LV_VAR);
+    JS_FreeCString(ctx, name);
+
+    if (rc < 0)
+        return JS_UNDEFINED;
+    return JS_NewStringLen(ctx, buf, rc);
+}
+
+static JSValue js_os_setvar(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv)
+{
+    const char *name, *value, *flags_str = NULL;
+    size_t value_len;
+    ULONG gv_flags = GVF_GLOBAL_ONLY;  /* default: global */
+    int ret;
+
+    name = JS_ToCString(ctx, argv[0]);
+    if (!name) return JS_EXCEPTION;
+    value = JS_ToCStringLen(ctx, &value_len, argv[1]);
+    if (!value) { JS_FreeCString(ctx, name); return JS_EXCEPTION; }
+
+    if (argc >= 3 && JS_IsString(argv[2])) {
+        flags_str = JS_ToCString(ctx, argv[2]);
+        if (flags_str) {
+            if (strcmp(flags_str, "local") == 0)
+                gv_flags = GVF_LOCAL_ONLY;
+            else if (strcmp(flags_str, "global") == 0)
+                gv_flags = GVF_GLOBAL_ONLY;
+            else if (strcmp(flags_str, "save") == 0)
+                gv_flags = GVF_GLOBAL_ONLY | GVF_SAVE_VAR;
+            JS_FreeCString(ctx, flags_str);
+        }
+    }
+
+    ret = SetVar((STRPTR)name, (STRPTR)value, (long)value_len,
+                 gv_flags | LV_VAR) ? 0 : -1;
+    JS_FreeCString(ctx, name);
+    JS_FreeCString(ctx, value);
+    return JS_NewInt32(ctx, ret);
+}
+
+/* -----------------------------------------------------------------------
+ * AmigaOS pipe() using PIPE: device
+ * Returns [read_fd, write_fd] like POSIX pipe().
+ * Uses a unique PIPE: name so multiple pipes can coexist.
+ * --------------------------------------------------------------------- */
+static int amiga_pipe_counter = 0;
+
+static int amiga_pipe(int fds[2])
+{
+    char pipe_name[80];
+    BPTR fh_read, fh_write;
+
+    snprintf(pipe_name, sizeof(pipe_name), "PIPE:qjs_%ld_%d",
+             (long)FindTask(NULL), amiga_pipe_counter++);
+
+    /* The writer must open first on AmigaOS PIPE: device */
+    fh_write = Open((STRPTR)pipe_name, MODE_NEWFILE);
+    if (!fh_write) return -1;
+
+    fh_read = Open((STRPTR)pipe_name, MODE_OLDFILE);
+    if (!fh_read) {
+        Close(fh_write);
+        return -1;
+    }
+
+    /* Convert AmigaOS BPTR file handles to fd-like integers.
+     * We store the BPTR values directly as ints — they're 32-bit
+     * on AmigaOS and fit in an int.  The os.read/os.write functions
+     * use POSIX read()/write() which SAS/C maps to dos.library. */
+    fds[0] = (int)fh_read;
+    fds[1] = (int)fh_write;
+    return 0;
+}
+
 #endif /* __SASC */
 
 static JSValue js_os_read_write(JSContext *ctx, JSValueConst this_val,
@@ -4797,6 +4912,10 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("kill", 2, js_os_kill ),
     JS_CFUNC_DEF("dup", 1, js_os_dup ),
     JS_CFUNC_DEF("dup2", 2, js_os_dup2 ),
+#endif
+#ifdef __SASC
+    JS_CFUNC_DEF("getvar", 1, js_os_getvar ),
+    JS_CFUNC_DEF("setvar", 2, js_os_setvar ),
 #endif
 };
 
