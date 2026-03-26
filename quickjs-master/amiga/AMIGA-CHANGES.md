@@ -6,6 +6,43 @@ are generic enough to propose for inclusion in the main project.
 
 ## Release History
 
+### 0.32 (26.3.2026)
+- **HTTPS working** — SNI (Server Name Indication) via SSL_set_tlsext_host_name
+- Specific error messages for network failures (DNS, connection, SSL handshake)
+- Fix assert crashes: NDEBUG in amiga_compat.h + graceful bail-out in
+  JS_FreeAtomStruct for corrupted atom chains during shutdown
+- bc_read_trace: `if(0) printf` trick for SAS/C variadic macro compat
+
+### 0.30 (26.3.2026)
+- HTTP working — bsdsocket.library raw socket HTTP/1.0 client
+- Fix port byte-swap: 68k is big-endian, htons is identity
+- AmiSSL infrastructure: lazy init of bsdsocket.library +
+  amisslmaster.library + amissl.library (all shared libraries)
+- SSL_CTX_new/SSL_connect/SSL_read/SSL_write via pragmas
+- Manual BSD socket type declarations (netinclude headers have
+  fd_set dependency issues with SAS/C)
+- Clear error when TCP/IP stack not running
+
+### 0.21 (25.3.2026)
+- `os.getvar(name [, flags])` — read AmigaOS variables via GetVar()
+- `os.setvar(name, value [, flags])` — set variables via SetVar()
+- `pipe()` implementation using PIPE: device
+- CPU-specific builds: `qjs.040`, `qjs.060` with optimized scheduling
+- `amiga_build_040`, `amiga_build_060`, `amiga_build_all` functions
+- Fix amiga_compat.c: add `#include <stdio.h>` for FILE type
+
+### 0.20 (25.3.2026)
+- `os.exec()` — AmigaOS implementation using SystemTags(SYS_UserShell)
+- Fix double-free of file/exec_argv[0] in os.exec cleanup path
+- `setenv()`/`unsetenv()` via dos.library SetVar()/DeleteVar()
+- `realpath()` via Lock()/NameFromLock()
+- Add `dos/dostags.h` include for SYS_Asynch/TAG_DONE
+- Disable qjs_inspect (atom hash assertion on 32-bit)
+
+### 0.17 (25.3.2026)
+- `--color` flag working (amiga_force_color extern at file scope)
+- `popen()` stub with correct FILE* signature
+
 ### 0.16 (25.3.2026)
 - Fix `--color` flag (extern linkage fix for SAS/C)
 - Add `--color` flag to enable REPL syntax highlighting
