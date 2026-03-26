@@ -2260,6 +2260,7 @@ static JSValue js_os_ttySetRaw(JSContext *ctx, JSValueConst this_val,
  * --------------------------------------------------------------------- */
 #include <exec/types.h>
 #include <dos/dos.h>
+#include <dos/dostags.h>
 #include <proto/dos.h>
 
 static BPTR amiga_raw_fh;  /* file handle put into raw mode, for cleanup */
@@ -3959,9 +3960,79 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
 
     }
 
-#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC)
+#ifdef __SASC
+    /* AmigaOS: use SystemTagList() instead of fork/exec.
+     * Build a command string from the argv array and run it
+     * synchronously (block_flag) or asynchronously. */
+    {
+        BPTR old_cd = 0;
+        DynBuf cmd_buf;
+        LONG rc;
+
+        dbuf_init(&cmd_buf);
+
+        /* Build command string: quote args containing spaces.
+         * Note: do NOT set file = exec_argv[0] here — that causes
+         * a double-free in the cleanup code below. */
+        for (i = 0; i < exec_argc; i++) {
+            const char *a = exec_argv[i];
+            int needs_quote = 0;
+            unsigned int j;
+            if (i > 0)
+                dbuf_putc(&cmd_buf, ' ');
+            for (j = 0; a[j]; j++) {
+                if (a[j] == ' ' || a[j] == '\t' || a[j] == '"') {
+                    needs_quote = 1;
+                    break;
+                }
+            }
+            if (needs_quote) {
+                dbuf_putc(&cmd_buf, '"');
+                dbuf_put(&cmd_buf, (const uint8_t *)a, strlen(a));
+                dbuf_putc(&cmd_buf, '"');
+            } else {
+                dbuf_put(&cmd_buf, (const uint8_t *)a, strlen(a));
+            }
+        }
+        dbuf_putc(&cmd_buf, '\0');
+
+        /* Change directory if requested */
+        if (cwd) {
+            BPTR new_cd = Lock((STRPTR)cwd, ACCESS_READ);
+            if (new_cd) {
+                old_cd = CurrentDir(new_cd);
+            }
+        }
+
+        if (block_flag) {
+            /* Synchronous execution via AmigaDOS System() */
+            rc = SystemTags((STRPTR)cmd_buf.buf,
+                            SYS_UserShell, TRUE,
+                            TAG_DONE);
+            ret = (rc == -1) ? -1 : (int)rc;
+        } else {
+            /* Asynchronous execution */
+            rc = SystemTags((STRPTR)cmd_buf.buf,
+                            SYS_Asynch, TRUE,
+                            SYS_UserShell, TRUE,
+                            SYS_Input, 0,
+                            SYS_Output, 0,
+                            TAG_DONE);
+            ret = (rc == 0) ? 0 : -1;
+        }
+
+        /* Restore directory */
+        if (cwd && old_cd) {
+            BPTR tmp = CurrentDir(old_cd);
+            if (tmp) UnLock(tmp);
+        }
+
+        dbuf_free(&cmd_buf);
+    }
+#else /* !__SASC — POSIX fork/exec path */
     /* should happen pre-fork because it calls dlsym() */
     /* and that's not an async-signal-safe function */
+#if !defined(EMSCRIPTEN) && !defined(__wasi__)
     js_once(&js_os_exec_once, js_os_exec_once_init);
 #endif
 
@@ -3972,7 +4043,6 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
     }
     if (pid == 0) {
         /* child */
-        /* remap the stdin/stdout/stderr handles if necessary */
         for(i = 0; i < 3; i++) {
             if (std_fds[i] != i) {
                 if (dup2(std_fds[i], i) < 0)
@@ -4030,6 +4100,7 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
     } else {
         ret = pid;
     }
+#endif /* __SASC */
     ret_val = JS_NewInt32(ctx, ret);
  done:
     JS_FreeCString(ctx, file);

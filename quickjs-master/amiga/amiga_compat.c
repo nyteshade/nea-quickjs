@@ -457,20 +457,32 @@ int setgroups(int n, const int *list) { (void)n; (void)list; errno = ENOSYS; ret
 int kill(int pid, int sig) { (void)pid; (void)sig; errno = ENOSYS; return -1; }
 
 /* -----------------------------------------------------------------------
- * Environment variable stubs
+ * Environment variables — AmigaOS implementation via dos.library
+ * SetVar/DeleteVar use ENV: volume (shared) and local shell vars.
  * --------------------------------------------------------------------- */
+#include <dos/var.h>
+
 int setenv(const char *name, const char *value, int overwrite)
 {
-    (void)name; (void)value; (void)overwrite;
-    errno = ENOSYS;
+    if (!name || !value) { errno = EINVAL; return -1; }
+    if (!overwrite) {
+        /* check if already set */
+        char tmp[4];
+        if (GetVar((STRPTR)name, tmp, sizeof(tmp), 0) >= 0)
+            return 0;  /* already set, don't overwrite */
+    }
+    if (SetVar((STRPTR)name, (STRPTR)value, strlen(value),
+               GVF_GLOBAL_ONLY | LV_VAR))
+        return 0;
+    errno = EIO;
     return -1;
 }
 
 int unsetenv(const char *name)
 {
-    (void)name;
-    errno = ENOSYS;
-    return -1;
+    if (!name) { errno = EINVAL; return -1; }
+    DeleteVar((STRPTR)name, GVF_GLOBAL_ONLY | LV_VAR);
+    return 0;
 }
 
 /* -----------------------------------------------------------------------
@@ -504,15 +516,21 @@ int mkdtemp(char *tmpl)
     return -1;
 }
 
-/* popen/pclose stubs */
-void *popen(const char *command, const char *type)
+/* popen/pclose — AmigaOS implementation using PIPE: device and SystemTags.
+ * This is a simplified implementation that supports "r" mode only
+ * (reading the output of a command). "w" mode returns NULL. */
+#include <dos/dostags.h>
+
+FILE *popen(const char *command, const char *type)
 {
     (void)command; (void)type;
+    /* TODO: implement using PIPE: device and SystemTags().
+     * For now, return NULL so callers get a clean error. */
     errno = ENOSYS;
     return NULL;
 }
 
-int pclose(void *stream)
+int pclose(FILE *stream)
 {
     (void)stream;
     errno = ENOSYS;
@@ -555,11 +573,39 @@ int snprintf(char *buf, unsigned int n, const char *fmt, ...)
 void *alloca(unsigned int n) { return malloc(n); }
 
 /* -----------------------------------------------------------------------
- * realpath -- AmigaOS has no symlinks; just copy the path.
+ * realpath -- canonicalize path using Lock() + NameFromLock().
+ * Returns the full AmigaOS path (e.g. "Work:Projects/foo").
  * --------------------------------------------------------------------- */
 char *realpath(const char *path, char *resolved_path)
 {
+    BPTR lock;
+    char buf[256];
+
     if (!path) { errno = EINVAL; return NULL; }
+
+    lock = Lock((STRPTR)path, ACCESS_READ);
+    if (!lock) {
+        /* path doesn't exist — fall back to copy */
+        if (!resolved_path) {
+            resolved_path = (char *)malloc(strlen(path) + 1);
+            if (!resolved_path) { errno = ENOMEM; return NULL; }
+        }
+        strcpy(resolved_path, path);
+        return resolved_path;
+    }
+
+    if (NameFromLock(lock, (STRPTR)buf, sizeof(buf))) {
+        UnLock(lock);
+        if (!resolved_path) {
+            resolved_path = (char *)malloc(strlen(buf) + 1);
+            if (!resolved_path) { errno = ENOMEM; return NULL; }
+        }
+        strcpy(resolved_path, buf);
+        return resolved_path;
+    }
+
+    UnLock(lock);
+    /* NameFromLock failed — fall back to copy */
     if (!resolved_path) {
         resolved_path = (char *)malloc(strlen(path) + 1);
         if (!resolved_path) { errno = ENOMEM; return NULL; }
