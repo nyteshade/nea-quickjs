@@ -97,7 +97,8 @@ amiga_compile() {
         -V qjs:"$_AMIGA_QJS_ROOT" \
         sc:c/sc "qjs:$file" \
         MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
-        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS \
+        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
+        IDIR=sc:sdks/AmiSSL/Developer/include NOICONS \
         "$@"
 }
 
@@ -119,7 +120,8 @@ amiga_compile_soft() {
         -V qjs:"$_AMIGA_QJS_ROOT" \
         sc:c/sc "qjs:$file" \
         DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
-        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS \
+        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
+        IDIR=sc:sdks/AmiSSL/Developer/include NOICONS \
         "$@"
 }
 
@@ -138,7 +140,8 @@ amiga_link() {
         sc:lib/c.o \
         qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
         qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
-        qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+        qjs:amiga/amiga_compat.o qjs:amiga/amiga_ssl.o \
+        qjs:gen/repl.o qjs:gen/standalone.o \
         TO qjs:amiga/bin/qjs \
         LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
 }
@@ -158,7 +161,8 @@ amiga_link_soft() {
         sc:lib/c.o \
         qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
         qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
-        qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+        qjs:amiga/amiga_compat.o qjs:amiga/amiga_ssl.o \
+        qjs:gen/repl.o qjs:gen/standalone.o \
         TO qjs:amiga/bin/qjs_soft \
         LIB sc:lib/scnb.lib sc:lib/scmnb.lib sc:lib/amiga.lib NOICONS
 }
@@ -214,6 +218,7 @@ amiga_build_fpu() {
     amiga_compile gen/standalone.c &&
     amiga_compile quickjs-libc.c CODE=FAR &&
     amiga_compile quickjs.c CODE=FAR &&
+    amiga_compile amiga/amiga_ssl.c MEMSIZE=HUGE IDLEN=80 &&
     echo "==> FPU build: linking..." &&
     amiga_link &&
     echo "==> FPU build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs"
@@ -234,6 +239,7 @@ amiga_build_soft() {
     amiga_compile_soft gen/standalone.c &&
     amiga_compile_soft quickjs-libc.c CODE=FAR &&
     amiga_compile_soft quickjs.c CODE=FAR &&
+    amiga_compile_soft amiga/amiga_ssl.c MEMSIZE=HUGE IDLEN=80 &&
     echo "==> No-FPU build: linking..." &&
     amiga_link_soft &&
     echo "==> No-FPU build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs_soft"
@@ -251,7 +257,8 @@ amiga_compile_cpu() {
         -V qjs:"$_AMIGA_QJS_ROOT" \
         sc:c/sc "qjs:$file" \
         CPU=$cpu MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
-        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include NOICONS \
+        IDIR=qjs: IDIR=qjs:amiga IDIR=sc:include \
+        IDIR=sc:sdks/AmiSSL/Developer/include NOICONS \
         "$@"
 }
 
@@ -270,7 +277,8 @@ amiga_link_cpu() {
         sc:lib/c.o \
         qjs:qjs.o qjs:quickjs.o qjs:quickjs-libc.o \
         qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
-        qjs:amiga/amiga_compat.o qjs:gen/repl.o qjs:gen/standalone.o \
+        qjs:amiga/amiga_compat.o qjs:amiga/amiga_ssl.o \
+        qjs:gen/repl.o qjs:gen/standalone.o \
         TO "qjs:amiga/bin/qjs.$suffix" \
         LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
 }
@@ -289,6 +297,7 @@ amiga_build_040() {
     amiga_compile_cpu gen/standalone.c 68040 &&
     amiga_compile_cpu quickjs-libc.c 68040 CODE=FAR &&
     amiga_compile_cpu quickjs.c 68040 CODE=FAR &&
+    amiga_compile_cpu amiga/amiga_ssl.c 68040 MEMSIZE=HUGE IDLEN=80 &&
     echo "==> 68040 build: linking..." &&
     amiga_link_cpu 68040 040 &&
     echo "==> 68040 build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs.040"
@@ -308,6 +317,7 @@ amiga_build_060() {
     amiga_compile_cpu gen/standalone.c 68060 &&
     amiga_compile_cpu quickjs-libc.c 68060 CODE=FAR &&
     amiga_compile_cpu quickjs.c 68060 CODE=FAR &&
+    amiga_compile_cpu amiga/amiga_ssl.c 68060 MEMSIZE=HUGE IDLEN=80 &&
     echo "==> 68060 build: linking..." &&
     amiga_link_cpu 68060 060 &&
     echo "==> 68060 build complete: $_AMIGA_QJS_ROOT/amiga/bin/qjs.060"

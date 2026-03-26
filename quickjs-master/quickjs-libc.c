@@ -25,6 +25,7 @@
 /* AmigaOS / SAS-C 6.58: pull in inline/attribute/etc. shims before quickjs.h */
 #ifdef __SASC
 #include "cutils.h"
+#include "amiga/amiga_ssl.h"
 /* defined in qjs.c — set by --color flag */
 extern int amiga_force_color;
 #endif
@@ -1709,7 +1710,16 @@ static JSValue js_std_file_putByte(JSContext *ctx, JSValueConst this_val,
 /* urlGet */
 #if !defined(__wasi__)
 
-#define URL_GET_PROGRAM "curl -s -i --"
+#ifdef __SASC
+/* AmigaOS: no curl; use an Amiga HTTP client.
+ * The program must output raw HTTP response (headers + body) to stdout.
+ * Common options: "curl -s -i --" (if Amiga curl port installed),
+ * or override by setting the QJS_URL_GET env var to your preferred tool. */
+#define URL_GET_PROGRAM_DEFAULT "curl -s -i --"
+#else
+#define URL_GET_PROGRAM_DEFAULT "curl -s -i --"
+#endif
+#define URL_GET_PROGRAM URL_GET_PROGRAM_DEFAULT
 #define URL_GET_BUF_SIZE 4096
 
 static int http_get_header_line(FILE *f, char *buf, size_t buf_size,
@@ -1806,6 +1816,56 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         dbuf_free(&cmd_buf);
         return JS_EXCEPTION;
     }
+#ifdef __SASC
+    /* AmigaOS: use native AmiSSL HTTP client instead of curl */
+    {
+        char *body = NULL;
+        int body_len = 0, http_status = 0;
+        dbuf_free(&cmd_buf);
+
+        if (amiga_ssl_init() < 0) {
+            JS_FreeCString(ctx, url);
+            return JS_ThrowTypeError(ctx,
+                "cannot initialize network: is your TCP/IP stack running? "
+                "(bsdsocket.library v4+ and amisslmaster.library required)");
+        }
+        if (amiga_http_get(url, &body, &body_len, &http_status,
+                           NULL, NULL) < 0 || !body) {
+            JS_FreeCString(ctx, url);
+            free(body);
+            return JS_ThrowTypeError(ctx, "HTTP request failed");
+        }
+        JS_FreeCString(ctx, url);
+
+        if (binary_flag) {
+            response = JS_NewArrayBufferCopy(ctx, (uint8_t *)body, body_len);
+        } else {
+            response = JS_NewStringLen(ctx, body, body_len);
+        }
+        free(body);
+
+        if (JS_IsException(response))
+            return JS_EXCEPTION;
+
+        if (full_flag) {
+            ret_obj = JS_NewObject(ctx);
+            if (JS_IsException(ret_obj)) {
+                JS_FreeValue(ctx, response);
+                return JS_EXCEPTION;
+            }
+            JS_DefinePropertyValueStr(ctx, ret_obj, "response", response,
+                                      JS_PROP_C_W_E);
+            JS_DefinePropertyValueStr(ctx, ret_obj, "responseHeaders",
+                                      JS_NewString(ctx, ""),
+                                      JS_PROP_C_W_E);
+            JS_DefinePropertyValueStr(ctx, ret_obj, "status",
+                                      JS_NewInt32(ctx, http_status),
+                                      JS_PROP_C_W_E);
+            return ret_obj;
+        }
+        return response;
+    }
+#endif /* __SASC */
     /*    printf("%s\n", (char *)cmd_buf.buf); */
     f = popen((char *)cmd_buf.buf, "r");
     dbuf_free(&cmd_buf);

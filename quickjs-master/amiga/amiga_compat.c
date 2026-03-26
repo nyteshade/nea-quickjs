@@ -536,20 +536,58 @@ int mkdtemp(char *tmpl)
  * (reading the output of a command). "w" mode returns NULL. */
 #include <dos/dostags.h>
 
+/* popen/pclose — AmigaOS implementation using PIPE: device.
+ * Supports "r" mode (read command output) via SystemTags(SYS_Asynch).
+ * "w" mode is not yet supported. */
+#include <dos/dostags.h>
+
+static int popen_pipe_counter = 0;
+
 FILE *popen(const char *command, const char *type)
 {
-    (void)command; (void)type;
-    /* TODO: implement using PIPE: device and SystemTags().
-     * For now, return NULL so callers get a clean error. */
+    char pipe_name[80];
+    BPTR pipe_out;
+    FILE *fp;
+
+    if (!command || !type) { errno = EINVAL; return NULL; }
+
+    if (type[0] == 'r') {
+        /* Read mode: launch command with output to PIPE:, read from PIPE: */
+        snprintf(pipe_name, sizeof(pipe_name), "PIPE:qjs_po_%ld_%d",
+                 (long)FindTask(NULL), popen_pipe_counter++);
+
+        /* Open the write end for the subprocess */
+        pipe_out = Open((STRPTR)pipe_name, MODE_NEWFILE);
+        if (!pipe_out) { errno = EIO; return NULL; }
+
+        /* Launch command asynchronously with output to pipe */
+        if (SystemTags((STRPTR)command,
+                       SYS_Asynch, TRUE,
+                       SYS_Input, 0,
+                       SYS_Output, pipe_out,
+                       SYS_UserShell, TRUE,
+                       TAG_DONE) != 0) {
+            Close(pipe_out);
+            errno = EIO;
+            return NULL;
+        }
+        /* pipe_out is now owned by the subprocess — don't close it */
+
+        /* Open the read end for us */
+        fp = fopen(pipe_name, "r");
+        if (!fp) { errno = EIO; return NULL; }
+        return fp;
+    }
+
+    /* Write mode not yet supported */
     errno = ENOSYS;
     return NULL;
 }
 
 int pclose(FILE *stream)
 {
-    (void)stream;
-    errno = ENOSYS;
-    return -1;
+    if (!stream) return -1;
+    return fclose(stream);
 }
 
 /* -----------------------------------------------------------------------
