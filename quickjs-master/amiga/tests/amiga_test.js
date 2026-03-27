@@ -460,10 +460,10 @@ if (typeof os.setvar === "function") {
 section("bjson module");
 {
     let obj = {a: 1, b: "hello", c: [1,2,3], d: true, e: null};
-    let encoded = bjson.write(obj);
+    let encoded = bjson.write(obj, 0);
     test("bjson.write returns ArrayBuffer", encoded instanceof ArrayBuffer, true);
     test("bjson.write size > 0", encoded.byteLength > 0, true);
-    let decoded = bjson.read(encoded, 0, encoded.byteLength);
+    let decoded = bjson.read(encoded, 0, encoded.byteLength, 0);
     test("bjson roundtrip a", decoded.a, 1);
     test("bjson roundtrip b", decoded.b, "hello");
     test("bjson roundtrip c", JSON.stringify(decoded.c), "[1,2,3]");
@@ -475,8 +475,8 @@ section("bjson module");
     let cases = [42, -1, 0, 3.14, "", "hello", true, false, null, [1,2], {x:1}];
     for (let i = 0; i < cases.length; i++) {
         let v = cases[i];
-        let enc = bjson.write(v);
-        let dec = bjson.read(enc, 0, enc.byteLength);
+        let enc = bjson.write(v, 0);
+        let dec = bjson.read(enc, 0, enc.byteLength, 0);
         test("bjson roundtrip " + JSON.stringify(v),
              JSON.stringify(dec), JSON.stringify(v));
     }
