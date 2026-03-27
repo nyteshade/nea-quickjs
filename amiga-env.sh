@@ -335,7 +335,82 @@ amiga_build_all() {
     amiga_build_060
 }
 
+# amiga_standalone JSFILE [TARGET]
+# Compile a JavaScript file into a standalone Amiga binary.
+# TARGET: 020 (default), soft, 040, 060
+#
+# Example:
+#   amiga_standalone myapp.js 060
+#   → produces amiga/bin/myapp.060
+#
+#   amiga_standalone myapp.js
+#   → produces amiga/bin/myapp
+amiga_standalone() {
+    _amiga_check_env || return 1
+    local jsfile="$1"
+    local target="${2:-020}"
+    local basename=$(basename "$jsfile" .js)
+    local cname=$(echo "$basename" | tr '-' '_' | cut -c1-20)
+    local cfile="$_AMIGA_QJS_ROOT/amiga/standalone/${cname}_sa.c"
+    mkdir -p "$_AMIGA_QJS_ROOT/amiga/standalone"
+    local suffix=""
+
+    case "$target" in
+        020)  suffix="" ;;
+        soft) suffix="_soft" ;;
+        040)  suffix=".040" ;;
+        060)  suffix=".060" ;;
+        *)    echo "Unknown target: $target (use 020, soft, 040, 060)"; return 1 ;;
+    esac
+
+    local outbin="$_AMIGA_QJS_ROOT/amiga/bin/${basename}${suffix}"
+    local outbin_vamos="qjs:amiga/bin/${basename}${suffix}"
+
+    echo "==> qjsc: $jsfile → $cfile"
+    "$_AMIGA_QJS_ROOT/build/qjsc" -e -N "$cname" -o "$cfile" -m "$jsfile" || return 1
+
+    # Inject cutils.h include for SAS/C compatibility
+    local tmpfile="${cfile}.tmp"
+    echo '#ifdef __SASC' > "$tmpfile"
+    echo '#include "cutils.h"' >> "$tmpfile"
+    echo '#endif' >> "$tmpfile"
+    cat "$cfile" >> "$tmpfile"
+    mv "$tmpfile" "$cfile"
+
+    local rel_cfile="amiga/standalone/${cname}_sa.c"
+
+    echo "==> compile: $rel_cfile (target=$target)"
+    case "$target" in
+        soft) amiga_compile_soft "$rel_cfile" || return 1 ;;
+        040)  amiga_compile_cpu "$rel_cfile" 68040 || return 1 ;;
+        060)  amiga_compile_cpu "$rel_cfile" 68060 || return 1 ;;
+        *)    amiga_compile "$rel_cfile" || return 1 ;;
+    esac
+
+    echo "==> link: → $outbin"
+    local mathlib="sc:lib/scm881nb.lib"
+    [ "$target" = "soft" ] && mathlib="sc:lib/scmnb.lib"
+
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        sc:c/slink \
+        sc:lib/c.o \
+        "qjs:$(echo "$rel_cfile" | sed 's/\.c$/.o/')" \
+        qjs:quickjs.o qjs:quickjs-libc.o \
+        qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+        qjs:amiga/amiga_compat.o qjs:amiga/amiga_ssl.o \
+        qjs:gen/repl.o qjs:gen/standalone.o \
+        TO "$outbin_vamos" \
+        LIB sc:lib/scnb.lib "$mathlib" sc:lib/amiga.lib NOICONS || return 1
+
+    echo "==> Standalone binary: $outbin ($(ls -lh "$outbin" | awk '{print $5}'))"
+}
+
 # ---------------------------------------------------------------------------
 
 echo "amiga-env loaded  USER=$USER  SC=${SC:-(not set)}"
 echo "  amiga_build_fpu / amiga_build_soft / amiga_build_040 / amiga_build_060 / amiga_build_all"
+echo "  amiga_standalone JSFILE [020|soft|040|060]"
