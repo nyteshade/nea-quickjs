@@ -1049,25 +1049,34 @@ void js_dtoa_dump_stats(void)
 /* Extract the high and low 32-bit words of a double's IEEE 754 bit
  * pattern.  On big-endian 68k, bytes 0-3 are the high word. */
 /* Extract IEEE 754 hi/lo 32-bit words from a double.
- * Pass by POINTER to avoid FPU register issues — SAS/C with
- * MATH=68881 may pass doubles in FPU registers, making both
- * &d (byte access) and union assignment unreliable. */
-static uint32_t sasc_dbl_hi_p(const double *dp)
+ * CRITICAL: SAS/C with MATH=68881 keeps doubles in FPU registers.
+ * Neither &d, union, nor volatile reliably forces the bits to memory
+ * when d is a function parameter. Solution: use helper functions
+ * that take a POINTER and are NOT inlined, ensuring the caller
+ * writes the double to the stack before calling. */
+static uint32_t sasc_dbl_word(const void *ptr, int idx)
 {
-    const unsigned char *p = (const unsigned char *)dp;
+    const unsigned char *p = (const unsigned char *)ptr;
+    p += idx * 4;
     return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
            ((uint32_t)p[2] <<  8) |  (uint32_t)p[3];
 }
 
-static uint32_t sasc_dbl_lo_p(const double *dp)
+/* Force the double to memory via volatile, then extract bits */
+static uint32_t sasc_dbl_hi_safe(double d)
 {
-    const unsigned char *p = (const unsigned char *)dp;
-    return ((uint32_t)p[4] << 24) | ((uint32_t)p[5] << 16) |
-           ((uint32_t)p[6] <<  8) |  (uint32_t)p[7];
+    volatile double vd = d;
+    return sasc_dbl_word((const void *)&vd, 0);
 }
 
-#define sasc_dbl_hi(d) sasc_dbl_hi_p(&(d))
-#define sasc_dbl_lo(d) sasc_dbl_lo_p(&(d))
+static uint32_t sasc_dbl_lo_safe(double d)
+{
+    volatile double vd = d;
+    return sasc_dbl_word((const void *)&vd, 1);
+}
+
+#define sasc_dbl_hi(d) sasc_dbl_hi_safe(d)
+#define sasc_dbl_lo(d) sasc_dbl_lo_safe(d)
 
 /*
  * Extract up to max_digits decimal digits of absval (finite, positive,
@@ -1501,6 +1510,19 @@ int js_dtoa(char *buf, double d, int radix, int n_digits, int flags,
 #ifdef __SASC
     int fmt = flags & JS_DTOA_FORMAT_MASK;
     (void)tmp_mem;
+
+    /* Handle special values BEFORE calling sasc_dtoa_* functions.
+     * Our isnan/isinf use bit-pattern checks via _DBL_HI which
+     * works correctly, while sasc_dbl_hi inside dtoa can't reliably
+     * extract bits from FPU-register-passed doubles. */
+    if (isnan(d)) {
+        memcpy(buf, "NaN", 3); buf[3] = '\0'; return 3;
+    }
+    if (isinf(d)) {
+        /* Use signbit() — FPU comparison d < 0 fails for Infinity */
+        if (signbit(d)) { memcpy(buf, "-Infinity", 9); buf[9] = '\0'; return 9; }
+        memcpy(buf, "Infinity", 8); buf[8] = '\0'; return 8;
+    }
 
     if (fmt == JS_DTOA_FORMAT_FREE) {
         return sasc_dtoa_free(buf, d, flags);

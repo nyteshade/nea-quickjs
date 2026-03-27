@@ -14058,6 +14058,20 @@ static JSValue JS_ToStringInternal(JSContext *ctx, JSValueConst val,
             return JS_ThrowTypeError(ctx, "cannot convert symbol to string");
         }
     case JS_TAG_FLOAT64:
+#ifdef __SASC
+        /* Check Inf/NaN from JSValue struct directly — FPU round-trip
+         * in JS_VALUE_GET_FLOAT64 corrupts special value bits */
+        {
+            unsigned long _hi = ((const unsigned long *)&val.u)[0];
+            unsigned long _ehi = _hi & 0x7FFFFFFFUL;
+            if (_ehi >= 0x7FF00000UL) {
+                unsigned long _lo = ((const unsigned long *)&val.u)[1];
+                if (_ehi == 0x7FF00000UL && _lo == 0)
+                    return js_new_string8(ctx, (_hi >> 31) ? "-Infinity" : "Infinity");
+                return js_new_string8(ctx, "NaN");
+            }
+        }
+#endif
         return js_dtoa2(ctx, JS_VALUE_GET_FLOAT64(val), 10, 0,
                         JS_DTOA_FORMAT_FREE);
     case JS_TAG_SHORT_BIG_INT:
@@ -14964,18 +14978,6 @@ static no_inline __exception int js_binary_arith_slow(JSContext *ctx, JSValue *s
             dr = d1 * d2;
             break;
         case OP_div:
-#ifdef __SASC
-            /* 68881 FPU may trap on divide-by-zero instead of
-             * producing IEEE 754 Infinity.  Handle explicitly. */
-            if (d2 == 0.0) {
-                if (d1 == 0.0)
-                    dr = NAN;
-                else if (d1 > 0.0)
-                    dr = INFINITY;
-                else
-                    dr = -INFINITY;
-            } else
-#endif
             dr = d1 / d2;
             break;
         case OP_mod:
@@ -19426,6 +19428,20 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                     int v1, v2;
                     v1 = JS_VALUE_GET_INT(op1);
                     v2 = JS_VALUE_GET_INT(op2);
+#ifdef __SASC
+                    /* 68k FPU traps on divide-by-zero — write raw IEEE 754
+                     * bits directly to JSValue struct via memcpy, completely
+                     * bypassing the FPU which corrupts Inf/NaN. */
+                    if (v2 == 0) {
+                        static const unsigned long _nan_w[2] = {0x7FF80000UL, 0x00000001UL};
+                        static const unsigned long _pinf_w[2] = {0x7FF00000UL, 0x00000000UL};
+                        static const unsigned long _ninf_w[2] = {0xFFF00000UL, 0x00000000UL};
+                        sp[-2].tag = JS_TAG_FLOAT64;
+                        if (v1 == 0) memcpy(&sp[-2].u, _nan_w, 8);
+                        else if (v1 < 0) memcpy(&sp[-2].u, _ninf_w, 8);
+                        else memcpy(&sp[-2].u, _pinf_w, 8);
+                    } else
+#endif
                     sp[-2] = js_number((double)v1 / (double)v2);
                     sp--;
                 } else {
@@ -60687,6 +60703,18 @@ static void js_pv_printf(JSPrintValueState *s, const char *fmt, ...)
 
 static void js_pv_print_float64(JSPrintValueState *s, double d)
 {
+#ifdef __SASC
+    /* Handle special values using our bit-pattern-based detection
+     * (which works correctly) BEFORE passing to dtoa (which can't
+     * reliably extract bits from FPU-register-passed doubles). */
+    if (isnan(d)) { js_pv_puts(s, "NaN"); return; }
+    if (isinf(d)) {
+        /* Use signbit() — FPU comparison d < 0 fails for Infinity */
+        if (signbit(d)) js_pv_puts(s, "-Infinity");
+        else js_pv_puts(s, "Infinity");
+        return;
+    }
+#endif
     if (s->ctx) {
         /* Use JS_ToCString which goes through our custom dtoa code —
            snprintf %g is broken on SAS/C scnb.lib (outputs format literally) */
@@ -61057,6 +61085,24 @@ static void js_print_value(JSPrintValueState *s, JSValueConst val)
         js_pv_puts(s, str);
         break;
     case JS_TAG_FLOAT64:
+#ifdef __SASC
+        /* Check special values from the JSValue struct directly,
+         * WITHOUT extracting to a double (FPU round-trip corrupts
+         * Infinity/NaN bit patterns on 68k). */
+        {
+            unsigned long _hi = ((const unsigned long *)&val.u)[0];
+            unsigned long _ehi = _hi & 0x7FFFFFFFUL;
+            if (_ehi >= 0x7FF00000UL) {
+                unsigned long _lo = ((const unsigned long *)&val.u)[1];
+                if (_ehi == 0x7FF00000UL && _lo == 0) {
+                    js_pv_puts(s, (_hi >> 31) ? "-Infinity" : "Infinity");
+                } else {
+                    js_pv_puts(s, "NaN");
+                }
+                break;
+            }
+        }
+#endif
         js_pv_print_float64(s, JS_VALUE_GET_FLOAT64(val));
         break;
     case JS_TAG_STRING:

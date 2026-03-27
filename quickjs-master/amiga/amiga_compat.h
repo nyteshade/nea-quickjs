@@ -201,27 +201,15 @@ int gettimeofday(struct timeval *tv, void *tz);
  * For NAN, use a volatile trick to avoid constant-folding.
  * --------------------------------------------------------------------- */
 #include <math.h>
-/* Construct IEEE 754 Infinity and NaN using bit patterns.
- * SAS/C's HUGE_VAL may not be true infinity, and 0.0/0.0 may
- * trap on the 68881 FPU instead of producing NaN. */
+/* Construct IEEE 754 Infinity and NaN using bit patterns stored
+ * as static data.  Read via union at use site to avoid any FPU
+ * register issues with function returns. */
 #undef INFINITY
 #undef NAN
-static __inline double _amiga_infinity(void)
-{
-    union { double d; unsigned long w[2]; } u;
-    u.w[0] = 0x7FF00000UL;  /* +Infinity high word (big-endian 68k) */
-    u.w[1] = 0x00000000UL;
-    return u.d;
-}
-static __inline double _amiga_nan(void)
-{
-    union { double d; unsigned long w[2]; } u;
-    u.w[0] = 0x7FF80000UL;  /* quiet NaN high word (big-endian 68k) */
-    u.w[1] = 0x00000001UL;
-    return u.d;
-}
-#define INFINITY (_amiga_infinity())
-#define NAN      (_amiga_nan())
+static const unsigned long _amiga_inf_bits[2] = { 0x7FF00000UL, 0x00000000UL };
+static const unsigned long _amiga_nan_bits[2] = { 0x7FF80000UL, 0x00000001UL };
+#define INFINITY (*(const double *)_amiga_inf_bits)
+#define NAN      (*(const double *)_amiga_nan_bits)
 
 /* -----------------------------------------------------------------------
  * C99 math functions missing from SAS/C's math.h
