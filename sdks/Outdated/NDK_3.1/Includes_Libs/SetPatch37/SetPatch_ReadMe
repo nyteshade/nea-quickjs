@@ -1,0 +1,107 @@
+Copyright (C) 1993 Commodore Electronics Ltd. The following information may
+only be reproduced and used in accordance with the requirements and limitations
+set forth below. This information may be used by licensees of Amiga DOS in
+combination with their lawful use of licensed copies of Amiga DOS. Reproduction 
+of this information is limited to that reasonably required for the use of Amiga
+DOS in accordance with such license. All reproduction of this information, in whole or in
+part, must retain this copyright notice as well as the warranty disclaimers
+and limitation of liability as set forth below. All Other Rights are 
+Reserved.
+
+Commodore makes no warranties or representations, either express, or implied,
+with respect to the information set forth herein, which information is being
+supplied on an "AS IS" basis, expressly subject to change without notice.
+The entire risk as to the use of this information is assumed by the user.
+IN NO EVENT WILL COMMODORE BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+OR CONSEQUENTIAL DAMAGES RESULTING FROM ANY CLAIM ARISING OUT OF THE
+INFORMATION PRESENTED HEREIN, EVEN IF IT HAS BEEN ADVISED OF THE 
+POSSIBILITIES OF SUCH DAMAGES. SOME STATES DO NOT ALLOW THE LIMITATION
+OF IMPLIED WARRANTIES OR DAMAGES, SO THE ABOVE LIMITATIONS MAY NOT APPLY.
+ 
+
+SetPatch (c) Copyright 1990-1992, Commodore-Amiga, Inc. All Rights Reserved.
+
+
+SetPatch 37.39 is designed to improve system operation of the Amiga
+computer with Amiga DOS 2.0. The Update_SetPatch icon or shell-script is
+designed to automatically update the version of SetPatch you are using.  
+If you already have an up-to-date SetPatch, Update_SetPatch will inform you
+of that fact and not replace SetPatch.
+
+The key changes this version of SetPatch will bring to your system
+are:
+
+- Exall() emulation for filesystems which do not support the V37+ Exall
+  packet is much improved.
+
+- On certain 68000-based Amigas, some software which would fail with an
+  alert number of 80000003 is now made to work.
+
+- Many older external floppy drives which might have had problems
+  under 2.04 now work.
+
+
+This version of SetPatch addresses the following areas:
+
+- Setpatch opens the 68040.library and reports the fact that it did
+  that.  The 68040 library will only open on systems equipped with a
+  68040 CPU.
+
+- The IDE driver in the A600 compensates for an internal cache problem
+  with Conner CP2024 hard drives.
+
+- On A3000 machines that have 68040 CPUs and are running the 37.175
+  version of the ROM OS, and have SCRAM memory, page mode operation is
+  turned off.
+
+- CIA interrupt servers are moved to priority 0 if they are lower than
+  priority 0.
+
+- Patches console.device CMD_CLEAR to set up registers correctly.
+
+- Patch to remove potential deadlock condition between console device
+  and Intuition's DisplayBeep().
+
+- Patch to properly flush buffered file handles which have never been
+  read from.
+
+- Blitter interrupts can be erroneously turned on during system 
+  initialization.  SetPatch forces them off.
+
+- The slop area for high density floppies is now correctly
+  initialized.  This fixes problems when switching between high and
+  low density disks on a high-density drive.
+
+- The IAddress field of IDCMP_MOUSEMOVE and IDCMP_MOUSEBUTTONS
+  IntuiMessages now has 1.3-compatible values.  This fixes some
+  programs which are erroneously attempting to extract a GadgetID
+  from non-gadget-related IntuiMessages.  Such programs crash
+  on 68000-based Amigas with a guru number 80000003.
+
+- The line-A exception entry can be inadvertently altered by the ROMs.
+  SetPatch corrects this.
+
+- The V37.175 ROM does not unpack the monitor data from the ROM
+  correctly.  This is corrected by first checking if the monitor
+  exists and returning bad mode ID return codes if it does not.
+
+- Open() of paths more than 128 characters long now works.
+
+- The SIGF_SINGLE signal bit is now cleared before allowing an open of
+  scsi.device to proceed.  Certain versions of scsi.device fail to
+  clear that signal before using it.
+
+- Patch to fix some holes in the SharedSemaphore routines.
+
+- Fixes some applications using certain inappropriate functions such 
+  as SetRGB4() from within an interrupt.
+
+- The 2000 microsecond waits from trackdisk are increased to 3000
+  microseconds, in order to allow older A1010 drives to work under 2.0.
+
+- The level-7 interrupt vector is pointed at an RTE instruction, for
+  efficiency.
+
+
+
+

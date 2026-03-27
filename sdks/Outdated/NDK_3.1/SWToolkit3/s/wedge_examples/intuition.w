@@ -1,0 +1,6 @@
+run wedge intuition 0xff34 0x8100 0x8100 opt r   "c=OpenWindow(newWindow)(a0)"
+run wedge intuition 0xffb8 0x8100 0x8100 opt r   "c=CloseWindow(window)(a0)"
+run wedge intuition 0xff3a 0x8100 0x8100 opt r   "c=OpenScreen(newScreen)(a0)"
+run wedge intuition 0xffbe 0x8100 0x8100 opt r   "c=CloseScreen(screen)(a0)"
+run wedge intuition 0xfda2 0x8300 0x8300 opt r   "c=OpenWindowTagList(newWindow,tagList)(a0/a1)"
+run wedge intuition 0xfd9c 0x8300 0x8300 opt r   "c=OpenScreenTagList(newScreen,tagList)(a0/a1)"

@@ -1,0 +1,18 @@
+
+This archive contains tools and examples for localizing your applications.
+
+Localize		- A tool to assist you in finding and extracting
+			  the hard-coded strings in your source code, and
+			  assist in preparing code for localization.
+
+helloworld		- A simple localized example
+
+SelfLoad		- A similar simple example linked with special object
+			  modules which allow it to self-load its catalog
+			  strings on 2.0 systems (where locale.library and
+			  and preferences are not available).  Source and
+			  object code is provided for these link modules.
+
+
+The CatComp tool (used by examples) and CatComp.doc may be found
+with the other developer tools.

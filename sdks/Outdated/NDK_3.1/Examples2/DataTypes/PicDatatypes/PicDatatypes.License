@@ -1,0 +1,63 @@
+
+			   Picture Datatypes
+
+COPYRIGHT and TRADEMARKS
+------------------------
+Windows, PCX, and MacPaint Datatypes
+(c) Copyright 1990-93 Commodore-Amiga, Inc.  All Rights Reserved
+
+MacPaint is a trademark of Apple Computer, Inc.
+Windows is a registered trademark of Microsoft Corporation
+
+Files
+-----
+     devs (dir)
+          datatypes (dir)
+            MacPaint                         PCX
+            Windows Bitmap                   Windows Icon
+     classes (dir)
+          datatypes (dir)
+            bmp.datatype                     ico.datatype
+            macpaint.datatype                pcx.datatype
+
+
+DISCLAIMER
+----------
+These Files are provided "AS-IS" and subject to change without notice;
+no warranties are made.  All use is at your own risk.  No liability or
+responsibility is assumed.
+
+
+DISTRIBUTION
+------------
+
+The Files may be reproduced and distributed subject to agreement with
+the following terms and conditions:
+
+1.   The Files may be reproduced but may not be modified in any way
+     with the exception of unarchiving for unarchived distribution.
+
+2.   The Files may only be distributed as an integral part of a software
+     product solely for Commodore Amiga computers.
+
+3.   Commodore shall be held harmless from any and all claims, damages
+     and liabilities resulting from or arising out of the use or
+     distribution of the Files.
+
+4.   The copyright, trademarks, and disclaimer shown above must be
+     distributed with all copies of the Files.
+
+5.   The Files may not be installed on a user's system or Workbench
+     unless the installation procedure has determined that the user's
+     system or Workbench does not contain a more recent version of the
+     Files.
+
+7.   Such technical information as is contained in the Files (and any
+     product thereof) or in the related documentation, utilities, and
+     examples may not be exported in contravention of the laws and
+     regulations of the United States.
+
+8.   Commodore may terminate permission to distribute the Files at
+     any time, with or without cause.  This permission will
+     automatically terminate upon any breach of these terms and
+     conditions.

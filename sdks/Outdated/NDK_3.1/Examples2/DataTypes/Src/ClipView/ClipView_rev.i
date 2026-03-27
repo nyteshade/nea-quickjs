@@ -1,0 +1,14 @@
+VERSION		EQU	39
+REVISION	EQU	2
+DATE	MACRO
+		dc.b	'12.2.96'
+	ENDM
+VERS	MACRO
+		dc.b	'ClipView 39.2'
+	ENDM
+VSTRING	MACRO
+		dc.b	'ClipView 39.2 (12.2.96)',13,10,0
+	ENDM
+VERSTAG	MACRO
+		dc.b	0,'$VER: ClipView 39.2 (12.2.96)',0
+	ENDM

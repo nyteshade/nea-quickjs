@@ -1,0 +1,31 @@
+.cd.h:
+	CatComp $< CFILE $>_strings.h
+
+.asm.o:
+	asm $<
+
+APP	= helloworld
+
+LIBS	= LIB:sc.lib LIB:amiga.lib
+STARTUP	= LIB:c.o
+
+LFLAGS	= smallcode smalldata nodebug noicons
+CFLAGS	= structureequivalence nostackcheck
+
+OFILES	= $(APP).o catalog.o getcatalogstr.o
+CFILES	= $(APP).c catalog.c
+AFILES	= getcatalogstr.asm
+
+all: $(APP) helloworld.catalog
+
+$(APP):	$(OFILES)
+	slink FROM $(STARTUP) $(OFILES) LIB $(LIBS) $(MYLIBS) TO $(APP) $(LFLAGS)
+
+helloworld.o: helloworld.c helloworld_strings.h
+helloworld_strings.h: helloworld.cd
+
+helloworld.catalog: translations/deutsch/helloworld.ct helloworld.cd
+	CatComp helloworld.cd TRANSLATION translations/deutsch/helloworld.ct CATALOG $@
+	-Makedir catalogs
+	-Makedir catalogs/deutsch
+	Copy $@ catalogs/deutsch

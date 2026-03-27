@@ -1,0 +1,18 @@
+CFLAGS = structureequivalence nostackcheck
+
+all: dto examinedt filter playsound ramsound
+
+dto: dto.c
+	sc link $(CFLAGS) $@
+
+examinedt: examinedt.c
+	sc link $(CFLAGS) $@
+
+filter: filter.c
+	sc link $(CFLAGS) $@
+
+playsound: playsound.c
+	sc link $(CFLAGS) $@
+
+ramsound: ramsound.c
+	sc link $(CFLAGS) $@

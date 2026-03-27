@@ -1,0 +1,26 @@
+STRIPA
+
+Format:	     StripA [FROM] <sourcefile> [TO] <destinationfile>
+
+Template:    StripA "FROM,TO/A"
+
+Purpose:     To remove debug and symbol hunks from binary load files.
+
+Specification:
+
+The StripA program is a utility which removes all HUNK_SYMBOLS and
+HUNK_DEBUG hunks from Amiga binary load files.  These hunks, while useful
+for debugging, are not loaded by the loader.  Stripping them from a program
+can often reduce the size of a program file considerably.
+
+<sourcefile> specifies the name of the binary load file to be stripped.
+<destinationfile> specifies the name StripA is to give to the stripped
+version of the file.
+
+Example:
+
+1> StripA FROM myprog.nostrip TO myprog
+
+strips the HUNK_SYMBOL and HUNK-DEBUG hunks from the binary load file
+myprog.nostrip.  The stripped version of the file is called myprog.
+

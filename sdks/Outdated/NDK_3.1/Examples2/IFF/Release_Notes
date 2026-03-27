@@ -1,0 +1,302 @@
+
+	     New IFF Modules and Applications - Release Notes
+
+	           (from most recent to oldest release)
+
+-----------------------------------------------------------------------------
+Changes for 39.11 release (September 1993):
+
+Added UWORD maxdisplaydepth(ULONG displayid) to module getdisplay.c
+now use that instead of the constant MAXAMDEPTH.  This means if all
+planes cannot be displayed, system will be queried (if V37 or higher)
+to find out what depth CAN be displayed, and that depth will be used.
+This new function is used in module getdisplay.c and app ILBMLoad.c.
+Warning - Now that depth isn't clipped to 8 artificially, deeper
+displays may be opened if a system or system + graphics board
+allows that capability.  Keep that in mind, especially if you
+have palette things, etc. which assume a fixed maximum.  If you
+can't deal with this, change screen.c maxdisplaydepth() to
+just return MAXAMDEPTH (8).
+
+Added argument BOOL NoCenter to clipit() routine in screen.c
+to disable centering outside of max overscan if ilbm->IFFPFlag
+IFFPF_NOCENTER is set.  When centering is disabled, upper left of
+image will be placed at upper left of display clip if screen is
+larger than max overscan for its mode (rather than centering the
+screen around the display clip).
+
+Fixed some compiler warnings on -1 DetailPen/BlockPen by adding
+appropriate casting in modules/screen.c and in several examples.
+corrected CloseClipboard() cast to (struct ClipboardHandle *) in
+parse.c.  Removed unused iffp/amiga.h include file.
+
+Fixed queryilbm() in loadilbm.c to only stop on a BODY, not on
+a CMAP or a BODY (CAMG might be after CMAP).
+
+Added to ilbmapp.h IFFPF_NOMONITOR flag for IFFPFlags.  This flag
+tells CAMG loading and saving code to remove monitor ID from
+modeid when saving or loading.  Useful if program or user wants
+default monitor used.
+
+Note for anyone who wants to use Amiga.lib stdio functions instead
+of compiler stdio functions: define USE_AMIGA_IO in your Makefile
+(or add it to compiler.h) and recompile all of the modules.
+
+Changed all example CTRL-C handling to handle both __SASC and LATTICE
+Bumped all example versions to 39.10
+Changed Makefile.SAS for SAS 6.x and recompiled modules and examples
+Recompiled modules for Manx (iffobj/Manx)
+
+Display executable (in other/) has two new keywords and also fixed
+argument parsing (older version could parse past its args and
+accidentally turn on printing, looping etc.)
+
+-----------------------------------------------------------------------------
+Changes for 39.8 release (January 1993):
+
+Fixed bug in the ilbmr.c getcamg() routine which could result in a bad
+modeid if the CAMG contained non-HIRES low word and garbage upper word.
+Bumped all example revisions to 39.8.
+
+-----------------------------------------------------------------------------
+Changes for 39.7 release (December 1992):
+
+Just updated the version of bumprev in bin/ (the one with 39.6 archive
+still propagated paths into version strings).  Bumped all application
+versions to 39.7.  Cleaned up docs a bit.  Put V39.7 Display executable
+and icon in other/.
+
+-----------------------------------------------------------------------------
+Changes for 39.6 release (December 1992):
+
+Just a recompile to fix version strings of the apps.  The old bumprev
+would propagate any path to the revision file into the version string
+application name.  New bumprev (in other/) fixes that.
+
+-----------------------------------------------------------------------------
+Changes for 39.5 release (November 1992):
+
+Note - 3.0 (V39) Amiga include files and amiga.lib are required to compile
+the modules.  Running the examples requires iffparse.library (may be
+found on Workbench 2.0, 2.1, 3.0).  All examples should run under 1.3 as
+long as iffparse.library is present.  Currently, a free amendment is
+available for developers who have a 1.3 Workbench license which allows
+them to also distribute iffparse.library.
+
+modules/ilbmw.c   in putbody, changed bufsize check to compare against
+                  FileRowBytes (amount being written), not rowBytes
+
+modules/ilbmr.c     added GetBitMapAttr/destWidthBytes check
+
+modules/saveilbm.c  raised BODYBUF size from 4096 to 5004 (should allow
+                    saving of bitmaps up to pixel width of 16384)
+
+iffp/ilbm.h     got rid of BytesPerRow macro which duplicated RowBytes
+                AND conflicted with a system structure member name.
+		Changed "BitsPerRow" macro to "RowBits" to match.
+		Also unconditionalized extern of GfxBase and IntuitionBase.
+
+iffp/iff.h	allow a conditional USE_AMIGA_IO define to cause use of
+                Amiga-specific prototypes rather than standard C stdlib.h
+                and stdio.h.  If you define this, change your link to use
+                Amiga startup code like astartup.obj, and to link with
+                library amiga.lib first.
+		Also added inclusion of exec/libraries.h
+
+apps/all	bump revisions to 39.5
+
+-----------------------------------------------------------------------------
+Changes for 39.4 beta developer release (November 1992):
+
+The 39.3 release ilbmr.c modules contained a bug which would cause a black
+(no color) display of any ILBM with the new BMHD.flags CMAPOK bit set.
+This is fixed in 39.4.  39.3 had almost no distribution, but please see
+39.3 notes for notes on significant changes.
+Changes for version 39.4 (October 1992)
+
+modules/ilbmr.c   fix 39.3 bug which would cause black (no color) display
+		  if new CMAKOK flag was set (would be set by new save code)
+
+apps/all	bump revisions to 39.4
+
+-----------------------------------------------------------------------------
+Changes for version 39.3 developer beta release (October 1992)
+
+iffp/ilbm.h	define BMHD flag CMAPOK advisory; suggestion for ALPHA
+iffp/ilbmapp.h	define flags/variable for BESTFIT, CMAPOK, USERMODE
+modules/ilbmr.c only sniff colors actually used when determining whether
+		all colors have been stored shifted
+modules/screen.c     add conditional V39 BestFit() code to modefallback
+		     add support of BESTFIT and USERMODE (explicit mode)
+		     add code to fall back on depth
+		     do ScreenToBack() before closing window, screen
+
+modules/getbitmap.c  conditionally use AllocBitmap and FreeBitMap
+
+modules/iffpstrings.c	modify for new CatComp 39.x output
+
+modules/all	use new CatComp 39.x to generate iffp/iffpstrings.h
+		no longer have iffpstringids.h (instead, define
+		CATCOMP_NUMBERS before including iff headers, except
+		in iffpstrings.c (where CATCOMP_ARRAY is defined)
+
+apps/all	use appname_rev.h (bumprev) revision files
+
+-----------------------------------------------------------------------------
+Changes for version 39.1 developer beta release (July 1992)
+
+iffp/ilbm.h	define Color32, proto setcolors and new loadcmap
+iffp/ilbmapp.h	extend ILBMInfo - recompile if you added variables to end
+modules/ilbmr.c changed getcolors, added setcolors, WARNING: I had to change
+	the interface to loadcmap (check if you are calling loadcmap in your
+	code)
+modules/getdisplay.c  uses new setcolors
+modules/loadilbm.c    uses new setcolors
+modules/saveilbm.c    conditional code to use GetRGB32
+
+-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+Changes for version 37.10 (July 1992)
+
+modules/getdisplay.c	use scr->RastPort.BitMap instead of &scr->BitMap
+modules/loadilbm.c	use scr->RastPort.BitMap instead of &scr->BitMap
+modules/saveilbm.c	use scr->RastPort.BitMap instead of &scr->BitMap
+apps/24BitDemo.c	use scr->RastPort.BitMap instead of &scr->BitMap
+apps/Play8SVX.c		nows screens for unknown compression types,
+			old "clock" variable is now called "tclock"
+apps/(all)		recompiled with new modules, versions bumped to 37.10
+modules/(many)		added/changed some D(bug()) lines
+iffp/ftxt.h		added
+
+
+NOTE - the "PlaySMUS.c" is just the beginnings of a SMUS reader -
+	not yet a player.
+
+Special notes regarding the 37.10 release:
+
+	The following files have changed:
+
+	- modules/getdisplay.c  modules/loadilbm.c  modules/saveilbm.c
+ 	  now all use scr->RastPort.BitMap instead of &scr->BitMap
+ 			for future compatibility
+
+	- apps/24BitDemo/24BitDemo.c
+ 	  now uses scr->RastPort.BitMap instead of &scr->BitMap
+ 			for future compatibility
+
+	- apps/Play8SVX/Play8SVX.c
+	  nows screens for unknown compression types
+	  changed "clock" variable name to "tclock" (Manx seems to have
+		it own "clock" variable ?)
+
+	- apps/(all) - recompiled with new modules, versions bumped to 37.10
+
+	- modules/(many) - some D(bug()) lines added or changed
+ 
+	- iffp/ftxt.h added
+
+	NOTE - the "PlaySMUS.c" is just the beginnings of a SMUS reader -
+	not yet a player.
+
+-----------------------------------------------------------------------------
+Changes for version 37.9 (April 1992)
+
+iffp/ilbm.h		updated description of CAMG chunk for 2.0 usage
+modules/ilbmw.c		incorporated J. Moller fixes for wider src bitmaps
+modules/screen.c	added version check before PubScreenStatus() calls
+modules/iffpstrings.c	fixed IFFerr() equivalence tests and null string
+modules/loadilbm.c	use MIN(ncolors,vp->ColorMap->Count) for color loading
+modules/getdisplay.c	use MIN(ncolors,vp->ColorMap->Count) for color loading
+modules/ilbmr.c		use MAX(ncolors,32) for colortable allocation
+modules/(all)		force and use new V37 Intuition #defines
+apps/(all)		force and use new V37 Intuition #defines, bump version
+
+
+Special notes regarding the 37.9 release:
+
+	- All examples and modules which use Intuition #defines
+	  have been modified to force the use of (and use) the
+	  new prefixed Intuition labels for these #defines.
+
+	- ilbmw.c was modified to deal with source bitmaps which
+	  have larger bytes-per-row than normal.
+
+Special notes regarding the previous 37.8 release:
+
+	- the screen.c module now checks to see if the opened
+	  screen is a public screen, and if so, sets the screen's
+	  status to public before opening a window on it.
+
+	- the screen and display closing routines now return
+	  success or failure so that public screen openers
+	  can check to make sure that they were able to
+	  close their display.
+
+	- all iffp module strings and message routines have
+	  now been centralized in a new module iffpstrings.c.
+	  This will facilitate internationalization.
+
+-----------------------------------------------------------------------------
+Changes for version 37.8 (November 1991)
+
+modules/iffpstrings.c	added for centralized string and message processing
+iffp/iffpstrings.h	(same as above)
+iffp/iffpstringids.h	(same as above)
+modules/(all)		modified to get strings via iffpstrings.c
+modules/screen.c	public screen support, close may fail if public
+modules/getdisplay.c	public screen support, close may fail if public
+modules/getbitmap.c	closeifile under all errors in loadbrush, loadilbm
+modules/loadilbm.c	closeifile under all errors in showilbm
+apps/screensave.c	option to save front ViewPort
+
+
+The modules/ directory contains the module sources and SAS C 5.10a
+object modules.  If you are using Manx, copy Makefile.Manx to
+Makefile, and copy iffobj/Manx/#?.o to the modules/ directory.
+
+The includes files subdirectory (iffp/) may be placed in your
+current directory or your normal include directory.
+
+Read Compiler.README for other notes.
+
+-----------------------------------------------------------------------------
+Since second upload to BIX - major update - version 37.5
+
+modules/packer.c	lowercase and ANSIIize uppercase funcs
+modules/unpacker.c	lowercase and ANSIIize uppercase funcs
+modules/ilbmr.c		correct colortable building code (build rgb correctly)
+			filter camg's with EXTENDED_MODE set but 0 upper word
+modules/ilbmw.c		correct CMAP writing code (scale, not shift, to 8 bits)
+			modify putcmap interface to accept 4, 8, 32-bit tables
+			lowercase and ANSIIize uppercase funcs
+modules/saveilbm.c	use GetRGB4 to get screen's colortable
+			modify saveilbm interface to accept trans and mask,
+			and also to accept 4, 8, 32-bit colortables
+modules/bmprintc.c	get rid of superfluous comma
+modules/loadilbm.c	moved showilbm() to getdisplay() module
+modules/getdisplay.c	added showilbm() from getdisplay() module
+iffp/ilbm.h		updated for new interfaces and lowercase names
+apps/Play8SVX		don't use eclock (not relevant to audio)
+apps/RawtoILBM		change saveilbm call
+apps/24BitDemo		change saveilbm call
+apps/ScreenSave		add options NODELAY, NOICON, QUIET, SEQUENCE
+all apps		minor cleanup, bump version, recompile/link
+iffobj/Manx		Manx object modules (SAS modules are in modules/)
+Makefile		Regrouped modules to segregate display and load
+Makefile.Manx		And Manx compatibility added (thanks to Steve Walton)
+			This involved small corrections to several modules.
+			Still gets warnings on UBYTE *strings.
+
+-----------------------------------------------------------------------------
+Changes since initial upload to BIX
+
+apps/RawtoILBM		removed icon stuff (unused)	
+apps/24bitDemo		new example (saves and loads a simple 24-bit ILBM)
+iffp/ilbm.h		added 	#define MAXSAVEDEPTH 24
+iffp/ilbmapp.h		added   ilbm->stags for additional screen tags
+modules/saveilbm.c	don't save CMAP if colortable=0
+modules/ilbmw.c		fix PutBODY to save up to 24 planes plus mask
+modules/getbitmap.c	changed comments
+modules/screen.c	added custombitmap and ilbm->stags support
+
+-----------------------------------------------------------------------------

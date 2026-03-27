@@ -1,0 +1,819 @@
+
+			  A600/A1200 PCMCIA slot
+			  by Darren M. Greenwald
+
+	(c) Copyright 1993  Commodore-Amiga, Inc.  All Rights Reserved
+
+
+PCMCIA
+------
+
+PCMCIA stands for "Personal Computer Memory Card International Association". 
+The specification for Release 1.0 was first published in August 1990, followed
+by the Release 2.0 specification in September 1991.  The Amiga 600 PCMCIA
+implementation was also completed around this time in late 1991.  The PCMCIA
+specification describes card socket physical and electrical requirements,
+software requirements, and an Intel/MS-DOS specific Execute-In-Place format.
+
+The PCMCIA Release 2.0 specification was followed by the Socket Services
+Interface Specification Release 1.01, published in September 1991.  The Socket
+Services specification is an Intel/MS-DOS specific proposal which provides low
+level single or multi socket management.
+
+A PCMCIA socket provides a total of 68 pins including 26 address lines, 16
+data lines, two card detect pins, two Vcc pins, two Vpp pins, various status
+pins, a card RESET pin, a WAIT pin, and other pins required for memory access.
+A refresh pin is also reserved for use with PSRAM, though not completely
+defined in the September 1991 Release 2.0 specification.  Use of 60-pin and
+88-pin Dynamic RAM (DRAM) cards are standardized primarily by EIA/JEDEC and
+JEIDA, and are not covered by the PCMCIA standard.
+
+PCMCIA cards are available in the Type I format (3.3mm thick), and Type II
+format (5.0mm thick).  In both types, connectors, guides, and other factors
+are identical.  Either type of card may be used in the A600 and A1200
+computers.
+
+PCMCIA sockets are designed such that Vcc/Gnd pins connect first when a card
+is inserted followed by all other pins except for the two card detect pins
+which connect last (the shortest pins).  When a PCMCIA card is inserted, it
+first receives power, then other pins connect, and finally the two card detect
+pins connect.  Because the two card connect pins are on opposite sides of the
+card, a stable connection is assured when both of these pins make contact.
+
+The PCMCIA specification defines three memory regions for cards including
+common memory, attribute memory, and I/O address space.  In the Amiga 600/1200
+design, access to these memory regions is memory mapped by a custom gate
+array.
+
+Attribute memory is used to store information describing the card, and may
+also include configuration registers.  Attribute memory is potentially 64
+megabytes in size.  This is because address generation for attribute memory
+space is 26 bits wide, plus a REG line.  In actual use though most vendors are
+providing only a few bytes of attribute memory, and partial address decoding
+to keep costs down.  For some RAM cards (and Flash-ROMS) attribute memory is
+not provided at all.
+
+Common memory is potentially as large as 64 Megabytes.  It is common memory
+space which is used for the contiguous memory provided by SRAM cards,
+Flash-ROM cards, ROM cards, etc.  For cards which do not provide attribute
+memory, attribute memory accesses are often mapped into common memory space. 
+The PCMCIA software specification allows for this behavior.
+
+I/O address space is memory mapped in the A600/A1200 systems.  For both
+systems, 128K bytes of address space have been reserved for card I/O space. 
+In actual use this has not been a limitation.
+
+PCMCIA connectors have four (4) pins assigned for status information.  These
+are:
+
+	WRITE-PROTECT (+WP)
+
+	BATTERY VOLTAGE DETECT 1 (BVD1)
+
+	BATTERY VOLTAGE DETECT 2 (BVD2)
+
+	READY/BUSY (+RDY/-BSY)
+
+For I/O cards, the meaning of the BVD1, BVD2, and RDY/BSY pins are
+interpreted as:
+
+	BVD2 is used for DIGITAL AUDIO (-SPKR)
+
+	BVD1 is used for STATUS CHANGE (-STSCHG)
+
+	RDY/BSY is used for INTERRUPT REQUEST (-IREQ)
+
+PCMCIA digital audio is a simple single-amplitude on-off audio-waveform
+intended to drive the host's speaker.  In the A600/A1200, PCMCIA digital-audio
+is mixed with Amiga audio output.  PCMCIA digital audio is useful for simple
+sound, such as that provided by modems, but is not suitable for high-fidelity
+use.
+
+BVD1 and BVD2 are used to monitor battery status for battery backed-up SRAM
+cards.  The combination of these two bits can be interpreted as "battery is
+good", "battery is low", or "battery has failed."  To interpret these pins
+correctly, the host must be aware that the card is infact a SRAM card.
+
+
+
+PCMCIA METAFORMAT
+-----------------
+
+The PCMCIA Metaformat, or "Card Information Structure" is a software/hardware
+specification for storing identification information on PCMCIA cards.  In
+theory, every PCMCIA card identifies itself by providing this information in
+attribute memory.  Of course in actual use we find that this applies for I/O
+cards, but most memory card vendors are not interested in adding to the cost
+of their cards by providing ROM attribute memory.
+
+The Metaformat is based on a 'tuple' structure.  A tuple is a simple variable
+length structure consisting of one (1) identifier byte, one (1) link byte, and
+0-255 bytes of data.  The tuple link byte tells software how many bytes are
+contained with the tuple, or at least how many bytes until the next tuple in a
+chain of tuples.  The actual number of valid bytes within a tuple may be less
+than the link value for the purpose of reserving space.
+
+		TUPLE CODE	1
+		TUPLE LINK	1
+		TUPLE DATA	0-255 BYTES
+
+
+The PCMCIA software specification defines numerous reserved tuple codes, an
+example of which is the required CISTPL_DEVICE tuple.  The CISTPL_DEVICE
+tuple has a code value of one (1).  It is required that the first tuple of
+all PCMCIA cards be a CISTPL_DEVICE tuple.  Contained within this tuple we
+have --
+
+		DEVICE TYPE	(SRAM, DRAM, I/O, etc.)
+
+		DEVICE SPEED	(In Nanoseconds)
+
+		DEVICE SIZE	(In units * unit size)
+
+A CISTPL_DEVICE tuple can be as little as three bytes, two of which are
+required for the tuple code, and link.  For example, some I/O cards may only
+include device type, and device speed interpreted as 100ns, 150ns, 200ns, or
+250ns.  It is also possible to specify device speed more accurately using one
+more tuple byte.  An additional byte is required to encode device size as 1-32
+units of 512 bytes, 2K bytes, 8K bytes, 32K bytes, 128K bytes, 512K bytes, 2M
+bytes.  Using this scheme, it is possible to specify sizes as small as 512
+bytes, or as large as 64 megabytes.
+
+You can see that the PCMCIA specification places a strong emphasis on
+minimizing the amount of data required to store the CIS (Card Information
+Structure).  This makes sense given that adding attribute memory to a card can
+increase its cost.  PCMCIA defines tuples for recording device information,
+configurable card information, tuple linking, identification of data
+partitions, manufacturer information, etc.
+
+We will not cover each of these tuples in this talk beyond noting that the
+definition of each tuple is defined in the PCMCIA Release 2.0 specification. 
+It is worth mentioning that there are many rules which must be observed when
+searching tuple chains, and a considerable amount of system software can be
+required to interpret tuple data.  To ease the burden, system software in the
+A600/A1200 provides you with some of the high level functions you will need to
+read the Card Information Structure of PCMCIA compatable cards.
+
+
+
+PCMCIA AND THE AMIGA 600/1200
+-----------------------------
+
+The Amiga 600 was the first Amiga computer to offer a PCMCIA compatable card
+slot.  The PCMCIA slot on the A600/A1200 complies with Release 1.0
+requirements, and supports the Extended Bus Cycle (-WAIT), and Card Reset
+(+RESET) lines required by Release 2.0.  The A600/A1200 PCMCIA slot is based
+on a memory mapped design, making it possible to support Execute-In-Place code
+from RAM, ROM, or FLASH-ROM cards.  
+
+Internally the A600/A1200 provide PCMCIA slot interfacing via a custom gate
+array known as GAYLE.  GAYLE provides a status register, interrupts for status
+changes, software control over the Card Reset line, software control over card
+Vpp, and other features.
+
+Because the A600/A1200 PCMCIA implementation is entirely memory mapped, the
+maximum common memory address space is limited to four (4) megabytes.  The
+upper half of our eight (8) megabytes of 24-bit expansion space ($600000
+through $9FFFFF) has been used for this purpose.  Another 128K of address
+space ($A00000 through $A1FFFF) is used for attribute memory, and the next
+128K bytes ($A20000 through $A3FFFF) is used for I/O address space.
+
+This means that our 24-bit CPU systems can use common memory for Execute-In-
+Place purposes (SYSTEM RAM expansion, and Execute-In-Place code).  The down
+side is that our current implementation does not yet provide a paging register
+so that addresses greater than 4MB cannot be generated.  While our system
+software cannot currently support XIP and bank switching well, the extended
+address space will be useful if we want to support large FLASH-ROM cards.  A
+paging register is being considered for this purpose in the future.
+
+The PCMCIA slot does have some limitations.  It is a 16 bit interface, and
+most SRAM/PSRAM cards are 200-250ns requiring GAYLE provide wait-state
+generation.  A specification for PCMCIA DMA was not finalized for the Release
+2.0 specification.  We realize that some of you will prefer to use the common
+memory space for 32 bit RAM expansion in the A1200, so a credit-card disable
+register is provided in GAYLE.  Software modifications have been added to the
+latest V39 release which automatically disables the PCMCIA interface when RAM
+is present in card memory space (this does however mean that you lose use of
+your PCMCIA slot).
+
+
+
+OVERVIEW OF A600/A1200 SOFTWARE SERVICES
+----------------------------------------
+
+When we designed the A600 PCMCIA software services, our primary concern was to
+provide a broad range of functionality, and to do so in a friendy way for the
+end user.  This implied we needed to support use of PCMCIA cards as SYSTEM RAM
+expansion, XIP software distributed on ROM cards, disk-like format cards,
+auto-booting off disk-like formatted cards, and future support for FLASH-ROM
+or I/O cards.
+
+The A600/A1200 PCMCIA design was completed before the Socket Services
+specification was finalized, however we solved many of the issues other
+vendors are trying to implement now.  We felt that the end user should be able
+to simply plug in a card, and use it without having to configure the card slot
+for any particular use.  It may be that the A600 PCMCIA implementation is the
+first to offer true "plug-and-play" features.  While the design does not lend
+itself well to a multi-slot support (because of the large amount of contiguous
+address space required), the user does not have to configure the card slot for
+a specific purpose, or turn the machine on/off to insert new cards.
+
+The A600/A1200 Kickstart ROM provides low level software services in the form
+of a resource.  We reserve the right to modify the GAYLE hardware, so all
+GAYLE accesses must be done through this resource.  We also provide a
+trackdisk-like device driver so that disk-like formatted cards can be used.
+
+The A600/A1200 Kickstart ROM provide --
+
+	o card.resource
+
+		AutoConfig SRAM/PSRAM cards at boot time as SYSTEM RAM.
+
+		Reset-on-removal of cards in use as SYSTEM RAM.
+
+		Debounce/reset newly inserted cards.
+
+		Hot-insertion/hot-removal/ownership protocol.
+
+		Tuple reader function.
+
+		CISTPL_DEVICE tuple decode function.
+
+		Status change interrupts.
+
+		Card Vpp control (5V or 12V).
+
+		Card reset control.
+
+		Control over hardware reset-on-removal.
+
+		Conigure card for I/O interface; enable card digital audio.
+
+		Status register access.
+
+		High-performance, direct CPU access to card memory space.
+
+		Miscellaneous support functions.
+
+	o carddisk.device
+
+		Trackdisk.device like emulation for disk-like cards.
+
+		Hot-insertion/hot-removal recognition, like floppies.
+
+		Single partition, variable geometry support.
+
+		All block sizes, and error detection schemes defined
+		by the PCMCIA 2.0 specification supported.
+
+	o strap
+
+		Autoboot Amiga formatted cards, if installed like floppy
+		disks.
+
+		Auto-execution of Amiga formatted Execute-In-Place cards.
+
+		Reset-on-removal of active Execute-In-Place cards.
+
+		Ability to install device driver software from cards
+		which provide Amiga specific device driver code.
+
+	o Amiga FileSystem and CrossDOS
+
+		Auto-adjust geometry for newly inserted cards.
+
+	o PrepCard Utility
+
+		Prepares SRAM cards for use as SYSTEM RAM.
+
+		Prepares/Formats SRAM cards for use as DISK-LIKE media.
+
+		Sizes SRAM cards.  Auto adjust layout of CIS as required
+		based on attribute memory characteristics.
+
+		Displays card information in a human readable way.
+
+		Provides advanced settings options.
+
+
+
+OVERVIEW OF THE CARD.RESOURCE MODULE
+
+Unlike our standard Amiga expansion slots, the PCMCIA slot is unique in that a
+variety of cards may be inserted/removed when power is on.  PCMCIA cards do
+not have Amiga specific expansion code, so recognition of PCMCIA cards, and
+configuration must be done outside of expansion.library.  The card.resource
+module provides the low-level configuration protocol, and support functions
+required for the purpose of configuring PCMCIA cards. 
+
+Card.resource functions include --
+
+	OWNERSHIP FUNCTIONS
+
+		OwnCard()
+		ReleaseCard()
+
+	GAYLE/CARD HARDWARE FUNCTIONS
+
+		ReadCardStatus()
+		CardResetCard()
+		CardProgramVoltage()
+		CardResetRemove()
+		CardMiscControl()
+
+
+	TUPLE SUPPORT FUNCTIONS
+
+		CopyTuple()
+		DeviceTuple()
+		IfAmigaXIP()
+
+	FLOW SUPPORT FUNCTIONS
+
+		BeginCardAccess()
+		EndCardAccess()
+
+	MISCELLANEOUS FUNCTIONS
+
+		CardInterface()
+		GetCardMap()
+		CardAccessSpeed()
+		CardForceChange()
+		CardChangeCount()
+
+
+The card.resource module is also responsible for adding SRAM/PSRAM cards as
+SYSTEM RAM.  When a SRAM/PSRAM card is inserted at power-up/reset,
+card.resource determines if the card is a memory card, and how card size.  If
+the card is not being used to store data, card.resource adds the memory to the
+system memory list as low-priority fast RAM.  When a card is added as SYSTEM
+RAM, the card.resource module is not added to the system list so PCMCIA device
+drivers can properly fail to initialize.  
+
+
+Most of the card.resource functions require a pointer to a CardHandle
+structure defined in card.h/card.i --
+
+struct	CardHandle {
+	struct Node cah_CardNode;
+	struct Interrupt *cah_CardRemoved;
+	struct Interrupt *cah_CardInserted;
+	struct Interrupt *cah_CardStatus;
+	UBYTE	cah_CardFlags;
+};
+
+struct Node cah_CardNode
+
+	Used by the resource so that your handle can be added to a list
+	of handles to be notified when a new card is inserted.  A complete
+	description of how to fill in this node structure is described
+	in the card.resource AUTODOCS included in your DEVCON kit.  Note
+	that the priority field of the node structure is used to enqueue
+	handles on the notification list maintained by the card.resource
+	module.  Valid priorities for 3rd party device drivers have been
+	pre-assigned.  Please see the AUTODOCS for details.
+
+struct Interrupt *cah_CardRemoved
+
+	Used by the resource to call an interrupt routine you provide
+	when a card you own is removed.  You must call ReleaseCard()
+	to acknowledge that your driver has received the interrupt, and
+	will perform no more accesses to card memory.  The card
+	interface is disabled by the resource inhibiting writes/reads
+	of card memory until you acknowledge removal.
+
+struct Interrupt *cah_CardInserted
+
+	Used by the resource to call an interrupt routine you provide
+	when a card is inserted.  Your driver is the owner until
+	you call ReleaseCard().  Usually your driver will signal
+	a task, and use the CopyTuple() function to examine the
+	card CIS.  If the card is of a type that your driver understands,
+	you retain ownership of the card until it is removed, or your
+	driver exits.  If the card is of a type your driver does not
+	understand, you call ReleaseCard() and the next driver (if any)
+	on the notification list is notified by the resource.
+
+struct Interrupt *cah_CardStatus
+
+	Used by the resource to call an interrupt routine you provide
+	when a change in the card status register is noticed.  Status
+	changes include changes of:
+
+		WRITE PROTECT pin
+
+		BATTERY VOLTAGE DETECT 1/STATUS CHANGE pin
+
+		BATTERY VOLTAGE DETECT 2/DIGITAL AUDIO pin
+
+		READY-BUSY/INTERRUPT REQUEST pin
+
+	Status change interrupts are optional.  If you do not provide
+	a pointer to an interrupt in the handle structure, you do not
+	receive status change interrupts.
+
+UBYTE cah_CardFlags
+
+	Various flags defined in resources/card.h and resources/card.i
+
+
+
+CARD.RESOURCE OWNERSHIP/CONFIGURATION PROTOCOL
+----------------------------------------------
+
+Carddisk.device is a good example of how an Amiga PCMCIA device driver should
+be constructed.  Carddisk.device uses card.resource functions to register
+itself for notification when a new card is inserted.  When notified,
+carddisk.device uses the card.resource CopyTuple() function to examine the
+Card Information Structure.  If the card contains data stored in disk-like
+format, carddisk.device retains ownership of the card until it is removed.
+
+Other device drivers will be written in a similar way.  An example would be a
+cardmodem.device driver which would attempt to obtain card ownership when
+initialized.  Drivers such as this can "hang-around", waiting for an interrupt
+when a new card is inserted.  The CIS contains the information needed to
+determine if the card is of a type the driver understands, and if not, the
+driver releases the card for examination by the next driver on the
+notification list.
+
+Back in September 1991 it became apparent that the PCMCIA specification was
+still evolving, and that the PCMCIA Metaformat was subject to much
+interpretation on the part of the card manufacturer.  Therefore it did not
+make sense to try to interpret all tuples, for all cards, and all future cards
+in system software.  This means that card.resource leaves interpretation of
+card CIS up to the individual driver, though a function is provided which
+handles all the details of walking tuple chains to find/copy specific tuples. 
+Still, even use of this function is not mandatory.  Device drivers may provide
+their own CIS examination code if needed to support a non-compliant card.
+
+The OwnCard() function (described in more detail in the AUTODOCS available
+with your DEVCON kits) provides these useful options --
+
+    OwnCard() can be used to 'poll' for a card in the slot.  This is
+    useful in cases where you need to try for immediate card ownership,
+    but do not wish to "hang-around" if the slot is empty, or in-use. 
+    Remember though that when using polling, a card might have just been
+    inserted, and might soon be free for use.  If the card slot is not
+    available for use (or empty) your CardHandle is NOT enqueued on the
+    notification list.
+    
+    OwnCard() can be used to obtain an interrupt when the card slot is
+    free for use, and a card is inserted.  This is useful if your driver
+    wishes to "hang-around", and wait without having to poll the
+    resource.  Your driver does not have to check the return value from
+    OwnCard() as you will take an immediate card inserted interrupt if
+    the card is immediately available.  If the card slot is in-use (or
+    empty) the insert interrupt will come later, if at all.
+
+    OwnCard() can return an immediate result of SUCCESS/FAILURE as well
+    as enqueue your handle for subsequent card insertion/removal.  This
+    is the default behavior.
+
+    OwnCard() can be told to give your driver ownership such that
+    the machine will reset if the card is removed while you own the
+    card.  This is not recommended for device drivers (support for
+    hot-removal is preferrable), but the option is provided for those
+    that need it.
+    
+So there are a couple of ways you can become the owner of the card.  First, a
+successful result from OwnCard() means you are the owner.  If a successful
+result is returned, your CardHandle structure is enqueued on the notification
+list.  The second way is when your driver receives a card inserted interrupt.
+OwnCard() lets you use the notification method(s) that suit your needs.  All
+GAYLE registers are set to the defaults when you are given ownership of the
+card slot, or release ownership with the ReleaseCard() function.  The
+defaults are --
+
+	o The card interface is enabled
+
+	o Digital audio is disabled
+
+	o Hardware write-protect is enabled
+
+	o Vpp is set to low power 5V
+
+	o Reset-on-removal is disabled, unless requested by your
+	  CardHandle structure.
+
+	o Memory access speed is 250ns.
+
+	o WRITE-PROTECT, BVD1, and RDY-BSY status change interrupts
+	  are enabled.
+
+
+The ReleaseCard() function is used for three purposes --
+
+    To remove your enqueued CardHandle structure so that your driver
+    can exit.
+    
+    To release ownership of the card when the card is not of a type
+    that your driver understands.
+
+    To acknowledge that a card you own was removed.
+
+
+When you own the card in the card slot normally your device driver will need
+to check the Card Information Structure before proceeding.  For example, the
+carddisk.device driver checks for a CISTPL_DEVICE tuple, a CISTPL_FORMAT
+tuple, and a CISTPL_GEOMETRY tuple.  If a CISTPL_FORMAT tuple is found,
+carddisk.device examines this tuple to verify that the data on the card is
+stored in disk-like format, determine partition size, block size, error
+detection method used, etc.  The CISTPL_DEVICE tuple is examined to determine
+if the card is writtable (SRAM or DRAM), and if not, carddisk.device allows
+reads but not writes.  The CISTPL_GEOMETRY tuple is examined for the purpose
+of filling in the disk geometry structure when the disk geometry structure
+for the TD_GETGEOMETRY command.
+
+If you were writing a modem device driver, you would most likely want to check
+for a CISTPL_DEVICE tuple, CISTPL_VERS_1 tuple (describing the product), and
+then check for CISTPL_CFIG tuples (describing the card configuration
+registers).  During each step your code would be prepared to reject the card
+as unknown, and release it with the ReleaseCard() function.
+
+The card.resource module provides you with two useful functions for the
+purpose of examining the Card Information Structure.  The first function is
+CopyTuple(), which scans tuple chains for the tuple you want copied. 
+CopyTuple() understands how to follow tuple links, skip odd bytes in attribute
+memory, and follows the documented exceptions specified in the PCMCIA Release
+2.0 documentation.  One such exception is that not all cards have a
+CISTPL_DEVICE tuple in attribute memory (in some cases it is not even possible
+to store this tuple in attribute memory if attribute memory is not provided). 
+CopyTuple() deals with this case by looking for a CISTPL_LINKTARGET tuple in
+common memory, and if found, follows the tuple chain in common memory.
+
+CopyTuple() also follows implied links, explicit links, skips CISTPL_NULL
+tuples, and has a provision for finding multiple copies of a tuple.  Another
+interesting property of tuples is that the PCMCIA specification allows for
+storing read sensitive configuration registers in the body of a tuple. 
+CopyTuple() was written to avoid reading such registers by allowing you to
+specify how many bytes of tuple data you want copied.
+
+Once you have a copy of a tuple, you can then safely examine the contents
+without having to worry about where the tuple is stored in the CIS. 
+Configuration registers, and the offset of other active registers are defined
+by the CIS.
+
+Another valuable function provided by the card.resource module is the
+DeviceTuple() function which takes a copy of a CISTPL_DEVICE tuple, and
+returns device type, device speed, and device size.  DeviceTuple() understands
+how to interpret the optional extended device speed byte, how to interpret
+short CISTPL_DEVICE tuples, and will return an error if the CISTPL_DEVICE in
+invalid, or uses undefined bits/byte-combinations.
+
+
+MORE ON HOT-INSERTION/HOT-REMOVAL
+---------------------------------
+
+One interesting point to note from the previous sections is that when a card
+is removed, the card interface is disabled until the card owner acknowledges
+removal.  This means that large data transfer loops do not have to be
+interleaved with explicit checks for card removal.  When the interface is
+disabled, reads silently return "junk" data, and writes are silently ignored. 
+
+The correct procedure is to bracket data transfer loops with the
+BeginCardAccess()/EndCardAccess() functions.  If the card is inserted at the
+beginning of the transfer, but not at the end, your code can conclude that the
+transfer failed, return an error condition, and call ReleaseCard() which
+reenables the card interface.  This procedure also protects against writing to
+a card inadvertantly if a card is removed, and a new card inserted in the
+middle of your transfer loop (a distinct possibility in a busy multi-tasking
+Operating System).
+
+Most of the functions provided by the card.resource module require you pass in
+your CardHandle structure as an argument.  This is used by the resource to
+verify that your driver is actually the card owner.  If you were the owner,
+but the card has been removed before you have gotten around to calling
+ReleaseCard(), relevant functions above will return errors.
+
+One hot-insertion/hot-removal safety feature of ReleaseCard() is that you can
+safely use this function to remove your CardHandle structure from the
+notification list whether or not you are the card owner.  It is possible for a
+card to be inserted after you call ReleaseCard(), but before ReleaseCard()
+actually removes your CardHandle structure from the notification list.  This
+should cause you no problem.  You may take a card inserted interrupt before
+your CardHandle is removed, but your handle will be removed, and ownership
+released by the time that ReleaseCard() returns to your code.
+
+
+MORE USEFUL CARD.RESOURCE FUNCTIONS
+-----------------------------------
+
+Device drivers should use the GetCardMap() function to obtain pointers to
+PCMCIA memory card spaces.  Should we want to move these in the future,
+drivers can continue to work as-is unless we go to a non-memory mapped design.
+
+Device drivers should use the CardInterface() function to verify that the
+GAYLE hardware is present before proceeding.  This gives us the option of
+using a different PCMCIA design for which needed software/hardware work
+arounds can be published.
+
+ReadCardStatus() is used to read the status of the WRITE-PROTECT pin, BVD1/SC
+pin, BVD2/DA pin, and RDY-BSY/IRQ pin.
+
+CardResetCard() is used to reset configurable cards.  The +RESET line is held
+active for >10us.
+
+CardProgramVoltage() is used to set Vpp to low-power 5V (the default), 5V,
+or 12V.  12V is required for FLASH-ROM programming.
+
+CardResetRemove() is used to enable/disable hardware reset on card removal. 
+This option is also supported by the OwnCard() function.
+
+CardMiscControl() is used to enable DIGITAL AUDIO, and disable GAYLE's
+hardware write-protect feature (needed for some I/O cards). As of Kickstart
+V39, 3.01, this function can also be used to selectively enable/disable status
+change interrupts for changes in BVD1/SC, BVD2/DA, and RDY-BSY/IRQ.  More
+about status change interrupts in the next section.
+
+The CardChangeCount() function is used by the system STRAP module to poll
+for card insertion.  This function has been made public incase you require
+it.  The change count is incremented everytime a card is removed, and
+everytime a card is successfully inserted.
+
+The CardForceChange() function is intended for use by tools, such as PREPCARD
+to force devices to give up ownership of the card.  In general it should not
+be used by device drivers.
+
+The CardAccessSpeed() function is used to set memory access speed (required
+for wait-state generation).  The default is 250ns.  
+
+
+
+MORE ON CARD.RESOURCE STATUS CHANGE INTERRUPTS
+----------------------------------------------
+
+
+GAYLE provides programmable interrupts whenever there is a change in the
+WRITE-PROTECT pin, BVD2/DA pin, BVD1/SC pin, or RDY-BSY/IRQ pin.  For example,
+carddisk.device uses status change interrupts to note changes in the
+WRITE-PROTECT pin, forcing a disk change so that filesystems automatically
+send the TD_PROTSTATUS command to obtain the write-protect state.
+
+Up through card.resource V37, the resource enabled status change interrupts
+for changes in WRITE-PROTECT, BVD1/SC, and RDY-BSY/IRQ.  As of V39 3.01, the
+CardMiscControl() function can be used to selectively enable/disable status
+change interrupts for BVD2/DA, BVD1/SC, and RDY-BSY/IRQ.  WRITE-PROTECT status
+change interrupts are always enabled, and rare.
+
+You will note that changes in BVD2/DA are not enabled by default.  This is
+because monitoring for changes in BVD2/BVD1 via interrupts is not that useful
+since such a tool must also know that card in the slot is an SRAM card. 
+Generating interrupts for I/O cards which provide DIGITAL AUDIO is probably
+pointless, however should you find some use for monitoring DA changes via
+interrupts Kickstart V39 3.01 now provides this feature.
+
+The more observant will note that GAYLE generates an interrupt on status
+change, not just when a status line goes from the inactive to the active
+state.  This is different from normal Amiga hardware which generates
+level-mode interrupts, and latches the interrupt until the hardware is
+serviced.
+
+It turns out that even though PCMCIA specification recommends that card
+vendors support both level-mode, and pulsed-mode interrupts, PCMCIA products
+will most likely be designed for and tested on Intel based machines (which by
+default use positive edge sensitive interrupts).  To work around this, GAYLE
+provides positive, and negative edge sensitive interrupts, but the IRQ line
+from the card slot is not directly connected to PAULA.  Amiga PCMCIA device
+drivers must be prepared for interrupts generated by GAYLE whenever IRQ goes
+active, or inactive.  This means that device driver code may need to test a
+status register on the PCMCIA card, or if necessary, check the state of the
+IRQ line using the ReadCardStatus() function.
+
+The card.resource module clears the interrupt on GAYLE when you return from
+the status change interrupt, however in retrospect we realized that for some
+cards it is preferrable to service GAYLE first followed by the PCMCIA card
+hardware.  This capability is now supported in version 39.1 of the
+card.resource module, and can be worked around in previous versions of the
+resource by using exec/AddIntServer() to install an INTB_PORTS interrupt
+server of priority 127 (causing your interrupt server to be enqueued after the
+resource's interrupt server).  Within your status change interrupt you would
+set a flag(s) indicating what status bits have changed, and then service the
+PCMCIA hardware in your interrupt server.
+
+
+	***SPECIAL NOTE***
+
+	Interrupt servers of priority 100 or greater must NOT
+	terminate the server chain.  Despite previous publication,
+	some servers require the ability to cause interrupts by poking
+	PAULA.  Such interrupts are not latched, and can be missed if
+	the server chain is terminated by higher priority servers.
+	Therefore we now reserve interrupt server priorities 100 or
+	greater for servers which never terminate the server chain.
+
+
+ABOUT CARDDISK.DEVICE
+---------------------
+
+Carddisk.device emulates trackdisk.device, though a few trackdisk.device
+commands are not supported.  These include --
+
+	TD_GETDRIVETYPE for which defined types are meaningless for
+	PCMCIA cards.
+
+	TD_GETNUMTRACKS is meaningless for PCMCIA cards; use TD_GETGEOMETRY.
+
+	TD_RAWREAD and TD_RAWWRITE are not supported; use CMD_READ and
+	CMD_WRITE.
+
+Carddisk.device supports all block sizes specified by the PCMCIA
+specification, though 128 bytes per sector is not supported by the Amiga
+FileSystem.  Carddisk.device supports disk-like cards which do not use error
+detection (the recommended PCMCIA default), single-byte checksum error
+detection, and double-byte CRC error detection.
+
+So far we have not seen MS-DOS PCMCIA implementations make use of block sizes
+other than the default 512 bytes per block, or use error detection.  For
+maximum data portability we suggest using the defaults when preparing cards
+with the PREPCARD utility.
+
+Carddisk.device does not support the MS-DOS specific pseudo-floppy format,
+which does not use PCMCIA tuples to identify disk-like cards.  This could be
+supported by writing a disk-loadable driver which has code to interpret
+geometry parameters in the MS-DOS boot sector.
+
+Carddisk.device mounts itself as device CC0:, priority 3 which is less than
+the priority of DF0:, but typically higher than other media.  To save memory,
+the filesystem for CC0: is not started until a disk-like card is inserted in
+the machine.
+
+
+AMIGA EXECUTE-IN-PLACE (XIP) CARDS
+----------------------------------
+
+The A600/A1200 support a simple XIP scheme, however remember that XIP software
+cannot be removed without causing a machine reset.  Because of this, XIP makes
+the most sense for games, or custom applications.  Complete details of how to
+implement an XIP card are available in the card.resource AUTODOCS.
+
+XIP software is polled for by the system STRAP module at boot time.  On
+systems which do not have harddrives, the user may insert XIP software instead
+of a floppy disk when prompted by the STRAP screen.  XIP cards take priority
+over disk-like media, so XIP cards can be booted on systems with harddrives,
+or removable media.
+
+One thing you will want to note about XIP software is that XIP code may not
+initialize DOS, or use DOS functions.  This is because DOS requires disk-like
+media to boot from, and in the case of boot-block games it is often preferred
+that DOS not be started.  We do realize that some of you will want the ability
+to use DOS functions, so a work-around (kludge) is described in the
+card.resource AUTODOCS.
+
+Back when we designed the A600 we decided that it is unrealistic to expect 
+game developers to write their code to be entirely PC relative.  Of course
+this means we cannot move the PCMCIA common memory address in future low-end
+machines, but it does allow game developers to use standard compilation
+techniques, and LoadSeg() game software into SRAM cards for testing.  CATS has
+such a tool, and is making it available in your DEVCON kits.
+
+A final point worth mentioning is that the XIP implementation makes it
+possible for Amiga specific PCMCIA cards to download software into RAM, or
+install software which executes out of PCMCIA ROM.  XIP software can return
+control to the STRAP module, giving us the option of booting off harddrive or
+floppy-disk after card specific code has been initialized.  This makes it
+possible to use the PCMCIA slot for a variety of custom purposes.
+
+
+PCMCIA ATTRIBUTE MEMORY
+-----------------------
+
+Tuples which appear in attribute memory must use even byte addresses only. 
+This was done to decrease costs, but it turns out that real way to decrease
+cost is not to provide attribute memory at all.  Infact this is what many
+SRAM, and FLASH-ROM vendors have decided to do.  Many cards ignore the REG
+line, so attribute memory accesses transparently access common memory.  The
+PCMCIA specification allows for this behavior, describing the preferred way
+to arrange the CIS for cards which do not have attribute memory.
+
+Other SRAM cards provide a few bytes of battery backed up attribute memory,
+and some decode attribute memory space but return junk data (usually $FF) if
+the attribute memory EPROM option is not installed.  We have yet to actually
+come across an SRAM card, or FLASH-ROM card which provides ROM attribute
+memory.  What this means is that tools are required (like the PREPCARD tool)
+which know how size memory cards, and layout the CIS depending on the type of
+attribute memory characteristics of the card.
+
+The more observant may have noticed that the PCMCIA specification requires the
+first tuple of all compliant cards be the CISTPL_DEVICE tuple describing
+device type, device speed, and device size.  This is not possible on cards
+which decode attribute memory space, but return junk data.  Therefore our
+implementation allows for storing the CISTPL_DEVICE tuple in common memory if
+it is not possible to write to attribute memory on the card. This work-around
+is not mentioned in the PCMCIA Release 2.0 specification, but seems to be a
+reasonable one.
+
+Another significant problem not addressed by the PCMCIA specification is
+mastering requirements for ROM card vendors.  If you have an interest in
+distributing software on masked ROM cards, anticipate that you will need to
+work closely with the vendor to define your needs.  You will need to make
+sure that the ROM vendor understands that the Card Information Structure
+must be accurately duplicated, and possibly re-layed out if the ROM vendor's
+cards have different attribute memory characteristics than what you provide
+as a master.
+
+PCMCIA maintains a list of product vendors which can be obtained along with
+the PCMCIA specification.  A copy of the PCMCIA specification, and vendor
+listing is available through CATS (you must contact CATS to obtain a current
+price for the documents).
+
+

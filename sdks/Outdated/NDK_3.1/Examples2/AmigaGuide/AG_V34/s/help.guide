@@ -1,0 +1,178 @@
+@database HELP
+@remark $VER: help.guide 33.67 (31.12.92)
+@node MAIN
+@title "AmigaGuide® Help"
+I.    @{" Buttons " link HELP_BUTTONS}
+II.   @{" Menus " link HELP_MENUS}
+III.  @{" Keystrokes " link HELP_KEYSTROKES}
+IV.   @{" Mouse " link HELP_MOUSE}
+V.    @{" Arrow Keys " link HELP_ARROWS}
+VI.   @{" Function Keys " link HELP_FUNCTION}
+VII.  @{" Environment Variables " Link HELP_VARS}
+
+@endnode
+
+@node HELP_BUTTONS "AmigaGuide® Help: Buttons"
+Contents - Display the Table of Contents document for the current database.
+
+   Index - Display the index document for the current database.
+
+    Help - Display the help document for the current database.  If the
+           database doesn't have a Help document of its own, then the
+           global Help database will be used instead.
+
+ Retrace - Go back to the previous node.
+
+  Browse - Step through the documents in sequential order, in the order
+           they appear in the database.
+
+@endnode
+
+@node HELP_MENUS "AmigaGuide® Help: Menus"
+Project
+-------
+             Print - Print the current document to the current print
+                     device.
+      Close Window - Close the active document window.
+              Quit - Close all windows for the current database, and exit.
+
+Edit
+----
+              Mark - Start marking a block of text for copying to the
+                     clipboard.
+              Copy - Copy the current document to the clipboard.
+        Select All - Select all the lines of the current document.
+    Clear Selected - Unselect all the lines of the current document.
+    Print Selected - Print the selected lines to the current print device.
+
+Navigation
+----------
+  Find Document... - Locate a document.
+      Find Text... - Locate all occurrences of text within the current
+                     document.
+         Find Next - Show the Find Text document.
+      Set Bookmark - Save the current location to the bookmark file.
+    Go To Bookmark - Go to the location indicated by the bookmark file.
+
+@endnode
+
+@node HELP_KEYSTROKES
+@title "AmigaGuide® Help: Keystrokes"
+         TAB - Cycle forward through the buttons.
+
+   Shift-TAB - Cycle backwards through the buttons.
+
+        HELP - Display this document in its own window.
+
+         ESC - Close the active AmigaGuide® window.
+
+   Backspace - Scroll backwards a page.
+
+      RETURN - Activate the default button (the highlighted one).
+
+Shift-RETURN - Activate the default button (the highlighted one).
+               If it is a document, then load it in a new window.
+
+       SPACE - Scroll forwards a page.
+
+           > - Go to the end of the current document.
+
+           < - Go to the beginning of the current document.
+
+@endnode
+
+@node HELP_ARROWS
+@title "AmigaGuide® Help: Arrow Keys"
+         Up - Scroll up through the document.
+
+       Down - Scroll down through the document.
+
+   Shift-Up - Go up a page in the document.
+
+ Shift-Down - Go down a page in the document.
+
+     Alt-Up - Go to the beginning of the document.
+
+   Alt-Down - Go to the end of the document.
+
+       Left - Scroll left through the document.
+
+      Right - Scroll right through the document.
+
+ Shift-Left - Scroll left one window-full through the document.
+
+Shift-Right - Scroll right one window-full through the document.
+
+   Alt-Left - Go to the extreme left of the document.
+
+  Alt-Right - Go to the extreme right of the document.
+
+@endnode
+
+@node HELP_FUNCTION
+@title "AmigaGuide® Help: Function Keys"
+ F9 - Activate Next Window.
+
+F10 - Cycle active AmigaGuide® window front to back.
+
+@endnode
+
+@node HELP_MOUSE "AmigaGuide® Help: Mouse"
+
+      Select - Over a node, will activate the node.
+
+Shift-Select - Over a node, will activate the node.  If it is a document,
+               then load the document in a new window.
+
+@endnode
+
+@node HELP_VARS "AmigaGuide® Help: Environment Variables"
+
+Use the DOS command, SetEnv to set any of the following variables.
+
+ AmigaGuide/Path
+  This variable contains the list of path names that AmigaGuide®
+  should search through when it attempts to open a database.
+
+  For example:
+
+    SetEnv AmigaGuide/Path "Workbench:Autodocs Workbench:Includes"
+
+
+ AmigaGuide/Pens
+  Gives you control over the colors that AmigaGuide® uses to
+  render the text and link points with.
+
+    SetEnv AmigaGuide/Pens <abcdefgh>
+
+  where:
+
+    a = Background pen
+    b = Button text pen
+    c = Button background pen
+    d = Highlighted button text pen
+    e = Highlighted button background pen
+    f = Outline pen
+    g = Highlight outline pen
+    h = Text on background pen
+
+  For example:
+
+    SetEnv AmigaGuide/Pens 21213001
+    SetEnv AmigaGuide/Text BOLD
+
+  will give a very sharp look.
+
+ AmigaGuide/Text
+  Enables you to determine what the link points look like.
+
+    SetEnv AmigaGuide/Text <style>
+
+  where style can be one of the following:
+
+    BUTTON
+    HIGHLIGHT
+    UNDERLINE
+    BOLD
+    ITALIC
+@endnode

@@ -1,0 +1,301 @@
+
+Issues for PCMCIA Peripheral Manufacturers
+==========================================
+(c) Copyright 1992-93 Commodore-Amiga, Inc.  All Rights Reserved
+Preliminary
+
+
+   ************************************************************************
+   *									  *
+   *	    		COPYRIGHTED DEVELOPER MATERIALS		  	  *
+   *									  *
+   ************************************************************************
+
+   THIS INFORMATION IS COPYRIGHTED.
+
+   THIS INFORMATION MAY NOT BE REDISTRIBUTED, DISCLOSED,
+   OR DUPLICATED, IN WHOLE OR IN PART, IN ANY MANNER OTHER THAN AS
+   SPECIFIED IN A SIGNED AGREEMENT WITH COMMODORE.
+ 
+   ************************************************************************
+   *									  *
+   *				DISCLAIMER				  *
+   *									  *
+   *   THIS SOFTWARE AND INFORMATION IS PROVIDED "AS IS".		  *
+   *   NO REPRESENTATIONS OR WARRANTIES ARE MADE WITH RESPECT TO THE	  *
+   *   ACCURACY, RELIABILITY, PERFORMANCE, CURRENTNESS, OR OPERATION	  *
+   *   OF THIS SOFTWARE AND INFORMATION, AND ALL USE IS AT YOUR OWN RISK. *
+   *   NEITHER COMMODORE NOR THE AUTHORS ASSUME ANY RESPONSIBILITY OR	  *
+   *   LIABILITY WHATSOEVER WITH RESPECT TO YOUR USE OF THIS SOFTWARE	  *
+   *   AND INFORMATION.							  *
+   *									  *
+   ************************************************************************
+
+This document covers two topics -
+
+ 1. Issues for manufacturers of PCMCIA card peripherals for Amiga
+    models equipped with a built-in PCMCIA slot.
+
+ 2. Issues for manufacturers of external PCMCIA card reader/writer
+    peripherals who wish to sell their peripheral as a compatible
+    add-on for Amiga models NOT equipped with a built-in PCMCIA
+    slot.
+
+
+Issues for developers of PCMCIA slot hardware cards
+===================================================
+
+This section will be rather brief but should also be read by manufacturers
+of PCMCIA reader/writer peripherals who wish to emulate the Amiga PCMCIA
+slot.
+
+---------------------------------------------------------------------------
+Your main reference should be the ``PCMCIA Specifications'':
+
+    PCMCIA Resource Ref Book - approximately $7.50
+    PCMCIA Specifications - approximately $250.00 
+
+    PCMCIA - Phone 408-720-0107 (USA)
+
+This is the PCMCIA order number.  Call and get exact pricing, and then you
+can FAX an order direct to PCMCIA.  The prices above are for non-members.
+
+In addition, read the card.resource autodoc "cardres.doc".
+---------------------------------------------------------------------------
+ 
+The current Amiga PCMCIA slot supports Type 1 and Type 2 cards and is
+based on the Release 2.0 PCMCIA specification.
+
+The Amiga card.resource supports a single PCMCIA card with a single
+DEVICE tuple - i.e. a card may be RAM, or a disk, or AmigaXIP, or an
+I/O device.   This includes boot-time support (calling of AmigaXIP
+code, booting from a disk-format card, or adding of unformatted SRAM
+or DRAM cards to the system memory list), plus support for hot insertion
+and removal of cards with on-the-fly config reading of newly inserted
+cards.
+
+Other important supported features include:
+
+  Interrupts on status change (WP, BVD1, BVD2, and RDY/BSY, CC detect)
+  Status register read
+  Vpp control (tough do if you don't have 5V, and 12V available)
+  Reset on removal (enable/disable)
+
+The Amiga PCMCIA slot is accessed via direct memory access with PCMCIA
+common memory appearing at $600000 through $9FFFFF inclusive in the
+Amiga's memory map. This is within the address space accessible by the
+68000 CPU, and uses the upper 4 megabytes of address space for FAST
+ram expansion. Attribute memory appears at $A00000 through $A1FFFF.
+
+Some manufacturers may wish to build multipurpose cards, or peripherals
+to expand the number of card slots.
+
+Some issues to be aware of are:
+
+ - As stated already, the OS software supports 1 card with 1 device tuple
+
+ - AmigaXIP (execute-in-place) software is extremely unlikely to work if
+   forced to execute at different address (the code would have to be
+   totally position independent)
+
+ - OS support for disk-formatted cards requires the interrupts.
+   But note that the card.device does ask the card.resource where
+   the card is, and where the disk is on the card...  There might be
+   some possibilities here for moving the base address for disk-formatted
+   cards.
+
+ - Any future Amigas with PCMCIA slot may leave less of the card sticking
+   out - i.e. a non-standard card or cage may not fit in some future
+   model or case change.
+
+ 
+Some theoretical possibilities...
+
+ - An expander with address multiplexer and multiple slots each containing
+   a PCMCIA RAM card so that (for example) two 2-meg RAM cards could
+   be installed.
+
+ - An expander with address multiplexer and multiple slots, with the
+   first slot containing a PCMCIA card with AmigaXIP RAM or ROM code
+   which could configure and drive various I/O cards in a second slot,
+   and perhaps add system RAM from a third slot.
+
+
+
+Issues for peripheral PCMCIA card readers/writers
+=================================================
+
+We have had several inquiries from manufacturers of PCMCIA peripherals
+who wish to make an Amiga version of their peripheral, and wish to
+emulate as much as possible of the Amiga OS support of the built-in
+PCMCIA slot.
+
+This is extremely complex.  Full emulation would be very difficult.
+
+Amigas with built-in PCMCIA slots access the slot as a DMA device,
+i.e. the processor directly accesses the PCMCIA card memory at the
+fixed addresses of $600000 (common memory) and $A00000 (attribute
+memory).
+
+Amigas with PCMCIA slots contain the ROM software which handles the
+PCMCIA card as a whole (card.resource), and the disk-image track portion
+of a disk-formatted PCMCIA card (card.device).  Note however, that
+developers may sometimes run softloaded versions of kickstart which
+contain the card device and resource on machines which do not have
+a PCMCIA slot (eg. an A600 kickstart softloaded on an A2500).
+In addition, it is possible that we may someday use ROMs which contain
+card.device on machines that have no PCMCIA slot (because this would
+be less expensive than making different ROMs which are equivalent
+except for this unused device.)
+
+The PCMCIA support in the relevant Amiga Kickstart ROMs and Workbench
+is specific to the built-in PCMCIA slot, card.resource, and card.device.
+This includes special boot-time accesses which check for and call Amiga
+code in Amiga execute-in-place (AmigaXIP) cards, support for auto-mounting
+and booting from a disk-formatted card, sensing and adding RAM-identified
+cards as system RAM, and support for hot insertion and removal of disk
+formatted cards, including special support for re-reading and adapting
+to changes in the card disk geometry as different cards are inserted.
+All of this is hardcoded to use card.resource, card.device, and direct
+memory access of the PCMCIA card in the OS software of of Amigas that
+are shipped with a PCMCIA slot.
+
+
+
+Partial emulation to support disk-formatted PCMCIA cards only
+=============================================================
+
+The following text applies to all non-DMAable PCMCIA peripherals
+(for example, one which attaches to the parallel port).
+
+One hardware note - the Amiga parallel (Centronics) port does
+not contain as many special software-controllable lines as a
+PC parallel port.  Most read-write PC parallel port peripherals
+make heavy use of all available software-controllable lines on the
+PC for data transfer and handshaking.  See the A500/A2000 Technical
+Reference Manual (a CATS support material) which contains a
+comparative chart of the Amiga and PC parallel ports.  See also
+the Amiga Hardware Manual.
+
+Again, you must write your own card.device-style trackdisk-emulating
+Amiga device driver.  This will allow you to mount your device as
+an Amiga disk and have the Amiga filesystem treat it as such.
+Note that Amiga PCMCIA disk-format cards contain a trackdisk-like
+disk image of arbitrary size preceded by PCMCIA tuples which
+describe the specifications and format of the card, and the location
+of the disk image.  See the RKM Devices volume sample device code for
+an example of a trackdisk-emulating device.  Note however that the
+sample device code does not implement disk change interrupt handling.
+See the PCMCIA Card Standard manual for information on PCMCIA tuples.
+
+If you wanted to support booting from such a device, this would
+require early (ie. pre-boot) system startup of your device code.
+To do this, you would either need to have a legal autoconfig Amiga
+Zorro bus expansion card containing ROM code, or an illegal
+card appearing at $F00000.  The mechanism of autoconfig ROM drivers
+is covered in the expansion library chapter of the RKM Libraries
+volume.  Most people do this WORD-wide with pairs of eproms containing
+the autoconfig ID information and the driver.  Such a ROM driver is
+best written in position-independent 68000 assembler and run directly
+in the ROM.  The $F00000 mechanism is simply that the the OS currently
+looks for and calls any ROMTAGs found in $F00000 memory. (See
+exec/resident.h and the exec autodoc for InitResident).
+
+If you do not plan to support booting from a PCMCIA card, then
+you can add your device to the system after boot-up by starting it
+up with a program or by mounting a volume which uses your device
+(the system will then load your device driver from the DEVS: drawer).
+This means you won't need to build an Amiga expansion card.
+
+In either case:
+You will need to write your own driver code to emulate the Amiga
+trackdisk.device for reading , writing, formatting, changing, etc.
+Our sample.device code (in A-W archives on Fish disk 344) might be
+a good place to start.  See also the text about ROM drivers in the
+expansion chapter.  Our Amiga card.device is be pretty much like
+trackdisk except it does not support the commands RAWREAD, RAWWRITE,
+GETNUMTRACKS and GETDRIVETYPE.  It does support GETGEOMETRY, and
+for hot insertion/removal, it supports the CHANGEINT-related commands.
+
+Unfortunately, we have no example code or docs on how to implement
+removability, and insertion of different cards with different size disks.
+This will require mounting (and even removing, if no outstanding Locks
+exist) volume nodes from the DOS device list on the fly.  And if different
+size disks are inserted, it may be necessary to rebuild the phisycal
+device node on the DOS device list also on the fly.
+
+
+
+How full emulation might be accomplished - and is it worth it:
+==============================================================
+
+Full emulation of the built-in Amiga PCMCIA slot requires a DMA.
+
+Theoretically, the following could be done:
+
+
+It may be possible to build a Zorro II  autoconfig card of small size
+which asks to be configured in I/O space (~$E90000) and contains a legal
+autoconfig ROM driver, but ALSO responds to accesses at $600000-$9FFFFF
+and $A00000 - $A1FFFF.
+
+Note that this in itself means that anyone using the card will lose
+1/2 of their Amiga expansion memory space for this card.
+At $600000 and $A00000, the expansion card must present the memory
+of any inserted PCMCIA card in a DMA-readable-and-writeable manner. 
+Interrupt hardware would be required to signal insertion/removal.
+
+At boot time, the ROM driver would behave as an autoboot driver
+(see RKM Libraries - expansion library chapter).
+
+During system initialization the ROM autoboot driver code would need to
+1. add its own card.resource-type arbitration resource
+2. add its own card.device-style trackdisk-emulating device to the system
+3. look for any inserted AmigaXIP card and call its code, emulating
+the system support for such cards.
+
+
+At RomTag INIT time, I imagine it would check for an inserted card, and
+check the PCMCIA tuples to see if it is a disk (see PCMCIA Card Standard).
+If it is a disk, it would create a suitable device node and boot node for it
+so the system could boot from it (see RKM Libraries expansion chapter).
+
+If the card was instead a plain RAM card, it would add it to the system
+memory list (see exec autodocs, AddMemList).
+
+If it is an Execute-In-Place, it may be too early at this time to call
+the AmigaXIP's romtag.  Instead, the driver may need to set up a dummy
+device and boot node, and then when it is called at Boot Time, it would
+InitResident the romtag on the XIP card.  If that initialization returns
+the driver would exit its boot time code without initializing DOS so that
+the system will try to boot off the next bootable device.
+Note that if AmigaXIP code returns, its return value (in D0) signifies
+whether or not the card should be considered removable.  TRUE means
+not removable, FALSE means removal is OK.
+
+If a non-removable card is ever removed, the driver must reboot the system.
+
+If a removable card is removed (ie. AmigaXIP which has served its purpose
+or has installed its software in RAM), then the ROM driver will need to be
+able to recoginize inserted disks on the fly, create device and volume node
+for them, etc.
+
+Note that we could theoretically ship machines which have no PCMCIA
+slot but use ROMs which happen to contain the card device and resource.
+There is no guarantee if you choose to name YOUR device and resource
+the same as ours, that there will not be a conflict in some systems.
+You can use different names to avoid possible conflict.  However, this
+will also require that you write your own utilities since ours are
+hardcoded for the card.resource and card.device.
+
+
+Additional References:
+	A500/A2000 Schematics and Expansion Specs (physical)
+	Addison-Wesley Amiga RKM Libraries (exec, expansion)
+	Addison-Wesley Amiga RKM Devices (trackdisk, sample device)
+	Sample device code in A-W archives on Fish disk 344
+	FmsDisk example code by Matt Dillon (Fish Disk 294)
+	Other sample devices on the Fish Disks
+	Exec autodocs (AddResource, AddMemList, InitResident, etc.)
+	PCMCIA Specifications
+

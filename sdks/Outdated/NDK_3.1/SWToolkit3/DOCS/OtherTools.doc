@@ -1,0 +1,985 @@
+Table of Contents (and reference to other docs):
+
+(NOTE: Development Tools and docs "DevTools" archive may be on another disk)
+
+ABSLOAD		see DevTools archive
+ADDMEM
+ALINK		see DevTools archive
+ATOM		see DevTools archive
+AUTODOC		see DevTools archive
+BREAKTASK
+BUMPBPR
+BUMPREV		see DevTools archive
+CARDS		see DevTools archive
+CATCOMP		see CatComp.doc
+CHARSET
+CONFIGDEV
+DECIGEL020
+DEVLIST
+DEVMON		see devmon.doc
+DISKED		see disked.doc
+DOSLIST
+DRIP		see drip.doc
+DTEST
+EATCYCLES
+EATMEM
+ENDRUN		see DevTools archive
+ENFORCER	see Enforcer.doc and Enforcer1.3.doc
+FLUSH
+FRAGS
+INTLIST		by Carl Sassenrath
+IO_TORTURE	see io_torture.doc
+KTEST
+LAWBREAKER	see Enforcer.doc
+LIBLIST
+LVO		see lvo.doc
+MEMLIST
+MEMMON
+MEMMUNG   	see MUNGWALL which includes MEMMUNG and is more powerful
+MEMORATION 	by Bill Hawes - see memoration.doc
+MEMORYTIDE
+MEMWALL   	see MUNGWALL which includes MEMWALL and is more powerful
+MERGEMEM
+MKS_LENS	see mks_lens.doc
+MODLIST
+MOVE4K		see Enforcer.doc
+MUNGLIST	see Mungwall.doc
+MUNGWALL	see Mungwall.doc
+OWNER		see owner.doc
+PEEK
+POKE
+PRINTA		see DevTools archive
+PRINTERTEST	see DevTools archive
+READPIXEL
+REPORT		see report.doc
+ROMWACK
+SCRATCH 	by Bill Hawes - see scratch.doc
+SEGTRACKER	see Enforcer.doc
+SETCAMG
+SETPARALLEL
+SETTASKNAME
+SHOWCONFIG
+SHOWGFXBASE
+SHOWLOCKS	by Charles McManis
+SNOOP		see also Mungwall.doc for MUNGWALL SNOOP option
+SNOOPSTRIP
+SPAREMEM
+STRIPA		see DevTools archive
+STRIPC		see DevTools archive
+SUSHI		see sushi.doc
+SYSLOCK		see DevTools archive
+SYSPM
+TASKLIST
+TNT
+TSTAT		see tstat.doc
+WACK		see wack.doc in wack.lha
+WATCHMEM 	see ENFORCER instead if you have an MMU !
+WEDGE		see wedge.doc
+WINLIST
+Some other recomended Tools
+
+
+
+ADDMEM
+
+Format:      ADDMEM <lower-hex-address> <upper-hex-address> [NOCLEAR]
+
+Template:    ADDMEM "LOWER-HEX-ADDRESS,UPPER-HEX-ADDRESS,NOCLEAR/S"
+
+Purpose:     To link external, non-autoconfigured RAM added to the Amiga's
+             system free list.
+
+Specification:
+
+ADDMEM is used to add external RAM to the Amiga.  The memory is tested and
+linked to the system free list.  If the NOCLEAR option is specified, the
+memory is not cleared.
+
+ADDMEM uses Exec's AddMemList() function, and the external memory is given
+the attributes MEMF_PUBLIC|MEMF_FAST.  The priority specified is zero.
+
+Example:
+
+1> ADDMEM F00000 F7FFFF
+
+adds one-half megabyte of memory.
+
+1> ADDMEM F00000 F40000 noclear
+
+adds 256K of memory, without clearing.
+
+
+
+ABSLOAD
+Format:      ABSLOAD [-D] [-M] [-X] [-S] [-B <Ksize>] [-O <sfile>] [-T<addr>]
+	     [<lfile>]
+
+Template:    ABSLOAD "-D/S,-M/S,-X/S,-S/S,-B/K,-O/K,-T/K"
+Purpose:     To convert Amiga loader format to Motorola srecords.
+Specification: see DevTools archive
+
+
+ALINK
+
+Format:      ALINK [FROM <objectfiles>] [WITH <files>] [TO <file>]
+	     [MAP <file>] [LIBRARY <files>] [VER <file>] [XREF <file>]
+	     [width <n>]
+
+Template:    ALINK "FROM=ROOT,WITH/K,TO/K,LIBRARY=LIB/K,MAP/K,VER/K,XREF/K,
+	     WIDTH/K"
+Purpose:     To link Amiga binary object files into loadable files.
+Specification: see DevTools archive
+
+
+ATOM
+Format:	     ATOM <infile> <outfile> [-I]
+				or
+	     ATOM <infile> <outfile> [-C[C|D|B]] [-F[C|D|B]]
+             [-P[C|D|B]]
+
+Template:    ATOM "INFILE,OUTFILE,-I/K"
+			 or
+	     ATOM "INFILE,OUTFILE,-C/K,-F/K,-P/K"
+Purpose:     To specify the portions of a program that should be loaded into
+             CHIP memory and/or FAST memory.
+Specification: see DevTools archive
+
+
+AUTODOC
+CATEGORY: Source code autodoc extractor
+USAGE:    See accompanying autodoc.doc
+USED FOR: Extracting standard function documentation from your source code
+
+
+NAME  autodoc - Extracts and sorts autodocs from the given files to stdout.
+
+SYNOPSIS
+	autodoc [ -tnum ] [ -i ] [ -a ] [ -s ] [ -C ] [ -lnum ] [ -w ]
+	[ -c ] [ -f ] [ -r ] [ -Ffile ] [ -I ] file1 [file2] [...]
+Specification: see DevTools archive
+
+
+BREAKTASK
+USAGE:    breaktask Task/CommandName [c][d][e][f] (default is CTRL-C)
+USED FOR: Sending a break signal to any task or process.
+	  Useful with commands that can throw another program into a Wait
+	  (example Mungwall, Wedge)
+
+
+BUMPBPR
+USAGE:	  bumpbpr ON|OFF [value] (value must be 32,64,128; default is 64)
+USED FOR: emulating AA scan line padding on systems without AA chips
+	  but running V39 (for additional compatibility testing)
+From Workbench: Double-click to toggle on and off
+
+Emulates the V39+AA rounding up of the BitMap width (BytesPerRow) of Screen
+bitmaps and displayable AllocBitMap'd bitmaps of the higher bandwidth modes.
+Use on non-AA or non-promoted V39 machines to test for many BytesPerRow
+compatiblity problems.  Test with bitmap/screen widths not divisible by 64.
+
+
+BUMPREV
+CATEGORY: Revision bumper
+USAGE:    Bumprev version revname  (example:  bumprev 37 my_rev)
+USED FOR: Updating revision include files (xxx_rev.h and xxx_rev.i)
+Specification: see DevTools archive
+
+
+CARDS
+
+Format:	     CARDS <cardfile>
+Template:    CARDS "CARDFILE/A"
+Purpose:     To display the index cards in an ASCII card file.
+Specification: see DevTools archive
+
+
+CHARSET
+USED FOR:  Displaying the Amiga character set and their ASCII values
+
+
+
+CONFIGDEV
+USED FOR:  Listing expansion boards
+SEE ALSO:  SHOWCONFIG (DEBUG Option)
+
+
+
+DECIGEL020
+USED FOR:  Fixing software that uses MOVE SR
+	   A software fix for programs that use instructions which
+           are priviledged on the 68010/020/030.
+	   
+
+DEVLIST
+USED FOR: Listing resident system devices
+	  Useful with FLUSH when developing a device
+
+
+DEVMON
+CATEGORY: Device monitor
+USAGE:    Devmon name.device unitnum [remote] [hex] [allunits] [full]
+    (remote is serial output, full has exec wedges in DoIO, ReplyMsg)
+USED FOR: Monitoring or debugging the calls to a device
+REQUIRES: Nothing for local monitoring. Serial terminal optional (slower)
+WARNINGS: Stresses system if wedged into high-usage or time-critical devices
+    (such stress could lead to crashes or hangs)
+Specification: see devmon.doc
+
+
+
+DISKED
+
+Format:	     DISKED <device>
+
+Template:    DISKED "DEVICE/A"
+Purpose:     To inspect and patch disk blocks.
+Specification: see disked.doc
+
+
+DOSLIST
+CATEGORY: Dos device lister
+USAGE:    Doslist [DEVS|VOLS|DIRS]
+USED FOR: Examining the dos device list
+
+
+DRIP
+
+Format:	     DRIP [<threshold>]
+Template:    DRIP "THRESHOLD"
+Purpose:     To reveal unrestrained memory allocation or deallocation.
+Specification: see drip.doc
+
+
+DTEST
+CATEGORY: Parallel connection tester
+USAGE:    DTest
+USED FOR: Checking parallel debugging setup
+
+
+EATCYCLES
+CATEGORY: Multitasking load test tool
+USAGE:    EatCycles (adjust gadgets for desired load)
+USED FOR: Testing software behavior under heavy system load
+
+
+EATMEM
+CATEGORY: Low memory test tool
+USAGE:    EatMem (adjust gadgets for desired amount/sizes of free memory)
+USED FOR: Testing software behavior under low memory conditions
+
+
+ENFORCER
+CATEGORY: MMU-based Watchdog tool for V37 and higher.  Most Important Tool.
+USED FOR: Trapping reads and writes of low/non-existent memory
+REQUIRES: MMU that is not being used, serial terminal, parallel printer,
+	  file, or SUSHI (see sushi.doc)
+see enforcer.doc for more info.
+
+
+
+ENFORCER1.3 and ENFORCER1.3.PAR
+CATEGORY: MMU-based Watchdog tool for 1.3 and earlier (doesn't work with '040)
+USAGE:    Enforcer [off|on|quiet|fprotect]
+USED FOR: Trapping reads and writes of low/non-existent memory
+REQUIRES: MMU that is not being used, serial terminal, parallel printer,
+	  or SUSHI (see sushi.doc)
+
+ENFORCER1.3.MEGASTACK is a special version of serial ENFORCER.13 which
+outputs many lines of stack dump in addition to the usual info.
+
+see enforcer1.3.doc for more info.
+
+
+
+FLUSH
+CATEGORY: Memory flusher (to check for real memory loss)
+USAGE:    Flush  (Note - Flush does 3 flushes when invoked)
+USED FOR: Flushing all currently unused devices/libraries/fonts from memory
+
+
+FRAGS
+
+Format:	     FRAGS [full]
+
+Template:    FRAGS "FULL/S"
+
+Purpose:     To display system free memory size distribution.
+
+Specification:
+
+FRAGS displays Amiga system free memory size distribution.  System free
+memory is maintained as a linked list of free regions of varying sizes.  As
+memory is dynamically allocated, some larger blocks of free memory may be
+fragmented (thus the command name FRAGS).
+
+By default, FRAGS shows the number and sizes of the remaining free regions.
+If the full option is specified, FRAGS instead shows the fragments for each
+separate allocation pool.
+
+Notes:
+
+1.The FRAGS program itself must load into memory (thus, frag memory).
+
+2.Large blocks are expressed as a sum of their parts.  For example, the
+count for 72 would appear as a 64 and an 8.
+
+Example:
+
+1> FRAGS
+
+Free memory size distribution:
+
+Chip Memory, $420
+
+   Size               Count
+    8:		   	6
+     16:	       12
+     32:		8
+     64:		5
+    128:		5
+    256:		2
+    512:		1
+   1024:		1
+   2048:	    	1
+   4096:   		0
+   8192:       		0
+  16384:		0
+  32768:		0
+  65536:		0
+ 131072:		0
+ 262144:		0
+
+
+INTLIST by Carl Sassenrath
+USED FOR: Listing system interrupt nodes
+
+
+IO_TORTURE and IO_TORTURE.PAR
+CATEGORY: Specialized watchdog for IORequest re-use
+USAGE:    IO_Torture
+USED FOR: Remote monitoring of premature re-use of IORequests
+REQUIRES: Serial terminal or parallel printer
+see io_Torture.doc for much more info
+
+
+KTEST
+CATEGORY: Serial connection tester
+USAGE:    KTest
+USED FOR: Checking serial debugging setup
+
+
+LAWBREAKER
+CATEGORY: Test program for Enforcer
+USAGE:    Lawbreaker
+REQUIRES: Enforcer
+
+
+LIBLIST
+USED FOR: Listing resident system libraries
+	  Useful with FLUSH when developing a library
+
+
+LVO
+CATEGORY: LVO generator, ROM address finder, Wedge-line generator
+USAGE:    lvo library [ funcname | lvo=0xhhhh or -n | romaddress=0xhhhhhhhh ]
+	  Options:  [CONTAINS] [WEDGELINE [wedgeopts]]
+REQUIRES: FD: assigned to a directory containg the FD files.
+see lvo.doc for usage
+
+
+MEMLIST
+CATEGORY: Full used and free memory chunk lister
+USAGE:    Memlist [>diskfile]
+USED FOR: Debugging fragmentation/deallocation problems
+
+
+MEMMON
+CATEGORY: Memory use recorder (helps narrow search for lost memory)
+USAGE:    MemMon (>diskfile)
+USED FOR: Producing a commented record of memory usage
+
+
+
+MEMMUNG   (See MUNGWALL which includes MEMMUNG and is more powerful)
+
+Format:	     MEMMUNG
+Template:    MEMMUNG
+Purpose:     To test for illegal use of memory.
+
+Specification:
+
+When a block of memory is freed by a task, it is returned to the free memory
+pool, and it becomes illegal for any task to access that memory.  However,
+every program is not perfect.  Some programs have bugs that try to access
+the memory.
+
+When MEMMUNG is running, any call to FreeMem() will be intercepted.  First,
+the block will be cleared to $4e41, then the normal free will take place.
+Since this value is both odd and a Trap #1 instruction, any attempt by a
+task to il legally reference the free memory will probably cause a Guru.
+
+Location 0 is set to $1e8b4e41 so that any program illegally accessing a
+NULL pointer will change behavior.
+
+It is possible to use Forbid(), free memory, then use the memory again.
+MEMMUNG will allow this.
+
+To quit MEMMUNG, either run it again or send it a break by typing Control-C.
+
+Example:
+
+1> run MEMMUNG
+
+If your software crashes while MEMMUNG is active, your software has a
+use-memory-after-free bug.
+
+
+
+MEMORATION by Bill Hawes
+CATEGORY: Extensive low memory problem testing and torture tool
+USAGE:    See doc file
+USED FOR: Selectively restricting available memory.  Memoration
+	  can be used to individually test failure conditions
+	  on EACH of your program's allocations.  Very useful.
+see memoration.doc for much more info
+
+
+MEMORYTIDE
+CATEGORY: serial memory usage monitor (based on alloc_max by Nicolas Costes)
+USAGE: memorytide [ticks]  (default/lowest is 25 ticks)
+USED FOR: watching changes of available memory
+
+Memorytide checks every 1/2 second (25 ticks) for changes in the amount
+of free system memory.  If there has been a change, it outputs the
+FAST and CHIP totals and largest to the serial port.
+
+
+MEMWALL   (See MUNGWALL which includes MEMWALL and is more powerful)
+CATEGORY: Memory allocation overwrite/underwrite monitor
+USAGE:    Memwall [all] [fill N] [presize N] [postsize N] [snoop] [supersnoop]
+USED FOR: Finding things that write past their allocated memory
+    Also for general snooping of memory allocations.
+REQUIRES: Serial terminal
+WARNINGS: Some things in the system (such as layers) free memory in smaller chunks
+    than they allocated.  When this is done, (or when it finds a fill area hit),
+    it does NOT let that area actually be deallocated.  This can lead to loss of
+    memory.  Note that presize or postsize may be 0.
+
+
+MERGEMEM
+
+
+Format:      MERGEMEM
+
+Template:    MERGEMEM
+
+Purpose:     To merge the MemLists of RAM boards.
+
+Specification:
+
+MERGEMEM attempts to merge the MemLists of sequentially configured RAM
+boards that have the same attributes as contiguous expansion RAM.  Memory
+from separate RAM boards is usually kept in separate memory pools.
+MERGEMEM attempts to merge the separate memory pools into one large pool
+for allocation of larger contiguous memory blocks by programs.  MERGEMEM
+only merges memory of the same attributes.  Note that 2.0 contains built
+in memory merging.
+
+
+
+MKS_LENS
+USED FOR: Magnifying and examining individual pixels of screen
+USAGE:    MKS_lens (use J gadget to jump to next screen)
+see mks_lens.doc for more info
+
+
+MODLIST
+USED FOR: Listing resident system modules
+
+
+
+MUNGLIST
+CATEGORY: Used memory allocation lister and remunge/check tool
+Requires Mungwall. See mungwall.doc
+ 
+
+MUNGWALL, MUNGWALL.PAR
+
+CATEGORY: Memory invalidation and memory overwrite/underwrite monitor
+USAGE:    Mungwall [UPDATE] [TASK name][WAIT] [NOWAIT]
+                   [SNOOP] [NOSNOOP] [INFO]
+                   [PRESIZE] [POSTSIZE [FILLCHAR] plus many new options!
+USED FOR: Catching accesses of uninitialized and freed memory
+    Finding things that write past their allocated memory
+    Also for general snooping of memory allocations by one or all tasks
+    (See also SnoopStrip for filtering of snoop option output)
+REQUIRES: Serial terminal or parallel printer or SUSHI (see sushi.doc)
+WARNINGS: Will provoke bad code to crash if not used with Enforcer.
+See mungwall.doc for much more info
+
+
+
+OWNER
+CATEGORY: Memory ownership tool
+USAGE:    Owner [0x] nnnn... (owner ? for help)
+USED FOR: Trying to determine ownership of allocated memory
+	  Useful to determine what ROM library a particular
+	  ROM address resides in (especially if you are crashing
+	  inside a ROM routine.  Then use LVO to try to find out
+	  what function you are crashing in).
+see owner.doc for more info
+
+
+PEEK
+USAGE:    Peek B|W|L [0x]address [[0x]compvalue] [[0x]mask]
+USED FOR: Checking or script branching on contents of a memory address
+
+
+POKE
+USAGE:    Peek B|W|L [0x]address [0x]value [[0x]mask]
+USED FOR: Changing the contents of a memory address
+WARNINGS: Obviously, poking where you shouldn't may crash machine.
+
+
+PRINTA
+
+Format:	     PRINTA <file> [NOHUNK]
+Template:    PRINTA "FROM/A,NOHUNK/S"
+Purpose:     To print the contents of Amiga binary format files.
+Specification: see DevTools archive
+
+
+PRINTERTEST
+
+Format:	     PRINTERTEST
+
+Template:    PRINTERTEST
+Purpose:     To test the printer.
+Specification: see DevTools archive
+
+
+READPIXEL
+USED FOR: Reading the XY screen location and color of pixels.  Can be
+    used to check the size and position of onscreen images.
+USAGE:    Readpixel  (then click on pixels to read)
+
+
+
+REPORT
+USED FOR: Generating Amiga bug reports and enhancement requests in the
+	  proper format.
+USAGE:    report [outfile] [help] (default outfile is ram:Report.txt)
+
+Generates Bug Reports, Compatibility Reports, and Enhancement Requests
+Specification: see report.doc
+
+
+ROMWACK
+
+Format:      ROMWACK
+
+Template:    ROMWACK
+
+Purpose:     To run the Amiga's ROM-resident debugger.
+
+Specification:
+
+NOTE: ROMWACK is only present in Amiga ROM version through V37
+
+ROMWACK is a small, ROM-resident debugger primarily used for system data
+structure examination.  All communication is through the RS-232-C serial
+data port at 9600 baud.  When ROMWACK is run, the Amiga will be frozen, but
+ROMWACK does not disturb the system beyond using a small amount of
+supervisor stack (memory between $200 and $400) and the serial port.  Once
+enabled, interrupts continue, but multitasking is halted.
+
+When ROMWACK is run, a register frame is printed.  The frame includes the
+current processor state as well as the system context from which ROMWACK
+was involved.  All numbers are treated as hexadecimal.
+
+Several key commands are used by ROMWACK:
+
+Relative positioning
+
+	.		forward a frame
+	,		backward a frame
+	>		forward a word
+	< 		backward a word
+	+n		forward n bytes
+	-n		backward n bytes
+	<RETURN>	redisplay current frame
+	<SPACE>		forward a word
+	<BACKSPACE>	backward a word
+
+Execution Control
+
+	go			execute from current address
+	resume			resume execution at current PC address
+	^D			resume execution at current PC address
+	^I (<TAB>)		single instruction step
+	boot			system cold reset
+	ig			system cold reset
+
+Breakpoints
+
+	set			set breakpoint at current address
+	clear			clear breakpoint at current address
+	show			show all breakpoint addresses
+	reset			clear all breakpoints
+
+Other
+
+	<hex-address>		set current address to <hex-address>
+	=			modify current memory word
+	alter			perform a repeated =; <RETURN> to exit
+	limit			set current address as the upper bound of find
+	find <pattern>		find <pattern> in memory, beginning with the
+				current address and ending with the address
+				set by limit; <pattern> may be from one to
+				four bytes in length
+	fill <pattern>		fill memory with <pattern> from the current
+				address to the upper bound address as set by
+				limit
+
+Example:
+
+1> ROMWACK
+PC: FC08B8  SR: 0010  USP: 01DB54  SSP: 07FFA  SCPT: 0000  TASK: 01C7D0
+
+DR: 00000000 0000F803 0001DC68 00000000 0000F803 00000008 0001C748 00000000
+
+AR: 000001E8 0001AC30 0000F803 00FF0282 0001DC68 0001DBBC 00000676
+
+SF: 00FF 395A 0001 DC68 00FE F8E4 00FE E$C$ 00FF 3470 00FE FA4A 0002 6B98
+    0001
+
+<RETURN>
+
+FC08B8 4E75 007C 2000 518F 40D7 2F7C 00FC 08B8 N u.. |  .. Q.. @.. / |....^H..
+:20
+FC08B8 4E75 007C 2000 518F 40D7 2F7C 00FC 08B8 N u.. |  .. Q.. @.. / |....^H..
+FC08C8 0002 3F7c 0020 0006 4ED5 0CAF 00FC 08AA ..^B? |..  ..^F N..^L......^H..
+:4
+FC08B8 4E75 007C  N u..  |
+>
+FC08BA 007C 2000 .. |   ..
++24
+FC08DE 00FC 08BA ....^H..
+
+See Also:  For a more detailed explanation of ROMWACK, see the 1.3 Amiga ROM
+Kernel Manual.
+
+
+SCRATCH by Bill Hawes
+CATEGORY: Scratch register (D1,A0,A1) invalidation tool
+USAGE:    See sample script scratchall.script,  Very important
+	  for testing assembler code !!!!
+USED FOR: Will provoke code with improper register usage to fail
+SEE ALSO: scratch.doc AND the script file SCRATCHALL.SCRIPT for usage
+	  of SCRATCH.  Execute the script to install SCRATCH.
+
+
+SEGTRACKER
+CATEGORY: Seglist tracker used by other tools (Enforcer, Owner, Mungwall, Tnt)
+USAGE:    call early in startup, after SetPatch, to install
+See Enforcer.doc for usage, calling conventions
+
+
+SETCAMG
+CATEGORY: ILBM CAMG mode changer
+USAGE: setcamg ilbmname flag [flag flag flag...]
+Flags: HIRES LORES LACE HAM HALFBRITE SUPERHIRES
+       PAL NTSC PRODUCTIVITY VGA EURO72 DBLPAL DBLNTSC
+       Example: setcamg mypicture HIRES HAM LACE
+       
+
+SETPARALLEL
+
+Format:      SETPARALLEL <index> <value>
+
+Template:    SETPARALLEL "INDEX/A,VALUE/A"
+Purpose:     To allow the CLI user to dynamically change any particular
+             parallel port parameter.
+Specification:
+
+SETPARALLEL allows the user to change the parameters for the parallel port.
+
+<index> is a decimal number that specifies the function SETPARALLEL is to
+perform, as follows:
+
+QUERY 	Print current parameter values and indexes without changing them.
+
+FLAG	Set ParFlags to <value>.  Valid values are:
+	PARF_SHARED	 	$20	ParFlags non-exclusive access mask
+	PARF_RAD_BOOGIE 	$08 	ParFlags (not yet implemented)
+	PARF_EOFMODE		$02	ParFlags EOF mode enabled mask
+
+EOF	Set PTermArray to <value>.  Value is interpreted as a long word and
+	thus occupies the first 4 bytes of the 8 byte array.  The latter 7
+	bytes are propagated with the low order byte (<value> & $FF).
+	PTermArray is only used when EOF mode is selected.  Thereafter, each
+	input character will then be compared against those in the array.
+	If a match if found, the read is terminated.
+
+<value> is the number to which to set the <index> parameter. <value> is
+decimal unless it starts with X or x, in  which case the number is
+interpreted as hexadecimal.  See <index> for determining <value>.
+
+Example:
+
+1> SETPARALLEL EOF x51040303
+
+1> SETPARALLEL QUERY
+ACTION		FIELD-NAME			    HEXADEC	    DECIMAL
+flag		io_ParFlags =			     	 22	         34
+eof		io_PTermArray.PTermArray0 =  51040303 	   1359217411
+		io_PTermArray.PTermArray1 =  03030303	     50529027
+
+		io_Status =			   06      	    6
+
+
+SETTASKNAME
+USAGE:    settaskname newname (will be truncated to length of old name)
+USED FOR: giving a shell a unique name so that it can be differentiated
+          from other shells when debugging.
+
+
+SHOWCONFIG
+CATEGORY: Motherboard and Autoconfig configuration lister
+USAGE:    ShowConfig [debug]
+USED FOR: Checking ROM/Processor/Chip versions, and autoconfig devices
+      With debug option, for checking all autoconfig params of boards.
+
+
+
+SHOWGFXBASE
+USED FOR: Examining GfxBase normal display sizes and flags
+
+
+
+SHOWLOCKS by Charles McManis
+
+Format:	     SHOWLOCKS <volumename:>
+
+Template:    SHOWLOCKS "VOLUME"
+
+Purpose:     To print out the access mode and path for every DOS file lock
+	     on a particular volume.
+
+Specification:
+
+SHOWLOCKS prints out the access mode and path for every DOS file lock on a
+particular volume.  This is useful for discovering programs that may not
+clean up properly and, consequently, leave unwanted locks in the system.
+
+Example:
+
+Lock Monitor, Copyright 1988 Charles McManis, prints out outstanding locks
+on a given volume.  (Lock #0 is the one created by this program)
+
+1> SHOWLOCKS a:
+
+------------------------
+--Number----Access--Path
+------------------------
+  Lock #0  : -2   'a:'
+  Lock #1  : -1   '(exclusive lock):'
+  Lock #2  : -1   '(exclusive lock):'
+  Lock #3  : -2   'a:devs/printers/Nec_Pinwriter'
+  Lock #4  :  0	  'a:devs/printers'
+  Lock #5  : -2   'a:S'
+  Lock #6  : -2   'a:System'
+
+
+
+SNOOP
+CATEGORY: Remote AllocMem/FreeMem debugger
+USAGE:    Snoop (use SnoopStrip on captured output to isolate unfreed Allocs)
+USED FOR: Debugging unfreed memory problems
+REQUIRES: Serial terminal
+NOTES:    Use Mungwall's SNOOP option instead for compatible output
+	  and ability to restrict reporting to one or more tasks.
+
+
+SNOOPSTRIP
+USAGE:    SnoopStrip [>outfile] infile
+USED FOR: Stripping matched allocs/frees from captured snoop output
+
+Use snoopstrip on the captured output of SNOOP or Mungwall SNOOP option
+to discard matched allocs/frees and help track down unfreed memory
+allocations.
+
+
+SPAREMEM
+USAGE:    sparemem c=[-]bytes f=[-]bytes [noisy]
+USED FOR: limiting available memory in a startup-sequence (for testing)
+
+
+
+STRIPA
+Format:	     StripA [FROM] <sourcefile> [TO] <destinationfile>
+Template:    StripA "FROM,TO/A"
+Purpose:     To remove debug and symbol hunks from binary load files.
+Specification: see DevTools archive
+
+
+STRIPC
+Format:	     StripC <sourcefile> <destinationfile>
+Template:    StripC "SOURCEFILE,DESTINATIONFILE"
+Purpose:     To remove comments and extraneous white space characters.
+Specification: see DevTools archive
+
+
+SUSHI
+CATEGORY: RAW serial output capture/display tool
+USED FOR: to allow use of serial debugging tools and functions
+	  (debug.lib kprintf) on a single system.
+see sushi.doc
+  
+
+SYSLOCK
+CATEGORY: System security utility
+USAGE:    SysLock
+USED FOR: Locking system with password
+See DevTools archive
+
+
+SYSPM
+CATEGORY: System performance monitor
+USAGE:    SYSPM
+
+SYSPM show the performance of a priority -10 task, and graphically
+shows the percentage of CHIP and FAST ram free on your system.
+The priority of the test task can be adjusted with the +/- keys.
+The speed of sampling can be adjusted with the </> keys.
+Written back when processors wre slower, might not work as well
+on fast machines.
+
+
+TASKLIST
+USED FOR: Listing system tasks
+
+
+
+TNT
+CATEGORY: Software error trap catcher (for all versions of OS)
+USAGE:    TNT  [ force | off | serial ] (must be installed before the crash occurs)
+USED FOR: Examining name, registers, PC, SP, of crashed task.  Useful
+	  to put in your user-startup unless you commonly use CPR or
+	  another trap-based debugger.  It you crash, you can get
+	  a lot more information if TNT is installed.
+
+	  New SERIAL option causes TNT to also output software error
+	  debugging information to raw serial.
+
+WARNING - If you use a single-step debugger, you may have to turn
+off TNT since single-step debuggers may use processor traps to
+single step.
+
+
+
+TSTAT
+CATEGORY: Task monitor
+USAGE:    Tstat [CLI# | ExecTaskName | CliCommandName] [-tickdelay]
+	  New options:  MEGASTACK (for larger stack dump)
+			NOCTRL (for no CTRL characters in output)
+
+USED FOR: Monitoring PC, regs, stack, signals, etc. of a running task
+	  Displays the task's info as it was when they were switched out.
+	  Useful as a poor-man's logic state analyzer.  Bump of the
+	  priority of the shell running TSTAT to get finer granularity
+	  when watching another task.
+see also tstat.doc
+
+
+WACK
+USED FOR:  Disassembling, tracing, and other debugging
+see wack.doc in wack.lha for full explanation of WACK and its macros.
+
+
+WATCHMEM (see ENFORCER instead if you have an MMU !)
+
+Format:	     WATCHMEM [<file>|<window>] [OPT N] [<interval>]
+
+Template:    WATCHMEM "TO,OPT/K,INTERVAL"
+
+Purpose:     To detect illegal writes to low memory.
+
+Specification:
+
+WATCHMEM inspects low memory for illegal writes.  If any illegal writes are
+detected, WATCHMEM will intercept them and signal you by an alert.  If you
+specify the [<file>|<window>] option, WATCHMEM will instead write to a
+window, the serial device, or a designated file. [OPT N] will disable the
+interception of the illegal write.
+
+The [<interval>] option lets you specify the interval at which WATCHMEM
+inspects low memory.  The default for this option is 2000 bytes.
+
+To stop WATCHMEM, send it a BREAK signal by simultaneously pressing the
+Control and the C keys.
+
+To activate WATCHMEM from the Workbench, double-click on its icon.  When run
+from the Workbench, WATCHMEM inspects low memory at an interval of 2000
+bytes and automatically corrects any illegal writes.
+
+Examples:
+
+1> WATCHMEM
+
+checks low memory for any illegal writes and signals you with an alert.
+
+1> WATCHMEM SER: OPT N
+
+runs WATCHMEM as a separate process and sends the output to the serial
+device.  The illegal write is not corrected because the N option was
+specified.
+
+WARNINGS: This processor-based tool can not prevent writes to low memory.
+ 	It can correct them after they occur, but you might crash first.
+	If you have an MMU, use Enforcer instead!
+
+(WATCHMEM was inspired by the MemWatch program written by John Toebes VIII.)
+
+
+WEDGE
+CATEGORY: System function monitor - wedge into any system function
+USAGE:    Complex and best done with scripts - type Wedge help for help
+USED FOR: Monitoring the calls to and results from any system function
+REQUIRES: Limited local monitoring, serial or parallel for full monitoring
+WARNINGS: Can bog system down; can crash if calling task has tiny stack.
+    Local monitoring can cause recursive looping if functions called
+    by text output routines are wedged.
+SEE ALSO: wedge.doc for much more information, and LVO for
+	  generating wedge command lines
+
+
+
+WINLIST
+USAGE:	  WinList
+USED FOR: Examining addresses, titles, flags, sizes of screens and windows
+
+
+
+Some other recomended Tools:
+
+METASCOPE
+ (by Metadigm)
+CATEGORY: Multiwindow Intuition interface symbolic debugger/disassembler
+USED FOR: Disassembling, single stepping, breakpointing
+WARNINGS: Improper use could lead to a crash.
+FOUND IN: Stores (Commercial product)
+
+
+CMD
+CATEGORY: Parallel/Serial output capture tool
+USAGE:    Type cmd help for usage
+USED FOR: Debugging printer, serial, and parallel output
+FOUND ON: Workbench 2.0
+
+
+RCS
+CATEGORY: Source/document control
+USAGE:    See accompanying docs on Fish Disk 282
+USED FOR: Recording changes to source code and documents
+FOUND ON: Fish Disk 282

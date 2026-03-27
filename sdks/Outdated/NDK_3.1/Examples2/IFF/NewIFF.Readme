@@ -1,0 +1,279 @@
+
+	             NewIFF39: IFF Modules with AA Support
+
+
+The NewIFF39 code modules and examples based on iffparse.library are
+designed as replacements for the original EA IFF code.  The object code
+modules (with source provided) contain many high-level support functions
+for reading and writing IFF files and clipboard data, and for loading,
+saving, and displaying ILBM files in a 1.3 through 3.0/AA compatible manner.
+In some modules, it has been possible to retain much of the original
+EA IFF code.  However, most structures and most higher level function
+interfaces have changed.
+
+On the plus side, these new modules contain many easy-to-use functions
+for querying, loading, displaying, and saving ILBMs.  During their
+development, modules similar to these have been used inhouse at Commodore
+for the Display program and several other ILBM applications.
+The screen.c module provides powerful display-opening functions which are
+1.3-compatible yet provide a host of new options under 2.0 and 3.0 such
+as centered overscan screens, full-video display clips, border transparency
+control, and autoscroll.  This 39.x releases of the NewIFF code also support
+V39 and the AA chipset for full 8-bit-per-gun color and AA modes.
+Modules are provided for printing (screendump) and for preserving or
+adding chunks (copychunks). And the 8SVX example now actually plays samples
+and instruments.  In addition, clipboard support is automatic for all
+applications that use the IFFP modules because parse.c's openifile()
+interprets the filename -c[n] (ie. "-c", "-c1", "-c2", etc.) as clipboard
+unit n.
+
+All of the applications with the NewIFF code require iffparse.library
+which has been part of the OS since Workbench 2.0.  Please note that
+the 2.04 Workbench version of iffparse.library is a 1.3-compatible library,
+and that all of the modules and examples (with the exception of Save8)
+have been designed to take advantage of 2.0/3.0, but also work under 1.3.
+Developers who wish to distribute iffparse.library on their commercial
+products may execute a 2.0 Workbench license, or may get an amendment to
+their 1.3 Workbench license to allow distribution of iffparse.library.
+
+
+The NewIFF39 modules contain enhanced code in many areas to take
+advantage of 2.0 and 3.0 features while remaining functional under
+1.3 (with 2.04 iffparse.library).  In addition, great effort has been
+put into identifying and replacing any code sections which were
+inflexible or not upwards compatible.  The code implements 32-bit
+CAMG, display database aspect ratios, 8-bit CMAP from 4, 8, or 32-bit
+color data, mode fallback when an ILBM's display mode is not available,
+overscan centering (except under 1.3) based on the user's closest
+Preference setting with display clips properly constrained to maximum
+limits, setting of as many colors as the destination can handle,
+default detection and adjustment of old 4-bit left-shifted CMAP values,
+and built-in support for up to 24 planes of data plus a Mask plane.
+Note that currently, the 24 planes plus 1 mask plane limit is hardcoded,
+but we expect to make this more flexible in a future release of the code,
+perhaps also adding alpha channel support.
+
+
+Through the use of tag-like arrays of desired chunk ID's, applications
+can control which chunks are gathered by the parsing module.  It is also
+possible to clone chunks for rewriting and for applications to add chunks
+to written FORMs.  Applications may also pass additional screen tags
+to the display-opening module (screen.c) and may control much of this
+module's default behavior through flags (see iffp/ilbmapp.h of NewIFF39).
+
+
+Most of the high-level function pairs provided in these modules have
+been designed to provide safe cleanup for themselves.  For example,
+a loadbrush() that succeeds or fails at any point can be cleaned up
+via unloadbrush.  The cleanup routines null out the appropriate
+pointers so that allocations will not be freed twice.
+
+
+All applications use the parse.c module.  The basic steps
+for using the parse.c module are:
+
+	o Define tag-like arrays of your desired chunks (readers only)
+
+	o Allocate one or more [form]Info structures as defined in
+	  iffp/[form]app.h (for example an ILBMInfo defined in
+	  iffp/ilbmapp.h).
+
+	o Initialize the ParseInfo part of these structures to the
+	  desired chunk arrays, and to an IFFHandle allocated via
+	  iffparse AllocIFF().
+
+	o Use the provided high level load/save functions, or use the
+	  lower level parse.c openifile(), reader-only parseifile()/
+	  getcontext()/nextcontext(), and closeifile().  The filename
+	  -c[n] may be used to read/write clipboard unit n.
+
+	o Clean up, FreeIFF(), and deallocate [form]Info's.
+
+
+V39/AA Support
+
+For NewIFF39, the ILBMInfo was extended to support a 32-bit-per-gun
+representation of the CMAP for use with the V39 color setting
+functions.
+
+/* --- New --- */
+WORD  *colorrecord;     /* Passed to LoadRGB32 (ncolors,firstreg,table) */
+Color32 *colortable32;  /* 32-bit-per-gun representation of colors      */
+ULONG crecsize;         /* Bytes allocated including colorrecord WORDs  */
+
+
+For compatibility, the old style WORD array colortable of xRGB 4-bit values
+is still created for all loaded ILBMs.
+But the NewIFF39 code will also automatically allocate and create the 32-bit
+color table under V39 or higher, unless the calling application asks it
+not to by setting IFFPF_NOCOLOR32 in ILBMInfo->IFFPFlags:
+
+/* Don't allocate or use a 32-bit-per-gun Color Table under V39 or above */
+#define IFFPB_NOCOLOR32 0
+#define IFFPF_NOCOLOR32 (1L << IFFPB_NOCOLOR32)
+
+
+By default, the NewIFF39 code will examine the low nibbles
+of an ILBM.CMAP to determine if it is an old-style left-shifted
+4-bit-per-gun CMAP, and if all of the low nibbles of all usable
+registers are zero, the code will assume a 4-bit CMAP and scale the 4-bit
+values properly to 32 bits.  This CMAP examination is disabled if
+either the ILBM.BMHD->Flags contains the flags BMHDF_CMAPOK (1L << 7),
+OR if the calling application passes the IFFPF_CMAPOK flag in
+ILBMInfo->IFFPFlags.  In either of these cases, the 8-bit CMAP
+values will be accepted as-is, and scaled to 32 bits.
+
+
+Since V37, the NewIFF code has supported saving of 8-bit-significant
+CMAP data, and the function interface will accept 4-bit, 8-bit, or
+32-bit per gun color data.
+
+
+Currently, the NewIFF code does not make use of V39 Datatypes,
+and therefore has does not have the capability to load non-IFF file formats.
+You may wish to link with the NewIFF modules but also add conditional
+application code to make use of Datatypes when datatypes.library is
+present.  This would allow you program to be backwards compatible
+while taking even greater advantage of V39.
+
+
+Locale Support
+
+The NewIFF39 code does not use locale.library as-is.  However, the code
+is prepared for localization.  A catalog file of all module strings
+is provided (iffp.cd), and the module include file iffpstrings.h is
+generated from this iffp.cd file using CatComp 39.x.  All string handling
+for the modules has been centralized in modules/iffpstrings.c which
+includes comments regarding locale support.  See the Locale.Readme
+in the NewIFF39 archive for additional tips on writing localized
+IFF applications.
+
+
+IMPORTANT NOTES
+
+o Clipboard and File Handles
+
+	Most of the higher-level load functions keep the
+	IFFHandle (file or clipboard) open.  While the handle is
+	open, you may use parse.c functions (such as findpropdata)
+	OR direct iffparse functions (FindProp(), FindCollection())
+	for accessing the gathered chunks.  However, it is not a good
+	idea to keep a filehandle OR the clipboard open.  While
+	a clipboard unit is open, no other applications can clip
+	to the unit.  And while a file is open, you can't write the
+	file back out.  So, instead of keeping the file or unit
+	open, you can use copychunks (in copychunks.c) to create
+	a copy of your gathered chunks, and do an early closeifile()
+	(parse.c).  Then access and later write back out (if you wish)
+	and deallocate your copied chunks via the routines in the
+	copychunks module (findchunk, writechunklist, freechunklist).
+
+o Complex Forms
+
+        The parse.c module will enter complex formats such as
+	CATSs, LISTs, and nested FORMs to find the FORM
+	that you are interested in.  This is great.  However, if you are
+        a read-modify-write program, you should warn your user when this
+        occurs unless YOU are capable of recreating the complex format.
+	Otherwise, your user may unknowingly destroy his complex file
+	by writing over it with your program.  Example - a paint
+	program could read an ILBM out of a complex LIST containing
+	pictures and music, and then save it back out as a simple ILBM,
+	causing the user to lose his music and other pictures.
+	To determine if a complex form was entered after a load,
+	check the (form)Info.ParseInfo.hunt field.  If TRUE (non-zero), 
+	then your file was found inside a complex format.
+
+
+
+		LIST OF IFFP MODULES AND APPLICATIONS
+                =====================================
+	NOTE - Some useful functions are listed with each module
+ 	   See module source code for docs on each function.
+		See application examples for usage.
+
+APPLICATIONS (these require linkage with modules - see Makefiles)
+============
+ILBMDemo	Displays an ILBM, loads a brush, saves an ILBM, opt. print
+ILBMLoad	Queries an ILBM and loads it into an existing screen
+ILBMtoC		Outputs an ILBM as C source code
+ILBMtoRaw	Converts an ILBM to raw plane/color file
+RawtoILBM	Converts raw plane/color file (from ILBMtoRaw) to an ILBM
+24bitDemo	Saves a simple 24-bit ILBM and then shows it 4 planes at
+		a time (if given filename, just does the show part)
+Play8SVX	Reads and plays an 8SVX sound effect or instrument
+		  - LoadSample, UnloadSample, PlaySample, OpenAudio,
+		    CloseAudio, and body load/unpack functions
+PlaySMUS	Just a skeleton for a SMUS player - it loads the SMUS
+		and samples.
+ScreenSave	Save the front screen or viewport as an ILBM, with an icon
+Save8		Create and save an 8-plane 256 color screen (V39/AA)
+
+
+OTHER EXAMPLES (use iffparse.library directly and require no modules)
+==============
+Sift		Checks and prints outline of any IFF file (uses RAWSTEP)
+ILBMScan	Prints out useful info about any ILBM
+ClipFTXT	Demonstrates simply clipping of FTXT to/from clipboard
+apack.asm	Dr. Gerald Hull's assembler replacement for packer.c
+unpacker.asm    An assembler replacement
+
+ALSO PROVIDED
+=============
+Display		1.3 through 3.0 compatible ILBM display and slideshow
+		program - supports AA.
+bumprev		updated version of bumprev revision file creation utility
+
+GENERAL IFFPARSE SUPPORT MODULE
+===============================
+parse.c		File/clipboard IO and general parsing
+		  - openifile, closeifile, parseifile, getcontext,
+		    nextcontext, contextis, currentchunkis, PutCk chunk
+		    writing function, and IFFerr text error routine
+
+iffpstrings.c   Centralized string and message handling for modules.
+
+ILBM READ MODULES
+=================
+loadilbm.c	High level ILBM load routines which are passed filenames
+		(calls getbitmap)
+		  - loadbrush/unloadbrush, loadilbm/unloadilbm, and queryilbm
+getbitmap.c	brush/bitmap loading (non-display, calls ilbmr.c)
+		  - createbrush/deletebrush, getbitmap/freebitmap
+getdisplay.c	bitmap load/display (calls screen.c, ilbmr.c)
+		  - showilbm/unshowilbm, createdisplay/deletedisplay
+screen.c	1.3/2.0/3.0 AA/ECS/non-ECS compatible screen/window module
+		  - opendisplay, openidscreen, modefallback, clipit
+ilbmr.c		Lower level ILBM body/color load routines (calls unpacker.c)
+		  - loadbody, loadcmap, getcolors/freecolors,
+		    alloccolortable, getcamg (gets or creates modeid)
+unpacker.c	BODY unpacker
+
+
+ILBM WRITE MODULES
+==================
+saveilbm.c	High level ILBM saving routines which are passed filenames
+		(calls ilbmw.c)
+		  - screensave and saveilbm
+ilbmw.c		Lower level ILBM body/color save routines (calls packer.c)
+		  - InitBMHD, PutCMAP, PutBODY
+packer.c	BODY packer
+
+
+EXTRA MODULES
+=============
+copychunks.c	Chunk cloning and chunk list writing routines
+		  - copychunks, findchunk, writechunklist, freechunklist
+screendump.c	Screen printing module (iffparse not required)
+bmprintc.c	Module to output ILBM as C code
+
+
+INCLUDE FILES
+=============
+iffp/#?.h	This subdirectory may be kept in your current directory
+		or in your main include directory.
+
+
+Thanks to Steve Walton for his code changes for Manx/SAS compatibility,
+and to Bill Barton and John Bittner for their comments and suggestions.
+

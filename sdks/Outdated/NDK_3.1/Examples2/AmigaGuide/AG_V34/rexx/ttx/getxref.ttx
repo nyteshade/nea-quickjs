@@ -1,0 +1,106 @@
+/** $VER: GetXRef.ttx 2.0 (30.Oct.91)
+ ** Written by David N. Junod
+ **
+ ** Display the hypertext Autodoc page for the word currently under the
+ ** cursor.
+ **
+ ** Add the following line to your TTX_Startup.dfn file, in the KEYBOARD:
+ ** section.
+ **
+ **   HELP        ExecARexxMacro REXX:GetXRef.ttx SYNC
+ **   SHIFT-HELP  ExecARexxMacro REXX:GetXRef.ttx ASYNC
+ **
+ ** Add the following lines to your S:user-startup file.
+ **
+ **   RX "AddLib('amigaguide.library',0,-30)"
+ **   RX "LoadXRef('autodocs.xref')"
+ **
+ **/
+
+OPTIONS RESULTS
+PARSE ARG mode word
+
+IF ~SHOW('L','amigaguide.library') THEN
+   CALL ADDLIB('amigaguide.library',0,-30)
+
+/* Did they pass a word? */
+IF word = "" THEN DO
+
+  GetWord
+  word = RESULT
+
+  END
+
+RequestStr PROMPT "Function:" word
+word = RESULT
+
+/* See if the Autodoc cross-reference table is loaded */
+line = GetXRef("OpenWindow()")
+IF line = 10 THEN DO
+
+   /* Show that we're doing something */
+   message = 'Loading cross-reference file...'
+   SetStatusBar Temporary message
+
+   /* The Autodoc table wasn't loaded, so load it. */
+   LoadXRef(autodocs.xref)
+   END
+
+/* See if the word is in the cross-reference table */
+function = word
+xref = 0
+line = GetXRef(function)
+IF line = 10 THEN DO
+  /* Add the parens to the name */
+  function = word||"()"
+
+  /* Try again */
+  line = GetXRef(function)
+  IF line = 10 THEN DO
+     function = word
+     END
+  ELSE DO
+     xref = 1
+     END
+  END
+ELSE DO
+  xref = 1
+  END
+
+/* Show that we're doing something */
+message = 'Loading '||function||'...'
+SetStatusBar Temporary message
+
+/* See if we have an Autodoc viewing window open */
+IF ~SHOW('P','AUTODOCS') THEN DO
+
+  /* See if we are trying to load a database or a document */
+  IF xref = 0 THEN
+     cmd = "run AmigaGuide "||function||" portname AUTODOCS pubscreen TURBOTEXT requester"
+  ELSE
+     cmd = "run AmigaGuide document "||function||" portname AUTODOCS pubscreen TURBOTEXT requester"
+
+  ADDRESS COMMAND cmd
+
+  END
+
+ELSE DO
+
+  /* What command do we use to show the node */
+  link = "Link"
+  IF mode = "ASYNC" THEN
+     link = "ALink"
+
+  /* See if we are trying to load a database or a document */
+  IF xref = 0 THEN
+     cmd = link||" "||function||"/main"
+  ELSE
+     cmd = link||" "||function
+
+  /* Align the window */
+  ADDRESS AUTODOCS cmd
+
+  /* I want it to come to the front, because I have limited space */
+  ADDRESS AUTODOCS "windowtofront"
+
+  END

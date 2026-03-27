@@ -1,0 +1,163 @@
+Copyright (C) 1995 Escom AG
+The following information may only be reproduced and used in accordance
+with the requirements and limitations set forth below. This information
+may be used by licensees of AmigaDOS in combination with their lawful
+use of licensed copies of AmigaDOS. Reproduction of this information
+is limited to that reasonably required for the use of AmigaDOS in
+accordance with such license. All reproduction of this information,
+in whole or in part, must retain this copyright notice as well as the
+warranty disclaimers and limitation of liability as set forth below.
+All Other Rights are Reserved.
+
+Escom AG makes no warranties or representations, either express,
+or implied, with respect to the information set forth herein, which information
+is being supplied on an "AS IS" basis, expressly subject to change without notice.
+The entire risk as to the use of this information is assumed by the user.
+IN NO EVENT WILL ESCOM AG BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, OR
+CONSEQUENTIAL DAMAGES RESULTING FROM ANY CLAIM ARISING OUT OF THE INFORMATION
+PRESENTED HEREIN, EVEN IF IT HAS BEEN ADVISED OF THE POSSIBILITIES OF SUCH
+DAMAGES. SOME STATES DO NOT ALLOW THE LIMITATION OF IMPLIED WARRANTIES
+OR DAMAGES, SO THE ABOVE LIMITATIONS MAY NOT APPLY.
+
+
+SetPatch (c) Copyright 1990-1995, Escom AG. All Rights Reserved.
+
+
+SetPatch 40.16 is designed to improve system operation of the Amiga
+computer with Amiga DOS 2.1 (V38) through 3.1 (V40). The Update_SetPatch
+icon or shell-script is designed to automatically update the version of
+SetPatch you are using.  If you already have an up-to-date SetPatch,
+Update_SetPatch will inform you of that fact and not replace SetPatch.
+
+
+The key features of this version of SetPatch are:
+
+  o Fixes memory pools, such as used by datatypes. Empty puddles would
+    not get returned to the free memory list.
+
+  o Fixes problem of A2 and A6 being trashed by V40 WriteChunkyPixels()
+
+  o Does not open nonvolatile.library if not already loaded
+
+  o Fixes problem of d7 register being trashed by BltBitMap() after an
+    interleaved blit with a mask of -1.
+
+  o Fixes BestModeIDA() when passed a BIDTAG_MonitorID of DEFAULT_MONITOR_ID
+    (this was returning INVALID_ID)
+
+  o On A3000 with SCRAM memory and 68040 processor running 37.175,
+    turns off Page mode (shouldn't have been on).
+
+  o New NOAGA keyword so bootable applications which want the patches
+    but are incompatible with the AA chipset can still use the SetPatch.
+
+  o Several additional patches for CD32 subsystems such as cd.device
+    and nonvolatile.library which are applied if these subsystems
+    are present.
+
+This is a minor update to SetPatch v40.14 which primarily addresses the
+problem of memory pool deallocations not returning all memory until
+the pools were eventually deleted. This SetPatch version is identical to
+the v40.16 release found on Workbench 3.1 (v40.42).
+   Unfortunately, the link library memory pool routines found in amiga.lib
+v40.14 as included with the 3.1 NDK do not return empty memory puddles to
+the free memory list either. This is a problem that cannot be addressed
+through SetPatch, which is why a small "pools.lib" is enclosed with which
+software developers should link their programs in addition to amiga.lib.
+Make sure to first link with pools.lib first, then with amiga.lib. Please
+note that the "Update_SetPatch" script will not install pools.lib, you will
+need to do it manually.
+
+
+These features of V39 SetPatch are included:
+
+  o Activates AA chips if present (all SetPatches V39 and higher do this).
+
+  o On some systems, NMI interrupts could be caused due to hardware
+    bugs.  These NMIs can cause software/hardware to perform incorrectly
+    and has caused major performance problems in some systems.
+    In the V37 ROM, the NMI vector pointed at a generalized routine
+    that saved all registers, does some work which ends up doing nothing,
+    restores all registers, and exits.  This patch will, under V37 ROMs,
+    move that vector to point directly at an RTE.
+
+  o SetPatch no longer reads the longword after the end of each of
+    its hunks.
+
+  o Now checks for the CPU type before trying to open the 68040.library
+    This is so that the library does not even get loaded if you don't
+    need it.  (The 68040.library also does the check.)
+
+  o Does not turn on the caches if the intruction cache is not
+    already on.  This is such that the bootmenu option will not
+    be "undone" by SetPatch.
+
+
+This SetPatch also incorporates the following patches from 37.38 and
+earlier SetPatches which are applied as required, depending on the
+version of the OS:
+
+  o On certain 68000-based Amigas, some software which would fail with an
+    alert number of 80000003 is now made to work.
+
+  o Many older external floppy drives which might have had problems
+    under 2.04 now work.
+
+  o Setpatch opens the 68040.library and reports the fact that it did
+    that.  The 68040 library will only open on systems equipped with a
+    68040 CPU.
+
+  o The IDE driver in the A600 compensates for an internal cache problem
+    with Conner CP2024 hard drives.
+
+  o On A3000 machines that have 68040 CPUs and are running the 37.175
+    version of the ROM OS, and have SCRAM memory, page mode operation is
+    turned off.
+
+  o CIA interrupt servers are moved to priority 0 if they are lower than
+    priority 0.
+
+  o Patches console.device CMD_CLEAR to set up registers correctly.
+
+  o Patch to remove potential deadlock condition between console device
+    and Intuition's DisplayBeep().
+
+  o Patch to properly flush buffered file handles which have never been
+    read from.
+
+  o Blitter interrupts can be erroneously turned on during system
+    initialization.  SetPatch forces them off.
+
+  o The slop area for high density floppies is now correctly
+    initialized.  This fixes problems when switching between high and
+    low density disks on a high-density drive.
+
+  o The IAddress field of IDCMP_MOUSEMOVE and IDCMP_MOUSEBUTTONS
+    IntuiMessages now has 1.3-compatible values.  This fixes some
+    programs which are erroneously attempting to extract a GadgetID
+    from non-gadget-related IntuiMessages.  Such programs crash
+    on 68000-based Amigas with a guru number 80000003.
+
+  o The line-A exception entry can be inadvertently altered by the ROMs.
+    SetPatch corrects this.
+
+  o The V37.175 ROM does not unpack the monitor data from the ROM
+    correctly.  This is corrected by first checking if the monitor
+    exists and returning bad mode ID return codes if it does not.
+
+  o Open() of paths more than 128 characters long now works.
+
+  o The SIGF_SINGLE signal bit is now cleared before allowing an open of
+    scsi.device to proceed.  Certain versions of scsi.device fail to
+    clear that signal before using it.
+
+  o Patch to fix some holes in the SharedSemaphore routines.
+
+  o Fixes some applications using certain inappropriate functions such
+    as SetRGB4() from within an interrupt.
+
+  o The 2000 microsecond waits from trackdisk are increased to 3000
+    microseconds, in order to allow older A1010 drives to work under 2.0.
+
+  o The level-7 interrupt vector is pointed at an RTE instruction, for
+    efficiency.

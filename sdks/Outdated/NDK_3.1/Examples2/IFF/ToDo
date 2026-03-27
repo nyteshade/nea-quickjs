@@ -1,0 +1,6 @@
+
+ToDo - maybe fix bmprintc.c and ILBMtoRaw to deal with interleaved bitmaps.
+       get rid of 24-plane plus one mask plane limit
+       add interleaved alpha-channel support ?
+       stop using CopyMem from buffer to planes (when a FAST mem
+       BitMap copying alternative is available)

@@ -1,0 +1,8 @@
+
+SCRATCH by Bill Hawes
+CATEGORY: Scratch register (D1,A0,A1) invalidation tool
+USAGE:    See sample script scratchall.script,  Very important
+          for testing assembler code !!!!
+USED FOR: Will provoke code with improper register usage to fail
+SEE ALSO: the script file SCRATCHALL.SCRIPT for usage of SCRATCH.
+          Execute the script to install SCRATCH.

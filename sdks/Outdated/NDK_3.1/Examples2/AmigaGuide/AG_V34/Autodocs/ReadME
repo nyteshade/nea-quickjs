@@ -1,0 +1,16 @@
+The files contained in this directory are sample files that
+were used to create the AmigaGuide version of the Autodocs
+for the V1.0 CATS CD.
+
+The autodocs.excepts file must be joined to the autodocs.xref
+file.  The autodocs.excepts file contains function names that
+are also common words and therefore shouldn't be made into
+links.
+
+An assign of TEXT_INCLUDE: must be made to a directory that
+contains the unarchived contents of inc37_3.lzh.
+
+The Autodocs file is the file that was used as the table
+of contents for the Autodocs on the V1.0 CATS CD.  The icon
+is a miniature of the Includes & Autodocs RKM cover.
+

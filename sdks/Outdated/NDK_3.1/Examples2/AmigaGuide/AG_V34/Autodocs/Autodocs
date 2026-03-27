@@ -1,0 +1,63 @@
+@database Autodocs
+
+@node Main "Autodocs"
+@toc "Contents/CATS_CD@Autodocs"
+
+Link Libraries
+
+ @{"amiga_lib.doc" link "amiga_lib/main"}
+ @{"ddebug_lib.doc" link "ddebug_lib/main"}
+ @{"debug_lib.doc" link "debug_lib/main"}
+
+Shared Libraries
+
+ @{"asl.doc" link "asl/main"}
+ @{"commodities.doc" link "commodities/main"}
+ @{"diskfont.doc" link "diskfont/main"}
+ @{"dos.doc" link "dos/main"}
+ @{"exec.doc" link "exec/main"}
+ @{"expansion.doc" link "expansion/main"}
+ @{"gadtools.doc" link "gadtools/main"}
+ @{"graphics.doc" link "graphics/main"}
+ @{"icon.doc" link "icon/main"}
+ @{"iffparse.doc" link "iffparse/main"}
+ @{"intuition.doc" link "intuition/main"}
+ @{"keymap.doc" link "keymap/main"}
+ @{"layers.doc" link "layers/main"}
+ @{"mathffp.doc" link "mathffp/main"}
+ @{"mathieeedoubbas.doc" link "mathieeedoubbas/main"}
+ @{"mathieeedoubtrans.doc" link "mathieeedoubtrans/main"}
+ @{"mathieeesingbas.doc" link "mathieeesingbas/main"}
+ @{"mathieeesingtrans.doc" link "mathieeesingtrans/main"}
+ @{"mathtrans.doc" link "mathtrans/main"}
+ @{"rexxsyslib.doc" link "rexxsyslib/main"}
+ @{"translator.doc" link "translator/main"}
+ @{"utility.doc" link "utility/main"}
+ @{"wb.doc" link "wb/main"}
+
+Devices
+
+ @{"audio.doc" link "audio/main"}
+ @{"clipboard.doc" link "clipboard/main"}
+ @{"console.doc" link "console/main"}
+ @{"gameport.doc" link "gameport/main"}
+ @{"input.doc" link "input/main"}
+ @{"keyboard.doc" link "keyboard/main"}
+ @{"narrator.doc" link "narrator/main"}
+ @{"parallel.doc" link "parallel/main"}
+ @{"printer.doc" link "printer/main"}
+ @{"serial.doc" link "serial/main"}
+ @{"timer.doc" link "timer/main"}
+ @{"trackdisk.doc" link "trackdisk/main"}
+
+Resources
+
+ @{"battclock.doc" link "battclock/main"}
+ @{"battmem.doc" link "battmem/main"}
+ @{"cia.doc" link "cia/main"}
+ @{"disk.doc" link "disk/main"}
+ @{"filesysres.doc" link "filesysres/main"}
+ @{"misc.doc" link "misc/main"}
+ @{"potgo.doc" link "potgo/main"}
+
+@endnode

@@ -1,0 +1,53 @@
+The CD-ROM distribution of the 3.1 Native Developer Kit contains a
+number of changes from the original five disk set distribution. The
+organization of drawers and disks has been preserved as closely as
+possible. Here is the list of changes:
+
+- Unpacked all archive files.
+
+- Moved legal information text to CD-ROM top directory.
+
+- Deleted archive contents listing files
+
+- Added icons to all included files.
+
+- Corrected keyword and function name spellings in the following
+  files found in "Docs/doc": datatypes.doc, disk.doc, diskfont.doc,
+  dos.doc, exec.doc, expansion.doc, gameport.doc, graphics.doc,
+  icon.doc, layers.doc, mathieeedoubbas.doc, mathieeedoubtrans.doc,
+  mathieeesingbas.doc, mathieeesingtrans.doc, mathtrans.doc,
+  parallel.doc, picture_dtc.doc, printer.doc, serial.doc
+
+- Added smakefiles to all sample programs in "Examples1" and "Examples2".
+  All projects can be built using SAS/C 6.56 just by entering "smake".
+  All executables were rebuilt using the provided smakefiles to verify
+  that the build setup works.
+
+- Updated the contents of "Examples1/AsynchIO". The distribution now
+  contains the most recent edition of Martin Taillefer's program code.
+
+- Moved the contents of the drawer "Examples2/DataTypes/datatypes" up
+  one level in the filing system hierarchy for ISO 9660 compliance.
+
+- Updated the "Examples2/DataTypes/Src/ClipView" project to
+  handle different system gadget sizes properly.
+
+- Moved LHEX program and documentation from "Examples2" into drawer
+  of the same name. Replaced LHEX v40.5 with v40.15 which was updated
+  by Jim Cooper.
+
+- In "Includes&Libs/linker_libs" amiga.lib v40.15 replaces v40.14. The
+  v40.15 release fixes a bug in the memory pool routines. For
+  more information see "Includes&Libs/SetPatch40/SetPatch_ReadMe".
+
+- In "Includes&Libs/SetPatch40" SetPatch v40.16 replaces v40.14.
+  The v40.16 release fixes a bug in the memory pool routines.
+
+- In "SWToolKit3" the "owner" program was renamed to "memowner" to
+  avoid a name clash with the Envoy "Owner" program.
+
+- In "SWToolKit3" CatComp v40.5 replaces v40.4. The v40.5 release
+  creates more robust table lookup data and code.
+
+- Removed Enforcer 37.55 from "SWToolKit3"; version 37.64 contributed
+  by Mike Sinz replaces this version.

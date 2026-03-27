@@ -1,0 +1,59 @@
+.Autodoc - August 21 1989
+
+NAME
+	autodoc - Extracts and sorts autodocs from the given files to
+		  stdout.
+
+SYNOPSIS
+	autodoc [ -tnum ] [ -i ] [ -a ] [ -s ] [ -C ] [ -lnum ] [ -w ]
+	[ -c ] [ -f ] [ -r ] [ -Ffile ] [ -I ] file1 [file2] [...]
+
+DESCRIPTION
+	autodoc extracts autodocs from files "file1", "file2", ...
+	Sorts the output to stdout.
+
+	Options offered by autodoc are the following:
+
+	-tnum	Convert tabs into num spaces.
+	-i	Extract ONLY internal autodocs (autodocs that have an 'i'
+		as the 6th character in a line that begins an autodoc).
+	-a	Process autodocs that begin with asterisk in the first
+		column.
+	-s	Process autodocs that begin with semicolon in the first
+		column.
+	-C	Process autodocs in C language form.
+	-lnum	Set the line length to num. (default = 78 chars).
+	-w	Turn off word wrap. Chop lines longer than line length.
+	-c	Convert C comments. From backslash asterisk to slash
+		asterisk. This allows comments in autodocs without nesting
+		comments.
+	-f	Disable form feeds between autodoc entries.
+	-r	Output autodocs in troff format (currently not implemented).
+	-Ffile  Use the file 'file' as the temporary file. (default =
+		tmpfile).
+	-I	Include a TABLE OF CONTENTS as the first part of the output.
+
+
+USAGE
+
+	autodoc sends formatted file to standard output. User could redirect
+	this output to a file.
+
+		autodoc file1 > file2
+
+
+	Ex. to extract ALL possible autodocs except internal autodocs and
+	print 	with a table of contents.
+
+		autodoc -a -s -C -I file1 > outfile
+
+	This filter must be used only with text files.
+
+
+SEE ALSO
+
+
+AUTHOR
+
+	Bill Koester
+

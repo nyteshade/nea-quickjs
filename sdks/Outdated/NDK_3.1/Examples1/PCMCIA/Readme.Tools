@@ -1,0 +1,288 @@
+
+Credit Card Tools	Beta 4		7-Jan-93
+
+(c) Copyright 1991-93 Commodore-Amiga, Inc.  All Rights Reserved
+Preliminary
+
+   ************************************************************************
+   *									  *
+   *	    		COPYRIGHTED DEVELOPER MATERIALS		  	  *
+   *									  *
+   ************************************************************************
+
+   THIS SOFTWARE AND INFORMATION IS COPYRIGHTED.
+
+   THIS SOFTWARE AND INFORMATION MAY NOT BE REDISTRIBUTED, DISCLOSED,
+   OR DUPLICATED, IN WHOLE OR IN PART, IN ANY MANNER OTHER THAN AS
+   SPECIFIED IN A SIGNED AGREEMENT WITH COMMODORE.
+ 
+   ************************************************************************
+   *									  *
+   *				DISCLAIMER				  *
+   *									  *
+   *   THIS SOFTWARE AND INFORMATION IS PROVIDED "AS IS".		  *
+   *   NO REPRESENTATIONS OR WARRANTIES ARE MADE WITH RESPECT TO THE	  *
+   *   ACCURACY, RELIABILITY, PERFORMANCE, CURRENTNESS, OR OPERATION	  *
+   *   OF THIS SOFTWARE AND INFORMATION, AND ALL USE IS AT YOUR OWN RISK. *
+   *   NEITHER COMMODORE NOR THE AUTHORS ASSUME ANY RESPONSIBILITY OR	  *
+   *   LIABILITY WHATSOEVER WITH RESPECT TO YOUR USE OF THIS SOFTWARE	  *
+   *   AND INFORMATION.							  *
+   *									  *
+   ************************************************************************
+
+
+These tools allow you to format a PCMCIA RAM credit
+card in an A600/A1200 credit card slot as an Amiga floppy, or loadseg
+a RomTagged Amiga executable for execute-in-place.
+
+A new tool called "Flash" lets you burn an Intel-type flashrom
+card from a floppy disk image or binary file.
+
+NOTE: The Prepcard and Install programs are no longer provided here
+since they are now part of the 3.0 Workbench distribution.
+The description of these tools is still provided for your
+information.
+
+
+Prepcard
+========
+The "Prepcard" tool can format a RAM credit card as either an
+Amiga diskette (CC0:) or as system RAM.
+
+If formatted as an Amiga disk, you can copy files to it (CC0:) like
+any other diskette.  You can make it bootable by using the new Install
+command provided on this disk.
+
+If formatted as system RAM, it will be added to the system as RAM
+if you boot with the card inserted.
+
+
+
+Install
+=======
+The new "install" command can install (ie. make bootable) a RAM
+credir card which has been formatted as an Amiga diskette
+via Prepcard.   Note that the correct version of Install should come
+with the A600/A1200.
+
+Usage:  Install drive CC0:
+
+
+
+Flash
+=====
+
+FLASH is a tool for copying disk-like media (diskette or RAD) or binary
+files to PCMCIA FlashROM cards.
+
+Currently only the Intel FlashROM programming algorithim is supported.
+In the future, algorithims for EEPROM, and Epson FlashROM may be
+supported.  The Flash tool verifies that the FlashROM card you
+insert returns the Intel identifier byte before it erases, or writes
+to the card.  See Flash.doc for more info.
+
+Warning: When you use Flash to put a disk image on a FlashROM card,
+an exact duplicate disk is created.  Do not access the original disk
+or the new FlashROM duplicate via DOS while both are mounted - it
+will confuse DOS and cause problems.
+
+
+AmigaXIP
+========
+The "loadc" command can loadseg a romtagged Amiga executable to
+a not-in-use RAM credit card.  Loadc will automatically create
+and store the necessary PCMCIA tuples in the card to identify the
+code as Amiga execute-in-place (XIP) code.  A sample execute-in-place
+executable "xipcode" is provided.  See the AmigaXIP.ReadMe in that
+directory for more info.  Note that DOS and Intuition are not available
+at RomTag init time for AmigaXIP code (but your code can open intuition).
+AmigaXIP code must either be written to run in rom (ie. no global
+variables in program or data space) or must loadseg itself into RAM
+(if you need to loadseg yourself into system RAM to run, you could use
+the loadseg.asm code as an example of how to do this).  Alternately,
+you could use craft a combination boot disk and hidden execute-in-place
+card (see AmigaXIP.ReadMe).
+
+     AmigaXIP (dir)
+       loadc                            loadseg.asm
+       AmigaXIP.ReadMe                  xipcode
+       xipcode.asm
+
+
+
+CARDRES
+=======
+For developers who might require lower-level control of the credit
+card resource, included here are Release 3.0 autodocs and include files.
+Most developers do not need to call any of these functions.
+However, much Amiga-specific information about PCMCIA is contained
+in the text and comments.  Definitions for actual PCMCIA standard
+tuple values are not included.  See the PCMCIA Card Standard for these
+values. The PCMCIA Card Standard is available to registered US developers
+through CATS US.  Other registered developers should be able to purchase
+the the spec through their local support material supplier.
+Non-registered developers may try contacting the publisher: PCMCIA,
+1030B East Duane Ave., Sunnyvale, CA. 94086.
+
+ 
+     cardres (dir)
+       card.h                           card.i
+       cardres.doc                      card_lib.fd
+
+
+
+
+NOTES ON PCMCIA CARDS
+=====================
+
+PCMCIA
+======
+The PCMCIA spec describes a standard for identifying
+the contents of credit card RAM, ROM, and device cards.
+This standard requires a chain of "tuples" which describe
+the card, and its data areas, and where the data areas
+reside.  These tuples are described in the PCMCIA spec.
+This thick PCMCIA Card Standard spec is available to
+registered US developers from CATS US.
+
+Ram cards versus flashrom
+=========================
+
+All ram cards contain "common" memory.
+This is the 256K or 512K (or more) of memory stated on the card.
+This memory appears in the A600/A1200 at address $600000.
+
+Ram cards may or may not contain attribute memory.
+This causes problems because tuples must be laid out differently
+if there is attribute memory on the card.  The Amiga Prepcard
+program contains a lot of code to determine if there is
+attribute memory in a RAM card so that it can properly
+start the tuple chain.
+
+
+A. Cards that HAVE attribute memory
+
+If present, attribute memory appears in the A600/A1200 at $A00000.
+In attribute memory, there are only even bytes.
+If a card has attribute memory, then the tuple chain must
+start in the attribute memory.  It can then link over to
+continue in the common memory.  Once linked to common memory,
+both even and odd bytes are used.
+
+
+B. Cards that DO NOT HAVE attribute memory
+
+If a card has NO attribute memory, then the tuple chain starts
+in common memory and both even and odd bytes are used.
+Such a chain must start with a link target to continue the
+chain in common memory.  Then you can have the device tuple.
+
+One note here - this is not entirely legal since the spec
+says that the first tuple in attribute memory MUST be the
+device tuple, or unitialized memory.  However, because some
+cards do not have attribute memory at all, the tuple
+reader in the card.resource allows for the device tuple to
+be in common memory following the LINK_TARGET tuple (making
+it possible to have a device tuple for ram cards which might
+not otherwise be able to have one if the spec was followed to
+the letter).
+
+
+C. Cards that OVERLAPPED attribute memory
+
+Some brands of cards just make believe they have attribute memory.
+Such cards always read from the common memory, whether accessed
+at $A00000 (as attribute mem) or at $600000 (as common mem).
+In such cases, the tuple chain must start at the beginning
+of this shared memory, but be started with only the even
+bytes used (until it links to a common mem address, at which
+point both even and odd bytes must be used).
+
+
+D. Cards that have ROM attribute memory
+
+Such cards will have unchangeable attributes specified in ROM
+and then the tuple chain will link over to continue in the
+common memory.  In such cases, only additional tuples should
+be specified (ie. those which have not already been specified
+in the ROM).
+
+One note here - it is implied that the ROM in attribute
+memory has either an implied, or explicit link to common memory
+so the tuple chain can be continued.  If not, it is not possible
+to write additional tuples on this kind of card.  It is also
+implied that the ROM does not have tuples such as the
+FORMAT, GEOMETRY, or VERS_2 tuples which 'normally' would
+be written by a prep tool like Prepcard.
+
+
+E. Cards that have EEPROM Attribute memory
+
+Cards with EEPROM attribute memory are not currently supported by
+PrepCard or PCMCIA developer tools.  We have heard that if you
+use PrepCard about 12 times, you might be able to prep a card with
+EEPROM attribute memory, but this is not recommended.
+
+
+F. Flashrom cards
+
+In our experience so far, flashrom cards are of the overlapped
+type.  Flashrom cards are not easy to program and can be rendered
+permanently unusable if erased for too long (too long being a _very_
+short time).  On this release we are providing a preliminary tool
+called "Flash" which can program a disk image into a flashrom card.  
+
+Of general interest, SOME flashrom cards do have internal
+timers which stop erase in approximately 15ms if erase
+verify command is not sent in this time.  Hopefully all
+PCMCIA flashroms will have this feature included in the future.
+
+
+Appendix I - Backing up cards
+=============================
+1. Disk-formatted cards
+Bootable or unbootable disk-formatted cards may be backed up by
+simply doing a COPY ALL or archive to a floppy or harddisk.  This
+backup can be COPY ALL'd (or unarchived) to another ram credit card,
+and then the credit card can be INSTALL'd with the special INSTALL
+program if the card needs to be bootable.
+
+2. AmigaXIP cards
+Developers who wish to back up an execute-in-place card can do use
+a memory-range save to a floppy disk or hard disk as their backup.
+The common memory of an Amiga PCMCIA card appears at $600000.
+Overlapped-type cards only actually have memory at $600000, but
+if read at $A00000, the same memory appears.
+If a card has attribute memory, the attribute memory appears at $A00000.
+
+
+IMPORTANT! The following savemem examples use the new 39.1 savemem tool
+(in this archive/disk) which takes the filename first and has more error
+checking for args passed in wrong order.  Older versions of savemem
+take the filename last.
+
+Saving card memory to a file:
+
+For example, the common memory area of a 512K credit card can be saved
+to a 512K file with:
+
+savemem filename.common 0x600000 0x67ffff
+
+If you happen to have a PCMCIA card with real (i.e. non-overlapped)
+attribute memory, a separate save of attribute memory is required:
+
+savemem filename.attr 0xA00000 0xA003ff
+
+
+
+Note that savemem'd binary image backups can only be restored to
+another same-brand (ie. same memory layout) credit card.
+
+Restoration may be done with the ``bload'' utility.
+
+
+bload filename.comm 0x600000
+
+(if the PCMCIA card also has real attribute memory, you would first do:
+bload filename.attr 0xA00000)
+

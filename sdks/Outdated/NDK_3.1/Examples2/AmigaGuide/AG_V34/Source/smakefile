@@ -1,0 +1,9 @@
+CFLAGS = structureequivalence nostackcheck
+
+all: hyperapp nodehost
+
+hyperapp: hyperapp.c
+	sc link $(CFLAGS) lib lib:debug.lib $@
+
+nodehost: nodehost.c
+	sc link $(CFLAGS) lib lib:debug.lib $@

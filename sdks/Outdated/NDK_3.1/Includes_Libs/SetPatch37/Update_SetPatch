@@ -1,0 +1,93 @@
+; $Id: Update_SetPatch,v 37.3 93/05/13 17:36:03 peter Exp $
+
+set setpatch_version 37
+set setpatch_revision 39
+set setpatch_source "SetPatch_${setpatch_version}.${setpatch_revision}"
+set setpatch_target c:SetPatch
+set install_setpatch 0
+
+echo "*N  SetPatch ${setpatch_version}.${setpatch_revision} Installation"
+echo "  ===========================*N"
+echo "  This script will update your SetPatch to"
+echo "  version ${setpatch_version}.${setpatch_revision} if you have an older version.*N"
+echo "  You will be asked for permission before proceeding...*N"
+echo "  Examining your system...*N"
+
+version >NIL: version 37
+if warn
+	echo "  This SetPatch is for systems with AmigaOS 2.04 or better."
+	echo "  Your system appears to be running an older OS."
+	echo "  Please consider upgrading to the most recent OS available."
+	skip finished
+endif
+
+check2090
+set has2090 $RC
+
+if $has2090 EQ 1	; 2090A
+	echo "  2090A hard disk controller detected."
+	set setpatch_target Boot:c/SetPatch
+endif
+if $has2090 EQ 2	; 2090 - non-autoboot
+	echo "  2090 hard disk controller detected."
+	set setpatch_target df0:c/SetPatch
+	ask "  Please insert your boot floppy into df0:"
+endif
+
+if not exists ${setpatch_target}
+	echo "  Error:  Can't find your old SetPatch..."
+	skip finished
+endif
+if not exists ${setpatch_source}
+	echo "  Error:  Can't find the new SetPatch..."
+	skip finished
+endif
+
+if "`version ${setpatch_source}`" NOT EQ "SetPatch ${setpatch_version}.${setpatch_revision}"
+	echo "  Error:  New SetPatch is not of the correct version"
+	skip finished
+endif
+
+version ${setpatch_target} version `eval ${setpatch_version}+1` >NIL:
+
+if warn
+	version ${setpatch_target} version ${setpatch_version} >NIL:
+	if warn
+		ask "  Your SetPatch needs updating.  Do you wish to proceed?"
+		if warn
+			set install_setpatch 1
+		else
+			skip finished
+		endif
+	else
+		version ${setpatch_target} revision ${setpatch_revision} >NIL:
+		if warn
+			ask "  Your SetPatch needs updating.  Do you wish to proceed?"
+			if warn
+				set install_setpatch 1
+			else
+				skip finished
+			endif
+		else
+			echo "  You do not need this update, because you already have `version ${setpatch_target}`."
+		endif
+	endif
+else
+	echo "  You do not need this update, because you already have `version ${setpatch_target}`."
+endif
+
+lab finished
+if ${install_setpatch} eq 1
+	echo "  Updating to SetPatch ${setpatch_version}.${setpatch_revision}..."
+	copy ${setpatch_source} ${setpatch_target}
+	echo "*N  Reboot your system to have the new SetPatch take effect"
+	echo "*N  ****** Done ******"
+else
+	echo "*N  ****** Done (SetPatch not installed) ******"
+endif
+unset setpatch_version
+unset setpatch_revision
+unset setpatch_source
+unset setpatch_target
+unset install_setpatch
+unset has2090

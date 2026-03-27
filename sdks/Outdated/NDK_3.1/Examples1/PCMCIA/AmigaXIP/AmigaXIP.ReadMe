@@ -1,0 +1,80 @@
+PCMCIA AmigaXIP Execute-in-place code
+=====================================
+
+(c) Copyright 1991-1996 ESCOM AG
+All Rights Reserved
+Preliminary
+
+   THIS SOFTWARE AND INFORMATION IS COPYRIGHTED.
+
+   THIS SOFTWARE AND INFORMATION MAY NOT BE REDISTRIBUTED, DISCLOSED,
+   OR DUPLICATED, IN WHOLE OR IN PART, IN ANY MANNER OTHER THAN AS
+   SPECIFIED IN A SIGNED AGREEMENT WITH ESCOM AG.
+
+   ************************************************************************
+   *									  *
+   *				DISCLAIMER				  *
+   *									  *
+   *   THIS SOFTWARE AND INFORMATION IS PROVIDED "AS IS".		  *
+   *   NO REPRESENTATIONS OR WARRANTIES ARE MADE WITH RESPECT TO THE	  *
+   *   ACCURACY, RELIABILITY, PERFORMANCE, CURRENTNESS, OR OPERATION	  *
+   *   OF THIS SOFTWARE AND INFORMATION, AND ALL USE IS AT YOUR OWN RISK. *
+   *   NEITHER ESCOM AG NOR THE AUTHORS ASSUME ANY RESPONSIBILITY OR	  *
+   *   LIABILITY WHATSOEVER WITH RESPECT TO YOUR USE OF THIS SOFTWARE	  *
+   *   AND INFORMATION.							  *
+   *									  *
+   ************************************************************************
+
+loadc
+xipcode.asm
+loadseg.asm
+
+Xipcode.asm is a minimal example of Amiga execute-in-place code for PCMCIA.
+The code contains a RomTag (struct Resident) and is assembled into
+an Amiga load file.
+
+The loadc command can be used to loadseg "xipcode" to a not-in-use RAM
+credit card.  To do this you should boot without the RAM card,
+then use the PrepCard tool to format the card as system RAM.
+
+Then do
+
+	loadc xipcode
+
+Loadc will add the appropriate PCMCIA tuples to identify the code
+as AmigaXIP (execute-in-place) code.  The system will InitResident the
+RomTag when you reboot the system.  The RomTag will be initialized right
+before strap (ie. all of the system will be up and running EXCEPT
+for intuition and dos).  Your code can open intuition, as shown in
+the example.
+
+In the example xipcode.asm, if you press the left mousebutton on the demo
+screen, it will exit and the system will continue with the strap process
+(ie. system will attempt to boot from a bootable hard disk or floppy).
+A game, for example, might instead never return.
+
+A value of TRUE (1) returned by AmigaXIP code signifies that the card is
+not removable (i.e. the card is in use, and system should be reset if the
+card is removed).  A value of FALSE (0) signifies that the card IS removable.
+If your AmigaXIP code exits, be sure to return the value 1 if the code
+or data in your card is still in use.
+
+The "xipcode" program is linked with NO startup.asm code
+(blink from xipcode.o to xipcode library lib:amiga.lib), and is written
+so that it does not write to any variables in data or code space.
+This code could therefore run out of RAM or directly out of ROM.  If you
+need to loadseg your own code into system RAM in order to run, use the
+provided loadseg.asm code as an example of how to loadseg yourself.
+
+Note that if a non-harddisk machine is turned on with no bootable
+disk or card inserted, any of the following can be inserted to
+satisfy the request for a boot disk:
+
+	- bootable (installed) floppy
+	- AmigaXIP credit card
+	- bootable Amiga-disk credit card (use PrepCard and new
+		Install command provided on this disk)
+
+
+For more information on AmigaXIP and alternatives for PCMCIA code, read
+the PCMCIA.Software readme.

@@ -1,0 +1,69 @@
+PRINTERTEST
+
+Format:	     PRINTERTEST
+
+Template:    PRINTERTEST
+
+Purpose:     To test the printer.
+
+Specification:
+
+The PRINTERTEST program allows you to test the capabilities and features of
+printers used with Amiga computers.
+
+Double-click on the PRINTERTEST icon and a window appears.  The window is
+actually made up of three custom screens.  The top screen is the Lo-Res
+HAM Screen for printer test is the top screen.  This is a low-resolution
+Hold and Modify screen that is in the black-and-white test.  The second
+screen, Lo-Res LACE Screen for printer test, is a low-resolution interlaced
+color test screen that is used for the color test.  The final screen is a
+high-resolution prompt screen which allows you to communicate with the
+program.
+
+Prompts instruct you on how to proceed.  Initially, PRINTERTEST requests the
+name of the printer which will be displayed.  For example:
+
+-----------------------------------------------------------------------------
+	Test CBM_MPS1000? (y,n)[n]
+-----------------------------------------------------------------------------
+
+Continue through this list until the printer attached to your computer is
+listed, then choose "yes."
+
+The test consists of four parts:  Alpha test, Reset test, Black & White
+test, and a Color test.  You can stop after any of the tests.
+
+Alpha Test
+
+This test is designed to test how the printer will react to various Printer
+Device Command Functions (For a list of the commands, see the Printer Device
+chapter of the Amiga ROM Kernel Manual: Libraries and Devices.)  These
+functions include type styles and sizes, colors, superscripts and
+subscripts, justification, tabs, margins, etc.
+
+Reset Test
+
+After the Alpha test is completed, the prompt screen asks the user to select
+any key to begin the Reset Test.  This test simply checks the reset command
+function.
+
+
+Black & White Test
+
+When the Reset test is finished, PRINTERTEST prompts:
+
+-----------------------------------------------------------------------------
+	B&W graphics test?  (y,n)
+-----------------------------------------------------------------------------
+
+If you wish to continue with the test, select yes.  If your printer has
+graphics capability, PRINTERTEST will do a black and white dump of the
+custom Hold and Modify screen (the top screen) to demonstrate the printer's
+ability to print gray-scale graphics.
+
+Color Test
+
+Finally, if your printer has color capability in addition to graphics,
+PRINTERTEST will dump the low-resolution interlaced color screen (the middle
+screen).  Compare the screen colors to the resulting print out.
+

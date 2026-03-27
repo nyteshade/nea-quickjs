@@ -1,0 +1,81 @@
+# V39 INTUITION DEMOS lmkfile
+#
+# (c) Copyright 1992-1996 ESCOM AG.  All rights reserved.
+#
+# This software is provided as-is and is subject to change; no warranties
+# are made.  All use is at your own risk.  No liability or responsibility
+# is assumed.
+#
+# These demos show off some of the new V39 Intuition features:
+#
+# attachdemo.c - demonstrates handling attached screens
+#
+# doublebuffer.c - shows double-buffering, attached screens, menu lending
+#
+# frameidemo.c - shows frame types from frameiclass
+#
+# gadgethelp.c - shows help and bounds on a prop gadget
+#
+# makevisible.c - shows off SPOS_MAKEVISIBLE feature
+#
+# nlmenu.c - shows use of NewLook menus using Intuition and GadTools
+#
+# relspecial.c - shows special gadget relativity
+#
+#
+# HARDWARE-SPECIFIC DEMOS:
+#
+# 8hamdemo.c - shows off 256000 colors simultaneously
+#
+# pointerdemo.c - shows off new pointer features
+#
+#
+
+CFILES = attachdemo.c \
+	doublebuffer.c \
+	frameidemo.c \
+	gadgethelp.c \
+	makevisible.c \
+	nlmenu.c \
+	relspecial.c \
+	8hamdemo.c \
+	pointerdemo.c
+
+EXEFILES = attachdemo \
+	doublebuffer \
+	frameidemo \
+	gadgethelp \
+	makevisible \
+	nlmenu \
+	relspecial \
+	8hamdemo \
+	pointerdemo
+
+all: $(EXEFILES)
+
+attachdemo: attachdemo.c
+	sc link structureequivalence $*
+
+doublebuffer: doublebuffer.c
+	sc link structureequivalence $*
+
+frameidemo: frameidemo.c
+	sc link structureequivalence $*
+
+gadgethelp: gadgethelp.c
+	sc link structureequivalence $*
+
+makevisible: makevisible.c
+	sc link structureequivalence $*
+
+nlmenu: nlmenu.c
+	sc link structureequivalence $*
+
+relspecial: relspecial.c
+	sc link structureequivalence nostackcheck $*
+
+8hamdemo: 8hamdemo.c
+	sc link structureequivalence $*
+
+pointerdemo: pointerdemo.c
+	sc link structureequivalence $*

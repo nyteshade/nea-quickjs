@@ -1,0 +1,89 @@
+ATOM
+
+Format:	     ATOM <infile> <outfile> [-I]
+				or
+	     ATOM <infile> <outfile> [-C[C|D|B]] [-F[C|D|B]]
+             [-P[C|D|B]]
+
+Template:    ATOM "INFILE,OUTFILE,-I/K"
+			 or
+	     ATOM "INFILE,OUTFILE,-C/K,-F/K,-P/K"
+
+Purpose:     To specify the portions of a program that should be loaded into
+             CHIP memory and/or FAST memory.
+
+Specification:
+
+ATOM is used to specify to the loader the portions of a program to be loaded
+into CHIP memory, FAST memory, and PUBLIC memory.  Some system structures
+(like Images) must be stored in CHIP memory to work.  Others can take
+advantage of the increased speed of FAST memory, while others can work in
+either.  Normally, the loader tries to use FAST memory first, if no other
+type (or PUBLIC) is specified.
+
+You can compile or assemble a program, then pass the individual object
+modules through ATOM before they are linked to form a load file.  ATOM will
+flag the desired hunks (CODE, DATA and BSS) and place them in the specified
+type of memory (CHIP, FAST, or PUBLIC).
+
+When using ATOM, <infile> represents an object file that has just been
+compiled, assembled or ATOMed.  <outfile> represents the destination for the
+converted file.  The options are as follows:
+
+[-I]		operate interactively
+[-C]		change memory to CHIP
+[-F]		change memory to FAST
+[-P]		change memory to PUBLIC
+[C]		change CODE hunks
+[D]		change DATA hunks
+[B]		change BSS hunks
+
+
+ATOM ERROR MESSAGES
+
+Error Bad Args:
+
+	1. an option does not start with a "-".
+	2. wrong number of parameters.
+	3. "-" not followed by I, C, F or P.
+	4. -x supplied in addition to -I.
+
+Error Bad Infile = file not found.
+
+Error Bad Outfile = file cannot be created.
+
+Error Bad Type ## = ATOM has detected a hunk type that it does not
+recognize; the object file may be corrupt.
+
+Error Empty Input 	    = input file does not contain any data.
+
+Error Read Externals 	    = external reference or definition if of an
+			      undefined type; object file may be corrupt.
+
+Error Premature End of File = an end of file condition (out of data) was
+			      detected while ATOM was still expecting input.
+			      Object file may be corrupt.
+
+Error This Utility can only be used on files that have NOT been passed
+through ALINK 		    = the input file you specified has already been
+			      processed by the linker; external symbols have
+			      been removed and hunks coagulated.  You need
+			      to run ATOM on the object files produced by
+			      the C compiler or Macro Assembler BEFORE they
+			      are linked.
+
+Examples:
+
+1> ATOM infile.obj outfile.obj -pc -cdb
+
+All code hunks go into Public RAM; data and BSS hunks go into chip RAM.
+
+1> ATOM infile.obj outfile.obj -c
+
+All hunks in the object file are loaded into chip memory.
+
+1> ATOM myfile.o myfile.set.o -cd
+
+Sets all data hunks to load into chip memory.
+
+FOUND WITH: development tools

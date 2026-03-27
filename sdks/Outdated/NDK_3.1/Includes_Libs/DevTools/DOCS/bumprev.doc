@@ -1,0 +1,5 @@
+BUMPREV
+CATEGORY: Revision bumper
+USAGE:    Bumprev version revname  (example:  bumprev 1 my_rev)
+USED FOR: Updating revision include files yourself (xxx_rev.h and xxx_rev.i)
+

@@ -1,0 +1,71 @@
+ALINK
+
+Format:      ALINK [FROM <objectfiles>] [WITH <files>] [TO <file>]
+	     [MAP <file>] [LIBRARY <files>] [VER <file>] [XREF <file>]
+	     [width <n>]
+
+Template:    ALINK "FROM=ROOT,WITH/K,TO/K,LIBRARY=LIB/K,MAP/K,VER/K,XREF/K,
+	     WIDTH/K"
+
+Purpose:     To link Amiga binary object files into loadable files.
+
+Specification:
+
+ALINK is a linkage editor to convert Amiga binary object files to Amiga load
+files.
+
+In the above format, <file> stands for a single file name, while <files>
+means zero or more file names that must be separated by a comma, plus, or
+space.  If file names are separated by spaces, the parameter must be
+enclosed in quotes.
+
+[FROM <objectfiles>]	Specifies the object files to be used as the primary
+			binary input.  The contents of these files are
+			always copied to the load file to form part of the
+			overlay root.
+
+[WITH <files>]		Specifies files containing the linker parameters
+			(e.g. normal command lines).  Usually only one file
+			will be used, but, for completeness, a list of files
+			can be given. Parameters on the command line will
+			override those in WITH files.  Lines can be
+			continued by putting an asterisk (*) at the end of
+			them.  WITH files are frequently used when the
+			command line gets too long.
+
+[TO <file>]		Specifies the destination for the load file.  If
+			this parameter is not given, the second pass is
+			omitted.
+
+[MAP <file>]		Writes a map of addresses within hunks to the <file>
+			specified.
+
+[XREF <file>]		Specifies the destination of the cross reference
+			output.
+
+[VER <file>] 		Specifies the destination of messages from ALINK.
+			If a file is not specified, all messages are sent to
+			the standard output.
+
+[LIBRARY <files>]	Specifies the files to be scanned as the library.
+			Only referenced code segments in these files will be
+			included.
+
+[WIDTH <n>] 		Specifies the output width (<n> characters) to be
+			used when producing the link map and cross reference
+			table.
+
+Example:
+
+1> ALINK a.obj,b.obj,c.obj LIBRARY amiga.lib MAP demo.map TO demo.ld
+
+Converts and links binary files a, b and c to load file demo.
+
+See Also:    ABSLOAD, PRINTA
+
+Bugs:	     The MAP output only gives the first eight characters of a
+	     symbol's name.
+
+For more information on ALINK, see The AmigaDOS Manual, published by Bantam
+Books.
+

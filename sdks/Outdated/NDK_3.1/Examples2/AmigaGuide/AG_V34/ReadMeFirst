@@ -1,0 +1,69 @@
+
+
+This directory contains a V34-V39 compatible AmigaGuide, amigaguide.library,
+and WDisplay which may be distributed by developers who have a Workbench
+License and an AmigaGuide Amendment.
+
+Note that the most of the other Readmes with these materials may use
+SYS:Utilities/AmigaGuide as their default tool.  The InstallAmigaGuide
+icon will install AmigaGuide on your system.  If you have a newer version
+of any file or program, that file or program will not be installed.
+
+
+Note - there are development drawers and files here which have no icons.
+
+
+     Examples (dir)
+       HyperApp                         HyperApp.guide
+       HyperApp.guide.info              HyperApp.info
+       transmog.pic                     
+     fd (dir)
+       amigaguide_lib.fd                
+     fonts (dir)
+          junod (dir)
+            10                               8
+          thinpaz (dir)
+            8                                
+       junod.font                       thinpaz.font
+     include (dir)
+          clib (dir)
+            amigaguide_protos.h              
+          libraries (dir)
+            amigaguide.h                     
+     libs (dir)
+       amigaguide.library               
+     rexx (dir)
+          ttx (dir)
+            addref.ttx                       getxref.ttx
+       autodoc.rexx                     getxref.rexx
+     s (dir)
+       help.guide                       
+     Source (dir)
+       HyperApp.c                       HyperApp.c.info
+       NodeHost.c                       NodeHost.c.info
+     Utilities (dir)
+       AD2.guide                        AD2.guide.info
+       AD2AG                            AD2AG.info
+       AD2HT                            AD2HT.info
+       AmigaGuide                       AmigaGuide.info
+       ExpungeXRef                      ExpungeXRef.info
+       LoadXRef                         LoadXRef.info
+       MKProto                          WDisplay
+       WDisplay.info                    
+     Autodocs (dir)
+       Autodocs                         autodocs.excepts
+       Autodocs.info                    autodocs.xref
+       ReadME                           ReadME.info
+     C (dir)
+       flushlibs                        
+     Docs (dir)
+       AmigaGuide.doc                   AmigaGuide.doc.info
+       AmigaGuide.guide                 AmigaGuide.guide.info
+       AmigaGuide.txt                   
+  Autodocs.info                    Disk.info
+  Docs.info                        Examples.info
+  InstallAmigaGuide                InstallAmigaGuide.info
+  ReadMeFirst                      ReadMeFirst.info
+  Release.Notes                    Release.Notes.info
+  Source.info                      Utilities.info
+

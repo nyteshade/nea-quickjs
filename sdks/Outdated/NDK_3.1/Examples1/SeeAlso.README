@@ -1,0 +1,53 @@
+
+
+				Examples
+				========
+
+For 2.0 Examples
+================
+Fish Disks 741 and 742 include the 2.0 RKM Companion archives
+which contain the examples from the Amiga ROM Kernel Reference
+Manuals, 3rd edition.
+
+These 2.0 Rom Kernel manuals published by Addison-Wesley, plus
+The AmigaDOS Manual published by Bantam are the official programming
+manuals for the Amiga.  If you program for 2.0, it is easy to add V39/AA
+support by conditionally using the V39 32-bit-per-gun color loading
+functions to support the palette of 16,000,000 AA colors.
+
+For 1.3 Examples
+================
+Fish Disk 344 contains the 1.3 RKM Companion archives which
+contain the examples from the Amiga ROM Kernel Reference Manuals,
+2nd edition.
+
+
+
+		     The Amiga Programming Manuals
+                     =============================
+
+
+        Published by Bantam Books (800-223-6834, NY & Canada 212-765-6500):
+
+                The AmigaDOS Manual 3rd Edition
+                        ISBN 0-553-35403-5
+
+
+        Published by Addison-Wesley (800-447-2226, 617-944-3700):
+
+                Amiga User Interface Style Guide
+                        ISBN 0-201-57757-7
+
+                Amiga Hardware Manual
+                        ISBN 0-201-56776-8
+
+                Amiga ROM Kernel Manual: Includes and Autodocs    
+                        ISBN 0-201-56773-3
+
+                Amiga ROM Kernel Manual: Devices (includes the IFF manual)
+                        ISBN 0-201-56775-X
+
+                Amiga ROM Kernel Manual: Libraries
+                        ISBN 0-201-56774-1
+
+

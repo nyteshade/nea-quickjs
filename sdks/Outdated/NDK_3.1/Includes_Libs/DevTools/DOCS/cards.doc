@@ -1,0 +1,105 @@
+CARDS
+
+Format:	     CARDS <cardfile>
+
+Template:    CARDS "CARDFILE/A"
+
+Purpose:     To display the index cards in an ASCII card file.
+
+FOUND WITH: development tools
+
+Specification:
+
+CARDS allows you to look at index cards stored in a specially formatted
+ASCII cardfile.  There is a cardfile called 68000.cards in the Other window.
+This file contains index cards describing the format, sizes and results of
+each 68000 machine language instruction.
+
+To look at these cards, double-click on the 68000.cards icon.  You can also
+use the CD command to make the directory containing the cards the current
+directory (in this case, Software Toolkit's Other directory), then use the
+command "CARDS 68000.cards."
+
+When the 68000.cards display appears, there is a highlighted index line at
+the bottom of the display:
+
+		.0123456789.ABCDEFGHIJKLMNOPQRSTUVWXYZ.		<>
+
+The periods ('.') in the index line represent ranges of special and
+punctuation ASCII characters.  To display the first card that starts with a
+letter or number, click on the appropriate letter/number in the index line.
+To move through the cards one by one, use the < (backward) and > (forward)
+gadgets on the right side of the index line.
+
+Initially, the cards are sorted according to the category of the first line,
+in this case alphabetically.  However, you can sort the cards by any
+category by selecting the corresponding line description on the left side of
+the display. A '>' character marks the selected line by which the cards are
+sorted.  Generally, it is best to sort the 68000.cards cardfile on the
+first line which is the mnemonic name of each 68000 instruction.
+
+You can also move through the cards by using the keyboard.  Hitting any
+alphanumeric key moves you to the first card starting with the letter or
+number. Other keyboard shortcuts are:
+
+	< or ,	move backwards through the cards one at a time
+	> or . 	move forward through the cards one at a time
+	Shift-U	move the sort line up
+	Shift-D	move the sort line down
+
+To close the CARDS window and exit the program, hit Ctrl-C.
+
+
+CREATING ADDITIONAL CARD FILES
+
+Additional card files can be created with any ASCII text editor.  The start
+of the card file must be a card template.  The rules for this template are
+explained below and are illustrated in the example.
+
+Template Example
+
+  	1 -- 	    @TEMPLATE
+	2 -- 	    @N=50
+        3 --        @@@@@@@@@@|@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        4 --        ----------------------CLIENTS----------------------
+	5 --	    Name
+		    Company
+		    Phone
+        6 --	    @ENDTEMPLATE
+
+1.  The first line of the card file must start with the @TEMPLATE keyword.
+
+2.  The second line is the @N=MaxCards line.  This line specifies the
+    maximum number of cards allowed in the file.  It is optional, and if
+    not specified, Cards should size its allocations based on the number
+    of cards it detects in the file.  In the example above, 50 is the
+    maximum number of cards permitted.
+
+3.  The third line is a series of '@' symbols to specify the width of the
+    card. One @ symbol is equal to one character space in the card.  You
+    need to insert a vertical bar (|) to designate the break between the
+    line titles (on the left) and the individual card entries.
+
+4.  The fourth line contains the text for the card title line.
+
+5.  The next several lines specify the left-hand line titles.  (Remember,
+    the line titles cannot exceed the number of @ symbols before the
+    vertical bar in the third line.)
+
+6.  Finally, the template is concluded with the @ENDTEMPLATE keyword.
+
+After the template is created, you can enter the text for each card.
+Simply, start each entry with a @ symbol on the first line.  (This should be
+the only entry on the first line.)  For example:
+
+	@
+	Smith, P.J.
+	Hypertronics, Inc.
+	215-555-3434
+
+	@
+	Jones, Mandy
+	Widgets, Ltd.
+	408-555-6767
+
+You could continue on in this fashion with another 48 card entries.

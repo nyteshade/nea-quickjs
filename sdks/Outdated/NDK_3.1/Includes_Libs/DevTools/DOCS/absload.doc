@@ -1,0 +1,76 @@
+ABSLOAD
+
+Format:      ABSLOAD [-D] [-M] [-X] [-S] [-B <Ksize>] [-O <sfile>] [-T<addr>]
+	     [<lfile>]
+
+Template:    ABSLOAD "-D/S,-M/S,-X/S,-S/S,-B/K,-O/K,-T/K"
+
+Purpose:     To convert Amiga loader format to Motorola srecords.
+
+Specification:
+
+ABSLOAD converts Amiga Binary object files from the linker ALINK and creates
+a Motorola srecord file suitable for downloading to an Amiga machine.  The
+starting address of the code is assumed to be the first code hunk found in
+the input file.
+
+The options available are:
+
+[-D]		Writes debugging information to standard error.  This option
+		is primarily useful if the linker is creating a file that
+		ABSLOAD cannot understand.  Much of this information is
+		similar to that from PRINTA. The first line printed is the
+		version of ABSLOAD.  (Default is not to write debugging
+		information.)
+
+[-M]		Writes map of hunk addresses to standard output. The map is
+		a list of lines with three fields:  decimal hunk number,
+		hexadecimal hunk base byte address, and hexadecimal byte
+		length of hunk. (Default is not to produce a map.)
+
+[-X]		Excludes the hunk map from memory image.  This option is
+		used to save memory (e.g. ROMs), but it requires that you
+		use the -M option in order to do any debugging.
+
+                Note:  When using the resulting srecord file, the starting
+                address of the code is not the same as the starting address
+                in memory unless the -X option is used.  When you download
+                the file with the Amiga debugger's LOAD command, the starting
+                address will be printed.  Make sure you use the starting
+		address for your GO command.
+
+[-S]		Suppresses same length.  Writes the srecords with the last
+		srecord having the exact length specified.  (Default is to
+		zero pad the last srecord to have the same length as the
+		others.)
+
+[-B <Ksize>]    Specifies the decimal number of kilobytes ABSLOAD is to use
+                to build its memory image of the file. Default for the Amiga
+                is 16 Kbytes.
+
+[-O <sfile>]	Writes srecords to <sfile>.  (Default is file 'a.srec.')
+
+[-T <addr>]	Specifies byte address in hexadecimal for ABSLOAD to begin
+		allocating memory for the absolute binary form.  The address
+		must be long word aligned.  (Default is hex 20000.)
+
+[<lfile>]	Specifies the file, created by ALINK, that is to be
+		converted.  If no file is specified, the standard input is
+		used.
+
+A brief synopsis of the options, along with an error message, is printed if
+the correct syntax is not followed.
+
+For debugging purposes:  If you did not use the -M option and the -X option,
+and you need to know the address of a hunk, it can be found at your memory
+starting address plus four times the hunk number.  Hunk numbers start from
+zero.
+
+With the map produced from ALINK and the map produced from ABSLOAD, you
+should be able to determine the location of all externals.  Note that
+PRINTA's and ALINK's maps number hunks starting at 1.  ABSLOAD numbers hunks
+starting at 0.
+
+See Also:	ALINK, PRINTA
+
+Bugs:		Does not handle overlays.

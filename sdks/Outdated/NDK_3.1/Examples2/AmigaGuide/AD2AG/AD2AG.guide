@@ -1,0 +1,134 @@
+@database ad2ag.guide
+
+@node Main "Autodoc To AmigaGuide Conversion Utility"
+
+This utility is used to convert documents that are in the standard
+Amiga @{" Autodoc " link Autodoc} format to AmigaGuide database files.
+
+This utility will only work on 2.x and beyond of AmigaOS.
+It may also be run from the @{" Workbench " link Workbench} or from the @{" Shell " link Shell}.
+
+@{"IMPORTANT NOTE" Link XRefFile}
+@endnode
+
+@node Workbench "Running AD2AG from the Workbench"
+
+To run AD2AG from the Workbench, first select the AD2AG tool icon, then
+shift-select one or more icons to operate on.  The icons must be either
+an Autodoc file or a @{" directory " link Directory} that contains Autodoc files.  The final
+icon must be double-clicked to start the AD2AG utility.
+
+The AD2AG utility also understands the following tool types:
+
+FILES/M,TO/K,XREF/S,XREFFILE/K,LOG/S,CONTENTS/K,INCLUDE/K,LOGFILE/K:
+
+    FROM	Specify the source directory
+    TO		Specify the destination directory.
+
+    XREF	Generate a cross reference file.
+    XREFFILE	Cross reference file name. Defaults to autodoc.xref
+
+    LOG		Generate an error log file.
+    LOGFILE	Error log file name.
+
+@{" Destination " link Destination}
+@{" Icons " link Icons}
+@endnode
+
+@node Shell "Running AD2AG from the Shell"
+
+AD2AG uses the following argument template.
+
+    FILES/M,TO/K,XREF/S,XREFFILE/K,LOG/S,CONTENTS/K,
+    INCLUDE/K,LOGFILE/K:
+
+Where:
+
+    Files
+    A list of files or directories to operate on.
+
+    To
+    Directory to place the generated AmigaGuide documents in.  Defaults
+    to placing each document in the same directory as its source file.
+
+    @{"XRef" link XRefFile}
+    Generate a cross reference file of all the scanned Autodocs.
+
+    @{"XRefFile" link XRefFile}
+    Override the default cross-reference file name.  Defaults to
+    "autodoc.xref".
+
+    Log (work in progress)
+    Generate an error log file that will contain any discrepancies
+    between the Autodoc and the Autodoc style guide.  Currently only
+    complains about line length.
+
+    LogFile
+    Override the default error log file name.  Defaults to
+    "autodoc.errors"
+
+    Contents
+    Used to specify file name for the table of contents.
+
+    Include
+    Used to specify the text INCLUDE: directory.
+
+@{" Icons " link Icons}
+@endnode
+
+@node XRefFile "Autodoc Cross Reference file"
+The install script copied an Autodoc cross reference file to
+S:autodoc.xref.  This file contains all the function and include file
+cross references needed to generate AmigaGuide versions of the Autodoc
+files.  This file can be placed in any directory, as long as the
+directory is added to the @{"AmigaGuide/Path" link path} environment variable.
+
+This file must be preloaded, using the LOADXREF command, or by
+double-clicking on the Autodoc.xref icon, before running the AD2AG
+utility.
+
+    loadxref Autodoc.xref
+
+@endnode
+
+@node Path "AmigaGuide/Path"
+AmigaGuide uses a search path to locate databases.  The path is
+stored in an environment variable called "AmigaGuide/Path".
+
+    makedir ENV:AmigaGuide
+    assign autodocs: work:autodocs
+    setenv AmigaGuide/Path "autodocs:"
+
+@endnode
+
+@node Directory "AD2AG Directory Support"
+
+AD2AG provides the ability to scan an entire directory and convert each
+Autodoc that it finds.  AD2AG uses a pattern of #?.doc to locate
+Autodoc files.  Directory support requires 2.0.
+
+@{" Destination " link Destination}
+@endnode
+
+@node Autodoc "About Autodocs"
+
+Autodocs are programmer maintained documents that are embedded in the
+source code for an application, utility or system software.  Using a
+special tool called Autodoc (located on DevCon disks and the Software
+Toolkit) these documents can be extracted from the source, indexed,
+alphabetized and placed in a human-readable form.
+@endnode
+
+@node Icons "AD2AG Icons"
+
+AD2AG will use the ENV:Sys/def_guide.info icon as the template for any
+AmigaGuide database that it creates.  If the icon doesn't exist, then
+an internal default image may be used.
+@endnode
+
+@node Destination "Destination Directory and Name"
+
+AD2AG will create the AmigaGuide database in the same @{" directory " link Directory} as the
+original.  The name is also the same as the original, except that the
+.doc extension will be removed.
+@endnode

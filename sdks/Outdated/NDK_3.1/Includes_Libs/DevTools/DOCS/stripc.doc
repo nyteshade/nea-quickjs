@@ -1,0 +1,24 @@
+STRIPC
+
+Format:	     StripC <sourcefile> <destinationfile>
+
+Template:    StripC "SOURCEFILE,DESTINATIONFILE"
+
+Purpose:     To remove comments and extraneous white space characters.
+
+Specification:
+
+StripC (short for Strip Copy) removes comments and white space characters
+from C language and 680xx assembly language source files.  Stripping source
+files can significantly reduce the amount of time it takes to compile or
+assemble programs.  In particular, stripped .h and .i files, included in
+many source files for a program, can dramatically decrease
+compilation/assembly.
+
+<sourcefile> should end in .h (C source) or .i (assembly).  If not, StripC
+will do a straight, unaltered copy of the source file.  <destinationfile>
+can be any legal name, but it must be different from <sourcefile>.
+
+Example:
+
+1> StripC intuition.h intuition.strip

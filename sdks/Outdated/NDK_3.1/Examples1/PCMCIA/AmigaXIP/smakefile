@@ -1,0 +1,7 @@
+.asm.o:
+	asm $<
+
+all: xipcode
+
+xipcode: xipcode.o
+	slink xipcode.o to $@ lib lib:amiga.lib

@@ -1,0 +1,12 @@
+CFLAGS = structureequivalence nostackcheck
+
+all: advaghelp aghelp nodehost
+
+advaghelp: advaghelp.c
+	sc link $(CFLAGS) lib lib:debug.lib $@
+
+aghelp: aghelp.c
+	sc link $(CFLAGS) lib lib:debug.lib $@
+
+nodehost: nodehost.c
+	sc link $(CFLAGS) lib lib:debug.lib $@

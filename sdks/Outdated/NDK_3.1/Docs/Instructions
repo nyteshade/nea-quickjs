@@ -1,0 +1,420 @@
+
+3.1 Amiga Developer Update Disks
+(c) Copyright 1985-93 Commodore Amiga, Inc.  All Rights Reserved
+
+Some additional copyrights may be noted in individual files and docs.
+
+These materials are not freely redistributable.  However some
+individual archives on these disks may contain their own licensing
+or redistribution information.  In addition, a license for the 3.1
+Includes and linker libs is available from Commodore (see Licensing
+Info section below).
+
+
+			   Instructions
+                           ============
+
+Welcome to the 3.1 Amiga Developer Update disk set.
+
+These disks contain includes files, libs, autodocs, examples, tutorials,
+and debugging tools for developing Amiga software for versions V38 (2.1),
+V39 (3.0) and V40 (3.1) of the Amiga OS.  These materials can also be used
+to develop code for earlier version of the Amiga OS, since the materials
+include all earlier OS structures and functions.
+
+There is a lot of material here.  The "Contents" file on this disk
+contains a full list of everything included on this disk set.
+
+Please note that very few of the files and directories on these disks
+have icons.  To see all of the files on the disks, use the Show All
+feature of 2.0 and higher Workbench, or use the Amiga shell.
+
+This document will give you an overview of what's provided on the disks,
+and some help with decompressing the archives and using the materials.
+
+
+What's Here
+===========
+
+Docs disk highlights
+--------------------
+
+1. Autodocs
+The Amiga autodocs are the function summaries for the V40 Amiga OS.
+In general, all functions, libraries, and devices from previous Amiga
+OS's are also covered.  Please note that narrator.device and the
+translator.library are not currently part of the Amiga OS, and are
+not licensable, so please don't write software which requires these.
+Also, all functions newer than 1.2 are generally marked with the
+first version number in which they appeared.
+
+2. Tutorials
+These are tutorial documents about new features of V38 and V39.
+AA graphics, locale, bullet, datatypes, and other features are discussed.
+But you won't find AA register descriptions.  Use the OS.
+New V40 (3.1) libraries and devices are not covered, but there are
+autodocs for these (lowlevel.library, nonvolatile.library, cd.device).
+Licensed AmigaCD developers receive additional docs and examples
+for these new V40 subsystems. See additional notes about 3.1 at the
+end of this document.
+
+3. Contents listing
+A full listing of the contents of the 3.1 Amiga Developer Update disks.
+Use this to find what you are looking for.
+
+4. LHEX
+If you don't have LhA by Stefan Boberg, the LHEX tool provided on
+the Examples2 disk can also be used for decompressing the archives
+on this disk.  The flags for LHEX are slightly different from the flags
+for LhA, and LHEX has fewer options and only supports decompression.
+For information on decompressing the archives on these disks, see
+"Decompressing the Archives" later in these Instructions.
+
+
+Includes&Libs disk highlights
+-----------------------------
+
+1. Amiga include files
+The include_h.lha archive contains the C include files.  The include_i.lha
+archive contains the assembler include files.  I believe it is no longer
+possible to fit all of the include files on a normal density diskette,
+even if formatted with fast filesystem.  If you have a hard disk,
+decompress both archives to the same directory.  If you have a floppy
+based system, you'll probably want to decompress them each to a separate
+disk.
+
+2. Linker_libs and FD's
+Here are amiga.lib, debug.lib, etc. and the FD (function definition)
+files for V40.  The LVO tool (SWToolkit3 disk) can be used with
+the FD files to list LVO offsets and other information.
+
+3. Using_Includes
+A readme about updating your development environment, and about
+compiling new and old code with the new 3.1 Includes.  Includes
+hints for beginners on what include files to include.
+
+4. StructOffsets.lha
+Contains the Structure.Offsets file for 3.1 which lists the sizes,
+member sizes, and member offsets of 3.1 Amiga structures.
+
+5. DevTools archive
+Contains tools for development like bumprev and autodoc, plus old
+code tools like ALink and Atom.
+
+6. Debug_Examples archive
+Contains example code using kprintf, and C include files with simple
+debugging macros you can turn on and off (much neater than having
+a lot of #ifdefs in your source code).
+
+7. startups37 archive
+The 2.0 Amiga startup code source and objects - useful for assembler
+code, and for Amiga-specific non-base-releative C code that doesn't require
+your compiler's startup code but needs command line argument parsing
+and/or handling of Workbench startup.
+
+8. SetPatch37.lha and SetPatch40.lha
+These archives contain updates to SetPatch to fix OS bugs and
+in some cases enhance compatibility.  SetPatch37.lha contains
+SetPatch 37.39 for Amigas running V37 (2.04) Kickstart.
+SetPatch40.lha contains SetPatch 40.14 for Amigas running V38 (2.1)
+through V40 (3.1).  Each archive includes a click-on installation
+script and readme.
+
+9. runtime_libs.lha
+This archive contains iffparse.library 37.1 and realtime.library 34.5
+for use on Amiga systems that don't already have these libraries.
+Free electronic licenses are included for distribution of these versions.
+V37 and higher systems already have iffparse.library, but versions 38 and
+upwards of this library require at least V37 OS.  V40 Workbench includes
+a realtime.library that requires at least V37 OS.  The earlier versions
+supplied here work under 1.3, and should even work under 1.2 (not tested).
+IFFParse.library is required by the NewIFF39 code modules and examples.
+Realtime.library is a new library that provides a way for tasks to
+share high resolution timing and also to synchronize with each other.
+See the autodoc realtime.doc in the V40 autodocs for more information.
+
+
+Examples1 Disk highlights
+-------------------------
+
+Code examples for many new V38 and V39 features including locale,
+intuition, asl, colorwheel, graphics, gadtools, and asynchio packets
+example.  The locale examples include special code you can link with
+to load your own locale catalogs under V37, and a tool to help you
+automate some of the work in localizing old code.  Note - the CatComp
+tool for creating catalogs and its doc are on the SWToolKit3 disk.
+The Locale tutorials are on the Docs disk in the tutorials archive.
+Of special note - PCMCIA.lha contains several tutorial articles
+about PCMCIA and some useful tools and examples, plus information
+on ordering the PCMCIA specs.
+
+
+Examples2 Disk highlights
+-------------------------
+
+Big code archives for NewIFF39 (1.3-compatible yet AA-capable IFF code
+modules and examples), DataTypes examples, new picture datatypes,
+and also the AmigaGuide archive featuring free electronic license for
+AmigaGuide.  Notes - the Datatypes tutorial is on the Docs disk in the
+tutorials archive.  The NewIFF archive includes a ScreenSave program
+and the ILBM slide show program Display.
+
+
+SWToolkit3 highlights
+---------------------
+
+This disk contains all of the Amiga debugging tools, other handy tools,
+and the Amiga "report" program for generating bug reports and enhancement
+requests in the correct format.  Here you'll find Mungwall, Enforcer,
+Wedge, new Wack (archived), IO_Torture, Sushi (captures debug output
+on one machine), LVO, and other important debugging tools.  A new
+setcamg tool is here also - useful for zapping the display mode
+of ILBMs.  Here you will also find the CatComp tool for making
+locale catalogs.
+
+The docs for all of the Toolkit tools are archived on this disk.
+Tools with large doc files will have their own .doc files, and the rest
+are documented in OtherTools.doc.  Some tools are documented in the
+.doc files of the main tool with which they are distributed.  See
+the beginning of OtherTools.doc for a listing tells you where to find
+the docs for such tools.
+
+Note - some older tools such as ShowLocks and SysPM have been left in
+the toolkit even though they have not been updated. 
+
+Of special note - 
+
+	- New Enforcer for V37 and up (old Enforcer now called Enforcer1.3)
+	- SegTracker. Start this up right after SetPatch!  It allows
+          many other tools to report Hunk and Offset information for
+          code hits and crashes.  See Enforcer.doc
+        - FindHit.  If you have compiled or assembled your code with
+          LINE debugging, FindHit can tell you a source code line
+          from hunk and offset information.  See Enforcer.doc
+        - Sushi.  Allows use of all serial debugging tools and kprintf
+          on a single system, without writing to your actual
+          serial hardware, modems, etc.  (note - you must use the
+          Enforcer RAWIO option for Sushi to pick up Enforcer output)
+	- Updated Mungwall and Munglist
+	- Wedge updated to use much less stack
+
+
+
+Using The Amiga Developer Update Materials
+==========================================
+
+These materials are intended to be used in conjunction with the Amiga
+Rom Kernel programming manuals and examples for Release 2.0.
+
+The 2.0 Rom Kernel manuals published by Addison-Wesley, plus
+The AmigaDOS Manual published by Bantam are the official programming
+manuals for the Amiga.  If you program for 2.0, it is easy to add V39/AA
+support by conditionally using the V39 32-bit-per-gun color loading
+functions to support the palette of 16,000,000 AA colors.
+
+Fish Disks 741 and 742 include the 2.0 RKM Companion archives
+which contain the examples from the Amiga ROM Kernel Reference
+Manuals, 3rd edition.
+
+Fish Disk 344 contains the 1.3 RKM Companion archives which
+contain the examples from the Amiga ROM Kernel Reference Manuals,
+2nd edition.
+
+The materials on these disks may be used to program for earlier versions
+of the Amiga OS.  For earlier OS's, don't use features, flags, structures,
+or functions which were added later.  Then add code to conditionally use
+any new functions which replace older methods of allocation or setting
+of flags.  Read the compatibility documents in this disk set and in
+the Release 2 ROM Kernel Manuals.
+
+
+        Published by Bantam Books (800-223-6834, NY & Canada 212-765-6500):
+
+                The AmigaDOS Manual 3rd Edition
+                        ISBN 0-553-35403-5
+
+
+        Published by Addison-Wesley (800-447-2226, 617-944-3700):
+
+                Amiga User Interface Style Guide
+                        ISBN 0-201-57757-7
+
+                Amiga Hardware Manual
+                        ISBN 0-201-56776-8
+
+                Amiga ROM Kernel Manual: Includes and Autodocs    
+                        ISBN 0-201-56773-3
+
+                Amiga ROM Kernel Manual: Devices (includes the IFF manual)
+                        ISBN 0-201-56775-X
+
+                Amiga ROM Kernel Manual: Libraries
+                        ISBN 0-201-56774-1
+
+
+
+About 3.1 and CD32 (V40)
+========================
+At the time of this writing, the 3.1 operating system has only been
+released in the Amiga CD32.  It is also available to registered developers
+in our closed electronic conferences for testing on other Amiga models.
+
+If you wish to develop CD-ROM software for CD32, you must sign an
+AmigaCD license for your product.  Licensed AmigaCD developers have
+access to additional materials and tools for programming the CD32.
+
+If you are developing an CD32 CD-ROM product, contact CATS - Licenses,
+1200 Wilson Drive, West Chester, PA. 19380 (or FAX 215-429-0643)
+and request AmigaCD license forms.  Include your name and full surface
+mail address.
+
+
+
+Becoming a Registered Developer
+===============================
+Developers in our registered Amiga developer programs receive special
+mailings, discounts, and access to beta OS and other materials in our
+closed electronic conferences on BIX, CIX (UK), and ADSP (Europe).
+
+In the US, two programs are currently available.  The Certified program
+costs approximately $100/year.  To join the Certified program, you must
+be developing a saleable product for the Amiga.  The Commercial program
+costs approximately $500/year, and includes personal phone support.
+The Commercial program is only open to developers with existing
+commercial computer products.  If you are developing a saleable
+product for the Amiga and would like a developer program application,
+this can be requested in the US from CATS-Applications at
+1200 Wilson Drive, West Chester, PA. 19380 (or FAX 215-429-0643).
+
+
+Licensing Info
+==============
+
+These materials are not freely redistributable.  However some
+individual archives on these disks may contain their own licensing
+or redistribution information (including AmigaGuide.lha, SetPatch
+archives, and runtime_libs.lha).
+
+An inexpensive distribution license for the 3.1 Includes and linker
+libs is available from Commodore.  Also available are licenses for
+earlier versions of the Includes.  In addition, Workbench licenses
+are available for Workbench 1.3, Workbench2.0, Workbench 2.1,
+and Workbench 3.0 (a Workbench 3.1 license should be available soon).
+Workbench licenses allow distribution of most of the files on a
+specific version of the Workbench disks, but do not include Arexx,
+CrossDOS, or outline fonts.  Includes and Workbench licenses do
+not allow any type of freely copyable distribution, and do require
+specific copyrights on your disk labels, and specific copyrights
+and disclaimers in your documentation.  The cost for an Includes
+license is currently $25 US/year.  The cost for a Workbench license
+is currently $100 US/year.  Renewals require documentation of
+compliance ith the license.
+
+Licenses forms may be requested by name in the US by contacting
+CATS-Licenses at 1200 Wilson Drive, West Chester, PA. 19380
+(or FAX 215-429-0643).  Be sure to include your name, phone number,
+surface mail address, and the name(s) of the license(s) you require
+(i.e. Includes 3.1, Workbench 3.0, etc.).
+
+
+Decompressing the Archives
+==========================
+
+NOTE - in all of the examples below, the archive names are shown
+without paths.  Unless the archive is in your current directory,
+you must supply a full path to where the archive file is.
+
+Example: LHEX x df0:DevTools/DevTools.lha
+
+If you have enough RAM, dearchiving may go faster if you copy
+the archive to RAM: first, then dearchive it.
+
+All of the usage examples also assume that your dearchiving tool
+is in one of your command paths.  Copy the dearchiving tool somewhere
+convenient where the system can find it (like to SYS:Tools, or to RAM:
+and then do PATH RAM: ADD)
+
+
+1. Tools
+
+If you have LhA by Stefan Boberg, you'll probably want to use that to
+decompress the archives.  LhA is fast and flexible.  If you don't
+have Lha, a tool called LHEX is provided on the Examples2 disk.
+LHEX is a tool from CATS for decompressing archives.  Its command line
+switches are fewer and different from LhA's.
+
+
+2. General - Listing the archive
+
+LhA Usage:   lha v archivename
+LHEX Usage:  lhex l archivename  (or just LHEX archivename)
+
+Before decompressing any archive, you should list the archive to see if
+it will be placing everything in a directory or not.  This will determine
+where the destination for decompression should be.
+
+For example, when we list the contents of include_h.lha, we see that
+the files are stored as include/<directory>/<file>.h, as below:
+
+[generic]            4542  35.8% Oct 15 10:24 include/clib/alib_protos.h
+[generic]            1136  19.1% Oct 15 10:25 include/clib/all_protos.h
+(etc.)
+
+This shows that when we decompress this archive, it will create if
+necessary and dearchive into a directory called "include".
+
+This means we should decompress the archive to parent directory of our
+current "include" directory.
+
+The easy way to direct the destination for decompression is to CD to the
+directory where you wish the archive contents to go.  In the above case,
+this means we WOULD NOT CD into our existing "include" directory, but
+rather to its parent directory.  For example, if our include directory
+is Work:SC/include, we would CD to Work:SC, since the listing of
+the include archive shows it will want to find (or create) a directory
+called "include".
+
+Alternately, if you have enough RAM, the safest way to decompress archives
+is to make a temporary directory in RAM: (called "tmp" or whatever).
+CD into the temporary directory, and decompress the archive there.
+Then COPY ALL the files to the place where you want them.  If you are
+short on RAM, You could do the same by CD'ing to a temporary directory
+on your hard drive.
+
+
+3. Decompressing an entire archive
+
+LhA Usage:  LhA -rexa x archivename
+LHEX Usage: LHEX x archivename
+
+The -rexa options for LhA tell it to preserve attribute bits, and create
+directories even if empty.  That's the same way LHEX decompresses.
+The above usage will decompress the archive to your current directory.
+
+To decompress an entire archive to somewhere other than your current
+directory:
+
+LhA Usage:  LhA -rexa x archivename destdir (must end with / or :)
+LHEX Usage: LHEX -w=destdir x archivename
+
+
+4. Extracting individual files or directories from an archive
+
+LhA Usage:  LhA -rexa x archivename filepattern
+LHEX Usage: LHEX x archivename filepattern
+
+Note - I believe the filepattern may be case-sensitive.
+
+First, list the archive to find the full path and name of the file
+or directory you wish to extract.  Then extract it.
+
+Examples:
+
+LhA:  LhA -rexa x autodocs.lha doc/amigaguide.doc
+      LhA -rexa x NewIFF39.lha newiff39/modules/*
+
+LHEX: LHEX x autodocs.lha doc/amigaguide.doc
+      LHEX x NewIFF39.lha newiff39/modules/*
+
+
+

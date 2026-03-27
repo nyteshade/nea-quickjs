@@ -1,0 +1,32 @@
+bumprev 39 Save8/Save8_rev
+bumprev 39 PlaySMUS/PlaySMUS_rev
+bumprev 39 24bitDemo/24bitDemo_rev
+bumprev 39 ILBMDemo/ILBMDemo_rev
+bumprev 39 ILBMLoad/ILBMLoad_rev
+bumprev 39 ILBMtoC/ILBMtoC_rev
+bumprev 39 ILBMtoRaw/ILBMtoRaw_rev
+bumprev 39 Play8SVX/Play8SVX_rev
+bumprev 39 RawtoILBM/RawtoILBM_rev
+bumprev 39 ScreenSave/ScreenSave_rev
+
+delete Save8/Save8
+delete PlaySMUS/PlaySMUS
+delete 24bitDemo/24bitDemo
+delete ILBMDemo/ILBMDemo
+delete ILBMLoad/ILBMLoad
+delete ILBMtoC/ILBMtoC
+delete ILBMtoRaw/ILBMtoRaw
+delete Play8SVX/Play8SVX
+delete RawtoILBM/RawtoILBM
+delete ScreenSave/ScreenSave
+
+delete Save8/Save8.o
+delete PlaySMUS/PlaySMUS.o
+delete 24bitDemo/24bitDemo.o
+delete ILBMDemo/ILBMDemo.o
+delete ILBMLoad/ILBMLoad.o
+delete ILBMtoC/ILBMtoC.o
+delete ILBMtoRaw/ILBMtoRaw.o
+delete Play8SVX/Play8SVX.o
+delete RawtoILBM/RawtoILBM.o
+delete ScreenSave/ScreenSave.o

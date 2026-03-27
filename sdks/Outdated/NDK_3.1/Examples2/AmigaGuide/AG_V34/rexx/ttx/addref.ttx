@@ -1,0 +1,59 @@
+/** $VER: AddRef.ttx 1.0 (16.May.91)
+ ** Written by David N. Junod
+ **
+ ** Add the current word to the cross reference table.
+ **
+ ** Add the following line to your TTX_Startup.dfn file, in the KEYBOARD:
+ ** section.
+ **
+ **   F10  ExecARexxMacro REXX:AddRef.ttx
+ **
+ **/
+
+
+OPTIONS RESULTS
+PARSE ARG word file line
+
+  /* Make sure AmigaGuide is loaded as a function host */
+  IF ~SHOW(L,'amigaguide.library') THEN
+     CALL ADDLIB('amigaguide.library',0,-30)
+
+  /* Did they pass a word? */
+  IF word = "" THEN DO
+
+    /* Get the word from under the cursor */
+    GetWord
+    word = RESULT
+
+  END
+
+  /* Did they pass the file name */
+  IF file = "" THEN DO
+
+     /* Get the name of the current document, complete with path */
+     GetFilePath
+     file = RESULT
+
+  END
+
+  /* Did they pass the line */
+  IF line = "" THEN DO
+
+     /* Get the current line position */
+     GetCursorPos
+     PARSE VAR RESULT line .
+
+     /* Adjust the line */
+     line = line - 1
+
+  END
+
+  /* Try adding the link */
+  error = AddXRef(word,file,line)
+
+  /* Able to add the node? */
+  IF error = 0 THEN message = '"*"'||word||'*" already in list"'
+               ELSE message = '"Added *"'||word||'*""'
+
+  /* Show the message */
+  SetStatusBar Temporary message

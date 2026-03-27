@@ -1,0 +1,12 @@
+CFLAGS = structureequivalence nostackcheck
+LFLAGS = smallcode smalldata nodebug noicons
+STARTUP = lib:c.o
+LIBS = lib:sc.lib lib:amiga.lib
+
+all: depthawarevisitor maxdepthlores
+
+depthawarevisitor: depthawarevisitor.o
+	slink $(STARTUP) depthawarevisitor.o to $@ lib $(LIBS) $(LFLAGS)
+
+maxdepthlores: maxdepthlores.o
+	slink $(STARTUP) maxdepthlores.o to $@ lib $(LIBS) $(LFLAGS)

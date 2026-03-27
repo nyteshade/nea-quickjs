@@ -1,0 +1,5 @@
+run wedge dos 0xffe2 0x8006 0x8000 opt r   "c=Open(name,accessMode)(d1/d2)"
+run wedge dos 0xffdc 0x8002 0x8000 opt r   "c=Close(file)(d1)"
+run wedge dos 0xffac 0x8006 0x8000 opt r   "c=Lock(name,type)(d1/d2)"
+run wedge dos 0xffa6 0x8002 0x8000 opt r   "c=UnLock(lock)(d1)"
+run wedge dos 0xffa0 0x8002 0x8000 opt r   "c=DupLock(lock)(d1)"

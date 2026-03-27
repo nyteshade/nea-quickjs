@@ -1,0 +1,80 @@
+Enforcer1.3
+CATEGORY: 1.3-compatible version of MMU-based Watchdog tool
+USAGE:    Enforcer [off|on|quiet|fprotect]
+USED FOR: Trapping reads and writes of low/non-existent memory
+REQUIRES: MMU that is not being used, serial terminal or parallel printer
+          with enforcer1.3.par
+
+Enclosed is a majik tool for detecting invisible bugs in programs; _The
+Enforcer_ uses the MMU to build a shroud of protection over anything that
+is not legal memory.  Any "empty holes" in the address space are marked as
+illegal by _Enforcer_.	Reads of the system ROMs are allowed, but not
+writes.  With the exception of longword reads of location 4, the lowest 1K
+of memory is completely off-limits.
+
+Enforcer runs on any Amiga or OS revision, as long as the MMU is not already
+in use.  This version of Enforcer also works on the A3000 under
+SuperKickstart (V1.3 or 2.0).  Under V1.3, Enforcer requires SetPatch
+version 1.38 or later.
+
+When an illegal access is detected, the power LED will flash and a detailed
+message will be sent out the serial port (at the default speed).  Illegal
+writes are aborted, illegal reads return NULL data.  For example:
+
+
+
+Program Counter (approximate)= 783C460         Fault address        =DEADBEEF
+User stack pointer	     = 7860ABC	       DOS Proccess address = 7839F98
+Data: 00000001 01E0F0FB 00000FA0 0783AE18 00000001 01E0987F 01E0A93D 0783C3EC
+Addr: 0783AE18 0785FB28 07810114 0783C3EC 07860AC0 00F8F56A 00F8F55E 078021D0
+Status register =$8	       Special status word =$729 (WRITE-WORD)
+Data output buffer  =$FFFFADEF (o)
+Process/CLI = Background CLI ,"lawbreaker"
+Hunk-O-Matic says: PC address is in hunk #0, near offset $70
+
+
+
+CLI command "lawbreaker" has written the word value $ADEF to location
+$DEADBEEF.  The write was aborted.  With the information given, it is
+usually quite easy to figure out what went wrong.
+
+
+
+
+Remote keystrokes:
+	    ^S	- pause.  You may have to press it more than once.
+	    ^Q	- resume
+	    ^X	- When in ^S, press ^X to suspend _Enforcer_ reporting.
+		  Use ^Q to resume.
+
+
+Command line options:
+	    on
+	    fprotect	;Same as on, but write protects $F00000-$F7FFFF
+	    off
+
+
+
+
+
+
+Notes:
+
+    If you don't have an external terminal, just use a modem & a terminal
+    program.  Most modems will echo back characters at any baud rate. Else,
+    just set the baud rate to match the modem.
+
+    Illegal hits from CLI commands named "metascope" or "wack" are ignored.
+
+    Rebooting an A3000 running Enforcer causes the SuperKickstart to be
+    reloaded from scratch next time you boot.  Some call this a feature.
+    This will, however, kill RAD:.  When Enforcer is off, SuperKickstart is
+    not reloaded.
+
+    The Alert() system call writes to locations in the $180-$1C0 area.
+
+
+Bugs:
+    Won't work on certain third-party processor boards with non-autoconfig
+    memory.
+

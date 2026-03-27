@@ -1,0 +1,26 @@
+
+Windows, PCX, and MacPaint Datatypes
+(c) Copyright 1990-93 Commodore-Amiga, Inc.  All Rights Reserved
+
+
+MacPaint is a trademark of Apple Computer, Inc.
+Windows is a registered trademark of Microsoft Corporation
+
+
+These Files are provided "AS-IS" and subject to change without notice;
+no warranties are made.  All use is at your own risk.  No liability or
+responsibility is assumed.
+
+----------------------------------------------------------------------
+
+These are some additional Amiga picture datatypes for popular
+graphics formats.  See PicDatatype.License for distribution information.
+
+After checking that newer versions are not already present on an
+Amiga system, these Datatypes may be installed as follows:
+
+  Copy devs sys:devs all clone
+  Copy datatypes sys:classes/datatypes all clone
+  AddDataTypes Refresh
+
+

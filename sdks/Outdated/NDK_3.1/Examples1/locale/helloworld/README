@@ -1,0 +1,13 @@
+HelloWorld is a simple program showing how to use CatComp to localize an
+application. There is a small program called helloworld.c which simply tries
+to print two strings to the display in a localized form. There is a catalog
+descriptor file called helloworld.cd which contains two strings. Finally,
+there is a French catalog translation file called helloworld.ct from which
+a French locale catalog for the application can be built.
+
+To compile the example with SAS 6.56, place the CatComp program in a command
+path, CD to where helloworld.c is, and enter "smake".  This should
+compile the example AND create its French catalog.  If you run the executable,
+it should use its internal (English) strings unless you have Français
+selected as your language preference via the Locale Prefs program, in
+which case it should output the French strings from its catalog.

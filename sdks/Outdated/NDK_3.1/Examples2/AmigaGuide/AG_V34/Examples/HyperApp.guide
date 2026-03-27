@@ -1,0 +1,58 @@
+@database hyperapp.hyper
+@node Main "HyperApp Help"
+    @{" Gadget " link Gadget}
+    @{" OK " link Okay}
+    @{" Cancel " link Cancel}
+    @{" intuition.h " link "intuition/intuition.h/main"}
+    @{" RXS " rxs "address command 'display transmog.pic'"}
+    @{" Help " link help.hyper/main}
+    @{" Quit " link Quit}
+@endnode
+
+@node Quit
+Format:      Quit
+
+Template:    ,
+
+Purpose:     To shut down the application.
+
+Specification:
+This command is used to close the application.  This indicates acceptance
+of the @{" Gadget " link Gadget} command (if used).
+@endnode
+
+@node Gadget "Transmogrify gadget"
+Format:      Gadget
+
+Template:    ,
+
+Purpose:     @{" Transmogrify " system "display transmog.pic"} things.
+
+Specification:
+This command is used to transmogrify things.  Concentrate on what you
+want while you press this gadget, and just see what happens!
+
+@endnode
+
+@node Cancel "Cancel button"
+Format:      Cancel
+
+Template:    ,
+
+Purpose:     Cancel the actions of @{" Gadget " link Gadget}
+
+Specification:
+Use this button to cancel the effects of the @{" Transmogrify " link Gadget} gadget.
+@endnode
+
+@node Okay "OK button"
+Format:      OK
+
+Template:    ,
+
+Purpose:     Accept the actions of @{" Gadget " link Gadget}
+
+Specification:
+Use this button to accept the effects of the @{" Transmogrify " link Gadget} gadget.
+@endnode
+

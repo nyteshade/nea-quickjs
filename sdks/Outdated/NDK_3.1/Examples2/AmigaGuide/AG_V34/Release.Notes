@@ -1,0 +1,560 @@
+                     amigaguide.library Release Notes
+                       (IN REVERSE DATE ORDER)
+
+Dec-9-90 33.162
+
+  o  Added buttons along the bottom.  Contents, Index, Help, Retrace,
+     Previous & Next page.
+
+  o  Added Retrace.  This allows you to follow your path in the reverse
+     direction.
+
+  o  Added Menus, with Close Window, Quit, and some navigation items.
+
+  o  Added new keyword @TOC <node name>.  This allows you to specify the
+     Table of Contents for a sub-area.  Selecting the Contents menu item
+     from the Navigation menu will take you to the Table of Contents for
+     a node.
+
+  o  Able to open a non-database file again.  Preparing to allow links to
+     other files.
+
+  o  Modified the link function to accept a line arguement.  This allows a
+     link to go to a particular line of a node.  Only available to the
+     Retrace function at the current time.
+
+Dec-9-90
+
+  o  Pressing Help cause the system to do an ALINK HELP.  Currently there
+     isn't a default help node, so your database has to supply it.
+
+  o  Forgot to do a refresh if TableOfContents was called from the menu.
+
+Dec-10-90
+
+  o  Flushed out more enforcer hits & mungwall hits.
+
+Dec-11-90
+
+  o  Added nh_PubScreen to the NewHyper structure to indicate what public
+     screen it should open on.
+
+Dec-16-90
+
+  o  Fixed bug that caused nodes with no pure text lines to display
+     incorrectly.
+
+  o  Cleaned up database open & closed.  New scheme allows for databases to
+     be opened without a client.
+
+  o  Added OpenHyperBase() and CloseHyperBase() commands to the ARexx function
+     host.
+
+  o  Cleaned up menus.  Uses GadTools under 2.0, plain hard-coded topaz8 menus
+     under 1.3.
+
+Dec-21-90
+
+  o  Fixed a couple of enforcer hits.
+
+  o  Disabled the "Print As..." menu item until I have requester for it.
+
+  o  Added BrowsePrev and BrowseNext features.  Not accessable yet.
+
+  o  Added simple clipboard support.  You can just copy an entire node to
+     the clipboard, no block selection yet.
+
+Jan-1-90
+
+  o  Changed labels back to full text.
+
+  o  Cleaned up gadgets.  Borders and arrows.
+
+  o  One of node locators wasn't case insensitive like the rest.  Couldn't
+     find MAIN if it was named Main, for example.
+
+  o  Started converting event processor to be an Event Dispatcher.  Saves
+     LOTS of space and is much more user configurable.
+
+  o  Worked on Browse.  If @PREV and @NEXT aren't used, then defaults to
+     browsing back & forth through nodes that share the same @TOC (in
+     node order).
+
+  o  Was adding the nodes to the node list in alphabetical order.  This
+     caused problems when doing the default Browse function.  Now I just
+     AddTail the nodes to the node list.  Added an additional list that I
+     keep an alphabetized node list on (for when I do a default Index).
+
+Jan-4-90
+
+  o  Cleaned up text, centralized in a text table.
+
+  o  Cleaned up window titles.
+
+  o  Cleaned up loading of a node, cleaner error handling.
+
+  o  Improved interface for standalone applications.
+
+  o  Added "Find Node..." requester (window).  Not quite perfect yet...
+
+Jan-10-90
+
+  o  Add some virtual screen smarts.
+
+
+Jan-22-90
+
+  o  Cleaned up virtual screen stuff.
+
+  o  Worked on callback hooks some more.
+
+  o  LINK and ALINK now allow a line# parameter (comes after the node
+     name).
+
+Jan-24-91
+
+  o  Added DNODE node specifier.
+
+  o  Implemented callback hooks for DNODE (Dynamic Node).
+
+  o  Can now load an external file.  Uses the SAS functions stcgfp to get the
+     document name and the stcgfn to get the node name. So, to load
+     intuition.h, use "include:intuition/intuition.h/Main".
+
+  o  If there was more than one button, in one document, that was exactly the
+     same, then navigation would get extremely screwed.
+
+  o  Corrected all sorts of button problems.
+
+  o  Implemented a text environment variable to set button style:
+
+     SETENV HYPERTEXT <style>
+
+     where style can mutually exclusively be:
+
+     BUTTON
+     HIGHLIGHT
+     UNDERLINE
+     BOLD
+     ITALIC
+
+  o  Implemented an environment variable to set pens (all seven pens have to
+     be set).
+
+     SETENV HYPERPENS <abcdefg>
+
+     where:
+
+     a = Background Pen
+     b = Button Text Pen
+     c = Button Background Pen
+     d = Highlighted Button Text Pen
+     e = Highlighted Button Background Pen
+     f = Outline Pen
+     g = Highlight Outline Pen
+
+Jan-25-91
+
+  o  Added an RXS command for sending ARexx string files.
+
+  o  Changed RX to invoke macros, instead of sending a string file.
+
+  o  Set up pr_HomeDir when running asynchronous.
+
+Jan-26-90
+
+  o  Added SYSTEM command.  No need to do RXS "ADDRESS COMMAND <>" anymore.
+
+  o  Asynchronous HyperClient process is now a Cli process.  Inherits its
+     path, input and output from the calling process.  If the calling
+     process doesn't have a Cli structure, then the Workbench Cli structure
+     will be cloned.  Keyword here is PATH.
+
+  o  Didn't do an OS version check when doing a GetVPModeID, therefore
+     it crashed under 1.3
+
+  o  Added @REMARK keyword.  Doesn't do anything, used (in addition to ;;)
+     for remarks.
+
+  o  Added @MASTER keyword.  Used to indicate the complete name (with path)
+     of the source document that was used to build a HyperText document.
+     Reference use only, currently.
+
+Jan-28-91
+
+  o  Wrote the AutodocToHyperText conversion utility.
+
+  o  Updated HyperText to use ReadArgs if 2.0 or above.  Template is
+     "File/A,PubScreen/K,PortName/K".
+
+  o  If using a public screen, then do a ScreenToFront on it after getting
+     a lock on it.
+
+Jan-29-91
+
+  o  Fixed crash that occurred when doing CloseWindow from menu when
+     running MungWall.
+
+  o  Fixed apparent hang-up when a callback hook failed.
+
+Jan-30-91
+
+  o  Changed snapshot window position to per-screen instead of per-window.
+
+  o  Fixed false button problem.
+
+  o  Added left arrow to cycle backward through links, right arrow to scroll
+     forward through links.
+
+  o  Using arrow keys to scroll while a button was depressed didn't abort
+     the button.
+
+  o  Would perform callback to open a DNODE even if there wasn't a close
+     callback.  Now requires both an open & close callback in order to
+     do a DNODE.
+
+  o  Browse Forward menu item called the BrowsePrevFunc under 1.3
+
+  o  RetraceFunc, HelpFunc, and ContentsFunc were setting a flag to the
+     wrong value, hence the funky scroll & eventual lockup experienced
+     by Martin.
+
+  o  Did cosmetic work to the Find requester.
+
+Jan-31-91
+
+  o  More AD2HT work...
+
+  o  IsLink function didn't calculate TABS properly.
+
+Feb-3-91
+
+  o  Hopefully the last change to the NewHyper structure.  Added fields to
+     specify the Node and Line to open to.  Didn't want to use tags for it,
+     because it adds too much power to be missing from the 1.3 version.
+
+  o  Added LoadXRef function to load a cross reference file into memory.
+
+  o  Added ExpungeXRef function to expunge a cross reference list from
+     memory.
+
+  o  Add DOCUMENT and LINE keywords to HyperMore.  If DOCUMENT is specified,
+     but not DATABASE, then DATABASE is supplied by the cross reference
+     list.
+
+  o  Now support the following functions as an ARexx function host:
+
+     ShowNode
+     PUBSCREEN/K,DATABASE/K,NODE/K,LINE/N
+     Display a node on the named screen.  Defaults to the Main node, on the
+     Workbench screen.  If DATABASE isn't specified, then will search
+     through the cross reference list to get the database name.  This
+     function won't return until the user has closed all windows opened
+     for this function.
+
+     LoadXRef
+     NAME/K
+     Load a cross reference file into memory.
+
+     GetXRef
+     NODE/K
+     Return information on NODE.  Format of the text string returned is
+     "NODE" "DATABASE" TYPE LINE.
+
+     ExpungeXRef
+     ,
+     Flush the cross reference list from memory.
+
+Feb-5-91
+
+  o  Display Wait pointer and Loading... title when loading a cross
+     reference database.
+
+  o  ESC and Q call CloseFunc instead of QuitFunc.
+
+  o  Wasn't showing first and last line of a text file.
+
+  o  Wouldn't show a text file that started with @.
+
+4-May-91
+
+  o  Moved buttons to top of window.
+
+  o  Smoother scrolling.
+
+  o  Smarter gadget imagry.
+
+  o  Updated HYPERPENS environment variable to set text pen.
+
+     SETENV HYPERPENS <abcdefgh>
+
+     where:
+
+     a = Background pen
+     b = Button text pen
+     c = Button background pen
+     d = Highlighted button text pen
+     e = Highlighted button background pen
+     f = Outline pen
+     g = Highlight outline pen
+     h = Text on background pen
+
+     For example:
+
+	SETENV HYPERPENS 21213001
+	SETENV HYPERTEXT BOLD
+
+     will give a very sharp look.
+
+8-May-91
+
+  o  Quit now calls CloseAllWindows instead of exiting, when asynchronous.
+
+  o  TOC can be an external file now.
+
+  o  Added FindString and FindNext.
+
+  o  Buttons can now contain {}'s.  Needed for nodes that contain
+     C source (like Autodocs).
+
+  o  Now loads global help file, from S:help.hyper for now.
+
+9-May-91
+
+  o  Automatically unloads external databases when done with them.
+
+  o  History now retains database and node name, in case the database
+     is unloaded and needs to be reloaded.
+
+16-May-91
+
+  o  Finished up on AddHyperHost()/RemoveHyperHost() and the corresponding
+     support for HyperHost's.
+
+17-May-91
+
+  o  Minor code cleanup.  Found an enforcer hit when working with AppShell
+     and no hyper file.
+
+19-May-91
+
+  o  Cleanup on AD2HT.  Now resolves links to .h files better.  No more
+     garbage at the end of lines with ()) in them.
+
+21-May-91 33.699
+
+  o  AD2HT was broken under 1.3.  Also didn't provide enough error messages
+     when running under 1.3
+
+  o  Button repeat uses the KeyRpt preference values.
+
+  o  Keyboard repeat uses normal key repeat routines instead of loop.
+
+22-May-91 33.723
+
+  o  Implemented path searching for databases and cross reference
+     tables.  Refreshes the global path at every library open time, from
+     the HYPERPATH environment variable.
+
+	SetEnv HyperPath "WORK:Autodocs/Libs WORK:Autodocs/Devs INCLUDE:"
+
+  o  Made OpenE() and LockE() public functions, so that AmigaGuide
+     utilities can share the same path.
+
+30-May-91
+
+  o  Fixed two memory trashing bugs.  One with > > RETRACE > and the
+     other with closing the Find window.
+
+3-June-91 33.854
+
+  o  Made AD2HT use the hyper.library cross reference list.
+
+  o  Added XREFFILE, LOGFILE, FROM and TO tool type processing to
+     AD2HT.
+
+  o  Changed proportional gadget to have a border.
+
+  o  No longer does a WindowToFront when displaying a document.
+
+  o  Fixed minimum width bug.
+
+4-June-91 33.864
+
+  o  Wasn't using correct sprintf (needed RawDoFmt version).
+
+  o  HyperMore gave enforcer hit when exiting if run from Workbench.
+
+11-June-91
+
+  o  AD2HT wasn't honoring window title bar height.
+
+  o  Print was only printing selected lines.
+
+  o  Bring up busy pointer while outputing lines (print, clipboard, etc).
+
+  o  Misspelled usage.
+
+  o  Changed HyperText to HyperMore in the HyperMore utility.
+
+  o  Cross reference won't load duplicates anymore.
+
+##-##-91
+
+  o  Changed all names from Hyper to AmigaGuide
+
+  o  Optimized code some.
+
+  o  Find requester now has checkmarks for "Ignore Case" and
+     "Only Whole Words".
+
+  o  Fixed enforcer problems with Find.
+
+28-Aug-91
+
+  o  RX, RXS and SYSTEM now work again.
+
+  o  Scroll by gadget doesn't throw off the LINK display command anymore.
+
+  o  Didn't display tabs properly when there were links in the line.
+
+  o  Added @$VER: database command for indicating version of a database.
+
+     @$VER: name version.revision (day.month.year)
+
+02-Oct-91
+
+  o  Menus & gadgets are now localized, using locale.library.
+
+  o  Added horizontal slider.
+
+  o  Retrace restores column and active link.
+
+  o  Retrace will always remember line, column and active link point now.
+
+  o  Closes Find window if exiting AmigaGuide via CloseWindow or Quit.
+
+  o  Optimized the GetLink routine (used to determine where mouse was).
+
+05-Oct-91 33.1235
+
+  o  Add PrintSelected.
+
+  o  Added SetBookMark and GotoBookMark.
+
+  o  Added GetAmigaGuideString() library function for obtaining a localized AmigaGuide string.
+
+  o  Added double-click on any text to look it up in the cross-reference table.
+
+06-Oct-91
+
+  o  Made buttons act like gadgets (move off of them they raise, move back on they depress).
+
+
+17-Oct-91
+
+  o  V39 NewLook menu support
+
+  o  Mark block pointer added
+
+18-Oct-91 33.1272
+
+  o  Uses CDTV keypad and bookmark.device if running on a CDTV
+
+23-Oct-91 33.1275
+
+  o  AD2HT
+
+     Free's icon position
+     No longer GURU's when creating a cross-reference file (XREF)
+     Sorts cross-reference file before writing it out.
+     No longers uses the .hyper extension.
+
+  o  SYSTEM now uses a stack of 40000.
+
+28-Oct-91
+
+  o  Added quotes to bookmark command.
+
+  o  AmigaGuide, the utility, now uses a ReadArgs-like clone under 1.3
+
+  o  Find requester was simple refresh, but not handling events.
+
+12-Dec-91
+
+  o  Recompiled with SAS/C 5.10b (lots of work!!!)
+
+  o  Added XREF/K keyword to the AmigaGuide utility.  This is used to
+     specify the cross reference file that is associated with the file.
+     The default is the file name, plus .xref.
+
+  o  Changed the autodoc.xref file name to autodocs.xref
+
+  o  AD2HT default cross-reference file is now autodocs.xref
+
+16-Dec-91
+
+  o  Fixed requester trashing problem.
+
+19-Dec-91
+
+  o  Fixed empty node trashing problem.
+
+
+amigaguide.library 34.4
+
+ o Wasn't freeing the library base properly when expunging.
+
+
+amigaguide.library 34.8
+
+ o Now sets the ofh_TOC, ofh_Next and ofh_Prev from dynamic node hosts.
+
+ o Now handles 8 bit-plane deep screens.
+
+ o No longer ghosts NEXT button if the last node has a @NEXT
+   command.
+
+ o No longer ghosts PREV button if the first node has a @PREV
+   command.
+
+ o AD2AG no longers provides an unwanted MungWall hit when
+   parsing include files.
+
+ o No longer displays silly little vertical bars when
+   encountering V39 attribute commands.
+
+ o / is now a keyboard shortcut for Retrace (like in MultiView).
+
+amigaguide.library 34.9
+
+ o Fixed a bug in LoadXRef() that would cause it to drop names.
+
+ o Added AGA_WorkPath and AGA_WorkNode attributes to GetAmigaGuideAttr().
+   The destination path should be at least 300 bytes and the node name
+   should be at least 128 bytes.
+
+   /* If we can get one of these, we can get the other */
+   if (GetAmigaGuideAttr (AGA_WorkPath, aghandle, (ULONG *) &paddr))
+   {
+       GetAmigaGuideAttr (AGA_WorkNode, aghandle, (ULONG *) &naddr);
+       printf ("database='%s', node='%s'\n", path, node);
+   }
+
+   This feature allows your utilities to remember the last node visited,
+   so that the database can be brought back up at the same place.
+
+amigaguide.library 34.10
+
+ o Now checks for the presence of nag_BaseName and if NULL supplies
+   AmigaGuide.
+
+amigaguide.library 34.11
+
+ o Recompiled with SAS/C 6.3
+
+ o Wasn't handling improperly terminated link commands properly.  It would
+   end up trashing memory.   Now will terminated at the end of a line.
+
+ o new AG_V34 include/libraries/amigaguide.h for V34 AG development only
+   (i.e. don't overwrite a V39 amigaguide.h with this)

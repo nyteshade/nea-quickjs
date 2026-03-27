@@ -1,0 +1,70 @@
+PRINTA
+
+Format:	     PRINTA <file> [NOHUNK]
+
+Template:    PRINTA "FROM/A,NOHUNK/S"
+
+Purpose:     To print the contents of Amiga binary format files.
+
+Specification:
+
+PRINTA prints Amiga binary object files from an assembler or a linker, such
+as ALINK. To understand the meaning of the output of PRINTA, you should read
+the chapter "AmigaDOS Binary File Structure," of The AmigaDOS Manual.
+
+Entering NOHUNK after your file name causes PRINTA to suppress printing the
+actual contents of code and data hunks.
+
+Example:
+
+1> PRINTA startup.obj
+HUNK.CODE
+23F80004 00000004 23CF0000 00004EB9 00000000 42802E79 00000000
+4E75202F 000460F2
+HUNK.RELOC32 HUNK=1 [00000018] [0000000A] [00000004]
+HUNK.EXT [1] [_exit...]Val=0000001E
+HUNK.EXT [129] [_main...] [00000010]
+T.END
+HUNK.BSS [00000003]
+HUNK.EXT [1] [_errno...] Val=00000008
+HUNK.EXT [1] [_SysBase] Val=00000004
+T.END
+
+Examine this print out in parts:
+
+HUNK.CODE
+23F80004 00000004 23CF0000 00004EB9 00000000 42802E79 00000000
+4E75202F 000460F2
+
+The file "startup.obj" has a CODE hunk with the data listed in hexadecimal.
+
+HUNK.RELOC32 HUNK=1 [00000018] [0000000A] [00000004]
+
+The CODE has three values relative to itself (HUNK=1) at offsets 18, A and 4
+from the start of the hunk.
+
+HUNK.EXT [1] [_exit...]Val=0000001E
+
+The CODE has an external reference to itself ([1]) called _exit which is 1E
+bytes from the start of the hunk.
+
+
+HUNK.EXT [129] [_main...] [00000010]
+
+The CODE has an external reference to _main in some other hunk (which must
+be linked in later before the code will be loadable).
+
+HUNK.BSS [00000003]
+
+Following the CODE hunk is a BSS (uninitialized data area) hunk.  The BSS is
+3 long words long (12 bytes).
+
+HUNK.EXT [1] [_errno...] Val=00000008
+HUNK.EXT [1] [_SysBase] Val=00000004
+
+The symbol _errno, which is 8 bytes from the base of the BSS hunk, is
+referenced by the CODE (hunk [1]).  The symbol _SysBase, which is 4 bytes
+from the base of the BSS hunk, is also referenced by the CODE (hunk [1]).
+
+See Also:	    ALINK, ABSLOAD
+

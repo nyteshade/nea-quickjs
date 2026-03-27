@@ -1,0 +1,416 @@
+
+Preparing Software for Credit-Card Distribution
+by Darren Greenwald
+
+(c) Copyright 1991-1993 Commodore-Amiga, Inc.  All Rights Reserved
+
+ 
+   ************************************************************************
+   *									  *
+   *				DISCLAIMER				  *
+   *									  *
+   *   THIS SOFTWARE AND INFORMATION IS PROVIDED "AS IS".		  *
+   *   NO REPRESENTATIONS OR WARRANTIES ARE MADE WITH RESPECT TO THE	  *
+   *   ACCURACY, RELIABILITY, PERFORMANCE, CURRENTNESS, OR OPERATION	  *
+   *   OF THIS SOFTWARE AND INFORMATION, AND ALL USE IS AT YOUR OWN RISK. *
+   *   NEITHER COMMODORE NOR THE AUTHORS ASSUME ANY RESPONSIBILITY OR	  *
+   *   LIABILITY WHATSOEVER WITH RESPECT TO YOUR USE OF THIS SOFTWARE	  *
+   *   AND INFORMATION.							  *
+   *									  *
+   ************************************************************************
+
+About This Document
+
+The purpose of this document is to explain the issues associated
+with developing Amiga software for distribution in ROM card format.
+Before reading this document, you may wish to first read through
+the ``PCMCIA PC Card Standard - Release 2.0''.  In particular read 
+through the section titled ``Card Metaformat.''  See also the
+Amiga example code, autodoc, and include files for the card device.
+
+The PCMCIA Card Standard Specifications may be ordered directly
+from PCMCIA.
+
+    PCMCIA Resource Ref Book - approximately $7.50
+    PCMCIA Specifications - approximately $250.00 
+
+    PCMCIA - Phone 408-720-0107  (California, USA)
+
+This is the order number.  Call to get exact pricing and then you can
+FAX an order direct to PCMCIA.  The prices above are for non-members.
+
+
+Background
+
+Many developers, especially those with entertainment products will
+be interested in distributing their software in ROM format. The
+credit-card package is ideal. There are two ways that programs can
+be organized on ROM cards:
+
+	1) ``Execute-In-Place'' format
+and
+	2) ``Disk-Like'' (or File-Formatted) format.
+
+We do not anticipate that the first Amiga implementation will support
+the DOS XIP protocol which is clearly MS-DOS oriented. This protocol
+is complex, and there is no real benefit because Amiga computers cannot
+run XIP applications intended for MS-DOS machines.
+
+The term ``Execute-In-Place'' means that program code can run directly
+from the ROM card, i.e., it is not downloaded into the Amiga's RAM.
+Amiga execute-in-place software will run in an environment similar to
+boot block games; that is, they will run before DOS has been initialized.
+Such software may not initialize DOS, as DOS requires a suitable device
+and disk-like media to boot off. 
+
+As an alternative to the Amiga execute-in-place environment, software
+can be distributed using a disk-like format. This provides less
+copy-protection than execute-in-place cards, and requires use of
+available RAM to load such software. However plenty of existing software
+can be easily placed on a ROM using the disk-like format. Software
+distributed in this format would also be usable on a diskless Amiga.
+If a formatted and bootable card is not inserted when the machine boots,
+the user is prompted to insert a disk (or card in this case) by the
+Amiga strap module.
+
+The advantage of this format is that it provides an environment to
+initialize DOS (though many boot block games do not do so) should you
+wish to save high scores or other data to another Static RAM card or
+floppy disk using standard DOS calls.  An other advantage is that your
+code does not have to be rommable.  Any program that can be started from
+a bootable floppy's startup-sequence should work from a disk-format
+PCMCIA card with little or no modification.
+
+RAM PCMCIA cards card be formatted as arbitrary-size disks using the
+PrepCard utility which comes with the Workbench of Amigas with a
+PCMCIA slot.  They can be made bootable by installing them using
+the special Install command shipped with the machine which will
+install trackdisk or carddisk.  The contents of a floppy can be
+copied to the formatted disk-format PCMCIA RAM card with a simple
+COPY DF0: CC0: ALL.  If you have custom boot code, you should be able
+to install it by using the carddisk.device exec device directly.
+
+
+General PCMCIA Issues:
+
+Important things to be aware of:
+
+* Execute-in-place code cannot use, and does not need to use custom
+  trackdisk code to load itself from floppy disk.
+
+* Self-modifying code (which has always been discouraged) will break
+  if running out of ROM. Such code must be moved to RAM for execution.
+  You already know that self modifying code tends to break on CPUs with
+  instruction/data caches turned on.
+
+* Existing executables could be LoadSeg()ed into credit-card memory to
+  resolve references.  We provide a "loadc" tool for ROMTAG'd executables
+  which will loadseg the executable into a PCMCIA RAM card, automatically
+  surrounding it with the necessary tuples for AmigaXIP.
+  Nevertheless, such programs still might not run out of ROM if the CODE
+  tries to write to any DATA or BSS sections.  (NOTE - see the tool "loadc")
+
+* Special data such as tuples can be placed into the card image by using
+  a debugger.
+
+* File format cards appear just like diskettes for the system.  They can
+  be formatted, and standard AmigaDOS commands can be used on them.
+
+* Executable code for execute-in-place cards usually cannot be written
+  using only standard compilers and support files because included
+  startup code for example may read and write to global variables in
+  the executable image, which would not be writable, of course, when
+  in ROM.
+
+* Execute-in-place code can be tested on a static RAM card which is write
+  protected once the code has been loaded into it.
+
+* You should check with ROM vendors to find out what media they can accept
+  an image on for production purposes.
+
+
+Execute-In-Place Format
+
+Amiga execute-in-place software will require that a minimal Card
+Information Structure be present. A CISTPL_DEVICE tuple (as required by
+the standard) must be present, and an additional tuple which will identify
+the card as an Amiga execute-in-place card.
+
+
+Attribute Memory Characteristic Problems
+
+There is a problem which has not been made clear in the PCMCIA
+specification which you will need to be aware of. Four out of four
+of the Static RAM cards we have now have different attribute memory
+characteristics. This will become an important issue once you are ready
+to go to a Masked ROM vendor for duplication. The attribute memory
+characteristics of the card on which you develop the master will affect
+how the Card Information Structure can, and must be laid out. You will
+need to make sure that the Masked ROM vendor you deal with can fully
+duplicate the card, including attribute memory.
+
+An example may help to clarify this point. You might develop your master
+on a write-protected Static RAM card, or EEPROM card which has a few bytes
+of writeable attribute memory. You might lay out the Card Information
+Structure like so: 
+
+	Attribute memory
+	CISTPL_DEVICE,			/* tuple	*/
+	0x00,					/* skip	*/
+	0x02,				/* link		*/
+	0x00,					/* skip	*/
+	DTYPE_ROM|DPSEED_250ns,		/* type/speed	*/
+	0x00,					/* skip	*/
+	((1<<3)|4,			/* units/size	*/
+	0x00,					/* skip */
+	CISTPL_END,			/* tuple	*/
+	0x00,					/* skip	*/
+	CISTPL_END,			/* link		*/
+
+	Common Memory
+	CISTPL_LINKTARGET,		/* tuple	*/
+	0x03,				/* link		*/
+	'C','I','S',			/* body		*/
+
+	CISTPL_?????,			/* etc.		*/
+
+There is an implied link from attribute memory to common memory, so
+the tuple chain would be continued in common memory following the
+CISTPL_LINKTARGET tuple stored at 0x00000000 in common memory.
+However, once you take this to the Masked ROM vendor, this Card
+Information Structure may not work if the vendor's ROMS have overlapped
+attribute/common memory. An example of this would be an Intel Flash ROM.
+
+Some of the Static RAM cards do not have any writeable attribute memory,
+and read $FF when read. This is technically not correct because the
+CISTPL_DEVICE should appear as the first tuple in attribute memory.
+However, because we do have examples of such cards, we will allow the
+CISTPL_DEVICE tuple to be stored in common memory after a CISTPL_LINKTARGET
+tuple.  You may use any of the level 1 basic compatibility tuples on the
+card to layout the Card Information Structure. With some care it is possible
+to store the CIS in very little space. Make use of a CISTPL_END tuple link
+to terminate a tuple chain, and the implied link from attribute to common
+memory to continue a chain.
+
+You may choose to store manufacturer information on the card using the
+CISTPL_VERS_1, or CISTPL_VERS_2 tuples. This information is not required,
+though it may be important for you to place identification information 
+on a Masked ROM.
+
+
+
+
+Going from RAM to ROM (or FLASHROM)
+
+CATS would eventually like to provide a utility which will read selected
+tuples from any type of RAM card, plus the binary contents of the common
+memory of the RAM card, to create a flat binary file intended for an
+overlapped-attribute Flashrom or ROM card.  Link tuples would be generated
+by the utility.
+
+CATS plans to support the following tuples in this utility,
+but we do not plan to support multiple instances of them:
+
+CISTPL_DEVICE (describes device type, speed, size)
+
+CISTPL_FORMAT (indicates card contains data, where the data is, size of
+partition, partition type [e.g., DISK like], error detection method, etc.)
+
+CISTPL_GEOMETRY (only meaningful for DISK like data; contains sec/trk,
+trk/cyls, total cylinders).  Note that there can be more than one
+CISTPL_FORMAT tuple, though our device driver does NOT look for more than
+one.  Also more than one CISTPL_GEOMETRY (e.g., 1 per CISTPL_FORMAT tuple)
+
+CISTPL_VERS1 (product information - note we've never seen one on any card
+except for the modem).
+
+CISTPL_VERS2 (indicates degree of compliance with the spec, and info
+about who wrote the tuples - Good idea to duplicate this one, though
+the built-in device driver does not require it).
+
+CISTPL_AMIGAXIP (this is not a standard tuple; it is one of the ones
+reserved for manufacturer specific use, and should not appear on any
+cards but our own Amiga specific cards).
+
+
+
+The CISTPL_AMIGAXIP Tuple
+
+In order to identify the card as an Amiga execute-in-place card, you must
+also place a CISTPL_AMIGAXIP tuple in the CIS. This is not a standard
+tuple, and should not appear by default on any cards.
+
+Tuples can be expressed as structures. The structure of a CISTPL_AMIGAXIP
+tuple looks like: 
+
+struct TP_AmigaXIP {
+	UBYTE TPL_CODE;		/* 0x91 (hex $91)		*/
+	UBYTE TPL_LINK;		/* must be $6			*/
+	UBYTE	 TP_XIPLOC[4];	/* offset to ROM-TAG		*/
+	UBYTE	 TP_XIPFLAGS;	/* boot flags			*/
+	UBYTE	 TP_XIPRESRV;	/* must be 0			*/
+};
+
+The TPL_CODE must be equal to 0x91 ($91 hex), and the TPL_LINK field must
+be equal to 0x6 ($6 hex). The TP_XIPLOC field is a 4 byte offset into
+common memory, stored in little-endian order (which is consistent with
+the standard for storing 32 bit offsets in tuples).
+
+This offset (when added to the base address of common memory) must
+point to a valid ROM-TAG (struct Resident). If all the above is true,
+your execute-in-place code will be called at strap time by Exec's
+InitResident() function.
+
+Bit 0 of the TP_XIPFLAGS field (if set) indicates that the machine
+should reboot if the card is inserted after DOS has been started,
+thereby allowing the execute-in-place code to run as soon as the system
+finishes rebooting. This feature may not be implemented on all machines.
+For example, on a machine which is more clearly a computer than an
+entertainment system, we will likely not implement this feature. 
+Because a ROM-TAG is used, it is implied that such software does not
+need to use PC-Relative code. Absolute references are allowed, and
+encouraged if it will decrease the time necessary to port software to
+a ROMABLE form. Amiga machines which have a credit-card slot and support
+this Amiga execute-in-place method will map the start of credit-card
+common memory to $600000 through $9FFFFF inclusive. This is within the
+address space accessible by the 68000 CPU, and uses the upper 4 megabytes
+of address space for FAST ram expansion. Attribute memory will appear
+at $A00000 through $A1FFFF.
+
+
+
+Final Notes for Execute-in-Place Software
+
+As indicated above, execute-in-place software operates in an environment
+similar to boot block games. The system will poll for newly inserted
+execute-in-place cards at the same time that it polls for other devices
+(e.g., hard disks and floppies) to boot from. Execute-in-place cards
+always take priority, so even systems with hard disks can run execute-
+in-place cards.  Some software, including many games, will never return
+control to the system. If you do return from InitResident(), you should
+return a non-successful return code in D0 (NULL) indicating that you are
+done with the card and that it may be removed by the user. You must leave
+the system in a ``good'' state. The system will try to pick up where it
+left off, polling for something to boot off. You should definitely test
+your exit code. If you are unable to exit cleanly, it is better not to
+do so. Games which completely take over the system would be better off
+performing a reboot rather than exiting.
+
+Because a ROM-TAG is used, you should make use of InitResident()'s
+ability to allocate memory for you, and initialize that memory. This is
+precisely what we use for nearly all Operating System ROM modules;
+it works well. 
+
+
+Disk-Like or File Format for ROM Cards
+
+In addition to a CISTPL_DEVICE tuple, such a card must have a valid
+CISTPL_FORMAT tuple which indicates that the card is formatted like
+a disk. The use of CISTPL_GEOMETRY tuple is optional.  If the software
+is being distributed on a Masked ROM, the CISTPL_DEVICE tuple should
+indicate this, and there is no reason to use Checksum, or CRC error
+detection. The software will load faster without error detection,
+and you save some valuable ROM space.
+
+PCMCIA-slot equipped Amigas contain a basic device driver in ROM which
+supports autobooting off formatted cards if the card has been formatted
+by the Amiga FileSystem, and has valid boot blocks (like an installed
+floppy disk). The master can be easily created on a Static RAM card, and
+write-protected for testing and duplication.  Such cards can be easily
+formatted with the PrepCard utility, and made bootable with a special
+Install command which supports CC0: (the credit card drive).
+
+
+
+Mixing Execute-in-Place and File Formatted Cards
+
+While there will be no built-in support for mixing execute-in-place
+and file formatted cards, we anticipate some developers will wish to
+do so. It is possible to use a small portion of a Masked ROM as a 
+bootable Amiga disk, and have a small program(s) which calls
+execute-in-place code stored elsewhere on the card.  The only real
+problem with doing this is the machine will likely crash if the card
+is removed. Because the card looks like a disk, the user might reasonably
+assume that HOT-REMOVAL is acceptable, as would be the case for a floppy
+disk. We provide an approved-of ``cheat'' below so that the machine
+will at least reboot instead of crashing if such a card is removed. In
+either case, you will need to tell the user the consequences of removing
+the card while the machine is on. In a multitasking environment the user
+may want to run some other important software; crashing and rebooting
+are rarely appreciated by the user.
+
+Hidden executable code on a file-formatted card (ie. code stored outside
+of the bootable disk image) should not be described by an AMIGAXIP tuple
+since future implementations of the OS software might find and initialize
+multiple tuples.
+
+Format your PCMCIA as a small bootable disk (less cylinders than the
+size of the card).  Modify loadseg.asm to load your run-in-place code
+into the PCMCIA card past where the disk ends (this will vary depending
+on the checksum method chosen for the disk but should be covered by the
+partition size in the PCMCIA FORMAT tuple of your formatted PCMCIA
+disk-format card -  see the PCMCIA Card Standard).
+
+Write a small program to be called from your startup-sequence in the disk
+part of the card - this small program will find and call your hidden
+execute-in-place code.
+
+Because this hidden-execute-in-place method boots as a disk,
+the system will think the PCMCIA card is removable (i.e. the system
+will not reset if the card is removed).  If you are running code or
+using data in the card when this happens, the system will likely crash.
+It is better to make sure the system will reboot in such cases.
+Therefore, your startup-sequence program should do the following before
+calling your hidden execute-in-place code to make sure that the system
+will reset upon removal of the card (see also cardres.doc):
+
+Forcing Reset-on-removal of a disk-formatted card:
+
+- OpenResource the card.resource
+- Try to own the card with OwnCard()
+- If if fails (as it normally would if the card is disk format and
+  is inserted), then
+- Use the CardHandle pointer returned by OwnCard() to call
+  CardResetRemove() to enable reset on removal.  If this returns
+  a successful return, then it is safe to call your hidden
+  execute-in-place code on the card.
+
+Good programming practice suggests disabling reset-on-removal
+when your execute-in-place code or data use is completed.
+
+
+See the Compiler Issues section for more information on how to
+write/call rommable code.
+
+
+Compiler Issues:
+
+Generally, rommable code is written in assembler, but you may be able
+to write rommable C code using your compiler's method for writing pure
+(reentrant) code.  In addition, some compilers may directly support
+creation of rommable code.
+
+Consult your compiler's documentation regarding rommable and reentrant code.
+Such mechanisms often use base-relative data references and special startup
+code that clones your global data segment into RAM so that you can write to
+your global variables.  You may also need to use #pragmas for system calls
+rather than using amiga.lib stubs.
+
+Calling the code:
+ 
+If you plan to start your code from an AmigaXIP ROMTAG, you will probably
+need to modify the compiler-provided startup code to not open/use DOS, and
+to not Wait or Reply a WBStartup message.
+
+If you call your code as a subroutine from a disk-format PCMCIA card
+startup-sequence program, you will need to call it with d0 and a0 set
+up appropriately for CLI program entry, i.e.:
+
+*           d0  dosCmdLen
+*           a0  dosCmdBuf
+
+If you instead CreateProc or CreateNewProc a hidden execute-in-place
+program, you will either have to modify its startup code to not Wait
+for or Reply a WBStartup message, or have your small boot program send
+a fake WBStartup message to the Process MsgPort of your CreateProc'd
+hidden code to wake it up.

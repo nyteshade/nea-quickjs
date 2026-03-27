@@ -1,0 +1,9 @@
+CFLAGS = structureequivalence nostackcheck
+LFLAGS = smallcode smalldata nodebug noicons
+STARTUP = lib:c.o
+LIBS = lib:sc.lib lib:amiga.lib
+
+all: WheelGrad
+
+WheelGrad: WheelGrad.o
+	slink $(STARTUP) WheelGrad.o to $@ lib $(LIBS) $(LFLAGS)

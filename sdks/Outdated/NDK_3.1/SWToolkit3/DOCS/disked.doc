@@ -1,0 +1,231 @@
+DISKED
+
+Format:	     DISKED <device>
+
+Template:    DISKED "DEVICE/A"
+
+Purpose:     To inspect and patch disk blocks.
+
+Specification:
+
+You can use DISKED to inspect and patch disk blocks; for instance, to
+recover information from a corrupt floppy disk.  However, because DISKED
+writes directly to the disk, you should use it carefully.
+
+Only use DISKED with reference to the layout of an AmigaDOS disk. (For a
+description of this layout, refer to The AmigaDOS Manual.)  DISKED
+understands the AmigaDOS layout.  For instance, the R (Root Block) command
+prints the key of the root block.  The G (Get Block) command followed by the
+key number reads the block into memory, and the I (Information) command
+prints out the information contained in the first and last locations.  This
+information indicates the type of block, the name, the hash links, and so
+on.  If you specify a name after an H (Hash) command, DISKED gives you an
+offset on a directory page that stores as the first key any headers with
+names that has to the name you supplied.  If you then type the number that
+DISKED returns followed by a slash (/), DISKED displays the key of that
+header page.  You can then read that key with further G commands, and so on.
+
+All DISKED commands are single characters, sometimes followed by arguments.
+The following is a complete list of the available commands.
+
+COMMAND			FUNCTION
+B n			Sets logical block number base to n
+
+C n			Displays n characters from the current offset
+
+G [n]			Gets block n from the disk (default is the current
+			block number)
+
+H name			Calculates the hash value of the name
+
+NOTE: If you specify a name after an H command, DISKED gives you an offset
+on a directory page that stores, as the first key, headers with names that
+hash to the name you specified. If you then type the number that DISKED
+returns followed by a slash (/), DISKED displays the key of that header
+page.  You can then read on with further G commands, etc.
+
+I			Displays block information
+
+K			Checks block checksum (and corrects it if wrong)
+
+L [lwb upb]		Locates words that match value under mask (lwb and
+			upb restrict the search)
+
+M n			Sets mask to n (for L and N commands)
+
+N [lwb upb]		Locates words that do not match value under mask
+
+P n			Puts block in memory to block n on disk (default is
+			the current block number)
+
+Q			Quit (do not write to disk)
+
+R 			Displays block number of root block
+
+S char			Sets display style: char = C (characters), S
+			(string), O (octal), X (hexadecimal), or D (decimal)
+
+T lwb upb		Types range of offsets in block
+
+V n			Sets value for L and N commands
+
+W			Windup (P & Q)
+
+X 			Inverts write-protect state
+
+Y n			Sets cylinder base to n
+
+Z 			Zero all words of buffer
+
+number			Sets current word offset in block; equals the
+			display values set in program
+
+?			Displays current values (number of cylinders,
+			blocks per track, number of blocks, block size, etc.)
+
+/[n]			Displays word at current offset or updates value to
+			n
+
+'chars'			Puts characters at current offset
+
+"chars"			Puts string at current offset
+
+To indicate octal, start numbers with #; for hexadecimal, start numbers
+with #X.  You can also include BCPL language string escapes in strings (*N
+and so forth).
+
+
+Example 1:
+
+Because DISKED can be somewhat difficult to learn, here is a sample session.
+You can try this out on a copy of your Workbench disk.  It will go through
+the most useful of the DISKED commands.  The block numbers in the sample
+session may not match your results exactly.  Therefore, you will need to
+fill in the block numbers DISKED displays on your system.
+
+NOTE:  In this example, everything after a ";" is a comment and should not
+be typed.
+
+HARDCOPY v1.0 recorded on 20-Jun-88 19:14:52 to file "ram:temp" To end the
+HARDCOPY session and close the file, type HARDCOPY END
+
+RAM-DISK:> disked df0:
+AmigaDOS Disk Editor version 3.4
+Write protect mode set, cylinder base set to 0
+# r				;Find the root block
+ Root Block is block 880
+# g 880			;Get the root block
+ Block 880 read (cyl 40, sur 0, sec 0)
+# i				;Display info about current block
+ Short file
+ Header key:       0
+ Highest seq num:  0
+ Data size:        72
+ First data block: 0
+ Checksum:         -173384115
+ Secondary type:   Root block
+ Parent Directory: 0
+ Hash Chain:       0
+ Filename:         "Workbench 1.3"
+ Modified:         Monday 20-Jun-88 18:52:18
+ Created:          Monday 20-Jun-88 11:45:57
+ Bitmap is Invalid
+# hc				;Get the hash value for the "C:" directory
+ Hash value = 14
+# 14				;Go to (longword) offset 14
+# /				;Look at what is at the current offset
+ 889
+# g 889			;Go to the "C:" directory
+ Block 889 read (cyl 40, sur 0, sec 9)
+# hEd				;Look up the hash of "Ed"
+ Hash value = 13
+# heD				;Case is ignored for hashing
+ Hash value = 13
+
+# 13
+# /
+ 910
+# g 910
+ Block 910 read (cyl 41, sur 0, sec 8)
+# i				;Get the info
+ Short file
+ Header key:       910
+ Highest seq num:  41
+ Data size:        0
+ First data block: 911
+ Checksum:         -59184531
+ Secondary type:   File
+ Extension block : 0
+ Parent Directory: 889
+ Hash Chain:       1346
+ Filename:         "Ed"
+ Created:          Monday 20-Jun-88 10:55:40
+
+	;When two or more names have the same hash value,
+	;they are chained together.  In this case "Hash Chain"
+	;points to the next one in line.
+
+# g 1346			;Go to next in hash chain
+ Block 1346 read (cyl 61, sur 0, sec 4)
+# i
+ Short file
+ Header key:       1346
+ Highest seq num:  6
+ Data size:        0
+ First data block: 1347
+ Checksum:         435379822
+ Secondary type:   File
+ Extension block : 0
+ Parent Directory: 889
+ Hash Chain:       0
+ Filename:         "Binddrivers"
+ Created:          Monday 20-Jun-88 19:13:34
+
+# 82				;Go to offset 82, where the comment is stored
+# sx				;Set display to hex
+# /
+ 00000000 			;No comment yet!
+# /#X01410000		;Set a comment as the BCPL string "A"
+# /
+ 01410000 			;Check it, looks ok!
+# k
+*** warning - checksum incorrect
+***         - value in block was -38147475
+***         - corrected to       -59184531
+
+# x
+ Write protect mode unset
+# p
+ Block 910 updated (cyl 41, sur 0, sec 8)
+# q				;Quit
+
+RAM-DISK:> list df0:c/ed
+df0:c/ed                   19564 --p-rwed Today     10:55:40
+: A
+
+
+Example 2:
+
+Consider deleting a file that, due to hardware errors, makes the filing
+system restart process fail.
+
+1.Locate the directory page that holds the reference to the file.  Do this
+by searching the directory structure from the root block, using the hash
+codes.
+
+2.Locate the slot that references the file.  This is either the directory
+block or a header block on the same hash chain.  This slot should contain
+the key of the file's header block.
+
+3.Set the slot to zero by typing the slot offset, a slash, then zero
+(<offset>/0).
+
+4.Correct the checksum with the K command.
+
+5.Disable the write protection of the disk with the X command.
+
+6.Write the update block to the disk with the P command or the W (Windup)
+command.
+
+The blocks that the file used in error will become available again after the
+RESTART process has successfully scanned the disk.

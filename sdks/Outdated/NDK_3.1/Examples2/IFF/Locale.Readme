@@ -1,0 +1,67 @@
+Adding localization
+===================
+
+These modules have some conditional localization code in the modules
+iffpstrings.c which is currently turned off.  The code is provided as a
+template for YOU if you wish to add localization to your IFF application.
+
+The iffpstrings.h file and a blank translation file are created with
+the gencat script and CatComp localization tool. An iffp/iffp.cd catalog
+description file is generated but not used.
+
+If you want to write a localized IFF application, take iffp.cd and
+iffpstrings.c, and make copies called yourapp.cd and yourappstrings.c
+(for example Wowpaint.cd and Wowpaintstrings.c).  Make a copy of
+the gencat script and edit the ".def" lines to make the basename
+and catalog name correct for your application (i.e. wowpaint).
+
+Add your own strings to the end (or beginning) of yourapp.cd
+Then use CatComp (via your modified gencat script). This will create
+yourappstrings.h and a blank translation file yourapp.ct.
+
+See CatComp.doc.  The current CatComp will be available on V39 disks
+for registered developers, and will soon be available in our public
+area on BIX (amiga.dev/listings).  We also plan to send it to Fred Fish.
+
+Edit yourappstrings.c to have it use yourapp.catalog and include
+yourappstrings.h.  CatComp has many usage options including the
+ability to create a .o file for you.  I just use the array and
+have my own GetString function which you can see in iffpstrings.c.
+And turn on the conditional localization code in yourappstrings.c.
+
+Your other modules that need to access strings can #define CATCOMP_NUMBERS
+and include yourappstrings.h to just gain access to the string ID numbers.
+You will probably also want to include a macro like the S(i) macro below
+for easy access of strings via their ID.
+
+Your main module needs to OpenLibrary("locale.library",38) into LocaleBase,
+and must call OpenStrings() initially, and CloseStrings() (before CloseLibrary
+of LocaleBase) before exiting.  The OpenStrings/CloseStrings functions
+are in yourappstrings.c.   You will link with yourappstrings.c,
+not iffpstrings.c, and you will use yourappstrings.h, not iffpstrings.h.
+
+
+#define S(i)  GetString(i)
+
+The above macro will allow you to easily retreive any of your
+strings during execution.  Examples:
+
+
+printf( S(MSG_GOODWORK) );
+
+printf ("%s: %s\n", progname, S(MSG_COMPLETED));
+
+MyNewWindow.Title = S(MSG_MYWINDOWTITLE);
+
+etc.
+
+
+You can use the blank yourapp.ct file to have translations made
+for your strings.  Then use CatComp to turn the .ct file into
+a yourapp.catalog file for the translation language.
+
+If locale.library and a yourapp.catalog (in a user's preferred language)
+have been opened by OpenStrings(), the S() macro will return a localized
+string to you.  Else, it will return the original string from
+yourpptrings.h.
+

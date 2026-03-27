@@ -1,0 +1,50 @@
+.key none
+.bra {
+.ket }
+
+;$VER: InstallAmigaGuide 34.6 (10.8.93)
+
+failat 21
+
+version >NIL: amigaguide.library 34 11
+if warn
+   echo "Installing amigaguide.library version 34.11"
+   copy libs/amigaguide.library libs: clone
+else
+   echo "Not installing amigaguide.library 34.11 because newer/same version"
+   echo "is already present"
+endif
+
+version >NIL: SYS:Utilities/WDisplay 34 1
+if warn
+   echo "Installing WDisplay version 34.1"
+   copy utilities/WDisplay SYS:Utilities clone
+   copy utilities/WDisplay.info SYS:Utilities clone
+else
+   echo "Not installing WDisplay 34.1 because newer/same version is present"
+endif
+
+version >NIL: SYS:Utilities/Amigaguide 34 4
+if warn
+   echo "Installing Amigaguide version 34.4"
+   copy utilities/Amigaguide SYS:Utilities clone
+   copy utilities/Amigaguide.info SYS:Utilities clone
+else
+   echo "Not installing Amigaguide 34.4 because newer/same version is present"
+endif
+
+version >NIL: s:help.guide 33 67
+if warn
+; This could be placed anywhere, as long as you add
+; the path name to the AmigaGuide/Path environment variable.
+   ask "*NInstall Amigaguide s:help.guide ?"
+   if warn
+      echo "Installing help.guide 33.67 in s:"
+      copy s/help.guide s: clone
+   endif
+else
+   echo "Not installing help.guide 33.67 because newer/same version is present"
+endif
+
+echo "Done"
+wait 8

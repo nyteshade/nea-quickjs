@@ -1,0 +1,41 @@
+/* exceptions for the Autodocs */
+
+/* Don't make these words into links, unless they end with () */
+EXCEPTIONS:
+    Alert
+    Allocate
+    Animate
+    Cause
+    Close
+    Deallocate
+    Debug
+    Delay
+    Disable
+    DoubleClick
+    Draw
+    Enable
+    Examine
+    Execute
+    Exit
+    Fault
+    Flush
+    Forbid
+    Format
+    Input
+    Insert
+    Lock
+    Move
+    Open
+    Output
+    Permit
+    Read
+    Remove
+    Rename
+    Request
+    Seek
+    System
+    Text
+    Unlock
+    Wait
+    Write
+#

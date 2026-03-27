@@ -1,0 +1,260 @@
+
+Display 39.11 (c) Copyright 1990-1993 Commodore-Amiga, Inc.
+
+
+Display is a program for displaying IFF ILBM format image files.
+V39.x Display supports V39 and 8-bit-per-gun AA graphic modes, but still
+runs under 1.3 and 2.0 as long as iffparse.library is present.
+(2.04 Workbench's iffparse.library will run under 1.3.)
+
+The Display program can display single pictures, or can present a keyboard,
+mouse, or automatically advanced slide show.  Display can also be used
+to print ILBM graphics.
+
+Under 2.0 and higher, Display supports overscan screens centered based
+on the user's Preferences, autoscroll screens, and explicit modeid for
+display if desired.
+
+
+Usage Summary
+=============
+CLI Usage:
+Display [from filelist] OR file [file file...] [opt [mlbpaenvf][t=n][d=x]]
+opts: <m>ouse (1 pic: mm) <l>oop <b>ack <p>rint <a>utoscroll <e>hb <v>ideo
+ <n>otransb <f>it (V39 bestfit) <s>nomonitor <r>nocenter t=seconds d=modeid
+
+WB Usage: Via Default Tool, Extend Select, or text FileList Project
+ToolTypes:  If FileList: FILELIST=TRUE (Required)
+Tool/Filelist: TIMER=n,MODEID=x,Bool MOUSE,MMOUSE,LOOP,PRINT,BACK,BESTFIT,
+		NOMONITOR,NOCENTER
+Pics: MODEID=x, Boolean EHB,AUTOSCROLL,NOTRANSB,VIDEO,BESTFIT,
+		NOMONITOR,NOCENTER
+
+Click toggles bar, CTRL-P prints screen
+Close display in upper left, or CTRL/C.  CTRL/D to break a script
+ 
+
+Displaying a single ILBM file
+=============================
+
+   From CLI:
+
+   Display filename [opt [mlbpaenvf][t=n][d=x]] (options explained later)
+
+   From Workbench:
+
+	either	Use the left mouse button to click on (select) the Display
+		icon, then shift/double-click the ILBM picture file icon.
+
+	    or  single click the ILBM picture file icon then select the 
+		Workbench Icon menu "Information" item.  Enter Display as the
+		Default Tool in the Information requester and Save.
+		Now double-clicking that ILBM picture icon will automatically
+		load the Display program and display the picture.
+
+   Closing the display:
+
+      By default, clicking in the upper left corner or using CTRL-C
+      will close the display.  Other options described later allow mouse
+      advance, looping, and automatically timed displays.
+
+
+
+
+Displaying multiple ILBM picture files as a "slide show"
+========================================================
+
+   Display has the ability to do a slide show.  There are several methods
+   for doing a slide show.  Some are more useful for on-the-fly situations,
+   and others are more suitable for planned presentations.
+
+
+   From CLI: (options explained later)
+
+	either	Display filename filename [filename [filename...]] [opt options]
+
+	or	Display from filelist [opt options]
+		where filelist is a file which contains an ASCII text list
+		of the ILBM filenames you want to display.  A filelist file
+		can be created with any plain ASCII text editor such as
+		Ed or Memacs.  The contents of an example filelist follows
+		(assuming you have a directory called Pictures containing
+		some ILBM graphic files):
+
+			Work:Pictures/MonaLisa
+			Work:Pictures/Max
+			Work:Pictures/NewYork
+
+		Certain per-picture options may also be specified on each
+		line of a filelist (see Options section later).
+
+   From Workbench:
+
+	either	Single-click on Display, then shift-click the pictures you
+		wish to display, shift-double-clicking on the last picture.
+
+	or	Set up a slideshow file as follows:
+		Create a text filelist as described above and place
+		the file in a directory accessible from Workbench.
+		Create a "Project" type icon for the file and save the Project
+		icon in the same directory as your filelist file, giving
+		it the same name as your filelist but with ".info" added
+		to the name.  Then select your Project icon (you may have
+		to Update the window first) then select Information from
+		the Workbench Icon menu.  Enter Display as the Default Tool,
+		and add the following tooltype:  FILELIST=TRUE
+		Also read about the additional Tooltype options below.
+		You may wish to add some like MOUSE=TRUE (for a mouse-advanced
+		show) or LOOP=TRUE and TIMER=seconds for an automatic show.
+
+
+   Advancing the display:
+
+   By default, you must click in the upper left corner or CTRL-C to
+   advance from one displayed picture to the next.  However, with simple
+   options suchas MOUSE (m), LOOP (l), and TIMER (t), described in #3 below,
+   you can advance and back up using the mouse, and create automatic looping
+   timed displays.  CTRL-D will terminate an entire slide show and exit
+   Display. 
+
+
+
+Options
+=======
+
+   From CLI, Display options are specified after the filename(s) by using
+   the "opt" keyword followed by your options.
+
+   Example: Display mypicture opt m
+
+   In addition, certain options may be specified on a per-picture basis in
+   a text filelist for Display.
+
+   From Workbench, options are specified as ToolTypes in the icons of the
+   Display program, or the ILBM file icons, or in the icon of a filelist.
+   ToolTypes are entered using the "Information" selection in Workbench's
+   "Icon" menu.  (Single click an icon, then select the Workbench menu item).
+   
+
+   CLI			Workbench			Description
+   ===			=========			===========
+
+   FROM filelist	FILELIST=TRUE		Display the pictures LISTED
+						in the text filelist file
+						attached to this icon
+						(one picture and optional
+						options listed per line)
+
+   m			MOUSE=TRUE		Left mouse button advances
+						slideshow, right goes backwards
+
+   mm			MMOUSE=TRUE		Left mouse button advances
+						slideshow, even if one one
+						picture is being shown
+						(i.e. click on picture and
+						it goes away)
+
+   l			LOOP=TRUE		Rather than exiting after the
+						last picture, loop back to
+						the first picture.
+
+   b			BACK=TRUE		Causes pictures to remain as
+						the back screen, unactivated.
+						Useful when printing pictures
+						while working.
+
+   a			AUTOSCROLL=TRUE		If picture is bigger than
+						visible display clip, enable
+						autoscrolling - i.e. automatic
+						scrolling when mouse reaches
+						edge of visible display
+
+   p			PRINT=TRUE		Cause Display to automatically
+						print each picture that is
+						displayed.  Note that you can
+						also print manually by pressing
+						CTRL-P.
+
+   e			EHB=TRUE		Treat unspecified (no CAMG)
+						6-bitplane pictures as Extra
+						Halfbrite rather than HAM.
+
+   n			NOTRANSB=TRUE		A 2.0 and ECS option.  Causes
+						borders to NOT be transparent
+						when genlocked.
+
+   v			VIDEO=TRUE		A 2.0 and ECS option.  Causes
+						picture to be displayed with
+						full-video display clip.
+
+   f			BESTFIT=TRUE		Ignore CAMG modeid if any
+						and instead let OS decide
+						best modeid to display in.
+
+   s			NOMONITOR		Crudely strips monitor ID
+						if any from CAMG
+
+   r			NOCENTER		If picture is larger than Max
+						Overscan for mode, will place
+						upper left corner of screen
+						at upper left corner of display
+						clip (rather than centering
+						screen around display clip.
+						
+   d=hhhhhhhh		DISPLAYMODE=hhhhhhhh	Ignore CAMG mode id if any
+						and instead display using
+						this mode id (where hhhhhhhh
+						is hex mode id with no 0x or $)
+
+   t=seconds		TIMER=seconds		For automatic advance when
+						time elapses.
+
+
+   The following options may be specified on a per-picture basis in
+   a picture icon or in a line of a filelist:
+
+   CLI opt	Tooltype
+   =======	========
+   e		EHB=TRUE
+   n		NOTRANSB=TRUE
+   v		VIDEO=TRUE
+   a		AUTOSCROLL=TRUE
+   f		BESTFIT=TRUE
+   s		NOMONITOR=TRUE
+   r		NOCENTER=TRUE
+   d=hhhhhhhh	DISPLAYMODE=hhhhhhhh
+
+   Most other options are global and may only be specified on a CLI
+   command line, or in the Display icon, or in a filelist Project icon.
+
+
+   
+Examples
+========
+
+   - Print three files as a background task:
+
+     run Display file1 file2 file3 opt bp t=1
+
+
+   - Display a list of files as a looping (l) slide show, showing each picture
+     for 5 seconds:
+
+     Display from myshow opt l t=5   
+
+        where the text file "myshow" contains:
+
+	path/mypicture1
+	path/mypicture2  opt a d=00008004  (extra options for this picture)
+	path/mypicture3
+
+   - Start a mouse-advance slideshow for a presentation
+
+     Display from myshow opt ml
+
+
+     Note - if you put a project icon on the file "myshow", set its
+     Default Tool to Display, and enter the tooltypes MOUSE=TRUE and
+     LOOP=TRUE, you could start the same slide show by double-clicking
+     the Project icon.
+

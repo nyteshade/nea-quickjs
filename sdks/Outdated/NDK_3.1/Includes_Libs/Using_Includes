@@ -1,0 +1,256 @@
+
+Using 3.x Amiga Includes and Libs
+=================================
+(c) Copyright 1993 Commodore-Amiga, Inc.  All Rights Reserved
+Disclaimer: All use is at your own risk.
+
+
+Updating your Amiga Include Files
+---------------------------------
+Most Amiga C compilers and assemblers should be able to use unmodified
+Amiga Include files, but may ship with an older version of the includes.
+You should be able to decompress the .h and/or .i archives provided
+here, and copy the newer include files over your existing includes
+(Note - if you are at all unsure whether your compiler or assembler
+can use unmodified Amiga includes, then first make a backup of your
+old include directory).  The Amiga includes do not contain any root
+level or other compiler-specific include files like stdio.h.
+Copying the Amiga includes over your existing includes will only
+replace older Amiga-specific include files.  We have used unmodified
+Amiga include files with SAS C, Manz Aztec C, DICE, HX68 and Cape.
+
+
+Updating your Libs
+------------------
+You will also need to update your compiler's linker libs with the
+newer Amiga linker libs.  Some compilers can use our libs as-is.
+(I believe SAS and Manx are in this category, as well as most
+assemblers).  Other compilers may provide a tools which will
+allow you to convert our Amiga.lib and other libs to the format
+the compiler requires (I believe DICE is in this category).
+ 
+
+Updating Your FD's
+------------------
+If you keep the FD files on your system (for use with tools like LVO),
+or if your language requires FD files, these may be found in the FD
+archive.  Some compilers provide tools which can convert FD files
+into pragma or other register interface description files which
+can help your code be smaller and faster.  (SAS fd2pragma for example).
+The updated LVO tool (from SWToolkit3) can now generate _lib.i style
+output for use with assemblers.  LVO, in conjuction with the FD files
+(in a directory assigned the name FD:) can also be used to look
+up function interface information, or to generate command lines for
+Wedge (SWToolkit3).
+ 
+
+Compiling New Code to Work on Older OS's
+----------------------------------------
+This is relatively easy.  Just don't use any functions/flags/tags
+which are newer than the earliest OS you need to run under.  Consult
+the comments in the include files and autodocs for notes on when various
+functions/flags/tags/structures were added.  If starting from example
+code, you should probably start with examples written for the
+earliest OS you need to work under, or search out backwards-compatible
+examples which conditionally take advantage of new features.
+Check out the 2.0 Addison-Wesley Rom Kernel Manuals, and also the
+example code from the 2.0 and 1.3 Rom Kernel Manuals (on Fish Disks).
+Then, whenever new functions are available to replace old methods
+of allocation or initialization, conditionally use the new methods.
+Old methods may not work on all systems and are less upwards-compatible.
+Read all of the compatibility documents you can find (see back of
+the 2.0 RKM Libraries manual, and see any 3.x Compatibility documents.
+And be sure to test your code under all OS's you support.  If you do
+anything with graphics or Intuition, be sure to test on an AA machine
+with mode promotion on (IControl Prefs).  And if you open on the
+Workbench screen, be sure to test with large Workbench fonts, mode
+promotion on, AND an odd-sized Workbench screen.
+
+
+NOTE: New ASL Tags
+The asl.library now supports some new individual tags for
+old features.  Many features which could previously only be accessed
+via FuncFlag tag bits now have their own tags.  Warning - even
+though many of these features existed even in V37 asl.library,
+the new individual tags for requesting them ARE NOT INTERPRETED until
+V38 asl.library.  If you need to be compatible with V37 asl.library,
+see the old tag and bit definitions at the end of asl.h.
+A better solution for Workbench license-holders is to distribute
+the V38 asl.library with your program (a free ASL amendment is
+available for Workbench license holders.  The V38 asl.library also
+is the earliest asl.library which contains the screen mode requester.
+
+
+NOTE: New Safer Intuition Flag Names
+Old code often had problems with Intuition flags being set in the
+wrong fields or being used incorrectly.  New consistent flag
+names with prefixes were added in V37.  Use of these new names
+for old features (such as WFLG_SIZEGADGET and IDCMP_GADGETUP)
+makes it difficult to sets flag bits in the wrong places. 
+Note that these new flag names for old intuition features
+generally have the same bit values as the old names, and may
+be used for any version of Intuition which support the feature.
+To enforce use of the newer/safer/consistent naming conventions, new
+code which uses Intuition should include the following #define before
+including any intuition headers, and should use only the new names for
+the various Intuition flags.  Use of the following #define will prevent
+use of the old flag names which are now in  intuition/iobsolete.h
+
+#define INTUI_V36_NAMES_ONLY
+
+
+
+Compiling Old Code
+------------------
+Old code should compile fine with newer includes except for the
+fact that compilers have grown smarter and pickier.  Many old
+coding mistakes may be picked up.  In addition, the default settings
+for compilers have changed, often to base-relative settings, so
+code containing subtasks or handlers will probably require newer
+compiler switches to disable base-relative data or special compiler
+directives added to the subtask or handler code (consult your
+compiler manual).  In addition, by default, many compilers now
+require prototypes (ours are in clib/) and this is good, so you
+might need to start including prototype files, and perhaps add some
+casting to places where compilers didn't complain before.  One other
+compiler-dependent thing is how to disable a compiler's CTRL-C handling.
+For example, old code might disable old Lattice's  CTRL-C handling but
+the same lines might not disable SAS's CTRL-C handling.
+
+For SAS or Lattice, these lines should work fine unless you need
+to include the SAS root level dos.h header which contains an incorrect
+prototype which conflicts with this:
+
+#ifdef __SASC
+void __regargs __chkabort(void) {}      /* Disable SAS CTRL-C checking. */
+#else
+#ifdef LATTICE
+void chkabort(void) {}                  /* Disable LATTICE CTRL-C checking */
+#endif
+#endif
+
+
+
+What Files Do You Need To Include ?
+===================================
+
+A relatively small set of Amiga include files will handle most simple
+programming needs.  Check out the set in the skeleton C program below.
+Those will pull in the definitions for return codes, memory allocation,
+Library structures, screens, windows, and simple graphics, plus your C
+compiler's prototypes and definitions for stdio, file io, etc.
+
+You will need to add these include files to the skeleton for the following
+common activities:
+
+devices/(whatever).h	- If using the (whatever).device
+dos/dosextens.h		- If using process or packet structures
+dos/exall.h		- If using ExAll
+dos/rdargs.h		- If using ReadArgs
+exec/tasks.h		- If you have subtasks or need to access tasks
+exec/interrupts.h	- If you have interrupt code
+graphics/gfxmacros.h	- If you need graphics macros
+hardware/(xxx).h	- If you need bits/registers of some Amiga hardware
+libraries/asl.h		- If using asl.library (and clib/asl_protos.h)
+libraries/diskfont.h	- If using diskfonts
+libraries/gadtools.h	- If using gadtools (and clib/gadtools.h)
+utility/tagitem.h	- If manipulating tags (and clib/utility.h)
+workbench/startup.h	- If parsing Workbench startup args
+workbench/workbench.h	- If accessing icons or tooltypes (and clib/icon.h)
+
+
+If you still have unresolved structure/flag names, you can look
+them up in the C Cross Reference in the 2.0 Addison-Wesley Includes
+and Autodocs manual, or use C:search as follows to find the file which
+defines what you are looking for:
+
+	search include:#?/#?.h structname (or flag name)
+
+
+Sample Skeleton C Program
+=========================
+Example of a simple skeleton C program where "xxxx" can be globally
+replaced with the program name.
+
+;/* xxxx.c - Execute me to compile me with SAS C 6.x
+SC xxxx.c data=near nominc strmer streq nostkchk saveds ign=73
+Slink FROM LIB:c.o,xxxx.o TO xxxx LIBRARY LIB:SC.lib,LIB:Amiga.lib ND
+quit
+*/
+
+#include <exec/types.h>
+#include <exec/memory.h>
+#include <dos/dos.h>
+#include <intuition/intuition.h>
+
+#include <clib/exec_protos.h>
+#include <clib/dos_protos.h>
+#include <clib/intuition_protos.h>
+#include <clib/graphics_protos.h>
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+
+#ifdef __SASC
+void __regargs __chkabort(void) {}      /* Disable SAS CTRL-C checking. */
+#else
+#ifdef LATTICE
+void chkabort(void) {}                  /* Disable LATTICE CTRL-C checking */
+#endif
+#endif
+
+
+#define MINARGS 1
+
+UBYTE *vers = "\0$VER: xxxx 40.1";
+UBYTE *Copyright = 
+  "xxxx v40.1\n(c) Copyright 1993 Commodore-Amiga, Inc.  All Rights Reserved";
+UBYTE *usage = "Usage: xxxx";
+
+void bye(UBYTE *s, int e);
+void cleanup(void);
+
+/* library bases here
+struct Library *IntuitionBase = NULL;
+etc.
+*/
+  
+void main(int argc, char **argv)
+    {
+
+    if(((argc)&&(argc<MINARGS))||((argc>1)&&(argv[argc-1][0]=='?')))
+	{
+	printf("%s\n%s\n",Copyright,usage);
+	bye("",RETURN_OK);
+	}
+
+/* library opens here
+    if(!(IntuitionBase = OpenLibrary("intuition.library",37)))
+	{
+	bye("Can't open V37+ intuition.library",RETURN_FAIL);
+	}
+etc.
+*/
+
+    bye("",RETURN_OK);
+    }
+
+
+void bye(UBYTE *s, int e)
+    {
+    if(*s) printf("%s\n",s);
+    cleanup();
+    exit(e);
+    }
+
+void cleanup(void)
+    {
+/* library closes here
+    if(IntuitionBase)	CloseLibrary(IntuitionBase);
+etc.
+*/
+
+    }
+

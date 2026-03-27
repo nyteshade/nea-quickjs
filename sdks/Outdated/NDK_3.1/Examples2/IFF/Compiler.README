@@ -1,0 +1,39 @@
+
+The modules/ directory contains the module sources and SAS C 6.3
+object modules.  If you are using Manx, copy Makefile.Manx to
+Makefile, and copy iffobj/Manx/#?.o to the modules/ directory.
+
+Examples and modules are compiled/linked by cd'ing to the NewIFF39
+directory and doing LMK or Make.  But read the notes below !
+
+The includes files subdirectory (iffp/) may be placed in your
+current directory or your normal include directory.
+ 
+COMPILATION NOTES
+	These modules and examples have been compiled using SAS C 6.3
+	and Manx C 5.2a, 3.0 (V39.108) include files and V39 amiga.lib.
+	When compiling with Manx, a warning seems to be generated for
+	each string constant assigned to a UBYTE * field, and also
+	by some references to ilbm->colortable.
+
+	IMPORTANT - For this revision of the NewIFF code, I have added
+	"bumprev" revision files for each example.  But the Make is
+	executed while cd'd to the NewIFF39 directory, and I could not
+	get Manx to find the revision files included by each example.
+	So to compile with Manx, I had to first copy ALL of the
+	apps/xxx/xxx_rev.h files to the NewIFF directory.
+
+	WARNING - do not use the "-pp" flag of Manx to get rid of the
+	char<>UBYTE warnings.  The -pp flag causes all chars to default
+	to unsigned, and this will break all of the signed byte (BYTE)
+	manipulations in ilbm packing and unpacking.
+ 
+HOOKENTRY NOTES
+	A Hook.asm (Hook.o) module is provided which contains a
+	generic HookEntry function.  Note that this generic HookEntry
+	does not do any geta4() type functions for loading of the base
+	for base-relative data.  If your compiler provides its own
+	HookEntry, you may need to link with your compiler's provided
+	HookEntry rather than the IFF one, especially if you plan to
+	change the hook function (stdio hook in parse.c).
+

@@ -1,0 +1,107 @@
+
+   realtime.library 34.5 Electronic Product License Agreement 9-Nov-93
+
+realtime.library (hereinafter "Files")
+(c) Copyright 1990-93 Commodore-Amiga, Inc.  All Rights Reserved
+
+These Files and their related documentation, utilities, and examples
+are provided "AS-IS" and subject to change without notice; no warranties
+are made.  All use is at your own risk.  No liability or responsibility
+is assumed.
+
+
+NOTES
+
+RealTime.library is a library which can allow applications to
+share high resolution timing and synchronize with each other.
+The autodocs for realtime.library are part of the V40 autodocs.
+This version of realtime.library is compatible with the V34 (1.3) and
+higher versions of the Amiga operating system.  In V40, realtime.library
+is supplied on Workbench.  But the version of realtime.library on V40
+Workbench requires at least V37 (2.04) Amiga OS. Software applications
+which use realtime.library but do not require V40 Amiga OS or higher may
+wish to distribute this realtime.library for installation on systems where
+realtime.library is not present.  This library should also be compatible
+with V33 (1.2) Amiga OS, but this has not been tested.
+
+
+DISTRIBUTION OF realtime.library
+
+The Files may be reproduced and distributed under license subject to
+agreement with the following terms and conditions (wherein the reference
+to Files shall realtime.library):
+
+1.   The Files may be reproduced but may not be modified in any way.
+
+2.   The Files may only be distributed as an integral part of a software
+     product solely for Commodore Amiga computers.
+
+3.   Licensee shall hold Commodore harmless from any and all claims, damages
+     and liabilities resulting from or arising out of its use or distribution
+     of the Files.
+
+4.   All copies of Licensee's software product containing the Files and
+     of Licensee's product documentation related thereto (either paper
+     or electronic) must include the following copyright notice:
+
+     realtime.library
+     (c) Copyright 1990-93 Commodore-Amiga, Inc.  All Rights Reserved.
+     Reproduced and distributed under license from Commodore.
+
+5.   Licensee's product documentation (either paper or electronic) must also
+     include a disclaimer substantially similar to the following:
+
+     THE realtime.library IS PROVIDED "AS-IS" AND SUBJECT TO CHANGE;
+     NO WARRANTIES ARE MADE.  ALL USE IS AT YOUR OWN RISK.  NO LIABILITY
+     OR RESPONSIBILITY IS ASSUMED.    
+
+6.   The Files may not be installed on a user's system or Workbench
+     unless the installation procedure included with Licensee's product has
+     determined that the user's system or Workbench does not contain a more
+     recent version of the Files.
+
+7.   Such technical information as is contained in the Files (and any
+     product thereof) or in the related documentation, utilities, and
+     examples may not be exported in contravention of the laws and
+     regulations of the United States.
+
+8.  Prior to any distribution of the Files, Licensee must acknowledge and
+     consent to these terms by forwarding a completed and signed copy of
+     this entire Agreement, on paper, to:
+  CATS - Electronic Licenses, 1200 Wilson Drive, West Chester, PA 19380, USA
+
+9.  Commodore may terminate this license at any time, with or without cause.
+     This license and Licensee's rights hereunder will automatically
+     terminate upon any breach of these terms and conditions.  Upon any
+     such termination, Licensee shall destroy all copies of the Files and
+     the related documentation, utilities, and examples in its possession.
+
+
+
+realtime.library Electronic Product License Agreement  09-Nov-93
+
+I have read, understood, and agree to the terms of this license agreement.
+
+Licensee (Name): 
+
+Address: 
+
+                                                                 
+
+Phone #: 
+
+Developer # (if any): 
+
+Date: 
+
+Signature: 
+
+Names of product(s) which will contain the Files:
+
+                                                                 
+
+
+
+
+
+NOTE: Submitted licenses are filed.  Licensees will receive no response. 
