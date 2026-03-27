@@ -1,0 +1,70 @@
+
+--- Integer arithmetic ---
+
+--- Integer toString ---
+
+--- Float formatting ---
+
+--- Arrays and MAX_SAFE_INTEGER ---
+
+--- Math functions ---
+
+--- String operations ---
+
+--- RegExp ---
+
+--- JSON ---
+
+--- Object / Prototype ---
+
+--- Map / Set ---
+
+--- Promise ---
+
+--- Symbol ---
+
+--- Destructuring / Spread ---
+
+--- Class ---
+
+--- Async/Await ---
+
+--- std module ---
+
+--- os module ---
+hello
+
+--- os module — Amiga-specific ---
+
+--- bjson module ---
+FAIL: bjson roundtrip 3.1400000000000001 (exception: read after the end of the buffer)
+
+--- Typed Arrays ---
+
+--- Error handling ---
+
+--- Date ---
+
+--- Iterator / Generator ---
+
+--- Template literals ---
+
+--- print / JS_PrintValue (no crash) ---
+{ x: 1 }
+[ 1, 2, 3 ]
+null
+undefined
+42
+hello
+true
+{  }
+Map(0) {  }
+Set(2) { 1, 2 }
+1970-01-01T00:11:04.287Z
+/regex/
+[Function foo]
+
+==============================
+Results: 211 passed, 1 failed, 1 skipped
+SOME TESTS FAILED
+==============================
