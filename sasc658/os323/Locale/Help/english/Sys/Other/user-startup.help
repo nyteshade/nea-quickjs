@@ -1,8 +1,0 @@
-  The User-startup
-  ================
-
-  This is a user-customizable script that if it exists in S: it will 
-  be executed every time your machine boots.
-  
-  This is the place to include programs that you wish to be run 
-  on every boot.

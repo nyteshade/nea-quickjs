@@ -486,7 +486,18 @@
       "Bash(amiga_compile_cpu amiga/tests/hello_standalone.c 68060)",
       "Bash(amiga_compile_cpu amiga/amiga_compat.c 68060)",
       "Bash(amiga_standalone quickjs-master/amiga/tests/hello_standalone.js 060)",
-      "Bash(amiga_compile_cpu qjsc.c 68060)"
+      "Bash(amiga_compile_cpu qjsc.c 68060)",
+      "Bash(source bin/amiga-env.sh)",
+      "Bash(echo \"INCLUDE=$_MIGA_INCLUDE\")",
+      "Bash(echo \"SRC=$_MIGA_SRC\")",
+      "Bash(echo \"VAMOS_CFG=$_MIGA_VAMOS_CFG\")",
+      "Bash(amiga_compile_src amiga_compat.c)",
+      "Bash(amiga_compile_src amiga_ssl.c MEMSIZE=HUGE IDLEN=80)",
+      "Read(//Users/brie/sasc658/**)",
+      "Read(//Users/brie/sasc658/Manuals/**)",
+      "Read(//Users/brie/sasc658/examples/**)",
+      "Bash(echo \"qjs.c: $?\")",
+      "Bash(amiga_clean)"
     ]
   }
 }

@@ -1,8 +1,0 @@
-* "titlebar.image"
-##base _TitlebarImageBase
-##bias 30
-##public
-*--- functions in V40 or higher ---
-*
-ObtainTBIClass()()
-##end
