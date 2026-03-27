@@ -14964,6 +14964,18 @@ static no_inline __exception int js_binary_arith_slow(JSContext *ctx, JSValue *s
             dr = d1 * d2;
             break;
         case OP_div:
+#ifdef __SASC
+            /* 68881 FPU may trap on divide-by-zero instead of
+             * producing IEEE 754 Infinity.  Handle explicitly. */
+            if (d2 == 0.0) {
+                if (d1 == 0.0)
+                    dr = NAN;
+                else if (d1 > 0.0)
+                    dr = INFINITY;
+                else
+                    dr = -INFINITY;
+            } else
+#endif
             dr = d1 / d2;
             break;
         case OP_mod:
