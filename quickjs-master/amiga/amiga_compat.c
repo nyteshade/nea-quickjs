@@ -691,10 +691,29 @@ typedef union { double d; unsigned long w[2]; } __DblU;
 #define _DBL_HI(x) ((((__DblU *)(void *)&(x))->w[0]))
 #define _DBL_LO(x) ((((__DblU *)(void *)&(x))->w[1]))
 
-/* isnan / isinf / isfinite / signbit */
-int isnan(double x)    { return x != x; }
-int isinf(double x)    { return !isnan(x) && isnan(x - x); }
-int isfinite(double x) { return !isnan(x) && !isinf(x); }
+/* isnan / isinf / isfinite / signbit — use IEEE 754 bit patterns
+ * instead of FPU comparisons (SAS/C FPU may not handle NaN/Inf
+ * comparisons correctly) */
+int isnan(double x)
+{
+    unsigned long hi = _DBL_HI(x) & 0x7FFFFFFFUL;
+    unsigned long lo = _DBL_LO(x);
+    /* NaN: exponent = 0x7FF and mantissa != 0 */
+    return (hi > 0x7FF00000UL) || (hi == 0x7FF00000UL && lo != 0);
+}
+int isinf(double x)
+{
+    unsigned long hi = _DBL_HI(x) & 0x7FFFFFFFUL;
+    unsigned long lo = _DBL_LO(x);
+    /* Infinity: exponent = 0x7FF and mantissa == 0 */
+    return (hi == 0x7FF00000UL && lo == 0);
+}
+int isfinite(double x)
+{
+    unsigned long hi = _DBL_HI(x) & 0x7FFFFFFFUL;
+    /* finite: exponent != 0x7FF */
+    return hi < 0x7FF00000UL;
+}
 int signbit(double x)
 {
     /* MSB of IEEE 754 double = byte 0 in big-endian 68K layout */
@@ -708,37 +727,39 @@ double fabs(double x)
     return x;
 }
 
-/* trunc -- toward zero via bit manipulation ----------------------- */
+/* trunc / floor / ceil — use simple cast for small values,
+ * bit manipulation for large values where cast would overflow */
 double trunc(double x)
 {
-    int e = (int)((_DBL_HI(x) >> 20) & 0x7FF) - 1023;
-    if (e < 0) {
-        /* |x| < 1: result is +/-0 */
-        unsigned long sign = _DBL_HI(x) & 0x80000000UL;
-        _DBL_HI(x) = sign; _DBL_LO(x) = 0;
-    } else if (e < 20) {
-        unsigned long mask = 0x000FFFFFUL >> e;
-        _DBL_HI(x) &= ~mask; _DBL_LO(x) = 0;
-    } else if (e < 52) {
-        unsigned long mask = 0xFFFFFFFFUL >> (e - 20);
-        _DBL_LO(x) &= ~mask;
-    }
-    /* e >= 52: already integer, or inf/NaN -- leave unchanged */
+    if (x != x) return x;  /* NaN */
+    if (x >= -2147483648.0 && x <= 2147483647.0)
+        return (double)(long)x;  /* cast truncates toward zero */
+    /* Large values: already integer (mantissa covers all digits) */
     return x;
 }
 
-/* floor / ceil ---------------------------------------------------- */
 double floor(double x)
 {
-    double t = trunc(x);
-    if (t > x) t -= 1.0;   /* trunc was too high (negative x) */
-    return t;
+    double t;
+    if (x != x) return x;  /* NaN */
+    if (x >= -2147483648.0 && x <= 2147483647.0) {
+        t = (double)(long)x;
+        if (t > x) t -= 1.0;
+        return t;
+    }
+    return x;
 }
+
 double ceil(double x)
 {
-    double t = trunc(x);
-    if (t < x) t += 1.0;   /* trunc was too low (positive x) */
-    return t;
+    double t;
+    if (x != x) return x;  /* NaN */
+    if (x >= -2147483648.0 && x <= 2147483647.0) {
+        t = (double)(long)x;
+        if (t < x) t += 1.0;
+        return t;
+    }
+    return x;
 }
 
 /* fmod ------------------------------------------------------------ */

@@ -201,13 +201,27 @@ int gettimeofday(struct timeval *tv, void *tz);
  * For NAN, use a volatile trick to avoid constant-folding.
  * --------------------------------------------------------------------- */
 #include <math.h>
-#ifndef INFINITY
-#define INFINITY  HUGE_VAL
-#endif
-#ifndef NAN
-static double _amiga_nan_val(void) { double z = 0.0; return z / z; }
-#define NAN  (_amiga_nan_val())
-#endif
+/* Construct IEEE 754 Infinity and NaN using bit patterns.
+ * SAS/C's HUGE_VAL may not be true infinity, and 0.0/0.0 may
+ * trap on the 68881 FPU instead of producing NaN. */
+#undef INFINITY
+#undef NAN
+static __inline double _amiga_infinity(void)
+{
+    union { double d; unsigned long w[2]; } u;
+    u.w[0] = 0x7FF00000UL;  /* +Infinity high word (big-endian 68k) */
+    u.w[1] = 0x00000000UL;
+    return u.d;
+}
+static __inline double _amiga_nan(void)
+{
+    union { double d; unsigned long w[2]; } u;
+    u.w[0] = 0x7FF80000UL;  /* quiet NaN high word (big-endian 68k) */
+    u.w[1] = 0x00000001UL;
+    return u.d;
+}
+#define INFINITY (_amiga_infinity())
+#define NAN      (_amiga_nan())
 
 /* -----------------------------------------------------------------------
  * C99 math functions missing from SAS/C's math.h
@@ -218,6 +232,25 @@ static double _amiga_nan_val(void) { double z = 0.0; return z / z; }
 #ifndef _AMIGA_MATH_COMPAT
 #define _AMIGA_MATH_COMPAT
 #define scalbn(x, n)  ldexp((x), (n))
+
+/* C99 math function declarations — CRITICAL: without these, SAS/C
+ * assumes int return type and corrupts double return values */
+double trunc(double x);
+double round(double x);
+double log2(double x);
+double log1p(double x);
+double log10(double x);
+double expm1(double x);
+double cbrt(double x);
+double hypot(double x, double y);
+double acosh(double x);
+double asinh(double x);
+double atanh(double x);
+long   lrint(double x);
+int    isnan(double x);
+int    isinf(double x);
+int    isfinite(double x);
+int    signbit(double x);
 
 static __inline double copysign(double x, double y)
 {
