@@ -75,6 +75,19 @@ _amiga_check_env() {
 # Public functions
 # ---------------------------------------------------------------------------
 
+# amiga_clean
+# Remove all .o build artifacts from quickjs-master/ and src/.
+amiga_clean() {
+    rm -f "$_AMIGA_QJS_ROOT"/qjs.o "$_AMIGA_QJS_ROOT"/qjsc.o \
+          "$_AMIGA_QJS_ROOT"/quickjs.o "$_AMIGA_QJS_ROOT"/quickjs-libc.o \
+          "$_AMIGA_QJS_ROOT"/dtoa.o "$_AMIGA_QJS_ROOT"/libregexp.o \
+          "$_AMIGA_QJS_ROOT"/libunicode.o \
+          "$_AMIGA_QJS_ROOT"/gen/repl.o "$_AMIGA_QJS_ROOT"/gen/standalone.o \
+          "$_AMIGA_SRC"/amiga_compat.o "$_AMIGA_SRC"/amiga_ssl.o \
+          2>/dev/null
+    echo "Build artifacts cleaned"
+}
+
 # amiga_clear
 # Wipe the vamos RAM volume. Call before every vamos invocation to avoid
 # stale state from previous runs.
