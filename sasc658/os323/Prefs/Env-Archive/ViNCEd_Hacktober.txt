@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/hacktober.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(25,25,24) brighter rgb(30,30,29)
+red Alpha:255 rgb(183,70,58) brighter rgb(220,84,70)
+green Alpha:255 rgb(87,119,71) brighter rgb(105,143,86)
+yellow Alpha:255 rgb(211,137,78) brighter rgb(254,165,94)
+blue Alpha:255 rgb(4,109,194) brighter rgb(5,131,233)
+magenta Alpha:255 rgb(136,70,81) brighter rgb(164,84,98)
+cyan Alpha:255 rgb(174,145,105) brighter rgb(209,174,126)
+white Alpha:255 rgb(241,238,231) brighter rgb(255,255,255)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x1414,0x1414,0x1414
+COLOR=NOLOAD,ANSI,0x1919,0x1919,0x1818
+COLOR=NOLOAD,ANSI,0xb7b7,0x4646,0x3a3a
+COLOR=NOLOAD,ANSI,0x5757,0x7777,0x4747
+COLOR=NOLOAD,ANSI,0xd3d3,0x8989,0x4e4e
+COLOR=NOLOAD,ANSI,0x0404,0x6d6d,0xc2c2
+COLOR=NOLOAD,ANSI,0x8888,0x4646,0x5151
+COLOR=NOLOAD,ANSI,0xaeae,0x9191,0x6969
+COLOR=NOLOAD,ANSI,0xf1f1,0xeeee,0xe7e7
+COLOR=NOLOAD,ANSI,0x1e1e,0x1e1e,0x1d1d
+COLOR=NOLOAD,ANSI,0xdcdc,0x5454,0x4646
+COLOR=NOLOAD,ANSI,0x6969,0x8f8f,0x5656
+COLOR=NOLOAD,ANSI,0xfefe,0xa5a5,0x5e5e
+COLOR=NOLOAD,ANSI,0x0505,0x8383,0xe9e9
+COLOR=NOLOAD,ANSI,0xa4a4,0x5454,0x6262
+COLOR=NOLOAD,ANSI,0xd1d1,0xaeae,0x7e7e
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff

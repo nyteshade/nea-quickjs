@@ -1,0 +1,40 @@
+   NAME
+	RXSET - Manages or lists the Clip List.
+
+   FORMAT
+	RXSET [<name> [[=] <value>]]
+
+   TEMPLATE
+	NAME,VALUE/F
+
+   PATH
+	REXXC/RXSET
+
+   FUNCTION
+	RXSET adds a (name,value) pair to the Clip List. Name strings are
+	assumed to be in mixed case. If a pair with the same name already
+	exists, its value is replaced with the current string. If a name
+	without a value string is given, the entry is removed from the
+	Clip List. If RXSET is invoked without arguments, it will list all
+	(name, value) pairs in the Clip List.
+
+   NOTES
+	The original RXSET command would preserve the exact number of
+	blank spaces in the 'value' string. This is not the case with this
+	new version of the command, which will always put exactly one
+	blank space between the words in the 'value' string. If you need
+	an exact number of blank spaces you should put them into double
+	quotes.
+
+   EXAMPLES
+	Add the (name,value) "answer=42" to the Clip List (more than one
+	syntax is supported; all three examples are equivalent):
+
+	    1> RXSET answer=42
+	    1> RXSET answer = 42
+	    1> RXSET answer 42
+
+	Show the current Clip List contents:
+
+	    1> RXSET
+	    answer=42

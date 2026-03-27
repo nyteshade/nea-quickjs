@@ -1,0 +1,120 @@
+   NAME
+	MOUNTINFO - Creates Mount files for file systems.
+
+   FORMAT
+	MOUNTINFO [<device>] [[TO=<File name> [ADDICON]] [ACTIVATE]|DEBUG]
+
+   TEMPLATE
+	DEVICE/A,TO/K,ADDICON/S,ACTIVATE/S,DEBUG/S
+
+   PATH
+	C:MOUNTINFO
+
+   FUNCTION
+	MOUNTINFO gathers information on a device in order to create a mount
+	file for it which can later be used to mount that device again. This
+	is useful for removable media or data recovery in case the partition
+	information for a hard disk was destroyed, but the contents of the
+	partition survived.
+
+	In addition to creating mount files, MOUNTINFO can also provide
+	debugging information for software developers and customer support.
+
+   OPTIONS
+	The options are:
+
+	DEVICE
+	    This must be the name of the device to provide mount information
+	    for. It must be a device name with a trailing ':' character,
+	    such as "DF0:".
+
+	TO
+	    This option tells MOUNTINFO to write the mount file data to
+	    a named file rather than just printing it on the console window.
+
+	ADDICON
+	    If you told MOUNTINFO to write the mount file data to a named
+	    file, you might want to have an icon added to it as well, so
+	    that you can drop the resulting mount file into the
+	    "SYS:Storage/DOSDrivers" or "DEVS:DOSDrivers" drawers for later
+	    use. MOUNTINFO will try to use the default mount file icon
+	    stored in "ENV:sys/def_mountfile.info" and revert to use a
+	    generic project icon if the mount file icon cannot be found.
+
+	ACTIVATE
+	    If this option is used MOUNTINFO will store the mount file
+	    in a manner which will activate the file system as soon as
+	    it has been mounted. If an icon is added to the mount file
+	    (by using the ADDICON option) then the "Activate=Yes" Tool 
+	    Type will be added to the icon. If the ADDICON is not used, 
+	    the "Activate=Yes" line will be added to the end of the mount
+	    file data.
+
+	DEBUG
+	    If this option is used, the TO and ADDICON options will be
+	    ignored. The mount information for the device, assignment
+	    or volume you provided will be gathered and printed in a
+	    special format instead, suitable for use by software 
+	    developers and customer support. For disk drives, the 
+	    MOUNTINFO command will try to determine which file system is 
+	    responsible for managing the volume and print both the 
+	    signature of the file system assigned to the volume and the 
+	    signature of the file system, as stored on the first block of 
+	    the partition. Note that not all file systems store a 
+	    signature value in the first block of the partition, so the 
+	    information provided may not be relevant.
+
+   NOTES
+	Not all file system devices can be asked to provide mount 
+	information. An exception is, for example, the RAM: device.
+
+   EXAMPLES
+	    1> MOUNTINFO DF0:
+	    /* DF0: (02/03/06 12:51 PM) */
+	    Surfaces = 2
+	    SectorsPerTrack = 11
+	    LowCyl = 0
+	    HighCyl = 79
+	    BufMemType = 1
+	    MaxTransfer = 2097152
+	    Mask = 0x7FFFFFFE
+	    BootPri = 5
+	    BootBlocks = 2
+	    Device = "trackdisk.device"
+	    GlobVec = 0
+
+	    1> MOUNTINFO RAM:
+	    RAM: object is not of required type
+
+	    1> MOUNTINFO WB_2.x: DEBUG
+	    dol_Type = DLT_DEVICE
+	    dol_Task = 0x802B6CC
+	    dol_Lock = NULL
+	    dol_Handler = NULL
+	    dol_StackSize = 600
+	    dol_Priority = 10
+	    fssm_Device = "scsi.device"
+	    fssm_Unit = 0
+	    fssm_Flags = 0
+	    de_TableSize = 16
+	    de_SizeBlock = 512 bytes
+	    de_SecOrg = 0
+	    de_Surfaces = 19
+	    de_SectorPerBlock = 1
+	    de_BlocksPerTrack = 240
+	    de_Reserved = 2
+	    de_PreAlloc = 0
+	    de_Interleave = 0
+	    de_LowCyl = 2
+	    de_HighCyl = 46
+	    de_NumBuffers = 100
+	    de_BufMemType = MEMF_ANY
+	    de_MaxTransfer = 16777215
+	    de_Mask = 0x7FFFFFFE
+	    de_BootPri = 1
+	    de_DosType = DOS\1 0x444F5301
+	                 (different signature on disk = DOS\3 0x444F5303)
+	    dol_SegList = 0xF9DC44
+	    dol_GlobVec = 0
+	    dol_Name = "WB_2.x"
+

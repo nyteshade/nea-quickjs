@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/espresso_libre.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(0,0,0) brighter rgb(0,0,0)
+red Alpha:255 rgb(213,30,17) brighter rgb(255,36,21)
+green Alpha:255 rgb(32,158,45) brighter rgb(39,190,54)
+yellow Alpha:255 rgb(241,230,87) brighter rgb(255,255,105)
+blue Alpha:255 rgb(33,130,252) brighter rgb(40,156,255)
+magenta Alpha:255 rgb(207,123,127) brighter rgb(249,148,153)
+cyan Alpha:255 rgb(18,167,170) brighter rgb(22,201,204)
+white Alpha:255 rgb(219,222,216) brighter rgb(255,255,255)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x3737,0x2c2c,0x2626
+COLOR=NOLOAD,ANSI,0x00,0x00,0x00
+COLOR=NOLOAD,ANSI,0xd5d5,0x1e1e,0x1111
+COLOR=NOLOAD,ANSI,0x2020,0x9e9e,0x2d2d
+COLOR=NOLOAD,ANSI,0xf1f1,0xe6e6,0x5757
+COLOR=NOLOAD,ANSI,0x2121,0x8282,0xfcfc
+COLOR=NOLOAD,ANSI,0xcfcf,0x7b7b,0x7f7f
+COLOR=NOLOAD,ANSI,0x1212,0xa7a7,0xaaaa
+COLOR=NOLOAD,ANSI,0xdbdb,0xdede,0xd8d8
+COLOR=NOLOAD,ANSI,0x00,0x00,0x00
+COLOR=NOLOAD,ANSI,0xffff,0x2424,0x1515
+COLOR=NOLOAD,ANSI,0x2727,0xbebe,0x3636
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0x6969
+COLOR=NOLOAD,ANSI,0x2828,0x9c9c,0xffff
+COLOR=NOLOAD,ANSI,0xf9f9,0x9494,0x9999
+COLOR=NOLOAD,ANSI,0x1616,0xc9c9,0xcccc
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff

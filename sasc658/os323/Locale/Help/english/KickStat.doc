@@ -1,0 +1,84 @@
+
+                       KickStat - Kickstart image status
+                       =================================
+                               (C) SinSoft 1993
+                               ================
+
+This little utility has been written to help SKick users with various problems
+when  using  SKick.   It  issues a diagnostic output telling the status of the
+kickstart  image,  where it is located, if its memory is contained in MemList,
+if the image is protected and by which means etc.
+The second purpose of this utility is to shutdown the RAM kickstart. This ope-	
+ration is done using the total system reset, similar to power-on, which will
+totally clear all the system and nothing will survive it. To do it, use the
+optional SHUTDOWN parameter. This one works only if the RAM kickstart is detec-
+ted. It is ignored if the system currently operates from ROM.
+
+Explaining of KickStat messages follows:
+
+'KickStat version ?.?, (C) SinSoft 1993'
+- a simple copyright message
+
+'Running R?M kickstart, version ?.?'
+- there is the memory type of the kickstart image (ROM/RAM) and the
+  kickstart version written there.  Note that RAM kickstarts mapped to $F80000
+  are considered to be the ROM ones.
+
+'Skick resident module not found.'
+- Skick is not active on this system. Either it was not started or it was
+  shut down by various circumstances (deep crash, power off/on, possibly a bug).
+  If this message is issued, program terminates.
+
+'SKick version string not found.'
+- A very old version of SKick is used which hasn't a version string inside its
+  resident module.
+
+'Kicked by ......'
+- The kicking program name and version is written here. Currently, KickStat 
+  recognizes the Skick's resident module only.
+
+'Skick MemTag is located at ???????? (length ????????).'
+- The address and length of the Skick resident module is written there.
+
+'Kickstart image is located at ???????? (length ????????).'
+- The address and length of kickstart image is written there.
+
+'Kickstart memory is [not] contained in MemList.'
+- This message explains if the kickstart image is allocated at the memory
+  contained normally in the system memory pool or not.
+  If it isn't, the following messages about the kickstart protection aren't
+  issued except the immediately following one which must say 'NOT'.
+
+'Kickstart image is [not] protected by MemTag.'
+- This message explains if the SKick's automatic kickstart image protection 
+  is used or not.
+
+'Kicstart image allocated OK.'
+- This message says that all about the kickstart image allocation is done right.
+
+'Kickstart image is unprotected, trying to protect it.'
+- KickStat found unprotected kickstart image and tries to protect it. It may be
+  the result of using the Skick's 'FORCE' option with standard or autoconfig
+  memory or with non-autoconfig memory added to the system later.
+
+'Kickstart image protection OK.'
+- The result of the operation described above was successful.
+
+'Kickstart image protection failed, system unstable !!!'
+- The result of the operation described above was unsuccessful. Normally, there
+  is no reason why the allocation may fail, so this message will be seen very
+  rarely.
+
+'WARNING: Kickstart memory protection error, system unstable !!!'
+- KickStat found during its memory scan, that the kickstart image is PARTIALLY
+  allocated, i.e. that a part of its area is allocated, another part is free.
+  This message is very important; if it is issued, reboot your system or you may
+  await crash very soon.
+
+'Kickstart checksum is valid.'
+- I think it is self-explanatory.
+
+'WARNING: Kickstart checksum is corrupted, reboot immediately !!!'
+- The kickstart image has corrupted checksum. Something trashed at least one
+  byte of the kickstart image. It cannot be considered as reliable furthermore.
+  An immediate reboot is *VERY* recommended unless you know the cause of this.

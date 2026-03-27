@@ -1,0 +1,215 @@
+  Data Types
+  ==========
+  
+  Data Types are multimedia file format based definitions that can be 
+  repurposed by all programs that support such framework.
+
+  They are grouped in four categories called "super-classes" which 
+  vary according to the role they fulfill:
+
+
+  PICTURE.DATATYPE
+  ----------------
+  Used for still based pictures. It is now amazingly faster even on 
+  68000 processors.
+
+  Adjustable environment variable settings:
+
+  Prefs/Env-Archive/classes/DataTypes/picture/DitherHiColour
+  This variable adjusts the tradeoff between image quality
+  and rendering speed in 15 or 16 Bit display modes on RTG
+  graphics cards.
+  0 - no dithering but fast operation
+  1 - Void-and-Cluster semi-random quick dithering (default in 47.8)
+  2 - Floyd-Steinberg error diffusion dithering (previous default)
+
+  Prefs/Env-Archive/classes/datatypes/picture/IgnoreMask
+  Controls rendering of transparency attributes for pictures with 
+  a binary mask or Alpha channel
+  0 - render pictures with mask on a blank background which is
+      either the background colour or a backfill hook (new default)
+  1 - ignore the mask and render the picture including pixels
+      that are supposed to be transparent (default in previous versions)
+  Please note that this feature applies only to rendering by
+  picture.datatype itself (DTM_DRAW,GM_RENDER). Applications
+  that obtain the Bitmap from picture.datatype for custom drawing
+  may or may not implement transparency aware rendering.
+
+  Prefs/Env-Archive/classes/datatypes/picture/ForceV43
+  Contains a list of all programs that should be forced (promoted) to 
+  use v43 mode (which supports for screens with more than 256 colors). 
+  
+  If you leave the environment variable empty, it means that 
+  there is a list of programs to be promoted, and this list is empty. 
+  
+  If the environment variable does not exist however, the known 
+  well-working OS components receive full true color (32 bit depth) 
+  images. So it is easiest just to delete the file:
+  Prefs/Env-Archive/classes/datatypes/picture/ForceV43.
+  
+  In particular, this list may contain the following strings with 
+  double angle brackets to prevent dithering on Workbench:
+  << IPrefs >>
+  << ConClip >>
+
+ 
+  SOUND.DATATYPE
+  --------------
+  Employed for audio. It can handle 8-, 16- , 24- and 32-bit rates and 
+  down convert them to 8-bit if necessary.
+
+
+  TEXT.DATATYPE
+  -------------
+  Utilized for different forms of text. It also supports text search.
+
+
+  ANIMATION.DATATYPE
+  ------------------
+  Occupied for video and animation.
+
+  Adjustable environment variable settings:
+
+  Prefs/Env-Archive/classes/datatypes/animation/NoHAMorEHB
+  If set to 1, it enables the conversion of HAM and EHB animations to 
+  a standard mode on the fly. This is particularly suitable to display 
+  HAM or EHB animations on a graphics card.
+
+                            ---------------------
+
+  AmigaOS V47 comes with the following set of Data Types sub-classes 
+  included:
+
+
+  ACBM
+  ----
+  Designed to enable faster loading/saving of screens, especially from 
+  Basic. It retains the flexibility and portability of IFF format 
+  files. ACBM was also used by many third party paint and image 
+  processing applications, and now is included by default in AmigaOS. 
+  Recommended for CDTV usage.
+
+
+  BMP
+  ---
+  Supports the majority of BMP images. Including RLE-compressed BMPs, 
+  black and white BMPs, mono, true-color, high-color, upside down, 
+  with alpha, etc.
+
+
+  GIF
+  ---
+  Lets you handle 256-color images in bitmap format, and also has 
+  compression features available.
+
+
+  ICON
+  ----
+  It uses Amiga icon (.info) files as images. It supports all icon 
+  file formats handled by icon.library.
+
+
+  ILBM
+  ----
+  Interleaved Bitmap (ILBM) is an image file format that originated on 
+  the Amiga platform. A characteristic feature of the format is that 
+  it stores bitmaps in the form of interleaved bit planes, this 
+  reflects the way the Amiga graphics hardware natively reads graphics 
+  data from memory. A simple form of compression is supported to make 
+  ILBM files more compact.
+
+
+  JPEG
+  ----
+  This is a commonly used method of lossy compression for digital 
+  images, particularly for those images produced by digital 
+  photography. The degree of compression can be adjusted, allowing a 
+  selectable tradeoff between storage size and image quality. Its 
+  implementation detects the CPU type and uses the appropriate 
+  optimized code for it.
+
+
+  PNG
+  ---
+  It is a multiplatform raster-graphics file format that supports 
+  lossless data compression.
+
+
+  8SVX
+  ----
+  8-Bit Sampled Voice (8SVX) is an audio file format standard 
+  developed by Electronic Arts for the Commodore-Amiga computer series.
+
+
+  AIFF 
+  ----
+  Conceived for handling uncompressed audio. It was originally 
+  developed by Electronic Arts and is commonly found on Apple systems.
+
+
+  WAV
+  ---
+  The Waveform Audio File Format commonly known as WAV, was 
+  originally developed by Microsoft and IBM for storing audio 
+  bitstreams. It is an extremely popular format.
+
+
+  ANIM
+  ----
+  ANIM is a file format, used to store digital movies and computer 
+  generated animations. It is able to store, and play back, sequences 
+  of frames and can minimize both the storage space on disk (through 
+  compression) and playback time (through efficient de-compression 
+  algorithms).
+
+  Adjustable environment variable settings:
+
+  Prefs/Env-Archive/classes/datatypes/animation/anim/fpslimit
+  Limits the max FPS for slower machines to prevent frame skipping.
+
+  Prefs/Env-Archive/classes/datatypes/animation/anim/fps
+  Forces user defined FPS for playing the file at given speed.
+  It overrides its 'fpslimit' variable.
+
+
+  CDXL
+  ----
+  CDXL is a motion video file format developed by Commodore in the 
+  late 1980s and early 1990s for the Amiga computer platform. It is 
+  notable for being one of the earliest formats created for motion 
+  video playback from CD-ROM.
+
+  Adjustable environment variable settings:
+
+  Prefs/Env-Archive/Classes/DataTypes/animation/cdxl/cdspeed
+  Sets the playback speed in CD-ROM speed units.
+  From 1 to 63. x1=150KB/s. When not set, it defaults 
+  to the more common 300 KB/s or x2 (Amiga CD32)
+
+  Prefs/Env-Archive/Classes/DataTypes/animation/cdxl/speed
+  Sets the playback speed in KB/s. This value when set 
+  overrides the previously mentioned 'cdspeed' variable.
+
+  Prefs/Env-Archive/Classes/DataTypes/animation/cdxl/fps
+  Sets the playback speed in frames per second.
+  From 1 to 60. Setting it to 12 will probably play all CDXL files. 
+
+
+  AMIGAGUIDE
+  ----------
+  It displays AmigaGuide hypertext documents. They have the ability to 
+  show both text and inline color images with the aid of other 
+  datatypes.
+  
+  Adjustable environment variable settings:
+
+  Prefs/Env-Archive/AmigaGuide/Path
+  Sets the path for amigaguide.datatype usage. Multiple paths can be 
+  set. To this list of paths, S: is always automatically added by the 
+  Operating System.
+
+
+  FTXT
+  ----
+  It handles text documents that contain plain text in the form of 
+  lines.

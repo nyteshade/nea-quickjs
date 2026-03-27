@@ -1,0 +1,17 @@
+   NAME
+	ENDCLI - Ends a Shell process.
+
+   FORMAT
+	ENDCLI
+
+   TEMPLATE
+	(none)
+
+   PATH
+	Internal
+
+   FUNCTION
+	ENDCLI ends a Shell process.
+
+   SEE ALSO
+	ENDSHELL

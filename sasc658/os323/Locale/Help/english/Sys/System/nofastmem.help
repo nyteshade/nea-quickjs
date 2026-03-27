@@ -1,0 +1,25 @@
+@database NoFastMem
+@node "MAIN"
+@{IMG SYS:System/NoFastmem.info}
+   NAME
+	NOFASTMEM - Forces the Amiga to use only Chip RAM. 
+
+   FORMAT
+	NOFASTMEM 
+
+   TEMPLATE
+	(none)
+
+   PATH
+	SYSTEM/NOFASTMEM
+
+   FUNCTION
+	NOFASTMEM disables any Fast (or expansion) RAM used by the system. 
+	The expansion memory can be turned on again by sending the 
+	NOFASTMEM program a break, either via the BREAK command or by 
+	pressing Ctrl+C. NOFASTMEM has no options.
+
+	The purpose behind NOFASTMEM is to enable some old badly-behaving 
+	programs that do not tolerate memory expansions to run.
+
+@endnode

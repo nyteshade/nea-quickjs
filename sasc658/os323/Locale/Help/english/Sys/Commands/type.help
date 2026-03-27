@@ -1,0 +1,55 @@
+   NAME
+	TYPE - Displays a text file.
+
+   FORMAT
+	TYPE {<file|pattern>} [TO <name>] [OPT H|N] [HEX] [NUMBER]
+	[AUTO] [TEXTONLY] [WIDTH <line width>] [BUF|BUFFER=<n>]
+
+   TEMPLATE
+	FROM/A/M,TO/K,OPT/K,HEX/S,NUMBER/S,AUTO/S,TEXTONLY/S,
+	WIDTH/K/N,BUF=BUFFER/K/N
+
+   PATH
+	C:TYPE
+
+   FUNCTION
+	TYPE will output the contents of the named file to the current 
+	window if no destination is given, or to a specified output file. 
+	If more than one filename is specified, and the TO keyword is not 
+	used, the filenames will be typed in sequence.
+
+	The OPT H and OPT N options are also available by the HEX and 
+	NUMBER keywords, respectively. The HEX option causes the file to 
+	be typed as columns of hexadecimal numbers, with an ASCII 
+	character interpretation column. This is useful for analyzing 
+	object files. The NUMBER option will number the lines as they are 
+	output.
+
+	The AUTO option will make TYPE examine the first 256 characters of the
+	file. If non-printable characters are found, TYPE will show the file
+	as if the HEX option had been specified. Note that you can override
+	the AUTO option with the HEX option, in which case you will always
+	see the file(s) typed as columns of hexadecimal numbers.
+
+	The WIDTH option controls how long each line in HEX mode form should
+	become. For example, WIDTH=120 will try to print as much data in
+	hexadecimal form as will fit into a line of up to 120 characters in
+	total. The default is to print up to 61 characters per line.
+
+	By default, TYPE will print the contents of the file as is read,
+	including binary data (unprintable characters). To replace unprintable
+	characters before output, use the TEXTONLY option. Any unprintable
+	character will be replaced with '.'.
+
+	How much data is read and output at a time can be controlled with the
+	BUFFER option. By default, a maximum of 2048 bytes will be read/written
+	at a time.
+
+	To pause output, press the Space bar. To resume output, press
+	Backspace, Return, or Ctrl-X. To stop output, press Ctrl-C.
+
+   EXAMPLES
+	    1> TYPE S:User-startup
+
+	The contents of the User-startup file in the S: directory will be
+	displayed on the screen.

@@ -1,0 +1,168 @@
+@database amigaguide.guide
+@rem $VER: amigaguide.guide 47.2 (30.11.2020)
+@wordwrap
+
+@node MAIN
+@title "AmigaGuide® Help"
+@{lindent 1}
+A guide consists of a number of guide-pages that can contain text, or pictures. You can either read the guide-pages one by one as you would read a book, or you can take advantage of the fact that on some guide-pages there are links to other guide-pages or even other guides.
+@{lindent 4}                   
+I.    @{" Buttons " link HELP_BUTTONS}
+II.   @{" Menus " link HELP_MENUS}
+III.  @{" Keystrokes " link HELP_KEYSTROKES}
+IV.   @{" Mouse " link HELP_MOUSE}
+V.    @{" Arrow Keys " link HELP_ARROWS}
+
+@endnode
+
+@node HELP_BUTTONS "AmigaGuide® Help: Buttons"
+@{lindent 1}
+@{b}Back@{ub}
+Go back to the previously viewed guide-page.
+
+@{b}Forward@{ub}
+Go forward to the next viewed guide-page.
+
+@{b}Contents@{ub}
+Display the Table of Contents guide-page for the current guide.
+
+@{b}Index@{ub}
+Display the index guide-pages for the current guide.
+
+@{b}<@{ub}
+Go back to the previous sequential guide-page.
+
+@{b}>@{ub}
+Go forward to the next sequential guide-page.
+
+@{b}Help@{ub}
+Display the help guide-pages for the current guide. If the guide doesn't have a Help guide-page of its own, then the global Help guide will be used instead.
+@endnode
+
+@node HELP_MENUS "AmigaGuide® Help: Menus"
+@{lindent 1}
+@{b}Project@{ub}
+@{lindent 2}
+Open
+Bring up the file requester so that a different file can be loaded for viewing.
+
+Save As
+Save the current object to a file.
+
+Print
+Print the current guide-page to the current print device.
+
+About
+Bring up a requester that shows information on the current guide.
+
+Quit
+Close the  window for the current guide, and exit.
+@{lindent 1}
+@{b}Edit@{ub}
+@{lindent 2}
+Mark
+Start marking a block of text for copying to the clipboard.
+
+Copy
+Copy the current guide-page to the clipboard.
+
+Paste (menu item only available when opening a guide with MultiView)
+Pastes the current clipboard content.
+ 
+Select All
+Select all the lines of the current guide-page.
+
+Clear Selected
+Unselect all the lines of the current guide-page.
+
+@{lindent 1}
+@{b}Navigation@{ub} 
+@{lindent 2}
+(functionality unavailable when using AmigaGuides)
+@{lindent 1}
+@{b}Window@{ub}
+@{lindent 2}
+Use Separate Screen (menu item only available when opening a guide  with MultiView)
+Toggles usage of an individual screen for the current guide.
+ 
+Minimize
+Make the window as small as possible.
+
+Normal
+Make the window the same size as the current contents.
+
+Maximize
+Make the window as large as possible.
+@{lindent 1}
+@{b}Settings@{ub}
+@{lindent 2}
+Save As Defaults
+Save the current window position as the default settings for future invocations.
+@{lindent 1}
+@endnode
+
+@node HELP_KEYSTROKES "AmigaGuide® Help: Keystrokes"
+@{lindent 1}
+@{b}HELP@{ub}
+Display this guide.
+
+@{b}ESC@{ub}
+Close the active AmigaGuide® window.
+
+@{b}Backspace@{ub}
+Scroll upwards a window-full.
+
+@{b}SPACE@{ub}
+Scroll downwards a window-full.
+
+@{b}>@{ub}
+Go forward to the next sequential guide-page.
+
+@{b}<@{ub}
+Go back to the previous sequential guide-page.
+@endnode
+
+@node HELP_ARROWS "AmigaGuide® Help: Arrow Keys"
+@{lindent 1}
+@{b}Up@{ub}
+Scroll up through the guide-page.
+
+@{b}Down@{ub}
+Scroll down through the guide-page.
+
+@{b}Shift-Up@{ub}
+Scroll upwards a window-full.
+
+@{b}Shift-Down@{ub}
+Scroll downwards a window-full.
+
+@{b}Alt-Up@{ub}
+Go to the beginning of the guide-page.
+
+@{b}Alt-Down@{ub}
+Go to the end of the guide-page.
+
+@{b}Left@{ub}
+Scroll left through the guide-page.
+
+@{b}Right@{ub}
+Scroll right through the guide-page.
+
+@{b}Shift-Left@{ub}
+Scroll left one window-full through the guide-page.
+
+@{b}Shift-Right@{ub}
+Scroll right one window-full through the guide-page.
+
+@{b}Alt-Left@{ub}
+Go to the extreme left of the guide-page.
+
+@{b}Alt-Right@{ub}
+Go to the extreme right of the guide-page.
+@endnode
+
+@node HELP_MOUSE "AmigaGuide® Help: Mouse"
+@{lindent 1}
+@{b}Select@{ub}
+Over a node, will activate the node.
+@endnode

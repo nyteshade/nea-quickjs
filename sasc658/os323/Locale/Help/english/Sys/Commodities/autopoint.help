@@ -1,0 +1,30 @@
+@database AutoPoint
+@node "MAIN"
+@{IMG SYS:Tools/Commodities/AutoPoint.info}
+   NAME
+	AUTOPOINT - Automatically selects any window the pointer is over.
+
+   FORMAT
+	AUTOPOINT [CX_PRIORITY <priority>] [KEEPSTRINGS]
+
+   TEMPLATE
+	CX_PRIORITY/N/K,KEEPSTRINGS/S
+
+   PATH
+	TOOLS/COMMODITIES/AUTOPOINT
+
+   FUNCTION
+	Press Ctrl+C or use the BREAK command to exit AutoPoint when it is 
+	started from a Shell.
+
+	CX_PRIORITY sets the priority of the commodity in relation to all 
+	the other Commodity Exchange programs. All the Commodity Exchange 
+	programs are set to a default priority of 0. Values should have an 
+	integer value between -128 to 127 (i.e., CX_PRIORITY=10). 
+	
+	The KEEPSTRINGS option prevents AUTOPOINT from automatically 
+	stealing focus from a window with an active string gadget as long 
+	as the mouse does not move.
+
+
+@endnode

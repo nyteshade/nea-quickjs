@@ -1,0 +1,95 @@
+@database ReAction
+@node "MAIN"
+@{IMG SYS:Prefs/ReAction.info}
+  ReAction
+  ========     
+  
+  The ReAction Preferences editor is the extended graphical user 
+  interface that comes on AmigaOS 3.2 (V47). It can be customized to 
+  user demands. All the changes to the following settings affect only 
+  programs that are based on ReAction (all other programs won't be 
+  affected):
+ 
+  REFRESHING METHOD <Smart> <Simple>
+  This sets the method by which the screen contents are redrawn. 
+  
+  When set to <Smart> some window components that are hidden are not 
+  refreshed. This method refreshes very fast, but more memory is 
+  required. 
+   
+  In the <Simple> setting, less memory is used, but the refresh takes 
+  longer to occur.
+
+  FALLBACK FONT
+  This option sets the emergency character set in case you select a 
+  font in the font requester that is so big that some windows would 
+  not fit on the screen. ReAction will then attempt to re-open the 
+  window using this selected font set. For this reason, you should 
+  select a relatively small font as a fallback. A click on the Default 
+  gadget clears the contents of the emergency font field, so that the 
+  internal emergency font is used by ReAction.
+   
+  BACKDROP PATTERN
+  In this field you can enter the path to an image to be displayed in 
+  the background of ReAction windows.
+
+  LABEL FONT
+  Here you set the font used for Group headings. Clicking the 
+  <Default> gadget deletes the current setting so that the default 
+  font is set to be used for group headings.
+
+  PLACE
+  This menu determines whether Group title will be at the left, center 
+  or right side of ReAction windows.
+
+  3D LABEL 
+  With this switch you can toggle the three-dimensional 
+  appearance of the Group font.
+
+  COLOR 
+  This color selection gadget lets you select the color for the group 
+  fonts. If you haven't made any changes to the Workbench color 
+  palette, these should be black, white and blue.
+
+  STYLE
+  With this menu, you can choose between different styles 
+  specifications for the appearance of ReAction-based gadgets.
+
+  SPACING 
+  In this field you can determine the relative spacing between the 
+  individual elements of ReAction applications.. This is not about 
+  fixed intervals but related to ranges. Smaller values mean smaller 
+  distances.
+
+  3D SCROLLER 
+  When this switch is on, scroll bars in scroll lists gadgets are 
+  drawn in three dimensions.
+ 
+  ENABLE PREVIEW
+  Lets you test and view the currently-selected ReAction appearance.
+  
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+
+  [ENABLEPREVIEW=YES] Makes the "Enable preview" window visible when 
+  the editor is launched.
+
+@endnode

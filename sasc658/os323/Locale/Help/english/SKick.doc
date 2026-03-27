@@ -1,0 +1,614 @@
+
+                        +++++++++++++++++++++++++
+                        +                       +
+                        + S K I C K v 2.0 & 3.0 +
+                        +                       +
+                        +  (C) SinSoft 1992,93  +
+                        +                       +
+                        +     User's manual     +
+                        +                       +
+                        +++++++++++++++++++++++++
+
+PLEASE READ THIS DOC CAREFULLY !!! SERIOUS INFORMATION IS GIVEN HERE !!!
+READING THIS MANUAL WILL PREVENT YOU FROM HAVING PROBLEMS WITH THE PROGRAM !!!
+
+Introduction.
+=============
+
+SKick  is  the replacement for Kickit, ZKick and LKick kickers, intended for use
+on  A500,  A600, A1200 or A2000 machines with OS2.0 in ROM (for instance A500+).
+Its  task  is to soft-kick any other version of kickstart into RAM.  'Any other'
+means  also  the  1.3  kickstart,  which  was unavailable to kick with any other
+kicker.   KickIt  and  ZKick  both require 1.3 ROM for operation and function of
+LKick from 2.0 isn't very stable.  SKick is fully assembly-written program, with
+many facilities added.  The main advantages of SKick are:
+- ability to relocate any kickstart image, when the relocation table is supplied
+  into any  kind  of  RAM  (CHIP,  FAST,  EXP etc.)
+- standard  operation  (like  Kickit etc.), when table is not available
+- patch function (patches kickstart image prior its start, which may correct
+  known bugs etc.), using supplied patch file
+- powerful command line and Workbench interface
+- Graphic User Interface (GUI)
+- all operations during kicking are made so 'purely' as possible, all structures
+  are exactly in the same state as if kicked from ROM
+- small code size (even if most powerful, SKick is the shortest from all the 
+  kickers)
+- relocation tables for new kickstart versions will be automatically available
+  for registered users
+- loaded kickstart survives any 'soft crash' (without corrupting execbase or 
+  kickstart itself) and user reset
+- allows use of CoolCapture, romtags and memtags with user programs without any
+  limitation
+- allows adding a non-autoconfig memory board 'on the fly' with features
+  unavailable with other memory adding programs
+
+1. Copyright.
+=============
+
+SKick and its documentation files are Copyright (C) SinSoft 1992, Prague, CR.
+============================================================================
+
+This  archive  may be freely redistributed, but only in totally unchanged state,
+i.e.   no  files  can be added, deleted, modified etc.  All copyright notices in
+the   program   and  its  documentation  must  remain  on  their  places.   Also
+'.displayme' and other files, usually with 'wonderful' ANSI graphics, so obvious
+at various BBS's, cannot be added.
+
+2. Contents of the archive.
+===========================
+
+This .LHA archive MUST contain following files:
+
+	SKick	      -  executable code of the program
+	SKick.info    -  program icon
+	SKick.doc     -  this file
+	History.doc   -  development history - PLEASE READ FOR LATEST CHANGES
+	AllocKick     -  a little utility for non-autoconfig memory owners
+	AllocKick.doc -  its separate documentation
+	KickStat      -  a little utility for checking the kickstart image status
+	KickStat.doc  -  its separate documentation
+        
+
+	directory Kickstarts:
+		kick40038.A4000.BETA.RTB	a) d)
+		kick40038.A4000.BETA.PAT
+		kick40038.A600.BETA.RTB		a)
+		kick40038.A600.BETA.PAT
+		kick40009.A4000.BETA.RTB	a) d)
+		kick40009.A4000.BETA.PAT
+		kick40009.A600.BETA.RTB		a)
+		kick40009.A600.BETA.PAT
+		kick40003.A3000.BETA.RTB	a)
+		kick40003.A3000.BETA.PAT
+		kick40003.A600.BETA.RTB		a)
+		kick40003.A600.BETA.RTB
+                kick39115.A3000.BETA.RTB	a) e)
+		kick39115.A3000.BETA.PAT
+		39115_Romkick.RTB		a)
+		39115_Romkick.PAT		
+		kick39110.A500.BETA.RTB		a)
+		kick39110.A500.BETA.PAT
+		kick39106.A1200.RTB		b)
+		kick39106.A500.BETA.RTB		a)
+		kick39106.A500.BETA.PAT
+		kick39046.A500.BETA.RTB		a)
+		kick39046.A500.BETA.PAT
+		kick37175.A500.RTB 		b)
+		kick36143.A3000.RTB		c)
+	        kick36143.A3000.PAT
+		kick34005.A500.RTB
+		kick34005.A500.PAT
+		kick33180.A500.PAT
+		kick33180.A500.RTB
+		kick40063.A600.RTB
+		kick40068.A1200.RTB
+		kick40068.A1200.PAT
+		kick40068.A4000.RTB
+		kick40068.A4000.PAT
+Notes:
+	General:  All the files are created for use on the A500/600/1200/2000
+	although  their  original  target  machine  may  be different.
+	On  the original target machine, they may be usable without .PAT file,
+	but it is not guaranteed.
+
+a)
+	These kickstart versions are available only to official developers.
+b)
+	Patch table not required to use these kickstarts.
+c)    
+        This 'historical' version of OS is obsolete and it is not
+        recommended to use it.
+d)
+	CPU >=68020 is needed to run this release because of the new
+	utility.library.
+
+e)	Original A600/1200 files are NOT supported for this release.
+	A600/1200 users can't use PCMCIA and hard drive with this kickstart.
+
+NOTE TO COMMODORE:
+  Sorry  CBM  for  a  small  law-break (I hope small) from my side:  I'm not the
+official  developer,  but I have Your BETA releases on my drive:  they came into
+Czech republic  from  some  pirate  BBS  in  Germany and they are available from
+general  Amiga population.  I've never misused or abused them and I also keep in
+mind  Your  copyrights:   I  never redistribute them.  But when I've got them, I
+wanted  to help another people and do some useful work:  All known kickers (they
+are  PD,  aren't they?) seemed to be imperfect in some aspects for me and then I
+realized  to  write my own kicker to meet all my needs and give it to all people
+which need it too.
+
+3. System requirements.
+=======================
+
+SKick may be operated, if the following requirements are met:
+- Computer: Amiga 500, 600, 1000, 1200 and 2000 with 68000, '010, '020 or 'EC030
+  processors
+- Minimum 1 meg of RAM (possibly only Chip RAM, expansion RAM isn't needed when
+  relocation is to be used)
+- Kickstart   2.0  or  3.0  in  ROM  (not tested with V36, because there are not
+  machines with V36 ROM in Czechoslovakia, developed and tested under 37.175 and
+  39.106)
+
+That's  all.  When Your system meets all these requirements, You are able to use
+SKick.   Of course, large amount of RAM (especially expansion RAM) will help You
+use non-relocatable kickstarts (they are located from $200000 obviously), but it
+is not necessary.
+
+Skick is designed to work on machines without a MMU.  For machines with the MMU,
+there  exist suitable software to do such work.  Especially, program SoftBoot is
+available  to  official developers and allows to remap any RAM to the $F8 space,
+thus emulating the ROM.
+
+
+NOTE:  Because of a nature of 2.0 system, it is impossible to kick anything from
+address  $c00000  exactly.  The first usable address is $c40000.  1.3 system did
+allow  this, 2.0 doesn't.  It is because the system restart is more drastic than
+on 1.3 system. 
+    
+
+4. Installation.
+================
+
+Installation  of  SKick  and  related  files  is  very  simple.   Please  follow
+instructions below:
+
+On  Amiga  3000,  there  is the convention, that during cold start process, file
+'DEVS:kickstart' is read into memory and run.  To make the possibility to choose
+from  several  kickstarts,  SKick searches kickstart images and related files on
+the directory DEVS:kickstarts.  Your first step is to issue the command
+
+>Makedir DEVS:kickstarts 
+
+from  the  Shell,  so  the appropriate subdirectory will be created on Your boot
+partition (usually hard disk).
+
+Your  second  step  is  to  copy  the  auxiliary files (.RTB and .PAT) from this
+archive,  if  You  wish  to  use  them, and to add appropriate kickstart images.
+SKick can handle both 'exact ROM images' and files intended for Kickit and other
+kickers.
+When  copying  kickstart  images,  rename them with names of .RTB/PAT files, but
+without  any  extension; or, vice versa, rename auxiliary files according to the
+main  file.  All the files of one particular kickstart must have identical names
+(except extensions).
+
+
+IMPORTANT  NOTE:  There are no kickstart images in this archive!  Supplied files
+only  allow  to  use  standard  1.2  (33.180), 1.3 (34.5), 2.04 (37.175) and 3.0
+(39.106) ROM images, which may be obtained from Commodore.  There are also files
+for  another  kickstart versions, available to official developers only.  I hope
+that SKick will help them to keep their work.  It's only a dream for me to be an
+official developer...  
+ANOTHER  NOTE:  Last days, more and more people ask me why their kickstart files
+can't  be  used  with SKick.  The reason is simple:  their files are PATCHED, so
+the  checksum  doesn't match to the reloc and patch tables.  They also ask me to
+support  these  patched  files.   My answer is simple:  NO.  NEVER.  Why ?  It's
+also  simple:   1) These files are obviously available on various BBSs, they are
+never  distributed  by Commodore.  Their contents is unpredictable, similarly as
+their   function.    All   the  patches  do  'cosmetic  changes'  like  removing
+Beta-requesters,  replacing  various  texts  in  the ROM with another ones (like
+Amiga  Workbench  > AmigaOS 3.0) etc.  However, there is no way how to determine
+all  the  patches  and  verify  them  for their correctness (I think that such a
+'patcher' can't be a good programmer) 2) Because such files can be considered as
+pirate  files,  their  support  may  be interpreted as support of piracy itself.
+However,  SKick  was  never  designed  to  be  the pirate program and I will not
+support piracy as such.
+
+
+The  third step is to copy SKick itself (with its icon) into any place where You
+wish to have it.  Please read the following chapter for more explanation.
+
+5. SKick usage
+==============
+
+SKick may be called either from the Shell or from the Workbench.
+
+5.1 Invocation from the Shell
+=============================
+
+When invocating SKick from the Shell, following template should be used:
+
+NAME,ADR/K,FORCE/S,EXT/S,CHIP/S,FAST/S,NOEXT/S,NOREL/S,NOPATCH/S,QUIET/S,
+GUI/S,RELSTACK/S,FASTRES/S,KILLTAGS/S,CORR5M/S,DEBUG/S,ADDMEM/K
+
+There are three optional parameters and many switches.
+
+NAME
+==== 
+This  parameter  specifies  the  file name with full path of the kickstart to be
+loaded.   If  omitted,  SKick will do nothing, until GUI is called either by its
+switch  (GUI)  or  by pressing left mouse button during program run.
+
+ADR
+===
+ADR parameter allows You to specify the address for the relocatable kickstart to
+be  loaded.   The  address should be entered in hex.  NOTE:  This option is only
+useful  for  special  cases,  like debugging etc.  Normally, the fully automatic
+search  for  the  appropriate  place  is  performed  and  the best place for the
+kickstart  is found.  NOTE for users with 'kickstart RAM':  A1000's or any other
+machines,  having  RAM  from $F00000, allow loading into this location.  In such
+case, the command SKick <name> ADR F00000 FORCE has to be used, as the kickstart
+RAM  isn't  normally  accessed, and obviously it is not added to the free memory
+list.
+
+ADDMEM
+======
+This  parameter was introduced in V3.40.  It does a great magic:  it adds a non-
+autoconfigurable  memory  board by the method, allowing its full usage like with
+fully  autoconfigurable  one.   It  means that the board is linked to the system
+very, very soon, so soon that execbase and other library bases are created in it
+instead of the Chip RAM, as usual.  Said by words of the 3.0 OS, the board gains
+the 'MEMF_KICK' attribute, allowing RAD and other interesting system features to
+be created there.  Syntax of this option is
+           ADDMEM <mem base>/<mem length>[/<priority>[/<attributes>]]
+Arguments  are separated by slashes (like for console window) and may be entered
+in  hex  or  in decimal (priority).  To enter in decimal, use '_' (underline) as
+the  first  character.  You may also specify a negative priority using the minus
+sign.   The last two parameters are optional.  Default values are 0 for priority
+and  5  for  attributes  (MEMF_FAST  and  MEMF_PUBLIC).   
+For  example,  adding  a non-autoconfigurable board at $1000000 with 2Meg may be
+done  with  the  option  'ADDMEM 1000000/200000/_25'.  You can load kickstart to
+this memory using '32BIT' option simultaneously (see later).  
+NOTES:  
+If  you  are  used  to use command line memory adders like AddMem or Alloc, they
+become  useless  now.   If the SKick command is present at the first line of the
+startup-sequence,  it  does all its work automatically.  
+If  the  memory board has the size matching exactly the kickstart size (half-Meg
+board with 3.0 system, for example), it is better to use FORCE option instead of
+adding  the memory to the system.  However, you may add this memory and load the
+kickstart  image  to  any  other  location.  
+This  option DOESN'T WORK if the ROM kickstart is selected by the GUI.  In fact,
+SKick  is not active in such a case, so it cannot add anything anywhere.  It may
+be  also ignored in special cases like being kicked without this option and then
+rekicking with it using GUI.
+
+FORCE
+=====  
+This  switch  allows  You  to  force  load  to  the place, which is not normally
+contained  on  the  memlist.  It is designed to help when loading kickstart into
+non-autoconfiguring  memory  expansion  board, which was not added to the system
+yet.   This  switch is not recommended for general use, as its incorrect use may
+cause  drastic  unpredictable  results.   No  checking  is done if the memory is
+present;  if  it  isn't  the 'Kickstart image has incorrect checksum' message is
+issued and the program terminates.
+
+EXT,CHIP,FAST
+============= 
+These 3 switches specify the kind of memory the free space will be searched for.
+Only  one of them may be selected; when unspecified, all standard memory address
+ranges are scanned in the order of EXT, FAST and CHIP.
+
+NOEXT
+=====
+This  switch  excludes external memory from being searched.  Search is performed
+for FAST and CHIP memory only.  This switch may be used, if user wants to have a
+big  amount of memory in one large block.  Normally, its use is not recommended,
+because the speed of kickstart will be decreased when multi-bitplane video modes
+are selected.
+
+NOREL
+=====
+NOREL  switch  disables  the  relocation process even if the relocation table is
+present.   Kickstart  will  be  loaded  exactly to the place it is assembled, if
+available.   When the kickstart is assembled from $200000 and You have expansion
+RAM,  there  are  no  problems.  Problems will occur when using normal ROM image
+from $f80000 or $fc0000, for example kickstart 1.3.  In these cases, this switch
+cannot be used.
+
+NOPATCH
+=======
+This  flag  suppresses  the patch facility.  Normally, when .PAT file is present
+for  given  kickstart,  it will be opened and kickstart patched to correct known
+bugs.   When  this flag is used, patching is suppressed.  NOTE:  Some kickstarts
+may  REQUIRE  patching.   For  example,  39.46  Beta  contains very serious bugs
+preventing it from being started without patching on most machines without 68020
+or  greater  CPU.   Standard 1.3 must be patched to allow more than 512K of CHIP
+RAM  during  reboot  and to allow correct performing of user reset (CTRL-LA-RA).
+Also  all the Rekick type kickstarts for A500 etc.  (all the V39/V40 kickstarts)
+need patching to operate (system will crash without patching).
+
+QUIET
+=====
+The  QUIET flag supresses all messages writen by the program.  When started from
+Shell,  it  has  the  same  effect  like  >NIL:  redirection.  When started from
+Workbench, program window is not opened.
+
+GUI
+===
+The  GUI  switch  activates  the  GUI  screen  of  the program.  GUI may also be
+obtained  by pressing the LMB during program run; this may be used when SKick is
+run from Startup-Sequence automatically.
+
+RELSTACK
+========
+In current versions of 3.0 (V39.106 and above), for example in A1200, supervisor
+stack is allocated from the top of Chip RAM, when Fast RAM is unavailable.  This
+causes  problems  on  machines with Chip RAM only, such as unexpanded A1200.  To
+prevent this, RELSTACK option should be included in the command line or ToolType
+flag.   When  this  option  is  active,  supervisor  stack is transferred to the
+beginning  of  RAM  (standard  AllocMem) and the space already allocated is made
+free  prior  the kickstart is attempted to load.  
+This  option  is not affected by the GUI mode and cannot be selected from there.
+In  other situations than mentioned above (3.0 ROM & Chip RAM only), use of this
+option is useless and causes greater memory fragmentation.
+
+FASTRES
+=======
+This option allows Skick's resident module to be allocated in Fast RAM.  Default
+memory  location for the module is somewhere in Chip RAM, because it is the most
+safe  place.   If particular configuration allows it, specifying this option may
+increase speed of reboot/reset.  This option is ignored when booting 1.3 system,
+because  it is not usable in this case.  It may also cause problem under certain
+conditions.  If Your machine crashes with this switch active, don't use it.
+
+KILLTAGS
+========
+This  option  allows to kill all the KickTags and MemTags as well as CoolCapture
+vector  before  installing SKick's ones.  This ensures that the machine is clear
+when  the  new  kickstart  starts.   Note  that  this is done automatically when
+kicking  1.3 system (there is a risk of incompatibility of the modules available
+for  2.0  only  (like  NewAlert))  or  when  performing hard-load (risk that the
+modules or their parts are located in memory occupied by kickstart image later).
+
+CORR5M
+======
+This  option  is  useless  for the most of users except owners of GVP A530 Turbo
+Harddisk.   Those may buy 4M expansion memory modules (SIMMs) to expand original
+1M  capacity  of 32bit RAM.  The manufacturer doesn't recommend mixing of 1M and
+4M  modules;  if  it  is done (4M one must be the first, 1M one the 2nd), system
+reports 8 Megs of total capacity, but physically it has 5 Megs with the last one
+Meg  mirrorred  4  times.   CORR5M  option  allows  to use this configuration by
+correcting  the  BoardSize item of the memory board's ConfigDev structure to the
+correct 5 Megs.
+
+DEBUG
+=====
+Sometimes  users  report  incorrect SKick operation, but it is hard to determine
+the  cause of it.  To gain additional information about the kicking process, the
+DEBUG option was introduced.  When active, two special SKick features are turned
+on:  
+1)  The  message  'Space  for  resident module allocated at $XXXXXXXX' is issued
+during  the  Skick  run.  The programmer then may decide if it is correct, or he
+may  view  it  using the debugger etc.  
+2)  After  every reboot, color effects are visible on the screen.  These effects
+are  tracking  the SKick resident module functions and they may really help with
+finding problems.  The colors have 'pastel' shades as the opposite of the bright
+ones  when  the  kickstart  itself  reports an error condition.  For the general
+user, it is important that the colors should appear in the order of (red, green,
+blue)   or  maybe  (green,  red,  green,  blue)  -  it  depends  on  the  memory
+configuration.   All the colors must be detectable, although some of them may be
+displayed  for  a very short time - it depends on the CPU speed.  When the Skick
+doesn't  work  correctly (crashes, doesn't recognize expansion boards, kickstart
+isn't  reset-proof etc) please try this option, observe the screen carefully and
+mail me a bug report with Your observation included.
+
+
+5.2 Invocation from Workbench.
+==============================
+
+Invocation  of  the  program from Workbench is very simple:  double-click on its
+icon  and  it  will  be performed.  Using 'Information', You may specify all the
+Tool Types like from Shell.  All switches are defined as FLAGS.
+
+One example:
+NAME=devs:kickstarts/kick39046
+FLAGS=QUIET|EXT
+
+This  definition  automatically loads kickstart named kick39046, does relocation
+and  patching,  scans only EXT memory for the space and doesn't issue any screen
+output.
+
+5.3 Suggested usage
+===================
+
+SKick  is  designed to be called as the first command from the Startup-sequence,
+either  with any name, or without it.  When the name is present, SKick will load
+appropriate  kickstart  image,  when  running  from  ROM  one.  When the name is
+missing,  SKick  will  do  nothing  and remain in ROM.  HOWEVER:  If the user is
+holding  LMB during Skick's run, Skick will open its Graphic User Interface.  It
+is  the screen very similar to Boot Menu.  There are all the kickstarts found in
+the  DEVS:Kickstarts  directory  displayed  and the user may choose any of them.
+The ROM kickstart is also displayed as one of them.  They are sorted accordingly
+to  their  versions  and revisions.  There are only version and revision numbers
+displayed,  not the names of disk files, with the remark (RAM) or (ROM).  In the
+lower  part  of  screen, there are 3 gadgets:  Patching (ON/OFF), Load into (ANY
+RAM/CHIP  RAM/FAST  RAM/EXP  RAM/NOT  EXP  RAM/) and Relocation (ON/OFF).  These
+gadgets play the role of command line switches.
+
+Once the GUI is activated, the selection must be made (there is no CANCEL gadget
+in  this  version, may be in future ...).  After the selection is made, selected
+kickstart  is  simply loaded, regardless of the actual system status (of course,
+when  the currently running kickstart is selected, it is NOT reloaded).  This is
+done  in  TWO  steps, if necessary.  Let's suppose that RAM kicstart is running,
+and we wish another RAM kickstart.  Immediately, SKick will reset the machine to
+ROM  and  reboot  it,  but  it  remembers  Your choice first.  When started from
+startup-sequence,  it  ignores  all its defaults and also the LMB, automatically
+loads  required  RAM  kickstart  and  reboots  again.  When it is called now, it
+ignores  its  defaults,  but LMB may be used to change kickstart using GUI.  The
+new  kickstart will remain active until next cold start (i.e.  not reboot/reset)
+of the machine is performed.  When some loaded kickstart is default and You wish
+to  remain  in  ROM,  after  selecting it from the GUI Your select overrides the
+default.  Even if rebooted, SKick will NOT load its default file and will remain
+in  ROM.   As  an  example,  when we wish to beta-test version 39.110 for a long
+time, we put into startup-sequence this line as a first command:
+
+SKick devs:kickstarts/kick39046 QUIET
+
+This  will  start  39.046  kickstart immediately after system power-up.  When we
+wish  to  remain  in  ROM or to use another kickstart, for example 34.005, it is
+necessary  to  hold LMB during boot (if we boot from HD it is only 2-3 sec after
+Boot  Menu),  and  to  select  our  choice.   Until next cold start (power down,
+double-reset  as  explained below or very hard crash), the selection will remain
+active  and  SKick  will not be doing anything.  
+It is a good idea, to put the SKick icon also in some place to change kickstart,
+when  the  system  is fully up and running.  Suggested setting is to use the GUI
+switch,  which will bring the menu screen automatically and in every case. 
+     NOTE:  When in the Startup-sequence, in the SKick command, the name is used
+(i.e.  some RAM kickstart is selected as a default), it is necessary to put some
+name  to  the  icon  too,  even if any name is overriden with our choice.  It is
+necessary  because  the  Skick  called  from Workbench must know the conditions,
+which  have  its  'college' from startup-sequence.  So the suggested setting for
+Workbench is:
+
+NAME=DUMMY (or anything else)
+FLAGS=GUI
+
+or  only  the  second  line  if  the  default kickstart is ROM (no name given in
+startup-sequence) or the SKick command is not used in it at all.
+
+NOTE:   The  name  of  kickstart  file  is  limited  in  length.  Maximal length
+correctly  processed  by  SKick  is 32 characters.  It is the length WITHOUT the
+path,  only  pure  filename.  Please accept this limitation.  Longer names cause
+malfunction (not crash) of SKick.
+
+To  force  the machine to return to the ROM kickstart, very simple operation may
+be   used.    The  user  simply  hits  the  reset  combination  (Ctrl-LeftAmiga-
+RightAmiga).   The display will disappear from the screen.  After some time from
+releasing  reset  buttons,  the screen color will change to 'medium gray' (it is
+the  FIRST  color change from many others).  ALso the power LED will shine fully
+from  this  moment.   This  is  the exact time to hit the reset combination once
+again.   Now,  any  reset-resistant things (all captures, memtags, romtags etc.)
+are off and system is performing cold start. I think that there is no need for a
+special program (like KillZKick), because this operation is handy and easy.
+Note: This doesn't work on A1200. Sorry. The solution is coming...
+
+
+
+6. Theory of operation
+======================
+
+This chapter will be included only in the developer's package.
+
+
+7. Troubleshooting
+==================
+
+Symptom			Cause			Solution
+---------------------------------------------------------------------------
+Error message from	According to the	According to the message
+SKick is displayed	message
+
+Power LED blinks	You are trying to	Try a different kickstart to 
+after kicking		kick the Rekick type	find the problem
+Yellow screen		kickstart without the 
+Or the kickstart	patch file (.PAT) or 
+stucks the machine	You are trying to kick 
+			the A3000/A4000
+			image without patching
+			on A500 
+			
+
+Alerts from RAM kick-	Running '020+ image on	Use another kickstart version
+start			'000 system
+
+
+Kickstart does not	ColdCapture		Do not use programs modifying
+survives reboot		changed, ExecBase	ColdCapture and corrupting
+			corrupted		system areas
+
+Kickstart does not	Crash too deep		Don't crash :-)
+survives crash		(ExecBase destroyed)
+
+Power LED blinks	Kickstart checksum	Possibly after a crash.
+repeatedly, RED		failed (image		Don't modify running images!
+screen			patched/destroyed)
+
+Any other		I don't know		Ask me for a solution, if You
+						can't find any (use E-mail).
+						Use the DEBUG mode first!
+8. File structures
+==================
+
+8.1 .RTB file
+
+.RTB  file  consists  of  two parts.  The first part contains all the relocation
+offsets  compressed  by  my  own simple algorithm.  It is created with a special
+program  called  RTG  (relocation  table generator) from specially pre-processed
+kickstart  image.   How  to  get  this image, it is my magic and I'll never tell
+anybody  about  it.  One note only:  generation of 39.046 .RTB took 1 1/2 hours.
+(Manual work, + about 10 mins my 7MHz '010 CPU time).  Second part contains BCPL
+relocation  table and it is required for 1.3 ROM only.  It was created manually,
+analysing  dos.library,  which is written in BCPL in 1.3.  .RTB file is not easy
+to create.  I don't recommend anybody to try it *without* very good knowledge of
+assembly  language and machine code (not the same).  N.B.  Auxiliary tools to do
+such work took 1 month to develop.
+
+8.2 .PAT file
+
+Patch file has a very simple structure.  It contains pairs of longs.  Every pair
+represents  an  offset  from  kickstart  beginning (first long) and the value to
+patch  (the  second one).  Bytes and words cannot be patched individually, every
+patch  must be coded as a long, even with 3 bytes identical with original.  When
+a  longer  patch  is to be coded, it must be coded as a sequence of these simple
+patches.   This  stupid mechanism will be improved in next release.  There is no
+order specified, because every patch has its own, fully coded offset.  It allows
+simple  addition  of new patches to the existing file.  Patch file must be ended
+with two longs of zeros.
+	From  revision  3.12,  there may be also relocative patches coded.  They
+differ from a standard patch by the most significant bit of offset, which is set
+to  1.  In this case, current loading address is added to the patch value before
+storing  it.  This feature is needed for 39.110 patch.  For example, to code JMP
+start+$7F900  patch  to  the address start+$100, where start is the current loa-
+ding  address,  use the sequence 000000fe XXXX4ef9 80000102 0007f900, where XXXX
+is original contents of ROM at address start+$fe.
+
+N.B. To create patch file, I'm using this algorithm:
+1) First, I patch new values directly into the kickstart with a debugger.
+2) I load another copy of kickstart into memory (my 6Megs allow this)
+3) I write simple program to generate the patch file directly with debugger's
+   assembler (I'm using Mon 1.55 by Timo Rossi, which seems to be the most
+   powerful PD debugger known to me). This program is so simple so I never save
+   it.
+4) I save (with the debugger) the table to the disk.
+
+9. Known bugs
+=============
+
+On certain configurations, SKick crashes when kicking the image.  However, after
+a  manual  reset,  prepared image is kicked up and problems no more occur.  This
+bug  seems  to  occur  mostly  on A1000 and its cause is unknown yet.  The final
+kick-up  is done by performing system restart almost identical with manual reset
+and I don't know why this sometimes doesn't work.
+Problems  may  be  also  caused  by  some  non-standard add-ons and boards.  For
+example, Skick causes problems when ALF harddisk is on the system.  Its resident
+modules  interfere  with  SKick's module and the results are unstable.  However,
+under certain limitations (load image below the ALF's modules, not to the end of
+RAM) SKick seems to be usable.
+
+
+10. Final words...
+==================
+
+This  program,  its documentation and all other files contained in this archive,
+are  (C) Copyright Pavel Troller, Jagellonska 16, 13000 Praha 3, Czech Republic.
+This  package is provided as is, any warranties cannot be applied.  Any usage of
+this program or other parts of this archive, will be done at Your own risk!
+
+
+If You have any suggestions, questions, criticisms or flames please feel free to
+write  me.  I'm sorry for the fact I'm very busy and I cannot reply by any other
+form  than  E-mail.   Also updates, new .RTB and .PAT files may be sent only via
+elec- tronic media.  Don't send disks, I will never return them!!!
+
+My email address is:
+			Internet:	PATROL@ACI.CVUT.CS
+			BITNET:		PATROL@CSPUNI12.BITNET
+

@@ -1,0 +1,172 @@
+Starting with release 3.53, ViNCEd gadgets can be customized. This is no 
+longer restricted to the system standard gadgets, the ViNCEd iconify gadget
+and the title bar buttons can be customized as well. Moreover, if you write
+your own application, you may use these gadgets as well - this makes your
+GUI freely designable by the user.
+
+
+If you want to write a "GUI improver" software....
+--------------------------------------------------
+
+...you should supply two public "Boopsi Classes" called
+"tbiclass". The class should be a subclass of the ordinary "image" 
+class and will be allocated by ViNCEd for the iconify gadget and 
+the "title bar" gadgets. The image class should come in at least
+two "flavours", determinated with the "SYSIA_Which" tag. This tag
+is defined in "intuition/imageclass.h".
+
+
+Details about the iconify image flavour of the "tbiclass"
+---------------------------------------------------------
+
+This image subclass is used to render the iconify gadget in ViNCEd and
+other windows.
+
+You receive the following information thru the standard tag items:
+
+SYSIA_Which	with a tag value of 104, defining the "iconify flavour".
+
+Width & height of the image to create. These values will be the dimensions
+of the "depth arrangement" gadgets in the window. You may well ignore these
+parameters as long as the specified dimensions alter by the returned 
+dimensions by a reasonable amount - meaning: screen sized gadgets won't 
+work, but everything that fits in the titlebar should. ViNCEd tries to adjust 
+its GUI accordingly to make enough room for your image.
+
+The DrawInfo of the screen the window is to be created on. You should use it
+to choose the correct pens for your image.
+
+ViNCEd will allocate only ONE instance of this boopsi class and use it for
+both, the regular and the hilited image of the iconify gadget. Make sure
+your boopsi class is smart enough to render itself accordingly, you receive
+all necessary information thru the standard boopsi "message".
+
+You WILL NOT receive a recessed/raised flag of the image to create. As I
+said, your boopsi class is expected to be smart enough.
+
+To be compatible to an intuition "feature", ViNCEd expects that the LeftEdge
+of your returned image is set to "-1", hence, the image is shifted by one
+pixel to the left relatively to the gadget. This sounds a bit strange, but
+intuition treads the standard system images in quite the same way. The reason
+for this displacement of the image is to keep the left black image border out
+of the sensitive area of the gadget. This dark border appears later on to be
+the apparent right border of the title bar.
+
+
+Details about the button flavour of the "tbiclass"
+--------------------------------------------------
+
+This image subclass is used to render the "titlebar buttons" of ViNCEd 
+windows.
+
+You receive the following tags:
+
+SYSIA_Which	with a tag value of 106, defining the "button flavour".
+
+Width & height of the image to create. You may well ignore the height
+parameter as long as you make sure your image will be the same size as the
+title bar of the window. You ABSOLUTELY MUST obey the width parameter, ViNCEd
+relies on the correct value set in the boopsi returned.
+
+The DrawInfo of the screen for rendering informations.
+
+You WILL NOT receive a recessed/raised flag for the image to create. As above,
+ViNCEd expects that your image class is smart enough to render itself
+accordingly, all necessary data can be received from intuition. 
+
+ViNCEd will allocate only ONE instance of this boopsi per button, and will
+use it for both, the gadget image and the hilite image - the pointer goes
+to the "GadgetRender" and "SelectRender" fields of the gadgets.
+
+Expect that parts of your images will be obscured by text, the contents of
+the button.
+
+To be compatible with a feature of intuition, ViNCEd expects that the image
+is shifted to the left by one pixel, i.e. the LeftEdge entry of the image
+structure must be set to -1. See above for details.
+
+
+
+If you write your own application and need an iconify gadget or a title bar
+button...
+----------------------------------------------------------------------------
+
+First, provide your own standard gadget imagery. Make sure your program
+works on a plain system, without any "GUI improver" software. If you want
+your gadgets to get standard images, try the following to get a standard
+iconify gadget:
+
+
+Allocate a boopsi of the public "tbiclass" class, 
+provide the following tags:
+
+SYSIA_Which	with a tag value of 104, defining the "iconify flavour".
+
+Width & height, and the DrawInfo of the screen your window is located on.
+
+If this allocation fails, fall back to your own image. 
+
+If it works:
+
+Check the width and the height of the returned image. They might be different
+from your specifications in order to give a "better look". Adjust your GUI
+accordingly, make some room for this image. Fill the pointer you received
+in the "GadgetRender" and "SelectRender" fields of the gadget structure
+and specify alternate images as gadget rendering mechanisms. MAKE SURE
+YOU ADJUST THE GADGET SIZE to reflect the dimensions of the image!
+
+To be compatible to an intuition feature, the image you receive will be 
+shifted to one pixel to the left. DO NOT ALTER the image structure you
+received, it isn't yours! Move the gadget instead if you need to do so!
+Read the paragraph above for more details.
+
+
+
+If you need a standard button in your title bar:
+
+Allocate a boopsi of the "tbiclass", provide the following tags:
+
+SYSIA_Which	with a tag value of 106, defining the "button flavour".
+
+Width & height of the button you need. The "width" can be as big as you like,
+but the height should be the height of the title bar of the window. If the
+window is not yet open, specify a reasonable value, it will be adjusted
+for you.
+DrawInfo of the screen your window is located on. THIS TAG is ABSOLUTELY 
+NEEDED! 
+
+You receive either NULL if the class isn't available. Fall back to your own
+image or border if you get this as result. If you don't get NULL, you're
+holding one instance of an image-like boopsi. It's width is guaranteed to
+be the width you specified, but the height might differ to adjust the image
+in the title bar. Set the "GadgetRender" and "SelectRender" fields of an
+intuition gadget to this pointer and specify images as regular and selected
+rendering of the gadget. MAKE SURE YOU ADJUST THE GADGET HEIGHT to reflect
+possible changes.
+
+To be compatible with an intuition feature, this image will be shifted
+leftwards by one pixel. This will move the 3D-look border of it out of
+the gadget activation region and is an intuition feature. Please DO NOT
+adjust the image structure yourself, it isn't yours. Move the gadget
+instead if you have to.
+
+_____________________________________________________________________________
+
+The following programs are tested and support both image classes:
+
+Visual Prefs by Massimo Tantignone.
+
+
+The following programs use the image classes:
+
+ViNCEd
+
+_____________________________________________________________________________
+
+For further questions, contact me at
+
+	thomas.richter@alumni.tu-berlin.de
+
+
+So long,
+	Thomas Richter,		April 2020

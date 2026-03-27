@@ -27,7 +27,7 @@
 
 /* AmigaOS / SAS-C 6.58 compatibility -- must come first */
 #ifdef __SASC
-#include "amiga/amiga_compat.h"
+#include "amiga_compat.h"
 #endif
 
 #include <assert.h>

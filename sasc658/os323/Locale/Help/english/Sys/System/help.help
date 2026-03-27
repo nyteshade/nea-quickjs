@@ -1,0 +1,39 @@
+@database Help
+@node "MAIN"
+@{IMG SYS:System/Help.info}
+   NAME
+	HELP - Opens the built-in AmigaOS help subsystem. 
+
+   FORMAT
+	HELP [DS|CS] <program name>
+
+   TEMPLATE
+	DS/S,CS/S
+
+   PATH
+	SYSTEM/HELP
+
+   FUNCTION
+	AmigaOS 3.2 (v47) comes with a complete built-in HELP subsystem 
+	designed to conveniently assist users (including 
+	context-sensitivity where applicable).
+
+	It covers the entire set of AmigaOS components, serving as a
+	quick reference manual. 
+
+	It can be activated by either pressing the HELP Amiga keyboard key 
+	(PAGE DOWN key on Amiga emulators), by double-clicking on the 
+	"Help" icon located in the "System" drawer, or even by simply 
+	typing "HELP" and a program name on a CLI/Shell window.
+
+	On a CLI/Shell window, the HELP command has the following options:
+
+	DS switches deep scanning for all possible documents
+	CS switches content search of all documentation (this can be slow)
+
+
+	Each Preference editor can display their own help files if 
+	the user presses the HELP key while they are open and 
+	active.
+
+@endnode

@@ -1,0 +1,55 @@
+@database CMD
+@node "MAIN"
+@{IMG SYS:Tools/CMD.info}
+   NAME
+	CMD - Redirects device output to a file.
+
+   FORMAT
+	CMD <devicename> <filename> [SKIP] [MULTIPLE] [NOTIFY] 
+	[DEVICE <device name>]
+
+   TEMPLATE
+	PARALLEL/S,SERIAL/S,FILE=TO,OPT/K/M,SKIP/S,MULTIPLE/S,NOTIFY/S,
+	DEVICE/K
+
+   PATH
+	TOOLS/CMD
+
+   FUNCTION
+	The <devicename> can be serial or parallel. To redirect printer 
+	output, it should be the same device as specified in the Printer 
+	Preferences editor. <Filename> is the name of the file to which 
+	the redirected output should be sent.
+
+	If the CMD command is executed by double-clicking on its icon, it 
+	will by default, redirect the parallel port output to a file in 
+	RAM: called CMD_file.
+
+	The CMD options are as follows:
+
+	OPT     Only kept for backwards compatibility. 
+	
+
+	SKIP    Skips any short initial write (usually a reset if 
+	        redirecting a screen dump).
+
+	MULTIPLE    Redirects multiple files until a BREAK command or 
+	            Ctrl+C is entered.
+
+	NOTIFY  Notifies the user of progress (messages are displayed on 
+	        the screen).
+
+	DEVICE  Redirects from another user-specified device. 
+
+   EXAMPLE
+	1> CMD serial RAM:cmd_file
+
+	Any output sent to the serial port is rerouted to a file in RAM: 
+	called cmd_file.
+
+	1> CMD device usbpar RAM:cmd_file
+
+	Any output sent to usbpar.device will be rerouted to a file in 
+	RAM: called cmd_file.
+
+@endnode

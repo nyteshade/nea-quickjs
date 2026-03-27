@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/argonaut.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(46,46,46) brighter rgb(56,56,56)
+red Alpha:255 rgb(254,39,32) brighter rgb(255,47,39)
+green Alpha:255 rgb(156,225,43) brighter rgb(188,255,52)
+yellow Alpha:255 rgb(253,195,40) brighter rgb(255,234,48)
+blue Alpha:255 rgb(31,163,247) brighter rgb(38,196,255)
+magenta Alpha:255 rgb(129,93,179) brighter rgb(155,112,215)
+cyan Alpha:255 rgb(25,222,238) brighter rgb(30,255,255)
+white Alpha:255 rgb(255,255,255) brighter rgb(255,255,255)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x1111,0x1414,0x2121
+COLOR=NOLOAD,ANSI,0x2e2e,0x2e2e,0x2e2e
+COLOR=NOLOAD,ANSI,0xfefe,0x2727,0x2020
+COLOR=NOLOAD,ANSI,0x9c9c,0xe1e1,0x2b2b
+COLOR=NOLOAD,ANSI,0xfdfd,0xc3c3,0x2828
+COLOR=NOLOAD,ANSI,0x1f1f,0xa3a3,0xf7f7
+COLOR=NOLOAD,ANSI,0x8181,0x5d5d,0xb3b3
+COLOR=NOLOAD,ANSI,0x1919,0xdede,0xeeee
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff
+COLOR=NOLOAD,ANSI,0x3838,0x3838,0x3838
+COLOR=NOLOAD,ANSI,0xffff,0x2f2f,0x2727
+COLOR=NOLOAD,ANSI,0xbcbc,0xffff,0x3434
+COLOR=NOLOAD,ANSI,0xffff,0xeaea,0x3030
+COLOR=NOLOAD,ANSI,0x2626,0xc4c4,0xffff
+COLOR=NOLOAD,ANSI,0x9b9b,0x7070,0xd7d7
+COLOR=NOLOAD,ANSI,0x1e1e,0xffff,0xffff
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff

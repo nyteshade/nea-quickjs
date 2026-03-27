@@ -1,0 +1,62 @@
+   NAME
+	AsyncWB - Multiple featured Workbench enhancement Commodity.
+
+  FORMAT
+	ASYNCWB [NOCOPY] [NODELETE] [NOTEXTINPUT] [BUFSIZE <bufsize>] 
+	[PRIORITY <priority>] [NOHISTORY]
+
+  TEMPLATE
+	NOCOPY=NC/S,NODELETE=ND/S,NOTEXTINPUT=NTI/S,BUFSIZE=BUF/N/K,
+	PRIORITY=PRI/N/K, NOHISTORY/S
+
+  PATH
+	WBSTARTUP/ASYNCWB
+
+  FUNCTION
+	ASYNCWB enables asynchronous copy and delete operations from
+	Workbench. This means that you do not need to wait till these 
+	operations are finished to perform other Workbench tasks.
+
+	ASYNCWB is normally found in the WBStartup drawer so that it runs 
+	when Workbench loads. It can be shut down by running it again 
+	without any arguments.
+
+	ASYNCWB is far more than "a drag & drop file copying commodity". 
+	It's a Workbench patch with several enhancements, including:
+
+	1) The Workbench menu "Execute Command" function has, if ASYNCWB 
+	is enabled, a history feature that makes it possible to browse the 
+	previously typed commands using the arrow keys. The history file 
+	is saved in ENVARC:Sys/AsyncWB.history. In addition, a gadget will 
+	be placed enabling a file requester that lets you browse your 
+	volumes.
+
+	2) It replaces the "Copy" and "Delete" options from the "Icons" 
+	menu in Workbench with its own ReAction based progress bar and 
+	"Cancel" button.
+
+	3) By selecting the Workbench "Window" menu, "New Drawer" it will 
+	provide a check box option labeled "Icons" that if ticked, will 
+	create a default icon for that drawer.
+
+	Available ASYNCWB options:
+
+	NOCOPY
+	It does not replace the copy operation from the "Icons" menu.
+
+	NODELETE
+	It does not replace the delete operation from the "Icons" menu.
+
+	NOTEXTINPUT 
+	Lets Workbench regain control of the text input window that is 
+	used for rename, execute, etc. functions that are usually 
+	intercepted by ASYNCWB.
+
+	BUFSIZE
+	Defines the buffer size for ASYNCWB copy operation.
+
+	PRIORITY
+	Sets the ASYNCWB priority.
+
+	NOHISTORY
+	Disables saving the history in ENVARC:Sys/AsyncWB.history.

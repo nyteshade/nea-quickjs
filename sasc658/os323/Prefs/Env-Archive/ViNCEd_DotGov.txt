@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/dot_gov.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(33,33,33) brighter rgb(40,40,40)
+red Alpha:255 rgb(176,44,42) brighter rgb(212,53,51)
+green Alpha:255 rgb(110,165,99) brighter rgb(132,198,119)
+yellow Alpha:255 rgb(234,201,66) brighter rgb(255,242,80)
+blue Alpha:255 rgb(111,188,230) brighter rgb(134,226,255)
+magenta Alpha:255 rgb(126,69,191) brighter rgb(152,83,230)
+cyan Alpha:255 rgb(177,216,241) brighter rgb(213,255,255)
+white Alpha:255 rgb(255,255,255) brighter rgb(255,255,255)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x3535,0x3a3a,0x4545
+COLOR=NOLOAD,ANSI,0x2121,0x2121,0x2121
+COLOR=NOLOAD,ANSI,0xb0b0,0x2c2c,0x2a2a
+COLOR=NOLOAD,ANSI,0x6e6e,0xa5a5,0x6363
+COLOR=NOLOAD,ANSI,0xeaea,0xc9c9,0x4242
+COLOR=NOLOAD,ANSI,0x6f6f,0xbcbc,0xe6e6
+COLOR=NOLOAD,ANSI,0x7e7e,0x4545,0xbfbf
+COLOR=NOLOAD,ANSI,0xb1b1,0xd8d8,0xf1f1
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff
+COLOR=NOLOAD,ANSI,0x2828,0x2828,0x2828
+COLOR=NOLOAD,ANSI,0xd4d4,0x3535,0x3333
+COLOR=NOLOAD,ANSI,0x8484,0xc6c6,0x7777
+COLOR=NOLOAD,ANSI,0xffff,0xf2f2,0x5050
+COLOR=NOLOAD,ANSI,0x8686,0xe2e2,0xffff
+COLOR=NOLOAD,ANSI,0x9898,0x5353,0xe6e6
+COLOR=NOLOAD,ANSI,0xd5d5,0xffff,0xffff
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff

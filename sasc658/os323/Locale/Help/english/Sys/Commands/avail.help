@@ -1,0 +1,34 @@
+   NAME
+	AVAIL - Reports the amount of memory available.
+
+   FORMAT
+	AVAIL [CHIP|FAST|TOTAL] [FLUSH]
+
+   TEMPLATE
+	CHIP/S,FAST/S,TOTAL/S,FLUSH/S
+
+   PATH
+	C:AVAIL
+
+   FUNCTION
+	AVAIL reports the amount of installed memory and how much
+	of it is available for use.
+	The figures in the complete summary are localised.
+
+	By using the CHIP, FAST, or TOTAL options, you can have	AVAIL 
+	display only the number of free bytes of Chip, Fast, or total RAM 
+	available, instead of the complete summary.
+	This value can be used for comparisons in scripts.
+
+	The FLUSH option causes all unused fonts, catalogs, libraries
+	and device modules to be expunged from memory.
+
+   EXAMPLES
+	1> AVAIL
+	Type  Available    In-Use   Maximum   Largest
+	chip    2034536     61592   2096128   2033696
+	fast    2862944   1331360   4194304   2847008
+	total   4897480   1392952   6290432   2847008
+
+	1> AVAIL TOTAL
+	437252096

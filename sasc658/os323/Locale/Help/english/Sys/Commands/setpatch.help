@@ -1,0 +1,57 @@
+   NAME
+	SETPATCH - Implements ROM patches in system software.
+
+   FORMAT
+	SETPATCH [QUIET] [NOCACHE] [REVERSE] [NOAGA] [DRIVELEDPATCH] 
+	[CONTENTS]
+
+   TEMPLATE
+	QUIET/S,NOCACHE/S,REVERSE/S,NOAGA/S,DRIVELEDPATCH/S,CONTENTS/S
+
+   PATH
+	C:SETPATCH
+
+   FUNCTION
+	SETPATCH installs temporary modifications to the operating system.
+	It must be executed at the beginning of the Startup-sequence file.
+
+	NOAGA
+	By default, SETPATCH enables the AGA video modes when running on 
+	an Amiga Classic with AGA chipset and the chipset was not disabled 
+	in the Early Startup menu. If you don't want to enable the AGA 
+	video modes, specify the NOAGA argument on the command line.
+
+	QUIET
+	By default, SETPATCH displays the operating system version and
+	copyright as well as the list of applied patches, but nothing if 
+	the QUIET argument is specified.
+
+	NOCACHE 
+	Will prevent Data Cache from being turned on in 68030 systems made 
+	by some third-party vendors. 
+
+	REVERSE 
+	Allocates memory from the top. This option is primarily available 
+	for CDTV developers. 
+
+	DRIVELEDPATCH 
+	Fixes the IDE LED bug that occurs with some ATAPI devices, 
+	especially the CD-ROM drive of the A4000T, that makes the LED 
+	drive light stay constantly lit.
+
+	Note: the previously existing NODRIVELEDPATCH has been removed and 
+	this is now default behaviour in AmigaOS 3.2.1. If you have an 
+	optical drive which causes the IDE activity LED to be permanently 
+	on, you can enable this patch with the argument DRIVELEDPATCH. The 
+	reason for the change to not load this patch by default in 
+	AmigaOS 3.2.1 is that it only affects the IDE activity LED but 
+	causes a 3 seconds delay when enabled. So only a reduced number of 
+	users could potentially benefit from it.
+
+	CONTENTS 
+	Lists all patches contained in the current SetPatch release.
+
+   EXAMPLES
+	    1> SETPATCH QUIET
+
+	Suppresses the normal output.

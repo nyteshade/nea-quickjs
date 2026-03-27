@@ -1,0 +1,22 @@
+   NAME
+	SETKEYBOARD - Changes the keymap used by the current Amiga 
+	              console.
+
+   FORMAT
+	SETKEYBOARD <keymap>
+
+   TEMPLATE
+	KEYMAP/A
+
+   PATH
+	C:SETKEYBOARD
+
+   FUNCTION
+	SETKEYBOARD specifies the keymap used by the Amiga for the
+	current console. The keymap file must be present in KEYMAPS:
+	for SETKEYBOARD to find it.
+
+   EXAMPLES
+	To change to a Canadian keymap, type:
+
+	    1> SETKEYBOARD cdn

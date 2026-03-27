@@ -1,0 +1,295 @@
+   NAME
+	EXECUTE - Executes a script with optional argument substitution.
+
+   FORMAT
+	EXECUTE [FILE]
+
+   TEMPLATE
+	FILE/A
+
+   PATH
+	Internal (since V47), C:EXECUTE (up to V46)
+
+   FUNCTION
+	EXECUTE is used to run scripts of AmigaDOS commands.
+	The lines in the script are executed just as as if they had been 
+	typed at a Shell prompt. If the S protection bit of a file is set 
+	and the file is in the search path, you only need to type the 
+	file name -- the EXECUTE command is not needed.
+
+	If no script file is provided, EXECUTE reads the script from its 
+	input stream. This is most useful in case the input stream comes 
+	from a pipe, i.e. one can "pipe" a text file into EXECUTE to have 
+	it executed as a script.
+
+	You can use formal parameter substitution in scripts by including
+	special keywords at the top of the script. When these keywords are
+	used, you can pass arguments to the script by including the 
+	argument value on the EXECUTE command line. Before the script is 
+	executed, AmigaDOS checks the formal parameter names in the script 
+	against any arguments given on the command line. If any match, 
+	EXECUTE substitutes the values you specified on the command line 
+	for the parameter name in the script. You can also specify default 
+	values for EXECUTE to use if a formal parameter does not receive 
+	an argument. If you have not specified an argument for a formal 
+	parameter, and there is no default specified in the script, then 
+	the value of the parameter is empty and no substitution is made.
+
+	The permissible keywords for parameter substitution are explained
+	below. Each keyword must be prefaced with a dot character ".". 
+	These keywords are named EXECUTE directives below.
+
+	The .KEY (or .K) keyword specifies both keyword names and 
+	positions in a script. It tells EXECUTE how many arguments to 
+	expect and how to interpret them. The variable name or names 
+	behind .KEY define the names of formal parameters which are 
+	substituted with matching arguments given to the script when 
+	executed, with optional modifiers that define how to parse the 
+	argument line of the script.
+
+	In other words, .KEY serves as a template for the arguments you 
+	specify. Only one .KEY statement is allowed per script. If 
+	present, it will be grouped together with other EXECUTE 
+	directives at the start of the script.
+
+	The arguments of the .KEY directive may include the following
+	modifies, which specify things such as the type of the formal
+	parameter. Modifiers are specified by following the formal argument
+	name with a '/', and a single character modifier. Multiple 
+	modifiers can be specified by multiple '/'s. Valid modifiers are:
+
+	/S - Switch. (V46)
+
+	This formal parameter is considered a boolean variable, and will 
+	be set if the option name appears as argument. If a boolean switch 
+	is set, it will be substituted by its formal name within the
+	script. Otherwise, it will be substituted by an empty string.
+
+	/K - Keyword.
+
+	This means that the option will not be filled unless the keyword
+	appears.  For example if the template is "Name/K", then unless
+	"Name=<string>" or "Name <string>" appears in the command line, 
+	the Name parameter will not be filled. The formal parameter is then
+	substituted by an empty string. If the matching argument contains
+	blank spaces or other characters that have a special meaning for 
+	the Shell, EXECUTE will automatically generate double quotes 
+	around the argument and will escape such characters properly, 
+	unless the formal parameter is already placed within double quotes 
+	in which case a second pair will NOT be generated.
+
+	/N - Number. (V46)
+
+	This format parameter must be a decimal number. If the 
+	corresponding command line argument of the script is not a number, 
+	EXECUTE will generate an error.
+
+	/T - Toggle. (V46)
+
+	This is similar to a switch, but when specified causes the value 
+	to "toggle", i.e.  given the same toggle a second time "resets" 
+	the toggle. A set toggle will be replaced by the name of the 
+	formal parameter, a reset toggle will be replaced by an empty 
+	string.
+
+	/A - Required.
+
+	This keyword must be given a value during command-line processing, 
+	or an error is returned.
+
+	/F - Rest of line. (V46)
+
+	If this is specified, the remainder of the line is taken as the
+	parameter for the option, even if other option keywords appear in
+	it. Unlike regular arguments, the Shell will not generate double
+	quotes around arguments but will substitute the formal parameter 
+	"as is".
+
+	/M - Multiple strings. (V46)
+
+	This means that the argument will take any number of strings, 
+	returning them as an array of strings.  Any arguments not 
+	considered to be part of another option will be added to this 
+	option.  Only one /M should be specified in a template. The formal 
+	parameter will be expanded to all arguments that matched the /M 
+	parameter, potentially generating double quotes around each 
+	argument if necessary.
+
+	The /M modifier can be combined with /N, in which case multiple
+	numbers instead of multiple strings are expected.
+
+	There is an interaction between /M parameters and /A parameters. 
+	If there are unfilled /A parameters after parsing, EXECUTE will 
+	grab strings from the end of a previous /M parameter list to fill 
+	the /A's.
+
+	EXECUTE substitutes the formal parameters given in the .KEY 
+	directive in the script by an initial scan over the script. Any 
+	formal parameter name enclosed in BRA and KET characters is 
+	substituted by the corresponding argument assigned to it when 
+	parsing the command line. By default, BRA and KET characters are 
+	"<" and ">". However, if you want to use a string in your script 
+	that contains angle brackets, you will have to define substitute 
+	BRA and KET characters with the .BRA and .KET directives.
+
+	The .BRA directive takes a character as argument which
+	changes the opening bracket for indicating formal parameter
+	substitution to the given character.
+
+	The .KET directive works likewise and also takes a single
+	character as argument which replaces the closing bracket for 
+	formal parameter substitution.
+ 
+	NOTE: Formal parameters ARE NOT AmigaDOS Shell
+	variables and have an independent name space. In fact, it is the
+	EXECUTE command which performs the substitution, and not the 
+	AmigaDOS Shell.
+  
+	For example:
+
+	.KEY filename
+	.BRA {
+	.KET}
+	ECHO "This line DOES print <angle> brackets."
+	ECHO "The specified filename is {filename}"
+
+
+	Would result in the following output:
+
+
+	1> EXECUTE script TestFile
+	This line DOES print <angle> brackets.
+	The specified filename is TestFile
+
+	The first line specifies that the script takes one formal 
+	parameter that is optional and consists of a string. Within the 
+	script, the name of the formal parameter is "filename". The second 
+	and third line change the characters for formal parameter matching 
+	to curly brackets. Since angle brackets are no longer part of 
+	parameter matching, the following ECHO command prints them 
+	literally. The contents of the curly brackets in the last line are 
+	then substituted by the argument of the script.
+
+
+	When enclosing a formal parameter in BRA/KET characters, you can 
+	also specify a default string to be used if a formal parameter is 
+	not supplied on the command line. There are two ways to specify a
+	default. The first way requires that you specify the default every
+	time you reference a parameter. You must separate the two strings 
+	with a dollar sign "$".
+
+	For example, the following line in a script file:
+
+
+	.KEY word1
+	ECHO "<word1$defword1> is the default for Word1."
+
+
+	"defword1" would be used whenever the formal parameter "word1" is 
+	not provided as argument to the script. However, if you want to 
+	specify this default several times in your script, you would have 
+	to specify the default each time as well.
+
+	A double dollar sign enclosed in angle brackets (or .BRA/.KET
+	brackets) is substituted by the AmigaDOS CLI number. This number 
+	can be used to generate a unique number that distinguishes several
+	instances of the script.
+
+	The .DOLLAR or .DOL directive allows you to change
+	the default character. This directive takes a single character as
+	its argument, which then replaces the "$" sign. For example:
+
+	.KEY word1
+	.DOL #
+	ECHO "<word1#> is the default for Word1."
+
+	Would replace the dollar sign by the hash-mark, leaving $ for use 
+	in the script.
+
+	The second way how to define a default is through the
+	.DEF directive. This allows you to specify a default for each 
+	specific keyword. For example:
+
+
+	.KEY word1
+	.DEF word1 "defword1"
+	ECHO "<word1> is the value of the Word1 argument, or its default."
+
+	Assigns "defword1" as default for the word1 parameter throughout 
+	the script, such that the following command line on the Shell:
+
+	EXECUTE script
+
+	Results in the output:
+
+	defword1 is the value of the Word1 argument, or its default.
+
+	You can embed comments at the top of the script by typing a single 
+	DOT ('.') followed by a space, or by the regular AmigaDOS comment
+	introduced by a semicolon (';').
+
+	Summary of Directives
+
+	.KEY	            argument template used to specify the 
+	                    arguments a script takes, may be abbreviated 
+	                    by .K
+
+	.DOT <ch>   	    Changes the dot parameter to the argument 
+	                    given of the .DOT directive.
+
+	.BRA <ch>   	    Changes the opening bracket to introduce 
+	                    formal parameter substitution to <ch>.
+
+	.KET <ch>   	    Changes the closing bracket that terminates a 
+	                    formal parameter substitution to <ch>.
+
+	.DOLLAR <ch>	    Changes the character for formal parameter 
+	                    defaults to <ch>.
+
+	.DEF <param>	    Specifies a default for a formal parameter if not 
+	                    matched in the argument template.
+
+	.   		        Comment line, with a space after the dot.
+
+	Execute only performs formal parameter substitution if the first 
+	line that does not start with a semicolon, i.e. is not a regular 
+	Shell comment, starts with a dot instead. Hence, without EXECUTE
+	directives, EXECUTE will not attempt formal parameter
+	substitution and will instead pass the script unchanged to the
+	AmigaDOS Shell.
+
+	The Shell provides a number of commands that are useful in 
+	scripts, such as IF, ELSE, SKIP, LAB and QUIT. These commands, as 
+	well as the EXECUTE command, can be nested in a script. That is, a 
+	script can contain EXECUTE commands as well, and can invoke other 
+	scripts as part of its execution.
+
+
+	To stop the execution of a script, press Control-D. Note that QUIT
+	terminates the execution of all nested scripts and thus returns to 
+	the Shell. It does not only abort the current nesting level of the 
+	script(s).
+
+	Change notes:
+
+	From V46 on, EXECUTE supports all argument modifiers ReadArgs()
+	supports, see the dos.library AUTODOCS, including /F, /M, /N and
+	combinations thereof. Also starting from V46 on, scripts can be
+	arbitrarily nested without restrictions to SKIP BACK, provided 
+	EXECUTE is made resident before the Shell is invoked. Also, V46 
+	introduces proper escaping of formal parameter substitution, as it 
+	places quotes around such formal parameters that contain blank 
+	spaces, asterisks or double quotes, and are not quoted themselves.
+
+	Note that the ./ directive mentioned in the Bantam Book AmigaDOS
+	Manual was never operational.
+
+	From V47 on, EXECUTE is a Shell internal, relaxing the requirement 
+	of making it resident by the user. However, we still had to 
+	unfortunately include its old standalone executable file because we 
+	have discovered that a few old and badly coded programs rely on the 
+	physical presence of this file to correctly operate, and will 
+	otherwise fail.
+
+   SEE ALSO
+	IF, SKIP, FAILAT, LAB, ECHO, RUN, QUIT

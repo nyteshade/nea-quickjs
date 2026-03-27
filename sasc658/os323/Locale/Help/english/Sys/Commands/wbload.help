@@ -1,0 +1,24 @@
+   NAME
+	WBLOAD - Starts a Workbench program from the CLI.
+   
+   FORMAT
+	WBLOAD <program name> [<program arguments>]
+  
+   TEMPLATE
+	PROG/A, ARGS/M
+  
+   PATH
+	C:WBLOAD
+
+   FUNCTION
+	WBLOAD loads and executes Workbench programs from the CLI/Shell. 
+	However, it does not require the Workbench. Hence, it is safe to 
+	use in the Startup-sequence before LoadWB, and it operates 
+	synchronously, i.e. it does not return until the started program 
+	returns. If this becomes an issue, placing an "&" as the last 
+	argument to the program will solve it.
+
+   EXAMPLE
+	 1> WBLOAD SYS:Prefs/ScreenMode
+   
+	Loads and executes the ScreenMode Prefs program from the Shell.

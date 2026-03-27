@@ -1,0 +1,136 @@
+echo "Creating review buffer ... "
+
+Failat 10
+Review 20000
+Config hide *.info
+Flags icon on
+
+echo done.^J
+
+echo "Setting aliases ."
+
+unalias
+alias  f1 "^* Adir ^M"
+alias sf1 "^* A^Ldir ^M"
+alias  f2 "^* Alist ^M"
+alias sf2 "^* A^Llist ^M"
+alias  f3 "^Xinfo^M"
+alias sf3 "^X^Linfo^M"
+alias  f4 "^* Acopy ^M"
+alias sf4 "^* A^Lcopy ^M"
+alias  f5 "^* Adelete ^M"
+alias sf5 "^* A^Ldelete ^M"
+alias  f6 ^XCls^M
+alias  f10 Startup-Sequence
+
+echo .
+
+alias del delete
+alias ren rename
+alias dc  diskchange
+alias md  makedir
+alias exec execute
+alias zexec execute zshell
+
+echo ". done.^J"
+
+echo "Installing menus ."
+
+menu -c
+
+menu title   Project \
+       item "Reset console" ^Jcls^M c \
+       item "New ZShell"    ^Xnewcli^M n \
+       item "Load script"   "^XS:^F^M" \
+       item "Colors"
+menu     subitem Default    "^Xconfig color 3031323334353637;prompt \^[[33m%p>\^32;cls^M" \
+         subitem "4 colors" "^Xconfig color 3031323331323332;prompt \^[[33m%p>\^32;cls^M"
+menu     subitem "2 colors" "^Xconfig color 3031030104040703;prompt \^[[1m%p>\^32;cls^M" \
+         subitem Boring     "^Xconfig color 3031313131313131;prompt %p>\^32;cls^M"
+menu bar \
+       item  Help           ^Xhelp^M HELP \
+       item "Help on help" "^Xhelp ?^M" \
+       item "Debug info" \
+         subitem On  "^XFlags debug on check on^M" \
+         subitem Off "^XFlags debug off check off^M"
+menu bar \
+       item  Iconify        ^[ ESC \
+       item  Exit           ^Xendcli^M x
+
+echo .
+
+menu title   Commands \
+       item  Dir "^* Adir ^M"   d \
+       item  List "^* Alist ^M" l \
+       item  Info ^Xinfo^M      i \
+       item  More "^F^* Amore ^M" m
+menu bar \
+       item "Multiview" ^F^M r \
+       item  MemClock \
+         subitem On  "^Xmemclk on^M" \
+         subitem Off "^Xmemclk off^M"
+menu   item "Show tasks" "^Xshow t^M" t \
+       item "Show assigns" "^Xassign^M" a \
+       item "Show aliases" "^Xalias^M"
+
+echo .
+
+menu title Movement \
+       item "Previous char"  ^*D Left \
+       item "Next char"      ^*C Right \
+       item "Previous word"  ^R ^R \
+       item "Next word"      ^T ^T
+menu   item "Start of line" "^* A" S+Left \
+       item "End of line"   "^* @" S+Right \
+     bar \
+       item "Clean up"       ^L ^L
+
+echo .
+
+menu title Deletion
+menu item "Previous char" ^H BSpace
+menu item "Next char" ^$7f DEL
+menu item "Previous word" ^Q ^Q
+menu item "Next word" ^W ^W
+menu item "To start of line" ^S ^S
+menu item "To end of line" ^E ^E
+menu item "Whole line" ^X ^X
+menu bar item Undo ^*S S+Down
+
+echo .
+
+menu title History item "One back" ^*A Up item "One forward" ^*B Down
+menu item First ^*T S+Up item Last ^*S S+Down bar
+menu item "Search back" ^*T S+Up item "Undo" ^*S S+Down
+menu item "To history" ^J ^J item Display ^V ^V
+
+echo .
+
+menu title   Completion
+menu   item "Complete name" ^I TAB
+menu   item "Cycle forward" ^I TAB
+menu   item "Cycle back" ` BTick
+menu     bar
+menu   item "Filerequester" ^F ^F
+menu   item "Ignore icons"
+menu     subitem On  "^Xconfig hide *.info^M"
+menu     subitem Off "^Xconfig hide \"\"^M"
+menu   item "Show matches"
+menu     subitem On  "^Xflags match on^M"
+menu     subitem Off "^Xflags match off^M"
+menu   item "Flush buffer" ^P ^P
+
+echo .
+
+menu title   Review
+menu   item "Show buffer" ^Y S+TAB
+menu   item "Clear buffer" "^Xreview 20000^M"
+menu   item "Save to file" "^Xreview -s ^F^M"
+
+echo .
+
+menu end
+
+echo ". done !^J"
+
+Failat 20

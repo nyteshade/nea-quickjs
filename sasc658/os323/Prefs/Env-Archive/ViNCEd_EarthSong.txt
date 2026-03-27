@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/earthsong.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(22,26,31) brighter rgb(27,32,38)
+red Alpha:255 rgb(210,88,71) brighter rgb(252,106,86)
+green Alpha:255 rgb(150,203,100) brighter rgb(180,244,120)
+yellow Alpha:255 rgb(245,186,71) brighter rgb(255,224,86)
+blue Alpha:255 rgb(35,168,196) brighter rgb(42,202,236)
+magenta Alpha:255 rgb(216,120,81) brighter rgb(255,144,98)
+cyan Alpha:255 rgb(98,162,103) brighter rgb(118,195,124)
+white Alpha:255 rgb(234,208,185) brighter rgb(255,250,222)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x3636,0x3131,0x2b2b
+COLOR=NOLOAD,ANSI,0x1616,0x1a1a,0x1f1f
+COLOR=NOLOAD,ANSI,0xd2d2,0x5858,0x4747
+COLOR=NOLOAD,ANSI,0x9696,0xcbcb,0x6464
+COLOR=NOLOAD,ANSI,0xf5f5,0xbaba,0x4747
+COLOR=NOLOAD,ANSI,0x2323,0xa8a8,0xc4c4
+COLOR=NOLOAD,ANSI,0xd8d8,0x7878,0x5151
+COLOR=NOLOAD,ANSI,0x6262,0xa2a2,0x6767
+COLOR=NOLOAD,ANSI,0xeaea,0xd0d0,0xb9b9
+COLOR=NOLOAD,ANSI,0x1b1b,0x2020,0x2626
+COLOR=NOLOAD,ANSI,0xfcfc,0x6a6a,0x5656
+COLOR=NOLOAD,ANSI,0xb4b4,0xf4f4,0x7878
+COLOR=NOLOAD,ANSI,0xffff,0xe0e0,0x5656
+COLOR=NOLOAD,ANSI,0x2a2a,0xcaca,0xecec
+COLOR=NOLOAD,ANSI,0xffff,0x9090,0x6262
+COLOR=NOLOAD,ANSI,0x7676,0xc3c3,0x7c7c
+COLOR=NOLOAD,ANSI,0xffff,0xfafa,0xdede

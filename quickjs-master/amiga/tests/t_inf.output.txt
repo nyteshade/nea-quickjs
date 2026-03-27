@@ -1,0 +1,12 @@
+Infinity: Infinity
+typeof Infinity: number
+1/0: Infinity
+String(1/0): Infinity
+-1/0: -Infinity
+0/0: NaN
+String(0/0): NaN
+Number.POSITIVE_INFINITY: Infinity
+Number.NaN: NaN
+isNaN(NaN): true
+isFinite(Infinity): false
+isFinite(1/0): false

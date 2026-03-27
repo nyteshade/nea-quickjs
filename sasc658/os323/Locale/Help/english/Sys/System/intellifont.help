@@ -1,0 +1,32 @@
+@database IntelliFont
+@node "MAIN"
+@{IMG SYS:System/intelliFont.info}
+    NAME
+	INTELLIFONT - Installs and maintains outline fonts.
+
+   FORMAT
+	INTELLIFONT [VALIDATE] [NODISKSCAN]
+
+   TEMPLATE
+	VALIDATE/S,NODISKSCAN/S
+
+   PATH
+	SYSTEM/INTELLIFONT
+
+   FUNCTION
+	INTELLIFONT installs new outline fonts on your system, specifies 
+	new sizes for existing fonts, and deletes unneeded fonts. You can 
+	also create bitmap versions of any size outline font for 
+	applications that do not support outline fonts directly.
+
+	Setting the VALIDATE option checks fonts to be sure they are 
+	installed properly and that everything needed to run them is 
+	present.
+
+	The NODISKSCAN switch disables the initial automatic disk scan.
+
+	Note: INTELLIFONT has a built-in interactive help window system at 
+	each of its different program windows. This can be activated by 
+	pressing the "Help" keyboard key.
+
+@endnode

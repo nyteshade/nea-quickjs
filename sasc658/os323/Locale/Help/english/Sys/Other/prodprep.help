@@ -1,0 +1,309 @@
+   NAME
+	PRODPREP - The "production preparation" tool of CBM that can 
+	           configure hard disks automatically.
+
+   FORMAT
+   
+   TEMPLATE
+	BADNAME/K,FORMATONLY/S,NOVERIFY/S,VERIFYONLY/S,SLOWDOWN/S,
+	DEVICE/K,UNIT/K/N,LAYOUT/S,NO4GBLIMIT/S,4GLIMIT/S,BUFMEMTYPE/K,
+	MASK/K,RDSK=NAME
+   
+   PATH
+	HDSETUP3.2:C/PROD_PREP
+   
+   FUNCTION
+	PRODPREP is the "production preparation" tool that can configure 
+	hard disks automatically, driven by a script. It is the command 
+	line version of HDToolBox. 
+
+	It is not deployed by the default OS installation, and is only 
+	present in the Install3.2 disk, in its C directory.
+
+	Options available:
+ 
+	BADNAME/K
+	File name of a bad block list.
+	Here you enter the filename for the file containing the bad blocks 
+	that should be excluded from use on the harddisk. This bad block 
+	list can be recorded in the Rigid Disk Block. The bad block file 
+	consists of an ASCII-encoded file where each line reads as 
+	follows:
+
+	               bad block:<block number>
+
+	With the block number encoded in ASCII. At most 61 bad blocks can 
+	be recorded in the Rigid Disk Block by PRODPREP.
+
+	NOTE: Considering even moderately modern hard disks remap bad 
+	blocks automatically, this feature should not be required at all.
+
+
+	FORMATONLY/S
+	Attempts to only low-level format the disk by TD_FORMAT.
+
+	NOTE: Low-level formatting is broken. It currently attempts to do 
+	so by TD_FORMAT, wich is neither sufficient nor necessary for this 
+	job. It also only formats exactly 68 tracks, wherever this number 
+	came from, probably by drives used by CBM at that stage. Today, 
+	HDSCSICMD should be used, and there are better tools to trigger a 
+	low level format like SCSIFormat (on Aminet). In reality, there is 
+	little reason for the user to even attempt that, or use this type 
+	of "formatting" here.
+
+	NOVERIFY/S
+	Turn off re-reading the RDSK after the work is done.
+	Without this option, PRODPREP verifies that the RDSK has been 
+	written properly by re-reading what was written before. This 
+	option should probably be used.
+
+	NOTE: Typically, verification should not be necessary unless the 
+	drive is really defective, and in that case, you should not store 
+	data on it.
+
+	VERIFYONLY/S
+	Attempts to read the RDSK from the disk and checks it for 
+	integrity.
+
+	SLOWDOWN/S
+	Tells PRODPREP to give the hard drive a while to settle after 
+	having found a bad block on verification.
+
+	NOTE: This should not be required on any decent hardware.
+
+	DEVICE/K
+	Specifies the device name to connect to. Defaults to "scsi.device" 
+	if this option is not given. Other examples would be 
+	"omniscsi.device" or "oktagon.device". This really depends on your 
+	controller.
+
+	UNIT/K/N
+	Specifies the unit number, typically the SCSI ID or the 
+	master/slave identifier of the hard disk to use, and the LUN and 
+	the board number. The unit digit is the SCSI ID/Master-Slave 
+	switch; the tenth digit the LUN. If this is not given, the default 
+	unit is zero, i.e. SCSI ID 0 or master drive.
+
+	LAYOUT/S
+	Enters the interactive/batch-driven drive configuration (see 
+	below) which reads additional commands from the console or a batch 
+	file and executes them. Such commands can create or delete 
+	partitions, etc. More on this below.
+
+	NOTE: YOU TYPICALLY SHOULD USE THIS SWITCH FOR ANYTHING 
+	REMOTELY USEFUL.
+
+	NO4GBLIMIT/S   
+	If not given, PRODPREP will limit the disk and partition sizes to 
+	4GB if the device version is below V43, no matter what the device 
+	name is. If this switch is set, you tell PRODPREP that this limit 
+	does not exist and it may create partitions beyond the 4GB 
+	barrier.
+
+	NOTE: With every moderately modern device, you SHOULD use this 
+	switch. While the scsi.device V43 is fine, omniscsi is fine as 
+	well, but not detected by PRODPREP, thus requires this switch to 
+	make the full hard disk accessible.
+
+	4GLIMIT/S
+	Tells PRODPREP that partitions shall only be created upfront the 
+	4GB barrier, no matter what PROPPREP believes the device is able 
+	to.
+
+	BUFMEMTYPE/S
+	Specifies the type of buffer memory PRODPREP should allocate for 
+	its internal buffers and should use for newly created partitions. 
+	By default, this is Chip RAM only. If your device has fewer 
+	restrictions, you may specify a different memory type. PRODPREP 
+	knows the following memory types that are specified by name:
+
+	       CHIP    : Chip RAM. DMA to and from this memory type 
+	                 should always work, albeit slow. (Default)
+	       PUBLIC  : Any type of memory is acceptable.
+	       24BITDMA: Memory in the 24 bit (Zorro-II) area.
+	       LOCAL   : Any motherboard memory.
+
+	Alternatively, the memory type may also be specified by a 
+	hexadecimal number with a leading $ or a leading 0x, e.g. "0x03" 
+	is chip memory.
+
+	MASK/K
+	Specifies a bitmask that identifies valid memory and IO bounds. 
+	PRODPREP and the FastFileSystem check the buffer I/O against the 
+	mask, and -- if the mask does not fit -- allocate an off-side 
+	buffer for the transfer. In specific, the algorithm checks 
+	(address AND NOT mask) for zero or not. If it is not-zero, a 
+	buffer of type BUFMEMTYPE is allocated and used instead. The 
+	default mask is 0x001ffff0, i.e. 16-byte aligned Chip RAM. This 
+	is very conservative and you might use less conventional options 
+	if your device is more capable.
+
+	RDSK=NAME
+	Specifies the file name of either a binary RDSK block to be 
+	installed (without the LAYOUT option) or a file containing batch 
+	commands to automatically prep the device (with the LAYOUT 
+	option).
+
+	------------------------------------------------------------------
+
+	If the LAYOUT option is present, PRODPREP provides a simple 
+	command line interface from which partitions can be created or 
+	deleted. This command line interface offers a couple of internal 
+	commands. Commands on the internal command list also have a 
+	command template, very much like PropPrep itself.
+
+	The following commands are currently supported:
+
+	--------
+
+	?
+	This command lists all commands understood by PRODPREP.
+
+	--------
+
+	;
+	This is a comment. The rest of the line is ignored.
+
+	--------
+
+	QUIT
+	Terminates PRODPREP.
+
+	--------
+
+	ADDPART		NAME/A,SIZE/A,BOOTABLE/K/N,DOSTYPE/K,BUFFERS/K/N,
+	        	MASK/K,MAXTRANSFER/K,CUSTOMBOOT/K/N,NOMOUNT/S
+
+	Creates a new partition of the indicated name and size. The 
+	decimal size indicator must be followed a unit, i.e. "80M" to 
+	create a 80MB partition. The following units are currently 
+	supported:
+	      T:	Terabyte
+	      G:	Gigabyte
+	      M:	Megabyte
+	      K:	Kilobyte
+	      C:	Cylinders
+	      %:	Percentage of the entire disk.
+      
+	"Size" can also be set to "rest" in which case the new partition 
+	takes all unoccupied space up to the end of the disk.
+
+	The BOOTABLE switch makes the partition bootable. It is not 
+	bootable by default.
+
+	The DOSTYPE selects the dos type for the partition in hexadecimal. 
+	The argument must start with either 0x or $. The default is 
+	0x444F5301, i.e. regular FFS.
+
+	BUFFERS selects the number of buffers that shall be reserved for 
+	the FFS for this partition. By default, 30 buffers are reserved.
+
+	MASK identifies which addresses can be accessed by the underlying 
+	exec device directly. This mask has to be given in hexadecimal, in 
+	a number starting with 0x or $. If the target address binary-anded 
+	with the inverse of the mask is non-zero, the FFS will allocate an 
+	off-side buffer and do the transfer through the buffer rather than 
+	transfer the data directly. The default mask comes from the MASK 
+	command line argument of PRODPREP itself, which again defaults to 
+	0x001ffff0, i.e. 16-byte aligned chip memory. This is very 
+	conservative and you may want to use less restrictive values.
+
+	MAXTRANSFER identifies how much data the device can transmit at 
+	once. By default, this value is set to 0x0001fe00. Larger chunks 
+	will be broken up by the FFS. Again, this argument takes a 
+	hexadecimal value.
+
+	CUSTOMBOOT specifies how many custom bootblocks shall be allocated 
+	for the Rigid Disk Block. By default, no custom boot blocks are 
+	used, and 16 blocks are allocated for the Rigid Disk Block area. 
+	PRODPREP provides no mechanism for filling these boot blocks.
+
+	NOMOUNT disables automatic mounting of the partition. Automatic 
+	mounting is enabled by default.
+
+	--------
+
+	DELETEPART	NAME/A,NOERROR/S
+
+	Removes a partition from the Rigid Disk Block. NAME is the name of 
+	the partition to be deleted. If NOERROR is given, the command does 
+	not error in case the given partition does not exist.
+
+	--------
+
+	WRITERDB	FORCE/S
+
+	Writes the currently created Rigid Disk Block back to disk. If 
+	FORCE is set, even partitions of unknown partition types are 
+	overwritten.
+
+	--------
+
+	FORMAT		FORCE/S
+
+	Attempts to format a partition with TD_FORMAT, at least the first 
+	68 tracks of it. If FORCE is set, then even partitions of type are 
+	formatted.
+
+	DO NOT USE THIS COMMAND. IT DOES NOT WORK PROPERLY.
+
+	--------
+
+	VERIFY
+
+	Verifies the correctness of the currently present (or not) Rigid 
+	Disk Block.
+
+	--------
+
+	READFS	FILENAME=NAME,VERSION/K/N,REVISION/K/N,DOSTYPE/K
+
+	Reads a filing system from the given file name for installation 
+	into the Rigid Disk Block. FILENAME is the name of the filing 
+	system to install. By default, this is L:FastFileSystem. VERSION 
+	and REVISION are the version and revision of the filing system. By 
+	default, these are taken from the version tag within the binary 
+	given by NAME. DOSTYPE selects the DOS type of the file system. 
+	The default is 0x444F5301, i.e. regular FFS.
+
+	--------
+
+	SYNCH	ON/S,OFF/S
+
+	Disables or enables synchronous transfers if the device supports 
+	them. If no option is given, it prints the current status of the 
+	flags.
+
+	--------
+
+	RESELECT ON/S,OFF/S
+
+	Disables or enables SCSI reselection on SCSI devices. Without any 
+	argument, prints the current setting of reselection. Reselection 
+	allows the SCSI controller to release the SCSI bus after the 
+	command phase and to re-issue a command to another SCSI device 
+	while the first attempts to perform the operation.
+
+	--------
+
+	READRDB
+
+	Reads the Rigid Disk Block from the device selected by the command 
+	line arguments.
+
+	------------------------------------------------------------------
+
+   EXAMPLES
+
+	PROD_PREP LAYOUT "test-layout"
+
+	With "test-layout" being a file as follows:
+
+	addpart HD0: 8M bootable 1 dostype 0x444f5303 buffers 30 mask 
+	0xFFFFFFFE
+	addpart HD1: rest dostype 0x444f5303 buffers 30 mask 0xFFFFFFFE
+	quit
+
+	Will install two partitions on the scsi.device unit 0. The first 
+	partition is 8MB large, bootable and formatted with the 
+	international FFS, the second covers the rest of the disk.

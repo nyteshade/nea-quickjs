@@ -1,0 +1,42 @@
+   NAME
+	SETDATE - Changes a file or directory's timestamp.
+
+   FORMAT
+	SETDATE [FROM <filename>] <file|pattern> [<date>] [<time>] [ALL] 
+
+   TEMPLATE
+	FILE/A,WEEKDAY,DATE,TIME,ALL/S,QUIET/S,FROM/K
+
+   PATH
+	C:SETDATE
+
+   FUNCTION
+	SETDATE changes the timestamp (date and time of creation or last
+	change) of a file or directory. SETDATE <file> changes the 
+	date/time of the file to the current system date/time. SETDATE 
+	does not affect the software or hardware clocks.
+
+	The output of the DATE command may be used as input to SETDATE.
+
+    OPTIONS
+	The options are:
+
+	FROM
+	Copies the date from another file.
+
+	ALL
+	Change the dates of all subdirectories and their files.
+
+   EXAMPLES
+	    1> SETDATE TestFile
+
+	Changes the date and time associated with TestFile to the current 
+	date and time.
+
+	    1> SETDATE TestFile 16-09-89 15:25:52
+
+	Change the date and time associated with TestFile to September 16,
+	1989, 3:25 p.m.
+
+   SEE ALSO
+	DATE

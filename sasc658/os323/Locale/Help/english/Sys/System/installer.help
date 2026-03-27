@@ -1,0 +1,53 @@
+   NAME
+	INSTALLER - Provides an AmigaOS script-based default installation 
+	            utility.
+
+   FORMAT
+	INSTALLER [SCRIPT] <filename> [[APPNAME] <name>] [[MINUSER] <level>]
+	[[DEFUSER] <default>] [[LOGFILE] <logname>] 
+	[[LANGUAGE] <language name>] [NOPRETEND] [NOLOG] [NOPRINT]
+
+   TEMPLATE
+	SCRIPT/A,APPNAME,MINUSER,DEFUSER,LOGFILE,LANGUAGE,NOPRETEND/S,
+	NOLOG/S,NOPRINT/S
+
+   PATH
+	UTILITIES/INSTALLER
+
+   FUNCTION
+	INSTALLER is invoked by special text scripts included with 
+	programs in order to be able to properly install them. This is 
+	not a tool designed to be run from the Shell.
+
+	INSTALLER options:
+
+	SCRIPT
+	Path to an installation script file.
+
+	APPNAME
+	Name of the application being installed.
+
+	MINUSER
+	Sets the minimum user mode value. (these are 0, 1 or 2)
+	The user modes available are:
+	                             Novice - All Actions Automatic (0)
+	                             Beginner - Limited Manual Control (1)
+	                             Expert - Must Confirm all actions (2)
+
+	DEFUSER 
+	Defines the default user mode selected.
+
+	LOGFILE
+	Sets the full path to an installation log file.
+
+	LANGUAGE
+	Sets the installation language.
+
+	NOPRETEND
+	Disables the installation simulation mode.
+
+	NOLOG
+	Does not log actions to a file.
+
+	NOPRINT
+	Logs actions to the printer.

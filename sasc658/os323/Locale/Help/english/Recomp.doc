@@ -1,0 +1,22 @@
+                  Recomp 
+
+
+Recomp is designed to help you to compress files on your epu device
+or recompress them by another library.
+
+Syntax:  Recomp source [all]
+
+source - can be file or directory
+         if source is directory Recomp needs largere stack than it's usual !!!
+         - Recomp does not check the stack size and so it may cause guru !!!
+all - also all subdirs will be (re)compressed
+
+Example:
+
+  You have file dh1:Data compressed by epu1 
+  Now you want to have the file compressed  by NUKE (because it's faster).
+    
+    - install epu to dh1: with LOAD SAVE lib NUKE  settings.
+    - type: Recomp dh1:Data
+
+ 

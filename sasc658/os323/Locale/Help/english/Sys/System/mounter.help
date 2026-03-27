@@ -1,0 +1,254 @@
+@database Mounter
+@node "MAIN"
+@{IMG SYS:System/Mounter.info}
+   NAME
+	MOUNTER - Interactively mounts partitions.
+
+   FORMAT
+	MOUNTER <DEVICE | UNIT | PARTITIONS> [NOUNMOUNT] [NOREMOUNT] 
+	[QUIET] [MASK <hex value>] [BUFMEMTYPE <value>] [QUERY] 
+	[PUBSCREEN <screen name>] [CX_PRIORITY <priority>] 
+	[CX_POPKEY <key>] [CX_POPUP=<yes | no>]
+   
+   TEMPLATE
+	D=DEVICE/K,U=UNIT/N,PARTITIONS/M,N=NOUNMOUNT/S,NOREMOUNT/S,QUIET/S
+	MASK/K,BUFMEMTYPE/K,QUERY/S,PUBSCREEN/K,CX_PRIORITY/N/K
+	CX_POPKEY/K,CX_POPUP/K
+   
+   PATH
+	SYSTEM/MOUNTER
+  
+   FUNCTION
+	Mounter is an interactive partition mount tool. It operates on 
+	devices that support the RDB (Rigid Disk Block) organization data 
+	structures which define which and which size partitions are 
+	assigned to a storage medium.
+
+	Mounter can be started from both Shell and Workbench. In both 
+	cases, the same parameters can be used. The only difference is 
+	that Workbench requires specification of the parameters as Tool 
+	Types.
+
+	Supported parameters
+
+	1) DEVICE/K
+
+	Example: DEVICE=2ndscsi.device
+	Default: DEVICE=scsi.device
+
+	This specifies the device driver to query for partition 
+	information. Not all device drivers are supported. Commonly, you 
+	would use this tool only on hard disk drives.
+
+	2) UNIT/N
+
+	Example: UNIT=0
+	Default: - (No unit specified)
+
+	If the UNIT parameter is omitted, Mounter will open a window and 
+	query unit numbers 0-6 for attached devices, prompting you to 
+	choose a device to examine for partition data. However, if you 
+	specify a unit number, it indicates that you want all the 
+	partitions on that device to be mounted.
+
+	3) PARTITIONS/M
+
+	Example: PARTITIONS=HD0:|HD1:|HD2:  (Workbench only)
+	PARTITIONS HD0: HD1: HD2:  (Shell only)
+	Default: - (No partitions specified)
+
+	This parameter works in conjunction with the UNIT parameter. 
+	Instead of mounting all partitions on the specified unit, you 
+	choose exactly which partitions should be mounted.
+
+	4) NOUNMOUNT/S
+
+	Example: NOUNMOUNT
+	Default: - (Partitions with the same name will be unmounted)
+
+	If the Mounter tool detects that there is already a partition by 
+	the name of a new partition to be mounted, its default action will 
+	be to unmount the existing partition. This can be undesirable, 
+	which is why the NOUNMOUNT parameter can be used to tell Mounter 
+	to add the new partition under a new name. The new partition name 
+	is created by adding a number to its name. For example, if the 
+	partition "HD0:" would already exist, the new partition would be 
+	mounted under the name of "HD0.1:". If "HD0.1:" already exists, 
+	"HD0.2:" would be used, and so on.
+
+	5) NOREMOUNT/S
+
+	Example: NOREMOUNT
+	Default: - (Always mount a partition, even if there already is
+                    a partition mounted by the same name)
+
+	This option tells Mounter not to attempt to mount partitions again
+	if they have already been mounted. For example, if you want Mounter
+	to mount the partition "DH0:" if, and only if, it has not already
+	been mounted, you would start the program with the options
+	NOUNMOUNT and NOREMOUNT. This will tell Mounter not to unmount an
+	already existing partition (NOUNMOUNT) and not to attempt to
+	mount the partition if its name is already in use (NOREMOUNT).
+
+	6) QUIET/S
+
+	Example: QUIET
+	Default: - (Mounter will show a progress report of its actions)
+
+	When Mounter mounts or unmounts partitions, it will briefly show
+	what it is currently doing. The reports (except for error messages)
+	can be disabled with the QUIET parameter.
+
+	7) MASK/K
+
+	Example: MASK=0x7FFFFFFC
+	Default: - (No special transfer mask)
+
+	This parameter corresponds to the MASK option associated with a
+	mount list. By default, Mounter will use whatever transfer mask
+	value is associated with the partition data it finds on the
+	disk. If you provide a mask parameter, that parameter will be
+	used instead of the partition's transfer mask value when the
+	partition is mounted.
+
+	8) BUFMEMTYPE/K
+
+	Defines the memory type a file system requests from the operating 
+	system for its internal buffers. File system internal buffers are 
+	required in two cases:
+
+	- For keeping meta information on the files, such as the 
+	directory.
+
+	- For data transfers between the file and the requesting 
+	application in case the target buffer of the application does not 
+	fit to the MASK setting. That is, if the user provided buffer 
+	ANDed with the one's complement of the MASK value is non-zero, the 
+	file system will run single-block transfer through its 
+	own internal buffers which are allocated with the memory type 
+	BUFFMEMTYPE.
+
+	The following settings for BufMemType are meaningful:
+
+	1: Any memory will do
+	3: Use chip memory
+	257: Use memory on the motherboard of the system, not in any 
+	     expansion
+	513: Use memory in the lowest 16MB of the system suitable for 
+	     Zorro-II DMA
+
+	Internal buffers are, depending on the file system, either aligned 
+	to 8 byte or 16-byte boundaries. The Fast File System ensures even 
+	the latter.
+
+	Examples:
+
+	*) A host adapter that can only transfer data to chip memory 
+	   requires
+
+	MASK = 0x001fffff and BUFMEMTYPE = 3
+
+	*) A host adapter that can only transfer data over the Zorro-II 
+	bus requires
+
+	MASK = 0x00ffffff and BUFMEMTYPE = 513
+
+	Several additional operating system tools allow the specification 
+	of a BufMemType which is then used for the internal buffers of the 
+	corresponding tools. HDToolBox and Mounter accept this parameter 
+	as a Tool Type. By default, and to be most conservative, the 
+	parameter defaults for these tools is 3, i.e. Chip memory only.
+
+	9) QUERY/S
+
+	Example: QUERY (NOTE: Shell only parameter)
+	Default: - (Do not print the queried information)
+
+	This parameter will print the same information in the Shell window
+	that would be shown in the Mounter window.
+
+	10) PUBSCREEN/K
+
+	Example: PUBSCREEN=Workbench
+	Default: - (Use the default public screen)
+
+	This parameter tells Mounter to open its window on the named 
+	public screen. If the named public screen cannot be found, the 
+	user interface will fall back to open on the default public 
+	screen.
+
+	11) CX_PRIORITY/N/K
+	    CX_POPKEY/K
+	    CX_POPUP/K
+
+	Example: CX_PRIORITY=1
+	         CX_POPKEY=Control Help
+	         CX_POPUP=No
+    
+	Default: CX_PRIORITY=0
+	         CX_POPKEY=Alt Shift F10
+	         CX_POPUP=YES
+
+	These are the standard Commodities tool control variables which 
+	determine Mounter's hot key and whether the program should open 
+	its display upon startup.
+
+
+	The Mounter interface
+	=====================
+  
+	Mounter will display a list of devices attached to the driver you 
+	specified.
+
+	If no device responds to the query, you will see the text 
+	"<No device present>" following the unit number. Otherwise, you 
+	will see a list of device parameters:
+
+	Vendor
+	Name of the device manufacturer.
+
+	Product
+	Name of the device.
+
+	Rev.
+	Revision of the device.
+
+	Size
+	Size of the storage media, if available.
+
+	Type
+	Type of the device, such as "Disk drive" or "CD-ROM drive".
+
+	Media
+	Type of storage media, if available.
+
+	Status
+	This indicates whether the device can be accessed and used.
+	For devices with removable media, you will see "not ready"
+	if there is currently no media inserted.
+
+	Below this list there are three buttons: "Mount...", "Update" and
+	"Hide". To close the window, either click on the window close 
+	gadget or click "Hide". To re-read the list of devices 
+	corresponding to the device driver you selected, click "Update". 
+	To examine a device for partition tables, first select it from the 
+	list, then click "Mount..." gadget (a double-click on the list 
+	entry will have the same effect).
+
+	After clicking "Mount...", Mounter will check the 
+	partitions on the given device. If a partition table is found, it 
+	will be presented to you in a new list, like this:
+
+	Partition name                        Size File system type
+	------------------------------------- ---- ----------------
+	WB_2.X                                 20M DOS\1
+	HD0                                   500M DOS\3
+	HD1                                   500M DOS\3
+
+	In this list, partitions which are not currently mounted will
+	be highlighted. To change the highlighting, hold down any [Shift]
+	key and click on an entry. To mount all highlighted partitions,
+	click "Mount" button located in the lower left corner of the 
+	window.
+
+@endnode

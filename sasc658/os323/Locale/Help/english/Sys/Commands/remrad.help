@@ -1,0 +1,25 @@
+   NAME
+	REMRAD - Removes the recoverable ramdrive.device.
+
+   FORMAT
+	REMRAD [<drive>] [FORCE]
+
+   TEMPLATE
+	DEVICE,FORCE/S
+
+   PATH
+	C:REMRAD
+
+   FUNCTION
+	If you want to remove the recoverable ramdrive.device (usually 
+	mounted as RAD:) from memory, and you do not want to turn the 
+	system off, you can use the REMRAD command. If you have mounted 
+	more than one recoverable ramdrive.device, use the DEVICE 
+	specification.
+
+	REMRAD commands the ramdrive.device to delete all of its files and
+	become inactive. The next time the Amiga is rebooted, the
+	ramdrive.device is removed from memory completely. If the device 
+	is in use at the time the REMRAD command is given, the operation 
+	will abort with a drive in use message. To remove it even if it is 
+	in use, you must use the FORCE option.

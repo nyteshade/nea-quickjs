@@ -1,0 +1,64 @@
+   NAME
+	ALIAS - Sets or displays command aliases.
+
+   FORMAT
+	ALIAS [<name>] [<string>]
+
+   TEMPLATE
+	NAME,STRING/F
+
+   PATH
+	Internal
+
+   FUNCTION
+	ALIAS permits you to create aliases, or alternative names, for
+	AmigaDOS commands. Using an alias is like replacing a sentence 
+	with a single word. With ALIAS, you can abbreviate frequently used 
+	commands or replace a standard command name with a different name.
+
+	When AmigaDOS encounters <name>, it replaces it with the defined
+	<string>, integrates the result with the rest of the command line,
+	and attempts to interpret and execute the resulting line as an
+	AmigaDOS command. So <name> is the alias and <string> is the 
+	command to be substituted for the alias.
+
+	ALIAS <name> displays the <string> that will be substituted for 
+	the alias. ALIAS alone lists all current aliases.
+
+	Aliases are local to the Shell in which they are defined. If you
+	create another Shell with the NEWSHELL command, it will share the
+	same aliases as its parent Shell. However, if you create another
+	Shell with the Execute Command menu item, it will not recognize
+	aliases created in your original Shell. To create a global alias 
+	that will be recognized by all Shells, insert the alias in the
+	S:Shell-startup file.
+
+	An alias must be at the beginning of the command line, and you can
+	specify arguments on the command line after the alias. However, 
+	you cannot use an alias for a series of command arguments. For 
+	instance, you cannot create a script using the LFORMAT option of 
+	the LIST command by creating an alias to represent the LFORMAT 
+	argument.
+
+	You can substitute a filename or other instruction within an alias 
+	by placing square brackets ([ ]) in the <string>. Any argument 
+	typed after the alias will be inserted at the brackets.
+
+	To remove an ALIAS, use the UNALIAS command.
+
+   EXAMPLES
+	    1> ALIAS d1 DIR DF1:
+
+	Typing d1 results in a directory of the contents of the disk in 
+	DF1:, just as if you had typed DIR DF1:.
+
+	    1> ALIAS hex TYPE [] HEX NUMBER
+
+	Creates an alias called hex that displays the contents of a 
+	specified file in hexadecimal format. The brackets indicate where 
+	the filename will be inserted. If you then typed:
+
+	    1> hex Myfile
+
+	The contents of MyFile would be displayed in hexadecimal format 
+	with line numbers.

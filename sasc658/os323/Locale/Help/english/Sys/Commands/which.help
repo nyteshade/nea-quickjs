@@ -1,0 +1,42 @@
+   NAME
+	WHICH - Searches the command path for a particular item.
+
+   FORMAT
+	WHICH <command> [NORES] [RES] [ALL]
+
+   TEMPLATE
+	FILE/A,NORES/S,RES/S,ALL/S
+
+   PATH
+	C:WHICH
+
+   FUNCTION
+	WHICH lets you find a particular command, program, or directory by
+	entering its name. If the named item is in the search path, WHICH
+	displays the complete path to that item. WHICH lists resident 
+	commands as RESIDENT and internal commands as INTERNAL.
+
+	Normally, WHICH searches the resident list, the current directory, 
+	the command path(s), and the C: directory. The condition flag is 
+	set to 5 (WARN) if the file is not found.
+
+	If the NORES option is specified, the resident list is not 
+	searched. If the RES option is specified, only the resident list 
+	is searched.
+
+	The ALL switch causes the search to continue through the full 
+	search path, even after one or more instances of the named item 
+	have been found and listed. This insures that all versions of a 
+	command or program are found. It can, however, lead to multiple 
+	listings of the same command, if that command is reached by more 
+	than one route (e.g.,C: and the current directory).
+
+	 EXAMPLES
+	    1> WHICH avail
+	    C:avail
+
+	    1> WHICH C:
+	    Workbench2.0:C
+
+	    1> WHICH alias
+	    INTERNAL alias

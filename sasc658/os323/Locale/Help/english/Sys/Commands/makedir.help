@@ -1,0 +1,39 @@
+   NAME
+	MAKEDIR - Creates a new directory.
+
+   FORMAT
+	MAKEDIR {<name>} [ALL]
+
+   TEMPLATE
+	NAME/M,ALL/S
+
+   PATH
+	C:MAKEDIR
+
+   FUNCTION
+	MAKEDIR creates one (or several) empty directory(s) with the 
+	name(s) you specify. By default, the command works within only one 
+	directory level at a time, so any directories on the given path(s) 
+	must already exist. When using the ALL option, directories missing 
+	on the path(s) are automatically created, if necessary. The 
+	command fails if a directory or a file of the same name already 
+	exists in the directory above it in the hierarchy.
+
+   EXAMPLES
+	    1> MAKEDIR Tests
+
+	Creates a directory Tests in the current directory.
+
+	    1> MAKEDIR DF1:Abc/Xyz ALL
+
+	Creates a directory Abc in the root directory of the disk in DF1:
+	if it doesn't exist yet, then creates directory Xyz in DF1:Abc/.
+
+	    1> CD DF0:
+	    1> MAKEDIR Documents Payables Orders
+
+	Creates three directories, Documents, Payables, and Orders, on the
+	disk in DF0:.
+
+   NOTES
+	MAKEDIR does not create a drawer icon for any new directories.

@@ -1,0 +1,6 @@
+This archive contains includes for assembly language authors. There are 
+currently no assembly style includes (.i files) but only the list of
+offsets. Mainly because I'm to lazy to type all the .h files a second
+time, and maybe because you shouldn't use assembly anyhow...
+
+Thomas Richter.

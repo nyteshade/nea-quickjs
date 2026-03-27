@@ -1,0 +1,37 @@
+   NAME
+	COPYTOOLTYPES - Copies the Tool Types of one icon to another. 
+
+   FORMAT
+	COPYTOOLTYPES [FROM] {<name|pattern>} [TO] <name> [STACK] [NOCOPY]
+	[QUIET]
+
+   TEMPLATE
+	FROM/A,TO/A,STACK=COPYSTACKSIZE/S,NOCOPY/S,QUIET/S
+   
+   PATH
+	INSTALL3.2:C/COPYTOOLTYPES
+   
+   FUNCTION
+	COPYTOOLTYPES will copy all Tool Types of an icon to another icon,
+	and optionally the stack size value, too. You should not attach 
+	the '.info' to both the source and target icons.
+
+	It is not deployed by the default OS installation, and is only 
+	present in the Install3.2 disk, in its C directory.
+
+	Options available:
+
+	STACK or COPYSTACKSIZE
+	Matches target icon's stack size with source icons.
+
+	NOCOPY
+	Suppresses copying the Tool Types, and just display them.
+
+	QUIET
+	Suppresses all output while performing the operation.
+
+   EXAMPLES
+
+	1> COPYTOOLTYPES ram:icon1 ram:icon2
+	
+	Will copy all Tool Types of icon1.info to icon2.info

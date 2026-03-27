@@ -1,0 +1,131 @@
+   NAME
+	DIR - Displays a sorted list of the files in a directory.
+
+   FORMAT
+	DIR [<dir|pattern>] [OPT A|I|AI|D|F] [ALL] [DIRS] [FILES] [INTER]
+
+   TEMPLATE
+	DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S
+
+   PATH
+	C:DIR
+
+   FUNCTION
+	DIR displays the file and directory names contained in the 
+	specified directory, or the current directory if no name is given. 
+	Directories are listed first, followed by an alphabetical list of 
+	the files in two columns. Pressing Ctrl-C aborts a directory 
+	listing.
+
+   OPTIONS
+	The options are:
+
+	ALL
+
+	    Displays all subdirectories and their files.
+
+	DIRS
+
+	    Displays only directories.
+
+	FILES
+
+	    Displays only files.
+
+	INTER
+
+	    Enters an interactive listing mode.
+
+	NOTE: The ALL, DIRS, FILES and INTER keywords supersede the OPT A,
+	D, F and I options, respectively. The older keywords are retained 
+	for compatibility with earlier versions of AmigaDOS. Do not use 
+	OPT with the full keywords--ALL, DIRS, FILES, or INTER.
+
+
+	The interactive listing mode stops after each name and displays a
+	question mark at which you can enter commands. The acceptable 
+	responses are shown below:
+
+	Return
+
+	    Displays the next name on the list.
+
+	E
+
+	    Enters a directory; the files in that directory will be 
+	    displayed.
+
+	B
+
+	    Goes back one directory level.
+
+	DEL or DELETE
+
+	    Deletes a file or empty directory. DEL does not refer to the 
+	    Del key; type the letters D, E, then L.
+
+	T
+
+	    Types the contents of a file.
+
+	C or COMMAND
+
+	    Allows you to enter additional AmigaDOS commands.
+
+	Q
+
+	    Quits interactive editing.
+
+	?
+
+	    Displays a list of the available interactive-mode commands.
+
+
+	The COMMAND option allows almost any AmigaDOS command to be 
+	executed during the interactive directory list. When you want to 
+	issue a command, type C (or COM) at the question mark prompt. DIR 
+	will ask you for the command. Type the desired command, then press 
+	Return. The command will be executed and DIR will continue. You 
+	can also combine the C and the command on one line, by putting the 
+	command in quotes following the C.
+
+	For instance, C "type prefs.info hex" is equivalent to pressing Q 
+	to exit interactive listing mode and return to a regular Shell 
+	prompt, and typing:
+
+	    1> TYPE Prefs.info HEX
+
+	The Prefs.info file would be typed to the screen in hexadecimal 
+	format.
+
+	It is dangerous to format a disk from the DIR interactive mode, as 
+	the format will take place immediately, without any confirmation 
+	requesters appearing. Also, starting another interactive DIR from 
+	interactive mode will result in garbled output.
+
+   EXAMPLES
+	1> DIR Workbench2.0:
+
+	Displays a list of the directories and files on the Workbench2.0 
+	disk.
+
+	1> DIR MyDisk:#?.memo
+
+	Displays all the directories and files on MyDisk that end in 
+	.memo.
+
+	1> DIR Extras2.0:  ALL
+
+	Displays the complete contents of the Extras2.0 disk -- all
+	directories, all subdirectories and all files.
+
+	1> DIR Workbench2.0:  DIRS
+
+	Displays only the directories on Workbench2.0.
+
+	1> DIR Workbench2.0:  INTER
+
+	Provides an interactive list of the contents of Workbench2.0.
+
+   SEE ALSO
+	LIST

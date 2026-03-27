@@ -1,0 +1,8 @@
+Infinity bits: hi=7ff00000 lo=0
+NaN bits: hi=7ff80000 lo=0
+1/0 bits: hi=40000000 lo=0
+2.0 bits: hi=40000000 lo=0
+3.14 bits: hi=40091eb8 lo=0
+Read 7FF00000/00000000 as float: Infinity
+isFinite: false
+isNaN: true

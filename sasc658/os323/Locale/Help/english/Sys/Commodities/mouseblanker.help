@@ -1,0 +1,26 @@
+@database MouseBlanker
+@node "MAIN"
+@{IMG SYS:Tools/Commodities/MouseBlanker.info}
+   NAME
+	MOUSEBLANKER - Removes the mouse pointer from the screen while 
+	               entering input from the keyboard.
+
+   FORMAT
+	MOUSEBLANKER [CX_PRIORITY <priority>]
+
+   TEMPLATE
+	CX_PRIORITY/N/K
+
+   PATH
+	TOOLS/COMMODITIES/MOUSEBLANKER
+
+   FUNCTION
+	Press Ctrl+C or use the BREAK command to exit MouseBlanker when it 
+	is started from a Shell.
+
+	CX_PRIORITY sets the priority of the commodity in relation to all 
+	the other Commodity Exchange programs. All the Commodity Exchange 
+	programs are set to a default priority of 0. Values should have an 
+	integer value between -128 to 127 (i.e., CX_PRIORITY=10). 
+
+@endnode

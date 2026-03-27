@@ -1,0 +1,25 @@
+  Amiga Boot Color Error Codes
+  ============================
+
+  When the Amiga boots, one or several color screens may be shown in 
+  order to announce a hardware anomaly. 
+
+  The following is a list of the available color codes and their 
+  meaning.
+
+  RED - Kickstart ROM error.
+  
+  RED and the disk image blinking - No boot device was detected.
+  
+  BLUE - Custom chip error.
+  
+  LIGHT GREEN - Complex Interface Adapter (CIA) chip problem.
+  
+  GREEN - Chip RAM error.
+  
+  YELLOW - An error occurred before the system was ready to report it.
+
+  
+  Note: There are several other color codes known, but these are the 
+  generic ones, which are applicable to all Amiga models, regardless 
+  of their internal hardware characteristics.

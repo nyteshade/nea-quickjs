@@ -1,0 +1,110 @@
+@database MultiView
+@node "MAIN"
+@{IMG SYS:Utilities/MultiView.info}
+   NAME 
+	MULTIVIEW - Displays picture files, text files, AmigaGuide files, 
+	            sound files, and animated graphics files.
+
+   FORMAT
+	MULTIVIEW [FILE <filename>] [CLIPBOARD] 
+	[CLIPUNIT <clipboard unit>] [SCREEN] 
+	[PUBSCREEN <public screen name>] [REQUESTER] [BOOKMARK] 
+	[FONTNAME ] [FONTSIZE ] [BACKDROP] [WINDOW] 
+	[PORTNAME <ARexx port name>] [IMMEDIATE] [REPEAT] 
+	[PRTUNIT <device unit number>] 
+	[WINDOWLEFT <horizontal coordinate>] 
+	[WINDOWTOP <vertical coordinate>] [WINDOWWIDTH <width size>] 
+	[WINDOWHEIGHT <height size>] [AUTORESIZE]
+
+   TEMPLATE
+	FILE,CLIPBOARD/S,CLIPUNIT/K/N,SCREEN/S,PUBSCREEN/K,REQUESTER/S,
+	BOOKMARK/S,FONTNAME/K,FONTSIZE/K/N,BACKDROP/S,WINDOW/S,PORTNAME/K,
+	IMMEDIATE/S,REPEAT/S,PRTUNIT/K/N,WINDOWLEFT/K/N,WINDOWTOP/K/N,
+	WINDOWWIDTH/K/N,WINDOWHEIGHT/K/N,AUTORESIZE/S 
+   
+   PATH
+	UTILITIES/MULTIVIEW
+
+   FUNCTION
+	Be sure to specify the complete path to the file if it is not in 
+	the current directory. MultiView displays a file requester if no 
+	file is specified.
+
+	MENU ITEMS:
+
+	Pressing the [Shift] key while the "Save as..." menu item is 
+	selected, forces MultiView to save the displayed document in IFF 
+	format, rather than writing it in the same format as the file it 
+	was loaded from (if the datatype for that format supports saving).
+
+	There is also new "Edit/Paste" menu item which opens the contents 
+	of clipboard unit 0 (thus complementing "Edit/Copy").
+
+	The "About" window does now report the width, height and depth of 
+	the currently displayed picture or animation.
+
+	OPTIONS:
+
+	If CLIPBOARD is specified, the Clipboard is viewed instead of a 
+	file. 
+
+	CLIPUNIT specifies the Clipboard unit to use when using the 
+	CLIPBOARD keyword.
+
+	SCREEN indicates that you want the object to appear on its own 
+	screen rather than in a window on the Workbench screen, using the 
+	display mode specified by the object. For example, if an ILBM 
+	picture file is Low Res, MultiView opens a Low Res screen.
+
+	If REQUESTER is specified, MultiView displays a file requester.
+
+	BOOKMARK recalls the object and position when opening a file with 
+	a bookmark.
+
+	FONTNAME specifies the font to use when viewing text objects. 
+
+	FONTSIZE specifies the font size in points to use when viewing 
+	text files.
+
+	BACKDROP indicates that the window should be a backdrop window.
+
+	WINDOW allows the MultiView window to open without requesting a 
+	file to load. Using this option lets you keep a small MultiView 
+	window open on the Workbench screen so you can drag icons into it 
+	whenever necessary.
+
+	PORTNAME allows you to specify an ARexx port name when you run 
+	MultiView. If you do not specify a name, each MultiView window is 
+	given the default port name of MultiView.x, when x is a slot 
+	number starting from 1. (For example, if you have three MultiView 
+	display windows open, their port names are MultiView.1, 
+	MultiView.2, and NultiView.3.) This port name allows you to refer 
+	to a particular MultiView display from within an ARexx script.
+
+	Detailed information regarding MultiView's ARexx port can be found 
+	@{"here" link "GUIDEDIR:/Other/MVAREXX.help/MAIN"}.
+
+	IMMEDIATE Indicates whether the animation/audio should immediately 
+	begin playing after calling MultiView. Default is to "don't start 
+	immediately".
+
+	REPEAT indicates whether the animation/audio should loop. It 
+	defaults to "don't loop".
+
+	PRTUNIT Configures the printer.device unit used for printer dumps.
+
+	WINDOWLEFT defines the horizontal coordinate of MultiView's 
+	window.
+
+	WINDOWTOP defines the vertical coordinate of MultiView's window.
+
+	WINDOWWIDTH describes the complete width size of the window 
+	instead of the inner dimensions (without border).
+
+	WINDOWHEIGHT describes the complete height size of the window 
+	instead of the inner dimensions (without border).
+
+	AUTORESIZE makes MultiView resize its window when you open a new 
+	image.
+
+@endnode

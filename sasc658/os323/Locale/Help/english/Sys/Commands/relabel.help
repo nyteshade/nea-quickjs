@@ -1,0 +1,29 @@
+   NAME
+	RELABEL - Changes the volume name of a disk.
+
+   FORMAT
+	RELABEL [DRIVE] <drive> [NAME] <name>
+
+   TEMPLATE
+	DRIVE/A,NAME/A
+
+   PATH
+	C:RELABEL
+
+   FUNCTION
+	RELABEL changes the volume name of the disk in the given drive to 
+	the <name> specified. Volume names are set initially when you 
+	format a disk.
+
+	If you have a floppy disk system with only one disk drive, be sure 
+	to specify the disks by volume name, instead of drive name.
+
+   EXAMPLES
+	    1> RELABEL Workbench2.0: My2.0Disk
+
+	Changes the name of the Workbench2.0 disk to My2.0Disk. Notice 
+	that you don't need the colon after the second name.
+
+	    1> RELABEL DF2: DataDisk
+
+	Changes the name of the disk in DF2: to DataDisk.

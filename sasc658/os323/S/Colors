@@ -1,0 +1,45 @@
+; Colors
+; $VER: Colors by Brielle Harrison <nyteshade@gmail.com> 1.0 (23.06.2025) Spits out ANSI colors for all 16 positions
+
+; Normal background colors
+Set N0 "*e[40m  *e[49m"
+Set N1 "*e[41m  *e[49m"
+Set N2 "*e[42m  *e[49m"
+Set N3 "*e[43m  *e[49m"
+Set N4 "*e[44m  *e[49m"
+Set N5 "*e[45m  *e[49m"
+Set N6 "*e[46m  *e[49m"
+Set N7 "*e[47m  *e[49m"
+
+; Bright background colors
+Set B0 "*e[100m  *e[49m"
+Set B1 "*e[101m  *e[49m"
+Set B2 "*e[102m  *e[49m"
+Set B3 "*e[103m  *e[49m"
+Set B4 "*e[104m  *e[49m"
+Set B5 "*e[105m  *e[49m"
+Set B6 "*e[106m  *e[49m"
+Set B7 "*e[107m  *e[49m"
+
+echo "Colors: [$N0$N1$N2$N3$N4$N5$N6$N7]"
+echo "        [$B0$B1$B2$B3$B4$B5$B6$B7]"
+
+; Unset normal color variables
+UnSet N0
+UnSet N1
+UnSet N2
+UnSet N3
+UnSet N4
+UnSet N5
+UnSet N6
+UnSet N7
+
+; Unset bright color variables
+UnSet B0
+UnSet B1
+UnSet B2
+UnSet B3
+UnSet B4
+UnSet B5
+UnSet B6
+UnSet B7

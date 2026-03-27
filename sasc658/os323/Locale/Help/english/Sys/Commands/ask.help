@@ -1,0 +1,78 @@
+   NAME
+	ASK - Obtains user input when executing a script file.
+
+   FORMAT
+	ASK <prompt> [TO=<var>] [NUMERIC] [STRING]
+
+   TEMPLATE
+	PROMPT/A,TO/K,NUMERIC/S,STRING/S
+
+   PATH
+	Internal
+
+   FUNCTION
+	ASK is used in scripts to write the <prompt> to the current 
+	window, then wait for keyboard input. Depending on the options, 
+	valid inputs are either Y (yes), Return = N (no), a number, or any 
+	string. Without any further options, ASK signals the return code 5 
+	(WARN) for Y, and 0 for N. An IF WARN statement can be used to 
+	check for this kind of response. For numeric and string input, the 
+	user input is printed onto the current window. Alternatively, ASK 
+	may set a local variable to the user input. If the PROMPT contains 
+	spaces, it should be enclosed in double quotes.
+
+	Without the TO, NUMERIC and STRING arguments, ASK expects a 
+	boolean input of the type "Y" or "YES" resp. "N" or "NO" or Return 
+	(no input) and sets the condition codes accordingly: 5 (WARN) for 
+	"Y" and 0 otherwise.
+
+	If the TO option has been specified, ASK expects the name of a 
+	local variable without $ sign and sets this variable to "1" for 
+	YES and to "0" for NO.
+
+	If the NUMERIC keyword has been found, ASK expects the user to 
+	input a decimal number. This number is either printed into the 
+	current output, or if the name of a local variable has been 
+	specified with the TO option, this variable is set to the user 
+	input.
+
+	If the STRING keyword is found on the input, ASK expects the user 
+	to input a string of any kind. Similar to the above, this string 
+	is either printed to the current output, or placed into the 
+	variable given by the TO keyword.
+
+   EXAMPLES
+
+    Assume a script contained the following commands:
+
+    ASK Continue?
+    IF WARN
+      ECHO Yes
+    ELSE
+      ECHO No
+    ENDIF
+
+    When the ASK command is reached, "Continue?" will appear on the 
+    screen. If Y is pressed, "Yes" will be displayed on the screen. If 
+    N is pressed, "No" will be displayed.
+
+    The following script will ask the user for a number, and will 
+    print this number to the output window:
+
+    ASK NUMERIC "Enter a number:" TO num
+    ECHO $num
+
+    ASK will continue to display its prompt until a valid number is 
+    found, which will then be put into the variable num. Note that ASK 
+    expects the variable name without a $ sign in front.
+
+
+    The next example will ask the user for a file name, and will then 
+    display the contents of this file on the console:
+
+    ASK STRING "Enter a file name to display:" TO file
+    TYPE $file
+
+
+   SEE ALSO
+	IF, SET

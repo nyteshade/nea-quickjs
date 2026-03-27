@@ -1,0 +1,228 @@
+  AmigaDOS Error Codes
+  ====================
+   
+  These error messages are usually the output from the system when a 
+  program fails.
+
+
+  Message: 103  Not enough memory available	
+  Recommended action: Close unnecessary windows and applications and 
+                      re-issue the command. Reboot if this does not 
+                      work. You may need to add more RAM to your 
+                      system.
+
+  Message: 105  Task Table Full	
+  Recommended action: The Amiga CLI tasks list is full. Try 
+                      closing a few and then enter the command again.
+
+  Message: 115  Bad number	
+  Recommended action: Re-issue the command with the correct format.
+
+  Message: 116  Required argument missing	
+  Recommended action: The command requires an argument that you did 
+                      not supply. Use the correct command format.
+
+  Message: 117  Value after keyword missing	
+  Recommended action: Keyword was specified with no argument. Use the 
+                      correct command format.
+
+  Message: 118  Wrong number of arguments	
+  Recommended action: Too few or too many arguments. Use the correct 
+                      command format.
+                    
+  Message: 119  Unmatched quotes	
+  Recommended action: You have an odd number of quotation marks. Place 
+                      double quotation marks at the beginning and end 
+                      of the path or string.
+                    
+  Message: 120  Argument line invalid or too long	
+  Recommended action: Your command line is incorrect or contains too 
+                      many arguments. Use the correct command format.
+
+  Message: 121  File is not executable	
+  Recommended action: You misspelled the command name or the file is 
+                      not a loadable (program or script) file. Retype 
+                      the file name, ensuring that the file is a 
+                      program file. To execute a script, the s bit 
+                      must be set or the EXECUTE command must be used. 
+                      To execute a binary file the e bit must be set.
+                    
+  Message: 122  Invalid resident library during load	
+  Recommended action: The required library was found but was not the 
+                      correct type. This could be caused by having an 
+                      old version of the library or the file is 
+                      corrupt.	
+                    
+  Message: 202  Object is in use	
+  Recommended action: The specified file or directory is being edited 
+                      by another application or is assigned. Stop the 
+                      application using the file or directory or 
+                      remove the assignment.
+                    
+  Message: 203  Object already exists	
+  Recommended action: The name specified is assigned to another file 
+                      or directory. Use another name or delete the 
+                      existing file or directory first.
+                    
+  Message: 204  Directory not found	
+  Recommended action: AmigaDOS cannot find the specified directory.	
+                      Check the directory name and location (use DIR 
+                      if necessary).
+                    
+  Message: 205  Object not found	
+  Recommended action:  AmigaDOS cannot find the specified file or 
+                       device. Check the file name (use DIR) or the 
+                       device name (use INFO).
+                     
+  Message: 206  Invalid window description	
+  Recommended action: The window may be too big or too small or you 
+                      omitted an argument. Also occurs with the 
+                      NEWSHELL command, if a device name is supplied 
+                      that is not a window. Use the correct window 
+                      specification.
+                      
+  Message: 209  Packet request type unknown	
+  Recommended action: The device handler cannot do the requested 
+                      operation. For example, the console handler 
+                      cannot rename things. Check the request code 
+                      passed to device handlers for the appropriate 
+                      request.
+                      
+  Message: 210  Object name invalid	
+  Recommended action: There is an invalid character in the file name 
+                      or the file name is too long. Retype the name; 
+                      do not use any invalid characters or exceed the 
+                      maximum length.
+                      
+  Message: 211  Invalid object lock	
+  Recommended action: The lock code was not recognized by the AmigaDOS 
+                      call. This is a programming fault.
+                      
+  Message: 212  Object is not of required type	
+  Recommended action: You may have specified a file name for an
+                      operation that requires a directory name, or 
+                      vice versa. Use the correct name and command 
+                      format.
+                      
+  Message: 213  Disk not validated	
+  Recommended action: If you have just inserted a disk, the disk 
+                      validation process may be in progress. It is 
+                      also possible that the disk is corrupt. Wait for 
+                      the validation process to finish. Watch for 
+                      the drive light to turn off. Allow a minute for 
+                      floppy disks and several minutes for hard disks. 
+                      Corrupt disks cannot be validated. If corrupted, 
+                      try retrieving and copying the files to another 
+                      disk with a tool like DiskDoctor.
+                      
+  Message: 214  Disk is write-protected	
+  Recommended action: The plastic tab is in the write-protect position 
+                      or the disk has been locked. Remove the disk, 
+                      move the tab, and reinsert the disk, use a 
+                      different disk, or use LOCK OFF command.
+                      
+  Message: 215  Rename across devices attempted	
+  Recommended action: RENAME can move a file from one directory to 
+                      another, but not from one volume to another. Use 
+                      COPY to copy the file to the destination volume. 
+                      Delete it from the source volume, if desired. 
+                      Then use RENAME, if desired.
+                      
+  Message: 216  Directory not empty	
+  Recommended action: You tried to delete a directory that contains 
+                      file or subdirectories. Use the ALL option of 
+                      DELETE if you wish to delete the directory and 
+                      its contents.
+                      
+  Message: 217  Too many levels	
+  Recommended action: Directory nesting is too deep. Reorganize 
+                      directories so that there are fewer levels or 
+                      change directories in stages to reach the 
+                      desired level.
+                      
+  Message: 218  Device (or volume) is not mounted	
+  Recommended action: If the devices is a floppy disk, it has not been 
+                      inserted in a drive. If it is another type of 
+                      device, it has not been mounted, or the name is 
+                      misspelled. Insert the correct floppy disk, 
+                      mount the device, check the spelling of the 
+                      device name, revise your MountList/mount file, 
+                      or assign the device name appropriately.
+                      
+  Message: 219  Seek error	
+  Recommended action: An error occurred while processing a file. Be 
+                      sure that you only SEEK within the file. You 
+                      cannot SEEK outside the bounds of the file.
+                      
+  Message: 220  Comment is too long	
+  Recommended action: You filenote has exceeded the maximum number of 
+                      characters (79). Use a shorter filenote.
+                      
+  Message: 221  Disk is full	
+  Recommended action: There is not enough room on the disk to perform 
+                      the requested operation. Delete unnecessary 
+                      files or directories or use a different disk.
+                      
+  Message: 222  Object is protected from deletion
+  Recommended action: The d (deletable) protection bit of the file or 
+                      directory is clear. If you are certain that you 
+                      want to delete the file or directory, use 
+                      PROTECT to set the d bit or use the FORCE option 
+                      of DELETE.
+                      
+  Message: 223  File is write protected	
+  Recommended action: The "w" (writable) protection bit of the file is 
+                      clear. If you are certain that you want to 
+                      overwrite the file, use PROTECT to set the 
+                      "w" bit.
+                      
+  Message: 224  File is read protected	
+  Recommended action: The "r" (readable) protection bit of the file is 
+                      clear. Use PROTECT to set the r bit of the file.
+                      
+  Message: 225  Not a valid DOS disk	
+  Recommended action: The disk in the drive is not an AmigaDOS disk, 
+                      it has not been formatted, or it is corrupt. Be 
+                      sure you are using the correct disk. If the disk 
+                      worked previously, use a disk recovery program 
+                      to salvage its files. Format unformatted disks.
+                      
+  Message: 226  No disk in drive	
+  Recommended action: The disk is not inserted in the specified drive. 
+                      Insert the appropriate disk in the specified 
+                      drive.
+                      
+  Message: 232  No more entries in directory	
+  Recommended action: The AmigaDOS call EXNEXT has no further entries 
+                      in the directory you are examining. Stop calling 
+                      EXNEXT.
+                      
+  Message: 233  Object is soft link	
+  Recommended action: Attempt was made to access a soft-link for a 
+                      device that does not support it. No recovery.
+                      
+  Message: 235  Bad load file hunk	
+  Recommended action: The program loaded is corrupted. Load a new or 
+                      original copy of the program.
+                      
+  Message: 241  Record lock collision	
+  Recommended action: Another application is accessing the database. 
+                      Try accessing the database again.
+                      
+  Message: 242  Record lock timeout	
+  Recommended action: Another application has the database entry 
+                      locked. Try again or quit the other application 
+                      and retry.
+                      
+  Message: 303  Buffer overflow	
+  Recommended action: Occurs if pattern matching string is too long. 
+                      Make pattern matching string shorter.
+                      
+  Message: 304  ***Break	
+  Recommended action: Occurs if program stopped via Ctrl+C. No 
+                      recovery.
+                      
+  Message: 305  File not executable	
+  Recommended action: The "e" (executable) bit of the file is clear. 
+                      It is the same as Error 121.
+                      

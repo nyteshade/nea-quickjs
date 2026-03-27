@@ -1,0 +1,63 @@
+   NAME
+	DEFICONS - Associates default icons with files that don't have 
+	           any.
+          
+   FORMAT
+	DEFICONS [QUICKSCAN=<pattern string>]
+
+   TEMPLATE
+	QUICKSCAN/K
+
+   PATH
+	C:DEFICONS
+
+   FUNCTION
+	DefIcons turns any pseudo-icon (displayed when you pick the menu
+	item Window/Show/All Files) into a more meaningful one. Depending
+	on its configuration file, the program can identify different 
+	filetypes and supply an appropriate icon for each of them.
+ 
+	The program does not require any arguments or Tool Types. It can 
+	be started either from Workbench or Shell. You can terminate the 
+	program at any time by pressing/sending CTRL-C (see CLI command 
+	break) to it, sending a QUIT ARexx message or by starting it a
+	second time.
+
+	The DefIcons program will accept the "QUICKSCAN" Tool Type which 
+	allows the user to define volumes where DefIcons will use a 
+	quicker identification method.  The Tool Type should be used with 
+	a DOS pattern matching string without the trailing colon.
+
+	QUICKSCAN=<pattern string>
+
+	The DefIcons program opens an ARexx port called "DEFICONS" when
+	running. It will accept the following messages:
+
+	     IDENTIFY <filename>
+	     DefIcons will return (in the RESULT variable) the filetype 
+	     DefIcons identified for the provided filename.
+
+	     QUIT
+	     This command will cause DefIcons to quit.
+
+	DefIcons comes with its own Preferences program called 
+	"DefaultIcons". Please note the spelling difference. This 
+	preference editor (located in SYS:Prefs) allows the user to change 
+	the deficons configuration (deficons.prefs) in an easy and 
+	comfortable way.
+  
+	By default, AmigaOS 3.2 comes with an icon in the WBStartup drawer 
+	that runs the deficons program when Workbench boots up.
+
+	Default icons are taken from ENV:sys/def_XXXX.info for types 
+	defined in the global preference file in ENV:deficons.prefs. 
+	There have been several Preference editors that used this method 
+	in the past, like the one included in the 3.9 efforts, and the one 
+	available from the DefIcons44.lha archive on Aminet.
+  
+   EXAMPLE
+     
+	QUICKSCAN=(FTPMOUNT|BOXFS)
+    
+	uses QUICKSCAN as a Tool Type for FTPMOUNT: and BOXFS:
+ 

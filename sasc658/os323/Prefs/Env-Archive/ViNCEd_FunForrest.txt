@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/fun_forrest.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(0,0,0) brighter rgb(0,0,0)
+red Alpha:255 rgb(221,60,61) brighter rgb(255,72,74)
+green Alpha:255 rgb(160,168,29) brighter rgb(192,202,35)
+yellow Alpha:255 rgb(200,154,41) brighter rgb(240,185,50)
+blue Alpha:255 rgb(90,169,178) brighter rgb(108,203,214)
+magenta Alpha:255 rgb(158,86,66) brighter rgb(190,104,80)
+cyan Alpha:255 rgb(224,147,41) brighter rgb(255,177,50)
+white Alpha:255 rgb(227,202,125) brighter rgb(255,243,150)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x3131,0x1717,0x0202
+COLOR=NOLOAD,ANSI,0x00,0x00,0x00
+COLOR=NOLOAD,ANSI,0xdddd,0x3c3c,0x3d3d
+COLOR=NOLOAD,ANSI,0xa0a0,0xa8a8,0x1d1d
+COLOR=NOLOAD,ANSI,0xc8c8,0x9a9a,0x2929
+COLOR=NOLOAD,ANSI,0x5a5a,0xa9a9,0xb2b2
+COLOR=NOLOAD,ANSI,0x9e9e,0x5656,0x4242
+COLOR=NOLOAD,ANSI,0xe0e0,0x9393,0x2929
+COLOR=NOLOAD,ANSI,0xe3e3,0xcaca,0x7d7d
+COLOR=NOLOAD,ANSI,0x00,0x00,0x00
+COLOR=NOLOAD,ANSI,0xffff,0x4848,0x4a4a
+COLOR=NOLOAD,ANSI,0xc0c0,0xcaca,0x2323
+COLOR=NOLOAD,ANSI,0xf0f0,0xb9b9,0x3232
+COLOR=NOLOAD,ANSI,0x6c6c,0xcbcb,0xd6d6
+COLOR=NOLOAD,ANSI,0xbebe,0x6868,0x5050
+COLOR=NOLOAD,ANSI,0xffff,0xb1b1,0x3232
+COLOR=NOLOAD,ANSI,0xffff,0xf3f3,0x9696

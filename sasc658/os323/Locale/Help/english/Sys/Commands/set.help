@@ -1,0 +1,43 @@
+   NAME
+	SET - Sets a local variable.
+
+   FORMAT
+	SET [<name>] [<string>]
+
+   TEMPLATE
+	NAME,STRING/F
+
+   PATH
+	Internal
+
+   FUNCTION
+	SET with <name> and <string> arguments creates a new environment
+	variable. The first word after SET is taken as the <name>. 
+	Everything else on the command line is taken as the <string> 
+	argument. Quotation marks are not required.
+
+	SET with no arguments list the current local variables.
+
+	An environment variable created with SET is local to the Shell in
+	which it was created. If you create a new Shell with the NEWSHELL
+	command, that Shell will also recognize any variables created in 
+	its parent Shell. However, if you create a new Shell with the 
+	"Workbench/Execute..." Command menu item or by opening the Shell 
+	icon, variables created with SET will not be recognized.
+
+	You can call environment variables in a script or on a command 
+	line by placing a dollar sign ($) in front of the variable name.
+
+	To remove a local variable definition, use the UNSET command.
+
+   EXAMPLES
+	    1> SET origin This process launched from icon
+
+	Creates the local variable origin which stores a reminder that a
+	Shell was invoked from an icon rather than a NEWSHELL.
+
+	    1> ECHO $origin
+	    This process launched from icon
+
+   SEE ALSO
+	GET, UNSET

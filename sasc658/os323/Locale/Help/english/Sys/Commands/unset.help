@@ -1,0 +1,18 @@
+   NAME
+	UNSET - Removes local variables.
+
+   FORMAT
+	UNSET [<name>]
+
+   TEMPLATE
+	NAME
+
+   PATH
+	Internal
+
+   FUNCTION
+	UNSET removes the named local variables from the variable list for 
+	the current process.
+
+   SEE ALSO
+	SET

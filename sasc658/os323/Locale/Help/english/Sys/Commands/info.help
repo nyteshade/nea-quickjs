@@ -1,0 +1,39 @@
+   NAME
+	INFO - Gives information about the file system(s).
+
+   FORMAT
+	INFO [<device>]
+
+   TEMPLATE
+	DEVICE
+
+   PATH
+	C:INFO
+
+   FUNCTION
+	INFO displays a line of information about each disk or partition. 
+	This includes the maximum size of the disk, the used and free 
+	space, the number of soft disk errors that have occurred, and the 
+	status of the disk.
+	
+	If no device is provided, info will display information for all 
+	disks and partitions available on the system.
+	
+	 EXAMPLES
+	
+	    1> INFO
+	    Mounted disks:
+	    Unit Size Used Free Full Errors Status     Name
+	    DF0: 837K 1742   16  98%      0 Read Only  Workbench2.0
+	    DF1: 837K  211 1547  12%      0 Read/Write Text-6
+
+	    Volumes available:
+	    Workbench2.0 [Mounted]
+	    Text-6 [Mounted]
+
+	    1> INFO DF0:
+	    Mounted disks:
+	    Unit Size   Used   Free Full Errors Status     Name
+	    DF0: 837K 850096   7808  98%      0 Read Only  Workbench2.0
+	    	    Volumes available:
+	    Workbench2.0 [Mounted]

@@ -1,0 +1,52 @@
+The files in this drawer demonstrate how to use certain features of
+ViNCEd, as well as the include files in this archive. They also try to
+answer some frequently asked questions and provide example code how to
+write CLEAN programs.
+
+
+ReadWindowSize.c:
+
+	Demonstrates how to obtain the window size in characters without
+	really requiring to go down to the intuition window. This example
+	source would even work in case the stdout of the program is connected
+	to some kind of Amiga compatible console over a serial line. 
+	Especially, all the intuition/console related problems are absend, the
+	program would work in iconified windows and without disabling the AUTO
+	feature of a console window.
+
+	This program answers a FAQ in c.s.a.p., hopefully.
+
+ReadConsoleWindow.c:
+	
+	Demonstrates how to obtain a pointer to the intuition window of
+	a console window in a way that does not disable the iconification
+	of ViNCEd. Works with ViNCEd as well as with all other console
+	handlers.
+	Provides useful routines you might want to use in your own
+	programs. It provides, too, a way how to obtain the console unit
+	(struct ConUnit) from a stream to a console handler. However,
+	this is discouraged since ViNCEd windows operate independently
+	from the console device. They just fill the console unit structure
+	for backwards compatibility.
+	(Slightly reworked to remove one bug.)
+
+ReadPrefs.c:
+
+	Demonstrates how to read the preferences from a window, how to
+	convert the macro and button list to something more useful and
+	how to print it.
+	Demonstrates, too, how to work with the link libraries instead
+	of the pragmas. For that, the program should be compiled with
+	registerized parameters, long integers and base relative
+	addressing. It should be linked with the vnc_stub.rr.base.lib
+	in the "lib" directory to resolve open symbols.
+
+TBITest.c:
+
+	Demonstrates how to use the ToolButtonImage class boopsis, which
+	are also used by ViNCEd for its iconification gadget. This example
+	is provided by Massimo Tantignone (tanti@intercom.it) and part of
+	the TBIClass documentation. Thanks, Massimo!
+
+	
+Thomas Richter

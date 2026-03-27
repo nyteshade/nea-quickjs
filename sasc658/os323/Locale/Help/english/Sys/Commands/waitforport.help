@@ -1,0 +1,32 @@
+   NAME
+	WAITFORPORT - Waits for a public message port to appear.
+
+   FORMAT
+	WAITFORPORT <portname>
+
+   TEMPLATE
+	PORTNAME/A
+
+   PATH
+	REXXC/WAITFORPORT
+
+   FUNCTION
+	WaitForPort waits 10 seconds for the specified message port to
+	appear. A return code of 0 indicates that the port was found. A
+	return code of 5 indicates that the application is not currently
+	running or that the port does not exist.
+
+	Note that port names are case sensitive.
+
+	To stop WAITFORPORT waiting, use the BREAK command or hit the 
+	[Ctrl]+C combination while the Shell window that belongs to the 
+	WAITFORPORT command is active.
+
+   EXAMPLES
+	Wait for the message port "ED_1" to appear; wait for up
+	to 10 seconds:
+
+	    1> WAITFORPORT ED_1
+
+   SEE ALSO
+	BREAK

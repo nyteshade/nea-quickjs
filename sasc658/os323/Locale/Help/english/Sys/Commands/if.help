@@ -1,0 +1,89 @@
+   NAME
+	IF - Evaluates conditional operations in script files.
+
+   FORMAT
+	IF [NOT] [WARN] [ERROR] [FAIL] [<string> EQ|GT|GE [VAL] 
+	[EXISTS <filename>] 
+
+   TEMPLATE
+	NOT/S,WARN/S,ERROR/S,FAIL/S,,EQ/K,GT/K,GE/K,VAL/S,EXISTS/K
+	
+   PATH
+	Internal
+
+   FUNCTION
+	In a script file, IF, when its conditional is true, carries out 
+	all the subsequent commands until an ENDIF or ELSE command is 
+	found. When the conditional is not true, execution skips directly 
+	to the ENDIF or to an ELSE. The conditions and commands in IF and 
+	ELSE blocks can span more than one line before their corresponding 
+	ENDIFs.
+
+	Following are some of the ways you can use the IF, ELSE, and ENDIF
+	commands:
+
+	    IF <condition>    IF <condition>    IF <condition>
+	    <command(s)>      <command(s)>      <command(s)>
+	    ENDIF             ELSE              IF <condition>
+	                      <command(s)>      <command(s)>
+	                      ENDIF             ENDIF
+	                                        ENDIF
+
+	ELSE is optional, and nested IFs jump to the nearest ENDIF.
+
+	The additional keywords are as follows:
+
+	    NOT              Reverses the interpretation of the result.
+
+	    WARN             True if previous return code is greater than 
+	                     or equal to 5.
+
+	    ERROR            True if previous return code is greater than 
+	                     or equal to 10; only available if you set 
+	                     FAILAT to greater than 10.
+
+	    FAIL             True if previous return code is greater than 
+	                     or equal to 20; only available if you set 
+	                     FAILAT to greater than 20.
+
+	    <a> EQ <b>       True if the text of a and b is identical
+	                     (disregarding case).
+
+	    EXISTS <file>    True if the file exists.
+
+	If more than one of the three condition-flag keywords (WARN, 
+	ERROR, FAIL) are given, the one with the lowest value is used.
+
+	IF supports the GT (greater than) and GE (greater than or equal 
+	to) comparisons. Normally, the comparisons are performed as string
+	comparisons. However, if the VAL option is specified, the 
+	comparison is a numeric comparison.
+
+	NOTE: You can use NOT GE for LT and NOT GT for LE.
+
+	You can use local or global variables with IF by prefacing the
+	variable name with a $ character.
+
+   EXAMPLES
+	    IF EXISTS Work/Prog
+	        TYPE Work/Prog
+	    ELSE
+	        ECHO "It's not here"
+	    ENDIF
+
+	If the file Work/Prog exists in the current directory, then 
+	AmigaDOS displays it. Otherwise, AmigaDOS displays the message 
+	It's not here and continues after the ENDIF.
+
+	    IF ERROR
+	        SKIP errlab
+	    ENDIF
+	    ECHO "No error"
+	    LAB errlab
+
+	If the previous command produced a return code greater than or 
+	equal to 10 then AmigaDOS skips over the ECHO command to the 
+	errlab label.
+
+   SEE ALSO
+	EXECUTE, FAILAT, LAB, QUIT, SKIP

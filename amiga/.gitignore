@@ -1,0 +1,6 @@
+.gitignore for binaries
+# Compiled Amiga binaries
+qjs.*
+qjsc.*
+*.060
+*.040

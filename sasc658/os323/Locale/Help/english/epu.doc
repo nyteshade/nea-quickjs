@@ -1,0 +1,304 @@
+
+                           ==================
+                           |    EPU  1.4    |
+                           ==================
+
+     Stacker like program  - CAN DOUBLE YOUR (HARD)DISKS CAPACITY
+
+
+DESCRIPTION:
+
+  After installing EPU to any Device(HardDisk,Floppy,Rad etc) every
+  file which will be written to the device will be compressed and when
+  any compressed file is read by any application it will be autmaticaly
+  decompresed. 
+
+  EPU is very easy to install or remove, its size is very small,
+  can work with many compress libraries like lh.library or xpk(NUKE,...).  
+
+  The file sizes are not limited by memory,
+  (maximal file size is about 1GB).
+
+  There are no differences or limitations when you are working with installed 
+  epu or without it(of course it can be slower if the CPU is slow.)
+
+NEW FEATURES:
+
+ 1. This version runs on ALL machines and with ALL OS 
+    (The previous 1.0 version didn't work on A3000/A4000)-KS1.2 was not tested.
+ 2. Now EPU can work with xpk sublibraries like NUKE etc.
+ 
+ 
+  EPU consists of this files:
+
+     EPU1.handler \  
+     EPU2.handler  >  put them into your l: directory
+     EPU3.handler /
+    
+     EPU0.library \   
+     EPU1.library  >  put them into your libs: directory
+       lh.library /
+
+     EPU              its a CLI command,so you can put it in c: directory
+
+
+  First thing,you have to do is assign EPU system to device you want to
+  work to. Let's say you want to work with your rad: disk.
+  You will simply type in cli:
+                   EPU device rad       (do not type ':' after device name)
+  Now when some task will write to rad: the file will be compressed,
+  when another task will read this file then will receive the file decompressed.
+
+  Now you can do any I/O operation with files in rad: (read/write/seek/close/
+  open/examine even  an unlimitet number of task can read/write into one
+  file(in epu compress format) in the same time!!! ) and after decompressing
+  it the file will be the same like you have never been using EPU,but you
+  saved a lot of disk space.
+  It also mean that you can simply join file to compressed file by >> shell
+  redirection.
+
+  The file size is not limited by memory because only a small part of file
+  is in memory when working with it( The theoretic maximum size is 1.2GB). 
+                         
+ The EPU command syntax:
+
+EPU DEVICE name [SAVE/NOSAVE] [LOAD/NOLOAD] [EXAMINE/NOEXAMINE] 
+ [NoExNext/ExNext] [LMODE/HMODE] [BLOCK number] [TABLE Number] [LIBRARY name]
+ [INFO/CHNG/KILL]
+
+ DEV is the synonym of DEVICE
+ LIB is the synonym of LIBRARY
+
+  options:
+     NoSave - when  creating new file under epu, it will not be
+              compresed (simply packet ACTION_FINDOUTPUT is ignored);
+              [file will not be compressed,when saving]
+     Save - default option : file will be compresed every time.
+
+     NoLoad - when accessing file compressed by EPU system, it will not be
+              decompressed(simply packet ACTION_FINDINPUT is ignored);
+              Usefull when EPU is still instaled and you want to copy some
+              EPU file( epu file is file which is in epu compress format)
+              to another place without decompressing.
+     Load -  default option : Epu file will be decompressed every time.
+
+     Examine - Default option : when  examining EPU file(for example 
+              list c:dir) you will get its virtual file size( that mean the
+              size what you get after decompressing). 
+     NoExamine -  when  examining EPU file  you will get its real size on
+              the disk( simply packet ACTION_EXAMINE is ignored);
+
+     ExNext - Default option : when examining directory contents ( f.e. list c:)
+           you will get virtual file sizes of files in this directory.
+     NoExNext - when examining directory contents 
+           you will get real file sizes of files in this directory
+           (simply packet ACTION_EXNEXT is ignored);
+     
+     Hmode - Default option: when file is saved (opened by opt MODE_NEWFILE) EPU
+           system will look whether the first compressed part is bigger than
+           before compressing and if so EPU will not create standart EPU
+           file but will save it as normal file.
+           That mean  when saving once compressed file it will not be compressed
+           again.
+     Lmode- when saving file, it will allways be created in standart EPU format.
+  
+  parameters:  
+     BLOCK  - sets block size for file which can be between 2 - 60 Kb.
+              Default size is 10.
+              When a small size is choosen you will need less memory,but 
+              speed and compression ratio can be worse.
+              When you set BLOCK 20 you will need 2*20Kb for opened file.
+
+     TABLE - sets maximum of blocks for one opened file.
+             Default size is 1000 (can be betwee 500 - 20000 ).
+             So when block size is 20 and table is 1000 the file size
+             can be maximal 20 MB large ( 20*1000*1000 Bytes)
+
+     LIBRARY - default epu0: Here can be specified which compression/decompression
+            library will be used to pack the file. 
+            There are only two libs in the package(epu0 and epu1).
+            example:  lib epu0    or   lib epu1
+            BUT do not forget that epu can now work with all XPK
+            packer libs like NUKE(the best library)  HUFF SHRI  and so on.
+            example: lib NUKE    or    lib SHRI         .......
+            This libs are not included but you can obtain them from XPK
+            package(amiga.physik.unizh.ch or Fish disk no. 754 etc.).
+            Epu does not support libs which require password.
+
+
+       The values of TABLE,LIBRARY and BLOCK are only used when creating new
+       EPU file, when opening old epu file, the values in its header are used. 
+
+  comms:
+     Info - gives current epu setings for given device(if assigned by EPU)
+            when for example will be typed:     EPU device rad info 
+            it will print  something like this:
+
+                     STATUS:
+                       LOAD / SAVE / EXAM / EXNEXT / HMODE
+                       BLOCK:    10
+                       TABLE:    1000
+                       LIBRARY:  epu0
+
+     Chng - current setings of epu can be changed.
+            for ex. EPU dev rad NoSave Load Block 20 chng
+            will change block size to 20 and sets options to NoSave,Load;
+            the other setings will be unchanged.
+
+     Kill - Removes EPU from device.
+            for ex. EPU dev rad kill 
+            will remove EPU system from rad device.
+            When some files are opened under EPU when killing it,
+            the epu will wait till all this files will be closed and then
+            will kill itself(in this waiting time can't be epu installed 
+            again).
+
+     When no command is given epu will try to install to given device.
+---------------------------
+
+There can appear 2 new I/O error messages when working under epu:
+1) ERROR_BAD_FILE - its number is 3020 . 
+   This error means that the epu file is not valid(damaged etc.).
+2) ERROR_OPEN_UNPOSSIBLE -its number is 3021 .
+   This error means that the file can't be opened because of there is no mem
+   to allocate buffers or epu can't open compress library  which the file 
+   requires.
+
+---------------------------------------------------------------------
+  Recomp
+
+ In the util directory you can find program Recomp. It can help you
+ to compress the files on your (Hard)disk or recompress them by another
+ library.It's simple but can be usefull. Read the Recomp.doc .
+
+----------------------------------------------------------------------
+Notices:
+
+ EPU cli command can be loaded resident.
+ The EPU handlers are loaded resident to memory after first using of EPU command.
+
+ Instead of the name of device you can type name of volume, then the epu
+ will be installed to the device in which  the volume is inserted.
+ It's usefull when epu command is used in startup sequence and
+ we do not know which drive will be used to boot.
+
+ Epu do not change any library vector(so others programs which access
+ device directly ,without using dos.library, are also handled)
+
+ When the file is compressed(decompressed) the device is not blocked
+ and can be used by anothers programs.
+
+ Example how compress your Workbench disk to save about 300Kb space(size of
+ saved space depends on library you have used to compress files).
+ You must first compress all files(Icons/libraries/progs. etc.) to blank
+ disk. You can't only compress files that are used before executing startup
+ sequence(that is system-configuration and startup-sequence) they must be
+ uncompressed. The last step is to change the startup-sequence.
+ At the first line you must write: EPU dev volume-name 
+ And now you can boot from this disk.
+ Of course you can compress any others disks or hard disk by this way.
+ I used this method to compress Workbench 1.3.(epu1.library used).
+ After compressing all files and installing epu about 300KB remained
+ free on the disk.That mean I was able to store about 400 KB large files
+ from Extras disk on Workbench disk !!!!!!!!
+
+ epu0.library - this library is based on LZSS algor.. That mean the 
+  compression is slow,but decompression is fast enought.The compression
+  ratio is also nothing special. 
+ epu1.library - it is the interface between epu and lh.library.
+  the compression ratio is very good(better than PowerPacker) ,the speed too.
+  [lh.library is the product of O. Barthel & P. Krekel , you can find it on
+   Fish disk with documentation]
+
+ I SUGGEST TO USE THE NUKE LIBRARY - IT'S THE BEST
+
+Testing:
+  EPU works with 1.3 and 2.0 3.0 filesystem,fastfilesystem,rad and other standart
+  devices.
+  EPU does not currently work with 2.0. ram: device.
+  Do not also install epu to devices which do not support Seek and Lock
+  packets(PIPE,NULL).
+
+WARNING:
+  You are using this program on your own risk.
+
+   
+You can send bugs,new ideas,opinions to this internet e-mail address
+
+    jara@adelard.dcs.muni.cs  
+    jara@lion.ics.muni.cs
+  
+  or you can write to:
+
+ 	J. Mechacek
+	Mutenicka 7
+	628 00 Brno
+	Czech Republic
+        Europe
+    
+
+
+
+DISTRIBUTABILITY:
+
+  Can be distributed as shareware - all unchanged files must be included.
+  The original EPU14.lha file can be posted by e-mail or uploaded
+  without any permission.
+
+
+                     How to register
+                     ===============
+
+
+
+Epu 1.4 is SHAREWARE , so if you use it you should send US $20
+                                                        ------
+There is also an special offer how to get the Epu2.0 which will not be
+Shareware:                                                 -----------
+
+  - if you pay $20 to 30 October 1993 you will receive Epu2.0 free.
+    ( I prefer to send it by e-mail so don't forget to write it )
+                         
+  - if you pay $20 to 30 June 1993 you will receive all Epu versions
+    which will be released - but you must have an e-mail address :
+    the Epu2.0 you will receive on the disk if you do not have e-mail
+    address but the next versions will be only e-mailed. 
+
+Fill and send(e-mail) me this registration form:
+
+-------------------------------------------------
+Name:
+Address:
+e-mail:
+Date when you sent the registration fee:
+
+(Hardware):
+(Notices):
+-------------------------------------------------
+
+Where to send the fee:
+
+  1)
+Account Name: Jaroslav Mechacek,Mutenicka 7
+Account Number: 34278-314558-621
+Bank address:      
+ 	Commercial Bank
+	Brno-mesto
+	nam. Svobody 21
+	631 31 Brno
+	Czech Republic
+	Europe
+       
+
+  2) Send the fee in insured registered letter to this address:
+       
+	J. Mechacek
+	Mutenicka 7
+	628 00 Brno
+	Czech Republic
+        Europe
+ 
+ DO NOT USE ANY OTHER WAY 
+
+
+

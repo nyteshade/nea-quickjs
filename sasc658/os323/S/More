@@ -1,0 +1,10 @@
+.key NAME
+.bra [
+.ket ]
+
+
+SYS:Utilities/More [NAME]
+SetVNC IfVNC
+if NOT WARN
+	SetVNC FreePointer
+endif

@@ -1,0 +1,54 @@
+   NAME
+	LOADRESOURCE - Preloads resources into memory.
+
+   FORMAT
+	LOADRESOURCE {<name>} [LOCK | UNLOCK]
+
+   TEMPLATE
+	NAME/M,LOCK/S,UNLOCK/S
+
+   PATH
+	C:LOADRESOURCE
+
+   FUNCTION
+	LOADRESOURCE reduces the need for disk seeks by preloading 
+	resources into memory.
+  
+	This command is particularly useful to prevent excessive disk 
+	swaps on floppy-only systems.
+
+	The {<name>} option specifies the paths of the resources to load. 
+
+  
+	Libraries, devices and fonts can be specified with their path 
+	name. 
+
+	Catalogs can also be specified, with a path name such as:
+	LOCALE:Catalogs/<language>/Sys/<catalog>.
+
+	The LOCK option tells the command to lock resources, such as 
+	libraries, fonts, and catalogs, into memory. This prevents the 
+	system from flushing the resource from RAM if memory is low. 
+	Although you can preload devices into memory using LOADRESOURCE, 
+	you cannot force them to stay in memory using the LOCK option. 
+
+	The UNLOCK option tells the command to unlock the resource from 
+	memory, allowing it to be flushed from RAM.
+
+	Entering LOADRESOURCE with no options lists all the LOCKed 
+	resources in RAM.
+
+   EXAMPLES
+	  1> LOADRESOURCE LIBS:asl.library
+
+	Loads asl.library into memory. The system can flush this library 
+	from RAM the next time it runs low on memory, unless the LOCK 
+	option is included in the command line.
+
+	  1> LOADRESOURCE FONTS:topaz/11
+
+	Loads the Topaz 11 font into memory.
+
+	  1> LOADRESOURCE LOCALE:Catalogs/English/Sys/monitors.catalog
+
+	Is a valid path name.

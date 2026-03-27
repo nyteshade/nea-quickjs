@@ -1,0 +1,65 @@
+   NAME
+	INSTALL - Writes the boot block to a formatted floppy or card 
+	          disk, specifying whether or not it should be bootable.
+
+   FORMAT
+	INSTALL [DRIVE] <DFn:|CCn:> [NOBOOT] [CHECK] [FFS]
+
+   TEMPLATE
+	DRIVE/A,NOBOOT/S,CHECK/S,FFS/S
+
+   PATH
+	C:INSTALL
+
+   FUNCTION
+	INSTALL clears a floppy or card disk's boot block area and writes
+	a valid boot block onto the disk. By default, the disk will be
+	given the boot block of the filing system specified when the disk
+	was initially formatted, either the old filing system (OFS) or the
+	FastFileSystem (FFS). To force FastFileSystem, use the FFS switch.
+
+	The NOBOOT option removes the boot block from an AmigaDOS disk,
+	making it non bootable.
+
+	Warning: The NOBOOT option will write a boot block on a
+	non-AmigaDOS disk. INSTALL will use the default DOS type, OFS,
+	when writing to a non-AmigaDOS disk.
+
+	The CHECK option checks for valid boot code. It reports whether
+	a disk is bootable or not and whether standard Commodore-Amiga 
+	boot code is present on the disk. The condition flag is set to 0 
+	if the boot code is standard (or the disk isn't bootable), 5 
+	(WARN) otherwise.
+
+   EXAMPLES
+	    1> INSTALL DF0: CHECK
+	    No bootblock installed
+
+	Indicates that there is a non-bootable floppy in DF0:.
+
+	    1> INSTALL CC0:
+
+	Makes the carddisk in drive CC0: a bootable disk.
+
+	    1> INSTALL DF1: CHECK
+	    Appears to be FFS bootblock
+
+	Indicates that there is an FFS floppy in DF1:.
+
+   NOTES
+	The INSTALL command is intended to be used only with floppy disks
+	and PCMCIA RAM memory cards. The PCMCIA RAM memory card needs to
+	have been prepared as a disk ("carddisk") using the PrepCard
+	utility (see the Workbench "Utilities" drawer) and formatted as
+	well, just like you would format a floppy disk.
+
+	If you prepared a storage device such as a hard disk drive or a USB
+	memory stick using HDToolbox then you should never use the INSTALL
+	command with it. Whether a partition is bootable, and by which means,
+	is configured entirely within HDToolbox.
+
+	Attempting to use the INSTALL command with any file system device
+	other than df0:, df1:, df2:, df3: and cc0: may not work and will
+	just produce an error message. The purpose of the INSTALL command is
+	to cater for only the kind of storage media which the Amiga would use
+	if no working hard disk drive is installed.

@@ -1,0 +1,309 @@
+   NAME
+	ED - Edits text files (a screen editor).
+
+   FORMAT
+	ED [FROM] <filename> [SIZE <n>] [WITH] [WINDOW] [TABS]
+	   [WIDTH] [HEIGHT]
+
+   TEMPLATE
+	FROM/A,SIZE/N,WITH/K,WINDOW/K,TABS/N,WIDTH=COLS/N,
+	HEIGHT=ROWS/N 
+
+   PATH
+	C:ED
+
+   FUNCTION
+	ED is a full-screen text editor suitable for preparing source code 
+	or other text files. You can use ED to create a new file or alter 
+	an existing one. Text is displayed on-screen and can be scrolled
+	vertically or horizontally using the cursor keys. To add new text, 
+	you simply type it in. To delete existing text, you use the delete 
+	keys.
+
+	The FROM argument specifies the file you want to edit. If the file
+	exists, it is loaded into ED and the first few lines are displayed 
+	on-screen ready for editing. If the file does not exist, ED will 
+	create the file and present a blank screen ready for text to be 
+	entered.
+
+	You can adjust the size of the text buffer that ED uses with the 
+	SIZE argument. The initial size of the text buffer is based on the 
+	size of the file you edit with a minimum of 40,000 bytes.
+
+	The optional WITH argument is the name of an ED command file 
+	created to set up particular function key assignments, or even to 
+	perform automated editing operations on an existing file when you 
+	call it. The command file can contain any sequence of ED-extended 
+	mode commands. Each command must be on a separate line. A complete 
+	list of ED-extended mode commands is given below.
+
+	The WINDOW, WIDTH, and HEIGHT arguments are for defining your 
+	terminal type if you are using a non-Amiga console, or if you 
+	simply want to adjust the ED window size. WINDOW describes the 
+	console type, such as RAW:0/0/640/256/<title> or even *. 
+	WIDTH and HEIGHT give the number of characters to display 
+	horizontally and vertically.
+
+	The TABS arguments specifies the tab stop interval. This is the 
+	number of spaces to the right of the current position that the 
+	cursor will move when the Tab key is pressed. The default value 
+	is 3.
+
+   IMMEDIATE MODE COMMAND QUICK REFERENCE 
+	The list below gives all the ED immediate mode commands. You give
+	these commands by holding down the control (Ctrl) key and pressing 
+	one of the letter keys.
+
+	CTRL-A
+
+	    Insert line.
+
+	CTRL-B
+
+	    Delete line.
+
+	CTRL-D
+
+	    Scroll text down.
+
+	CTRL-E
+
+	    Move to the top or bottom of the screen.
+
+	CTRL-F
+
+	    Flip case.
+
+	CTRL-G
+
+	    Repeat the last extended mode command (see list below).
+
+	CTRL-H
+
+	    Delete character to the left of the cursor.
+
+	CTRL-I
+
+	    Move cursor to the right to the next tab position.
+
+	CTRL-M
+
+	    Return.
+
+	CTRL-O
+
+	    Delete word or spaces.
+
+	CTRL-R
+
+	    Cursor to end of the previous word.
+
+	CTRL-T
+
+	    Cursor to start of the next word.
+
+	CTRL-U
+
+	    Scroll text up.
+
+	CTRL-V
+
+	    Verify screen.
+
+	CTRL-Y
+
+	    Delete from the cursor to the end of the line.
+
+	CTRL-[
+
+	    Escape (enter extended command mode).
+
+	CTRL-]
+
+	    Cursor to the end or the start of line.
+
+   EXTENDED MODE COMMAND QUICK REFERENCE
+	This is a full list of the ED-extended mode commands. To give an
+	extended mode command, you first press the escape (ESC) key. A 
+	special command line will appear at the bottom of the screen 
+	indicating that ED is ready to accept your command. Next, type in 
+	a command from the list below and press return. ED will perform 
+	the command.
+
+	For instance, to save a file you have created, press the escape 
+	key, then type "SA" and return. ED will save the file using the 
+	filename you specified when you started ED. To exit ED without 
+	saving anything, press the escape key, then type Q and return.
+
+	In the list below /s/ indicates a string, /s/t/ indicates two 
+	exchange strings and n indicates a number.
+
+	A /s/
+
+	    Insert a line with the text s after the current line. 
+
+	B
+
+	    Move to the bottom of the text. 
+
+	BE
+
+	    Mark a block end at cursor. 
+
+	BF /s/
+
+	    Backward find, searches for the string s in the reverse 
+	    direction.
+
+	BS
+
+	    Mark a block start at cursor. 
+
+	CE
+
+	    Move cursor to the end of the line.
+
+	CL
+
+	    Move cursor one position left.
+
+	CR
+
+	    Move cursor one position right.
+
+	CS
+
+	    Move the cursor to the start of the line.
+
+	D
+
+	    Delete the current line.
+
+	DB
+
+	    Delete block. You must first use BS and BE to mark the block.
+
+	DC
+
+	    Delete character at cursor.
+
+	E /s/t/
+
+	    Exchange all occurrences of the string s with the string t.
+
+	EQ /s/t/
+
+	    Exchange the string s with the string t but query first. 
+
+	EX
+
+	    Extend right margin. 
+
+	F /s/
+
+	    Find string s. 
+
+	I /s/
+
+	    Insert a line with the string s before the current line.
+
+	IB
+
+	    Insert a copy of marked block. You must first use BS and BE to
+	    mark the block.
+
+	IF /s/
+
+	    Insert the file s at the current position. 
+
+	J
+
+	    Join current line with the next line. 
+
+	LC
+
+	    Distinguish between upper case and lower case in searches. 
+
+	M n
+
+	    Move to line number n. 
+
+	N
+
+	    Move to the start of the next line. 
+
+	P
+
+	    Move to the start of the previous line. 
+
+	Q
+
+	    Quit ED without saving. 
+
+	RP
+
+	    Repeat command until error. 
+
+	S
+
+	    Split line at cursor. 
+
+	SA /s/
+
+	    Save text to the file "s". 
+
+	SB
+
+	    Show current marked block on screen. 
+
+	SH
+
+	    Show information. 
+
+	SL n
+
+	    Set left margin to nth column. 
+
+	SR n
+
+	    Set right margin to nth column. 
+
+	ST n
+
+	    Set tab distance to n. 
+
+	T
+
+	    Move to the top of text. 
+
+	U
+
+	    Undo changes on the current line. 
+
+	UC
+
+	    Do not distinguish between upper case and lower case in 
+	    searches.
+
+	WB /s/
+
+	    Write marked block to file /s/. You must first use BS an BE to
+	    mark the block.
+
+	X
+
+	    Exit ED saving text to the file specified when ED was started.
+
+   EXAMPLES
+	1> ED mytext 
+
+	Starts up ED and loads the text file mytext for editing. 
+
+	1> ED mytext SIZE 50000 TABS 8 
+
+	Starts up ED and loads the file mytext for editing. The text 
+	buffer used by ED will be set to 50,000 bytes and the tabs will be 
+	set to 8 characters.
+
+   SEE ALSO
+	EDIT

@@ -1,0 +1,222 @@
+
+                     History log for Skick program
+                     =============================
+                          (C) SinSoft 1992,93
+
+
+3.46 (139.132 - 21.1.07)
+=======================
+1) added A600 kick 40063 RTB (provided by Bert Jahn)
+
+3.45 (139.131 - 21.3.03)
+=======================
+1) added A4000 kick 40068 RTB/PAT (import from MKick)
+
+3.44 (139.130)
+=======================
+1) added A1200 kick 40068 RTB/PAT (import from MKick)
+
+3.43 (139.129 - 21.6.93)
+========================
+1) Kickstart 40.38 support files added to the archive.
+2) Kickstart 33.180 (classic 1.2 ROM) support files added to the archive.
+It was done after many requirements from users. However, I'm afraid that
+programs which require 1.2 and don't run under 1.3 are the dirty ones which
+jump into the ROM directly and that they will not work under kicked 1.2, too.
+Note also that 1.2 ROM hasn't booting from any other device than DF0:, so 
+don't be surprised when the hand with disk will be displayed.
+3) Found a little bug in 1.3 ROM rtb file (kick34005.a500.rtb). Fixed.
+4) Found a little bug in SKick causing bogus gadgets to be displayed when 10
+kickstart images were found. Fixed. 
+
+3.42 (139.128 - 24.5.93)
+========================
+CPU caches are correctly flushed and disabled during the SKick's installation
+including CopyBack caches. Maybe SKick will work on '040 systems from now ???
+
+3.41 (139.127 - 20.5.93)
+========================
+SKick now refuses to kick any ReKick type image without the appropriate .PAT
+file, because it never works and it always crashes the machine only. NOPATCH
+option is ignored in such a case.
+
+3.40 (139.126 - 8.5.93)
+=======================
+ADDMEM option added. This option allows adding a non-autoconfig memory board 
+during the kicking process. Please read the manual for the complete information.
+ADR option modified. Now, the address may be given by its upper word only (for
+the compatibility with previous releases) as well as by the whole long number.
+Dollar sign as an optional hex number symbol removed - shell was confused by it
+and tried to interpret the number as an environment variable.
+The built-in number parser enriched with the minus sign, allowing negative
+numbers to be entered, and with underline symbol with the meaning of the decimal
+number prefix. Both these symbols may be combined.
+Bug in AllocKick program fixed. It caused the malfunction in the case of the
+board lying above $1000000.
+A little program called KickStat added to the archive. It prints a lot of
+information about the kickstart image and its status. It may be also used as
+the kickstart image allocator.
+
+3.35 (139.125 - 25.4.93)
+========================
+1) Automatic kickstart memory allocation is disabled when the FORCE switch is 
+used. This option is designed for use with non-autoconfigured memory boards. 
+Standard kickstart image protection is done using the MemTag, and it causes 
+malfunction of MemTag/RomTag logic because the memory is not added to the system
+at the Mem/RomTag scanning time yet. Users should allocate kickstart image by
+other means, for example using supplied 'AllocKick' program.
+2) DEBUG option is introduced in this release. Please read the doc. 
+3) The bug is fixed causing crashes when hard-loading kickstart above the
+temporary buffer when the buffer overlapped with the destination.
+4) 40.9 .RTB/.PAT files for both A4000 and A600/A1200 kickstart types added to
+the archive.
+
+3.34 (139.124 - 15.2.93)
+========================
+Corrected the bug preventing the 2.0+ kickstart files from being run from
+32-bit address space (above $1000000). SKick should now work fine with products
+like the A5000 accelerator with non-autoconfig 32bit RAM (options ADR XXXX and
+FORCE should be used) or with Zorro-III memory boards (option 32BIT should be
+used).
+Fixed the bug causing illegal FreeMems at unusual situations (like error re-
+turns). Cleanup code made cleaner.
+40.3 .RTB/.PAT files for both A3000 and A600/A1200 kickstart types added to
+the archive (19.3.93).
+
+3.33 (139.123 - 29.1.93)
+========================
+1) More kickstart file sanity checks added. Now the length is tested and if
+it is less than $80000 (except $40000 exactly) the error message is issued
+and the file is not processed. The same will happen, if the file length is
+greater than $80000, but less than $80800. Beginning with this length, the
+file is processed as the A3000 SuperKickstart file (with Magic/Bonus) and
+the rest of file above $80000 is cut off automatically.
+2) CORR5M option added. This option is useless for the most of users except
+owners of GVP A530 Turbo Harddisk. Those may buy 4M expansion memory modules
+(SIMMs) to expand original 1M capacity of 32bit RAM. The manufacturer doesn't
+recommend mixing of 1M and 4M modules; if it is done (4M one must be the first,
+1M one the 2nd), system reports 8 Megs of total capacity, but physically it has
+5 Megs with the last one Meg mirrorred 4 times. CORR5M option allows to use
+this configuration by correcting the BoardSize item of the memory board's
+ConfigDev structure to the correct 5 Megs.
+3) 39.115 kickstart .RTB/.PAT added to the archive. Please read 39115.README
+for more information.
+
+3.32 (139.122 - 18.1.93)
+========================
+KILLTAGS option included. This option allows to kill all the KickTags and 
+MemTags as well as CoolCapture vector before installing SKick's ones.
+This ensures that the machine is clear when the new kickstart starts. Note
+that this is done automatically when kicking 1.3 system (there is a risk of
+incompatibility of the modules available for 2.0 only (like NewAlert)) or
+when performing hard-load (risk that the modules or their parts are located
+in memory occupied by kickstart image later).
+
+3.31 (139.121 - 17.1.93)
+========================
+1) FASTRES option added. It allows the resident module space to be allocated
+in Fast RAM instead of Chip RAM. However, if 1.3 system is kicked, or if 
+there isn't enough fast ram to contain the module, Chip RAM is used again.
+This option may cause crashes under certain conditions; if it is Your case,
+don't use it.
+2) Skick now searches for the memory for kickstart image in 1/4 Meg steps.
+Formerly, it was done in steps equal to the kickstart size. It allows the
+image to be loaded out of alignment specified by its size (for example, 1/2M
+kickstart can be loaded to $X40000 or $XC0000 automatically).
+
+3.30 (139.120 - 7.1.93)
+=======================
+Four bugs fixed: 
+1) Bug in memory allocation which caused toggling between 2.0 and 1.3
+after a reset and malfunction of expansion boards; this bug appeared under 
+very special circumstances only and was hard to find. Thanks to Marc Heuler
+which first (and only) reported this.
+2) Bug also in memory allocation which caused accidental system crash if 
+'hard load' method was used. This bug was discovered during debugging process
+of the previous one.
+3) When GUI was activated by the mouse, switches from cmdline (like NOREL)
+weren't updated from GUI screen if the user didn't refresh them manually.
+Thanks to -jis- for the report.
+4) Alert timing feature of the new 39.106+ OS is correctly maintained by SKick
+and value saved during a reboot; older revisions of Skick didn't do it so alerts
+weren't displayed at all!
+Additions:
+RELSTACK option added to allow easy kicking on 3.0 based systems with Chip RAM
+only (see manual and SKickOnA1200.txt)
+From now, SKick should work on an A1200 !
+
+3.22 (139.119 - 15.12.92)
+=========================
+Added the option 32BIT to allow searching for the RAM space above $1000000.
+However, this is not recommended for general use - it was added only for the
+testing purposes, what will happen if kickstarts are loaded to such space.
+
+3.21 (139.118 - 11.12.92)
+=========================
+Added the ability to load coded kickstart images from GUI mode too
+(I forgot to add this to the previous release :-( )
+
+3.20 (139.117 - 10.12.92)
+=========================
+Added the ability to load coded kickstart images. Use of Recode
+program not needed now! Reloc table for BETA 39106 (kick39106.BETA.RTB) added
+to the archive. Table names changed: there may be an additional suffix before
+RTB/PAT to specify what kind of kickstart it is made for.
+To avoid crashes when using reloc/patch tables not for the kickstart they were
+made for, file formats have changed. The first long of .RTB and .PAT tables now
+contains checksum of the kickstart image they are made for. When incorrect
+kickstart is used, error message 'Incorrect reloc/patch table used' is issued
+and kicking is terminated.
+
+3.12 (139.116 - 9.12.92)
+========================
+Correction made for true 3.0 ROMs (like one for A1200) to be kickable.
+Reloc table for A1200 ROM (kick39106.A1200.RTB) included to the archive.
+/NOT SENT/RELEASED TO ANYBODY/
+
+3.12 (139.115 - 8.12.92)
+========================
+Ranger Rescue facility added. Allows use of Ranger ($C0) memory which is nor-
+mally destroyed by destructive memory test during system init. 
+Only first part of Ranger memory remains unusable. Please load kickstarts
+at least from $C40000. /NOT SENT/RELEASED TO ANYBODY/
+
+3.11 (139.114 - 7.12.92)
+========================
+1.3 image allocation improved. Now uses AllocAbs if possible (ExRAM) instead 
+of MemList manipulation. /NOT SENT/RELEASED TO ANYBODY/
+
+     (139.113 - 7.12.92)
+     ===================
+Bugs fixed. Memory allocation code and loading procedures simplified and
+improved. /NOT SENT/RELEASED TO ANYBODY/
+
+     (139.112 - 7.12.92)
+     ===================
+Bugs fixed.
+39.110 A500/600 BETA ROM .RTB and .PAT included into archive.
+/NOT SENT/RELEASED TO ANYBODY/
+
+3.10 (139.111 - 6.12.92)
+========================
+Some bugs fixed. MemTag handling improved, protection against MemTag corrup-
+tion added (caused destruction of MemTag part by other ones such RAD or 
+Early Startup). Relocatable patch facility added. /NOT SENT/RELEASED TO ANYBODY/
+
+3.01 (139.100 - ?.11.92)
+========================
+First distributed release.
+
+2.XX (137.XXX)
+==============
+Versions without GUI.
+
+1.XX (134.XXX)
+==============
+Single-purpose programs to kick 1.3 system only.
+Some of those versions are ILLEGALLY walking around the world, including the
+patched kickstart image (which needed this) under the names ReloKick1.3, Boot1.3,
+Kick!1.3 and many more. I never gave the rights to distribute them to anybody!
+These programs were my very first attempts to use 1.3 on my new A500+ and they are
+VERY primitive (for example, they don't handle expansion boards). If You have any
+of these programs, ERASE THEM IMMEDIATELY !!!

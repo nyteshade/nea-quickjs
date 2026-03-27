@@ -1,0 +1,25 @@
+; $Date: 2020-09-05 12:00:00 $ $Revision: 47.1 $
+; User-startup for hard drive systems
+;
+;+-------------------------------------------------------------------+
+;| This is the User-startup script. Here you can write down the      |
+;| names of the programs you wish to have automatically run every    |
+;| time your machine boots.                                          |
+;|                                                                   |
+;| Lines starting with the ";" symbol are ignored and used as        |
+;| comments.                                                         | 
+;+-------------------------------------------------------------------+
+;
+
+Assign Code: Sys:Developer
+Assign Arcs: Sys:Arcs
+Assign Media: Sys:Media
+Assign Prefs: Sys:Prefs
+Assign Applications: Sys:Programs
+;BEGIN AmiSSL
+Assign AmiSSL: "DH0:Internet/AmiSSL"
+If Exists AmiSSL:Libs
+  Assign LIBS: AmiSSL:Libs ADD
+EndIf
+Path AmiSSL: ADD
+;END AmiSSL

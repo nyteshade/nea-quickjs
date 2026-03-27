@@ -1,0 +1,78 @@
+@database ScreenMode
+@node "MAIN"
+@{IMG SYS:Prefs/ScreenMode.info}
+  SCREENMODE
+  ==========
+  
+  The ScreenMode Preferences editor changes the display mode 
+  resolution of the Workbench screen.
+   
+  DISPLAY MODE
+  Presents a window with a list of currently available monitors and 
+  their corresponding display modes. The currently active choice is 
+  marked by default. The user can select a new one here.
+  Default display mode is "High Res".
+   
+  WIDTH: and HEIGHT: <Default>
+  When these <Default> boxes are unselected, the display modes can be 
+  customized. 
+   
+  COLORS:
+  Selects the number of colors that can be displayed on the screen.
+  Default is 4.
+   
+  AUTOSCROLL:
+  When the screen is larger than the visible size, this option makes 
+  the window scroll according to mouse activity. 
+  
+  MODE PROPERTIES
+   
+  VISIBLE SIZE:
+  Is the visible area set by the Text Overscan settings.
+  
+  MINIMUM SIZE:
+  The smallest screen possible on the current display mode.
+  
+  MAXIMUM SIZE:
+  The largest screen possible on the current display mode.
+
+  PIXEL ASPECT:
+  Shows the pixel aspect ratio.
+  
+  MAXIMUM COLORS:
+  Displays the maximum number of colors available in the selected 
+  mode. 
+  
+  Additional information below displays whether the screen mode 
+  supports genlock use, whether it is draggable, along with the 
+  refresh rate and vertical frequency.
+  
+  TEST
+  When this gadget is clicked, it will display a test pattern image 
+  for 15 seconds with the current selected mode, in order to find 
+  out whether it is viable for the user to save and use it. The SPACE 
+  key stops the timer, and any other key or mouse button exits the 
+  test pattern screen.
+   
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+
+  AVAILABLE TOOL TYPES
+  -------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+@endnode

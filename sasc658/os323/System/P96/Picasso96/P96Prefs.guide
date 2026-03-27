@@ -1,0 +1,2508 @@
+@DATABASE P96Prefs
+@$VER: P96Prefs.guide 47.12 (1.2.2025)
+@(C) THOR Software
+@SMARTWRAP
+@AUTHOR Thomas Richter
+@INDEX Index
+@NODE "MAIN" "P96Prefs Documentation"
+@{CODE}
+        +--------+  +--------+ |
+	|        |  |        | |
+	|        |  |        | |
+	+--------+  +--------+ +-------+ 
+	|                    | |       | 
+	|                    | |       |  Prefs
+	|                    | +-------+     
+@{b}
+	A P96 Preferences editor 
+@{ub}
+@{BODY}
+	Guide Version 47.12		P96Prefs Version 47.20
+
+@{"The License              : Legal restrictions                           " link Licence}
+
+@{"What is it               : What is this all about?                      " link Overview}
+
+@{"Quick installation       : For the impatient - get your board running   " link QUICK}
+
+@{"Preferences overview     : Overview on everything you can configure     " link PREFS_OVERALL}
+
+@{"Board installation       : Selecting graphics boards                    " link PREFS_EDIT_BOARD}
+
+@{"Board configuration      : Settings that apply to a single board        " link PREFS_EDIT_TOOLTYPE}
+
+@{"Monitor configuration    : Settings that define a monitor               " link PREFS_EDIT_MONITOR}
+
+@{"Resolution configuration : Adding and configuring graphics resolutions  " link PREFS_EDIT_RESOLUTION}
+
+@{"Mode configuration       : Configure graphics modes                     " link PREFS_EDIT_MODE}
+
+@{"P96Prefs configuration   : Configuring the configurator                 " link PREFS_PREFS}
+
+@{"History                  : What happened before                         " link HISTORY}
+
+
+	Copyright 2023-2025 Thomas Richter, THOR Software
+
+	Licensed to individual Computers, Jens Schönfeld GmbH
+
+
+Contact:
+
+       Thomas Richter
+
+       Rühmkorffstraße 10A
+
+
+
+       12209 Berlin
+
+
+       Germany
+
+
+
+EMail:  thomas.richter\@alumni.math.tu-berlin.de
+
+@ENDNODE
+@NODE "Licence" "The THOR Software License"
+                     The THOR-Software Licence (v3, January 2nd 2021)
+
+This License applies to the computer programs known as "P96Prefs" and
+the corresponding documentation, known as ".guide" files. The
+"Program", below, refers to such program. The "Archive" refers to the
+package of distribution, as prepared by the author of the Program,
+Thomas Richter. Each licensee is addressed as "you".
+
+
+The Program and the data in the archive are freely distributable
+under the restrictions stated below, but are also Copyright (c)
+Thomas Richter.
+
+
+Distribution of the Program, the Archive and the data in the Archive by a
+commercial organization without written permission from the author to any
+third party is prohibited if any payment is made in connection with such
+distribution, whether directly (as in payment for a copy of the Program) or
+indirectly (as in payment for some service related to the Program, or
+payment for some product or service that includes a copy of the Program
+"without charge"; these are only examples, and not an exhaustive
+enumeration of prohibited activities).
+
+
+
+However, the following methods of distribution involving payment shall not
+in and of themselves be a violation of this restriction:
+
+
+(i) Distributing the Program on a physical data carrier (e.g. CD-ROM,
+DVD, USB-Stick, Disk...) provided that:
+
+
+a) the Archive is reproduced entirely and verbatim on such data carrier,
+including especially this licence agreement;
+
+
+b) the data carrier is made available to the public for a nominal
+fee only, i.e. for a fee that covers the costs of the data carrier,
+and shipment of the data carrier;
+
+
+c) a data carrier with the Program installed is made available to the
+author for free except for shipment costs, and
+
+
+d) provided further that all information on said data carrier is
+redistributable for non-commercial purposes without charge.
+
+
+Redistribution of a modified version of the Archive, the Program or the
+contents of the Archive is prohibited in any way, by any organization,
+regardless whether commercial or non-commercial. Everything must be kept
+together, in original and unmodified form.
+
+
+
+Limitations.
+
+
+THE PROGRAM IS PROVIDED TO YOU "AS IS", WITHOUT WARRANTY. THERE IS NO
+WARRANTY FOR THE PROGRAM, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY RIGHTS. THE ENTIRE
+RISK AS TO THE QUALITY AND PERFORMANCE OF THE PROGRAM IS WITH YOU. SHOULD
+THE PROGRAM PROVE DEFECTIVE, YOU ASSUME THE COST OF ALL NECESSARY
+SERVICING, REPAIR OR CORRECTION.
+
+
+IF YOU DO NOT ACCEPT THIS LICENCE, YOU MUST DELETE THE PROGRAM, THE ARCHIVE
+AND ALL DATA OF THIS ARCHIVE FROM YOUR STORAGE SYSTEM. YOU ACCEPT THIS
+LICENCE BY USING OR REDISTRIBUTING THE PROGRAM.
+
+
+                                                        Thomas Richter
+
+
+Note that this program is also available under license from individual Computers,
+Jens Schönfeld GmbH.
+
+@ENDNODE
+@NODE QUICK "Quick installation guide"
+
+To get your board installed within five minutes, use the following steps:
+
+
+@{b}Install P96@{ub} with the supplied installer program. There,
+select your board. If it is not listed, do not select any of the
+boards listed in the installer. In the former case, P96 will install
+the correct monitor icon into DEVS:Monitors.
+
+
+In the latter case, it will install a monitor icon named "Generic";
+then follow the instructions of the board vendor. It will typically
+say to modify the tool types of this icon and rename it.
+
+
+@{b}Reboot the system@{ub}.
+
+
+@{b}Load P96Prefs@{ub}.
+
+
+@{b}Locate your board@{ub} on the list on the left. If the line naming
+your board is ghosted, then the monitor icon is missing, or its tool
+types are not configured correctly, or there is some other problem
+with the board. In that case, check your installation.
+
+
+@{b}Add default modes@{ub} On the right of the list, a couple of
+buttons show up. Click on "Add default modes".
+
+
+@{b}Save the configuration@{ub} by the "Save" button on the bottom of
+the screen.
+
+
+@{b}Reboot the machine@{ub} either through the requester that appears
+now, or manually.
+
+
+@{b}Select the screen mode@{ub} you prefer by loading the Screen Mode
+Preferences editor of the workbench.
+
+
+You may load P96Prefs any time again to fine-tune the modes just
+created, for example to make them fill the monitor and align them to
+its bounds.
+
+
+@ENDNODE
+@NODE "Overview" "On P96Prefs"
+P96Prefs is a configuration editor for the P96 graphics subsystem for
+Amiga 68K computers. It not only allows you to adjust graphics modes
+and fine-tune them to your monitor, it also enables you to create new
+graphics modes, or prepare them for another graphics board, copy them
+between boards or adjust the settings of the board or the P96 system
+in total.
+
+
+It is a replacement of the P96Mode program supplied with the original
+P96 distribution, hopefully in a somewhat more convenient and
+intuitive shape. P96Prefs not only allows you to adjust the modes in
+the same way P96Mode did, it also provides a central configuration
+interface for settings beyond the actual video modes; these settings
+can also be reached in the monitor icons of the corresponding board
+drivers and the environment variables the P96 system reacts upon.
+
+@ENDNODE
+@NODE "PREFS_OVERALL" "Overview on configurable items"
+P96Prefs sorts all configurable items of P96 and its boards in a list
+on the left hand side of the window. Clicking on an item displays its
+configuration dialog on the right hand side of the window.
+
+
+To keep this list short, many items are collapsed into a single entry
+in this list. Such entries are indicated by a right-pointing arrow. To
+unfold the settings that are collapsed under a common item, click on
+the item. The arrow will then point downwards, providing access to all
+its sub-items. Clicking on such an item a second time will collapse
+the sub-entries again.
+
+
+Some items may appear ghosted which means that P96 is aware that the
+corresponding items exists and that such an item can be edited or
+configured in the preferences program. A ghosted item is currently
+not made available to AmigaOs and, in particular, the screen mode
+preferences or the standard display mode requester. While you can
+disable or enable items as you please through the
+@{"edit menu" link EDIT_MENU}, P96Prefs will typically ghost those
+items itself for which it can anticipate that they will likely not
+work on a particular board due to hardware restrictions. You can try
+to get such items working by adjusting them, but it is usually a good
+idea to either keep them hidden, or to remove them entirely through
+the @{"edit menu" link EDIT_MENU}.
+
+
+
+P96Prefs configures the following items:
+
+
+@{"Overall settings" link OVERALL_LIST} apply to all boards, and
+configures P96 in entity. The list of overall settings is available
+from the list on the left-hand side.
+
+These settings control, for example, which display modes are shown in
+the system screen mode requester, or whether to blank the native Amiga
+output while a graphics board is active.
+
+P96 stores the overall settings in environment variables that are
+stored in the ENV: directory.
+
+
+@{"Board configurations" link PREFS_EDIT_TOOLTYPE} apply to a
+particular graphics board installed in the machine. The sub-items of a
+board consist of board-specific settings stored in the tool type of
+its monitor icon, along with all resolutions available on the board.
+
+Boards that appear ghosted in the list have no corresponding monitor
+icon and thus can currently not be used by P96. It is the monitor icon
+that makes their modes available to AmigaOs.
+
+
+@{"Resolutions" link PREFS_EDIT_RESOLUTION} indicate which screen
+sizes, in pixel dimensions, are made available to AmigaOs for a given
+graphics board. Resolutions can be added through the board
+configuration dialog by selecting the board on the left, or can be
+adjusted through the resolution configuration dialog by selecting a
+resolution on the left.
+
+P96 stores resolutions in its own preferences file, typically in
+DEVS:Picasso96Settings. This file is not human-readable and can only
+be adjusted by this program or the older P96Mode tool.
+
+
+@{"Modes" link PREFS_EDIT_MODE} indicate in which color depths and
+palette sizes for a particular resolution are available. Modes
+indicate how pixels are addressed, how many colors are available
+simultaneously on a screen, or whether these colors are indirectly
+addressed through a palette. In the latter case, the color appearance
+of pixels drawn to the screen can be changed through the palette
+without writing the pixel to the screen again.
+
+@ENDNODE
+@NODE PREFS_EDIT_BOARD "Configuring boards"
+@TOC PREFS_OVERALL
+By selecting a particular board from the left-hand side list of
+configuration items, the right hand side of the window will show the
+configuration dialog of the board.
+
+
+On the top right, two lines indicate the name of the monitor icon and
+the recognized hardware of the board.
+
+The first line, starting with @{b}Monitor:@{ub} provides the file name
+of the monitor icon that is responsible for loading the driver of the
+board. These icons are typically kept in the DEVS:Monitors directory
+of the system, and can be installed or uninstalled by dragging them
+out of or into the DEVS:Storage directory. The P96 installer also
+deposits icons there.
+
+If the line says @{b}No monitor icon@{ub}, however, then the
+corresponding monitor driver is missing and needs to be installed,
+e.g. by the P96 installer, or the installer of a third-party
+product.
+
+
+The second line, if it is present, indicates the product the driver
+seems to believe to be responsible for. A number in brackets behind
+this name indicates the board enumeration as multiple identical boards
+may be present in the same system.
+
+
+Settings may be completely free-standing without being responsible for
+a particular graphics card. Such settings can be used as a template
+for recently installed boards and can be copied and pasted with
+the @{"edit menu" link EDIT_MENU}, or can be @{b}assigned@{ub} to
+such another board.
+
+
+For such templates, two additional gadgets appear: With the left
+button, you select the board to assign the settings to; the button to
+the right performs the assignment, i.e. installs the settings for the
+selected board.
+
+
+Underneath, another button allows to define monitor specifications;
+they define the technical data of the monitor the selected graphics
+card is connected to. Once pressed, the list on the left side of the
+window contains one additonal entry denoted
+@{b}Monitor@{ub} identifying the monitor and its specification. It is
+configured at its own @{"monitor configuration page" link PREFS_EDIT_MONITOR}.
+
+
+The buttons below allow you to create custom display resolutions for
+this board.  The field to the left indicates the horizontal resolution
+in number of pixels across the screen from left to right, the field
+next to it the vertical pixel dimension. Click on "Add" to create such
+a custom resolution.
+
+
+In most cases, however, it is suggested to simply click on
+@{b}Add default modes@{ub}, which will install a huge list of popular
+resolutions to the board. You may have to adjust them a bit to make
+them fit to your particular hardware, but this step is easier than
+having to go through all modes one by one.
+
+
+The @{b}default modes@{ub} follow VESA specifications and should be
+displayable on any flat panel monitor following the VESA
+guidelines. All these modes offer a vertical refresh rate of
+approximately 60Hz suitable for standard monitors. It may, however,
+happen that some resolutions or modes are not available due to
+hardware restrictions. Such resolutions then appear ghosted in the
+list on the left.
+
+
+Note that you may enlarge the horizontal or vertical refresh rate of a
+mode by @{"editing the mode later" link PREFS_EDIT_MODE}, though as
+stated, this step should not be necessary unless the graphics board is
+connected to a cathode ray tube (CRT).
+
+@ENDNODE
+@NODE PREFS_EDIT_MONITOR "Monitor specification editor"
+@TOC PREFS_OVERALL
+P96 may keep for each board information on the monitor it is connected
+to. This information is not used by P96 itself, but by the preferences
+editor when creating new modes or when validating existing modes.
+
+If such monitor specifications are available, P96 will attempt to
+create new modes in such a way that they fit to the technical data of
+the monitor.
+
+
+The technical specifications of a monitor can be added to a graphics
+board on the @{"board configuration page" link PREFS_EDIT_BOARD}, or
+with the @{"edit menu" link EDIT_MENU}.
+
+
+
+The monitor configuration page contains the following data:
+
+@{"Monitor model" link PREFS_MONITOR_MODEL}
+
+@{"Horizontal refresh range" link PREFS_MONITOR_HORIZONTAL}
+
+@{"Vertical refresh range" link PREFS_MONITOR_VERTICAL}
+
+@{"Monitor DPMS capabilities" link PREFS_MONITOR_DPMS}
+
+@{"Interlace capabilities" link PREFS_MONITOR_INTERLACE}
+
+@ENDNODE
+@NODE PREFS_MONITOR_MODEL "Monitor model information"
+@TOC PREFS_EDIT_MONITOR
+The @{b}model@{ub} item on
+the @{"monitor configuration page" link PREFS_EDIT_MONITOR} denotes
+the name of the monitor connected to a particular board.
+
+
+The model name does not serve any purpose for P96 itself, it is only
+listed here to ease the identification of the monitor in the left-hand
+side list of configurable items.
+
+@ENDNODE
+@NODE PREFS_MONITOR_HORIZONTAL "Monitor horizontal refresh range"
+@TOC PREFS_EDIT_MONITOR
+The buttons denoted as @{b}Horizontal@{ub} on
+the @{"monitor configuration page" link PREFS_EDIT_MONITOR} indicate
+the horizontal refresh rates a particular monitor is capable to accept
+as input.
+
+
+The horizontal refresh range, minimum to maximum, is given in
+kHz. Most monitors will accept a refresh range around 31kHz where
+details depend on the model.
+
+
+You may verify the exact range from the manual of your monitor.
+
+@ENDNODE
+@NODE PREFS_MONITOR_VERTICAL "Monitor vertical refresh range"
+@TOC PREFS_EDIT_MONITOR
+The buttons denoted as @{b}Vertical@{ub} on
+the @{"monitor configuration page" link PREFS_EDIT_MONITOR} indicate
+the vertical refresh rates a particular monitor is capable to accept
+as input.
+
+
+The vertical refresh range, minimum to maximum, is given in Hz. Most
+monitors will accept a refresh range around 60Hz. For LCD monitors,
+60Hz is a sweet spot most models will be able to accept, and faster
+refresh rates do not provide a particular advantage. For CRTs, higher
+rates reduce flicker, with 75Hz being a safe rate at which flicker
+will become unnoticable. However, not all graphics cards will be able
+to deliver such a high refresh rate in all modes.
+
+You may verify the exact range from the manual of your monitor.
+
+@ENDNODE
+@NODE PREFS_MONITOR_DPMS "Monitor DPMS capabilities"
+@TOC PREFS_EDIT_MONITOR
+Three check boxes on
+the @{"monitor configuration page" link PREFS_EDIT_MONITOR} indicate
+the DPMS capabilities of the monitor connected to the board.
+
+
+DPMS is a powersaving standard that allows software to blank or
+suspend the monitor in various levels. While P96 itself does not make
+use of this information, additional commodities may use this
+information to send monitors to a powersaving state if no
+interactivity is detected.
+
+
+@{b}DPMS Standby@{ub} is the shallowest power saving mode at which the
+power required by the monitor is reduced to below 80% of the regular
+power. In this mode, the monitor is supposed to take less than 1s to
+recover to normal operation.
+
+If a checkmark is set here, P96 is informed that the monitor
+supports standby and this mode may be used to reduce power
+consumption.
+
+
+@{b}DPMS Suspend@{ub} reduces the power requirements of the monitor to
+less than 30W at the price of requiring up to 5s to recover to
+normation operation.
+
+If a checkmark is set here, the monitor supports the suspend mode and
+programs may make use of it.
+
+
+@{b}DPMS Active Off@{ub} reduces the power consumption to at most 8W,
+though the monitor may take up to 20s to recover. Setting a checkmark
+here makes this mode available to programs.
+
+
+@ENDNODE
+@NODE PREFS_MONITOR_INTERLACE "Monitor interlace capabilities"
+@TOC PREFS_EDIT_MONITOR
+With this checkmark on
+the @{"monitor configuration page" link PREFS_EDIT_MONITOR}, you
+indicate whether the monitor supports interlace.
+
+
+If checked, interlaced modes become available and will be validated as
+acceptable. If not checked, P96 will filter interlaced modes out. In
+general, P96 already attempts to avoid interlaced modes, but this is
+not always possible.
+
+
+Note that while most CRTs accept interlace, many LCDs no longer accept
+interlace signals.
+
+@ENDNODE
+@NODE PREFS_EDIT_TOOLTYPE "Editing board specific configurations"
+@TOC PREFS_OVERALL
+P96 keeps for each board additional settings beyond screen
+resolutions. These settings are stored in the tool types of the
+monitor icon and can also be adjusted there. For convenience, P96Prefs
+presents the same settings also in its interface.
+
+
+To access these settings, click on the board on the left hand side of
+the window to open up the sub-items of this board, then select the
+configuration to adjust from the list.
+
+
+Options can (and probably should, typically) be set to @{b}default@{ub},
+which means that a driver-specific default value will be used. This
+corresponds to not setting the corresponding tool type in the monitor
+icon.
+
+
+Depending on the board, only a subset of
+@{"all known board configurations" link TOOLTYPE_LIST} may be available.
+Some configurable items of third-party boards may not be known to
+P96Prefs and then require manual configuration through the tool types
+of the monitor item.
+
+@ENDNODE
+@NODE PREFS_EDIT_RESOLUTION "Configuring resolutions"
+@TOC PREFS_OVERALL
+Resolutions define the screen dimensions in pixels available on a
+particular board. Once installed, they can be selected through the
+standard screen mode requester or the screen preferences editor.
+
+
+The configuration editor of a resolution to the right hand side of the
+P96Prefs window shows, on top, the name and screen dimension of the
+resolution as it will appear in the system screen mode requester, and
+underneath the first four digits of the
+numerical @{b}Display ID@{ub} assigned to the resolution. Along with four
+additional digits, selected by P96 itself, the resulting 8-digit
+number forms the DisplayID by which a particular mode is known to the
+Amiga graphics subsystem.
+
+
+Typically, P96Prefs will assign a free ID to each mode it generates,
+and thus, there is usually little reason to change this ID at all. 
+
+
+The buttons below enable or disable modes of this resolution. A mode
+defines how many colors can be presented on a screen at once, and how
+the pixels within such a mode are organized. Some elements of this
+list may be ghosted if the board displaying such a mode is not able to
+offer the corresponding pixel organization.
+
+
+P96 supports the the following modes:
+
+
+@{"The planar mode" link MODE_PLANAR}
+
+@{"The chunky mode" link MODE_CHUNKY}
+
+@{"High-color modes" link MODE_HIGHCOLOR}
+
+@{"True-color modes" link MODE_TRUECOLOR}
+
+@{"True-alpha modes" link MODE_TRUEALPHA}
+
+
+If a corresponding mode is already present in the configuration, the
+check mark buttons in the list of all modes will only enable or
+disable the mode, similar to what
+the @{"edit menu" link EDIT_MENU} would do on a mode. If no
+corresponding mode is present, P96Prefs will create one for you. It is
+then suggested to test the mode before saving the preferences.
+
+
+Note that you cannot change the pixel dimensions of an already
+existing resolution. Instead, you need to create a new resolution on the
+@{"board level" link PREFS_EDIT_BOARD}.
+
+@ENDNODE
+@NODE MODE_PLANAR "Planar mode"
+@TOC PREFS_EDIT_RESOLUTION
+The @{b}planar@{ub} mode offers up to 16 colors, organized in up to
+four bitplanes. These bitplanes are similar to the bitplanes of the
+native Amiga hardware, and as such, the planar modes offer best
+backwards compatibility, though are slowest to access.
+
+
+Note that the P96 @{"planar emulation" link OVERALL_LIST} does not
+depend on this mode, but is instead based on the @{b}chunky@{ub} mode,
+and uses a conversion from planar to chunky. This conversion allows
+then emulation of up to 8 bits deep planar modes.
+
+@ENDNODE
+@NODE MODE_CHUNKY "Chunky mode"
+@TOC PREFS_EDIT_RESOLUTION
+The @{b}chunky@{ub} mode offers up to 256 colors on the screen where
+each pixel takes a byte in the frame buffer of the graphics card. The
+colors of a pixel are indirectly defined through a palette map which
+can be changed after pixels have been drawn to the screen. This
+mirrors the Amiga system which also uses a palette, but organizes its
+display memory in bitplanes rather than in bytes.
+
+
+The chunky mode is also used for emulating planar modes on boards that
+do not support a planar organization, or if more than four bitplanes
+are required.
+
+@ENDNODE
+@NODE MODE_HIGHCOLOR "High-color modes"
+@TOC PREFS_EDIT_RESOLUTION
+The @{b}high color@{ub} modes offer up to 65536 simultaneous colors on
+the screen where each pixel is represented by 15 or 16 bits. No
+palette is used, and the pixel value itself already defines the color.
+
+@ENDNODE
+@NODE MODE_TRUECOLOR "True-color modes"
+@TOC PREFS_EDIT_RESOLUTION
+The @{b}true color@{ub} modes offer more than 4 million colors on the
+screen where each pixel is defined through 8 bits of red, green and
+blue color coordinates, that is, each pixel is represented by 3
+consecutive bytes in memory.
+
+
+As each pixel is represented by 3 bytes, such modes are a bit
+complicated to address by the CPU, but requires less RAM than
+@{"true alpha modes" link MODE_TRUEALPHA}
+
+@ENDNODE
+@NODE MODE_TRUEALPHA "True-alpha modes"
+@TOC PREFS_EDIT_RESOLUTION
+The @{b}true alpha@{ub} modes offer the same amount of colors than the
+@{"true color modes" link MODE_TRUECOLOR}, though the pixel
+representation is somewhat more convenient for the CPU as one pixel is
+packed into 4 rather than 3 bytes, which simplifies addressing pixels
+and copying or moving graphics on the screen.
+
+@ENDNODE
+@NODE PREFS_EDIT_MODE "Configuring modes"
+@TOC PREFS_OVERALL
+Modes are defined through the pixel organization of the frame buffer
+of graphics board. Modes are included as sub-item under a particular
+resolution and board, and are invisible if either the board or the
+mode are collapsed.
+
+
+If a desired mode does not show up under its resolution, you may still
+need to create a mode in the
+@{"resolution editor" link PREFS_EDIT_RESOLUTION} by clicking on the
+desired mode. The mode will then show up under its resolution.
+
+
+P96Prefs will attempt to find reasonable parameters for newly created
+modes, though some adjustments may be necessary as all boards and all
+monitors differ a bit.
+
+
+
+While the mode dialog allows you to adjust all mode parameters, it is
+typically more efficient to click on
+the @{"Edit" link EDIT_SCREEN} button to adjust the mode interactively.
+Note that you can also @{"copy and paste" link EDIT_MENU} between
+modes of the same resolution and thus perform the edits and testing
+only one.
+
+
+The following list describes the graphical elements in the mode
+configuration top to bottom:
+
+
+@{"Mode name" link MODE_NAME}
+
+@{"Mode pixel clock" link MODE_PIXELCLOCK}
+
+@{"Interlace enable" link MODE_INTERLACE}
+
+@{"Double scan enable" link MODE_DOUBLESCAN}
+
+@{"Frame size adjustment" link MODE_FRAMESIZE}
+
+@{"Border size adjustment" link MODE_BORDERSIZE}
+
+@{"Position adjustment" link MODE_POSITION}
+
+@{"Sync size adjustment" link MODE_SYNCSIZE}
+
+@{"Sync pulse polarity selection" link MODE_SYNCPOLARITY}
+
+
+@{"More on the technical backgrounds" link TECHNICAL}
+
+
+Note that P96 attempts to pick suitable default values for all these
+parameters. For VESA resolutions, the values stem from the VESA
+guidelines and thus correspond to documented standards. Every monitor
+should at least be able to display them, provided the graphics
+hardware is able to generate them. Typically, only minor adjustments
+to the position and frame size are needed to place the picture within
+the monitor. All other settings may typically be left alone.
+
+
+The @{"Test" link SCREEN_TEST} button tests the edited mode.
+
+
+The @{"Edit" link EDIT_SCREEN} allows you to modify the mode
+interactively with the keyboard or the mouse. This is typically more
+efficient than switching between the test screen and the configuration
+window.
+
+@ENDNODE
+@NODE MODE_NAME "Mode name"
+@TOC PREFS_EDIT_MODE
+The first line of the mode editor indicates the name of the mode,
+width, height and the number of bits per pixel of the mode. Possible
+numbers are here 4 for planar modes, 8 for chunky modes, 15 and 16 for
+high color modes, 24 for true color modes and 32 for true alpha modes.
+
+@ENDNODE
+@NODE MODE_PIXELCLOCK "Mode pixel clock"
+@TOC PREFS_EDIT_MODE
+The slider below the mode name adjusts the pixel clock of the mode,
+displayed right to the slider in Mhz. This slider adjusts the
+frequency at which the graphics chip reads pixels from RAM. Higher
+pixel clocks correspond to higher horizontal and vertical refresh
+rates.
+
+
+The resulting refresh rates can be read from the mode name on
+the left-hand side list of all modes, they are updated while the
+slider is being moved. The first number behind the mode name in the
+mode list is the horizontal refresh frequency in kHz, the second
+number the vertical refresh rate in Hz.
+
+
+When creating modes, P96Prefs attempts to keep the vertical refresh
+rate around 60Hz, a rate most (if not all) LCD monitors accept. For
+CRTs, higher pixel clocks may be required to avoid flicker.
+
+@ENDNODE
+@NODE MODE_INTERLACE "Interlace"
+@TOC PREFS_EDIT_MODE
+The @{b}Interlace@{ub} button below enables interlaced scan if the
+graphics hardware supports it.
+
+
+If interlacing is enabled, then each frame of the video signal is
+drawn in two fields: In the first field, only all odd lines are drawn,
+in the second field, the even lines are drawn. As each field contains
+only half of the lines, the vertical refresh rate doubles at the
+expense of additional flicker as every line is only drawn every other
+field.
+
+
+LCD monitors will typically not handle interlace well, if at all, and
+their flicker makes such modes even on CRTs undesirable. Thus,
+interlace should only be enabled as last resort if a particular
+resolution is absolutely necessary, and if the monitor supports it.
+
+@ENDNODE
+@NODE MODE_DOUBLESCAN "Double scan"
+@TOC PREFS_EDIT_MODE
+The @{b}Double scan@{ub} button directs the graphics card to draw each
+line twice. This reduces the resolution in vertical direction, though
+allows pixels of a 1:2 aspect ratio that is close to the native
+"Hires" resolution of the Amiga chipset. Not all graphics chips
+support double scan modes. Unlike interlace, there is, however, no
+compatibility issue of the double scan modes from the monitor side.
+
+@ENDNODE
+@NODE MODE_FRAMESIZE "Frame size"
+
+The @{b}Frame size@{ub} buttons allow to adjust the size of an entire
+scan line or the entire frame while keeping the actual resolution
+unchanged. The first number indicates the width of a frame, and
+stretches or shrinks the picture in horizontal direction, the second
+number the height of a frame. It stretches or shrinks the picture in
+vertical direction.
+
+If the frame size is enlarged, the frame within the monitor becomes
+smaller - this may become necessary if parts of the picture vanish in
+the "overscan" area of the monitor. Enlarging the frame size also
+reduces the refresh frequency.
+
+
+In short: @{b}The frame size defines the size of the picture.@{ub}
+
+
+Technically, the frame width (or height) is the distance between two
+horizontal or vertical sync pulses.
+
+@ENDNODE
+@NODE MODE_BORDERSIZE "Border size"
+@TOC PREFS_EDIT_MODE
+The @{b}Border size@{ub} defines the width and height of the border
+around the visible graphics content. Data outside the visible area,
+but within the border is drawn in the background color unless
+border-blanking is enabled. Data outside the border area and the
+visible area is always drawn in black, regardless of the background
+color. Thus, the border size only defines the frame size drawn in
+background color if border blanking is disabled.
+
+
+Technically, the area outside the border receives a signal level below
+the black level ("blacker than black") to signal to monitors that this
+area is to be hidden in the overscan region.
+
+@ENDNODE
+@NODE MODE_POSITION "Position"
+@TOC PREFS_EDIT_MODE
+The @{b}Position@{ub} defines the distance from the sync pulse to the
+start of the active display area. The first number is the horizontal
+position, the second the vertical position. Increasing the position
+moves the position to the left or top, decreasing it moves the
+picture position to the right or bottom.
+
+
+In short: @{b}The position defines the position of the picture.@{ub}
+
+
+Technically, the position is also denoted as the size of the "front
+porch"; this is the distance between the end of the active display
+area and the sync signal.
+
+@ENDNODE
+@NODE MODE_SYNCSIZE "Sync size"
+@TOC PREFS_EDIT_MODE
+The @{b}Sync size@{ub} defines the size of horizontal or vertical sync
+pulse through which the graphics hardware signals to the monitor the
+start of a new line or a new frame (or field, for interlaced
+output).
+
+
+For higher pixel clocks, and thus higher resolutions, at least the
+horizontal sync pulse size must be increased to allow the monitor to
+detect the end of a line. The vertical sync pulse size is typically
+less critical.
+
+@ENDNODE
+@NODE MODE_SYNCPOLARITY "Sync pulse polarity"
+@TOC PREFS_EDIT_MODE
+The @{b}Sync polarity@{ub} defines the signal polarity of the
+horizontal or vertical sync pulse, i.e. whether an active pulse
+advances in positive or negative direction.
+
+
+Some older monitors identify the screen resolution by the polarity of
+the sync pulse, and P96Prefs tries to select the default sync polarity
+such that it fits to the mode. Most (even halfway decent) modern
+multi-sync monitors recognize modes regardless of the sync polarity,
+however. They may still use the sync polarity to distinguish several
+modes and thus load mode-dependent presents.
+
+@ENDNODE
+@NODE SCREEN_TEST "Testing modes"
+@TOC PREFS_EDIT_MODE
+The @{b}Test@{ub} button of the
+@{"mode editor" link PREFS_EDIT_MODE} loads the edited mode parameters
+into the graphics hardware and renders a test picture on the
+screen.
+
+
+The test grid of white lines on black background should be entirely
+visible, including the white lines at the edges, and the circle middle
+should be round and not an ellipsoid. The red, green and blue bars at
+the lower third of the picture allow you to check whether your
+graphics hardware operates correctly. They should appear in the order
+red-green-blue, and their intensity should increase from left to
+right.
+
+
+You can abort the test screen by a left click, the @{b}Esc@{ub} key or
+the @{b}Return@{ub} key.
+
+
+@{b}Esc@{ub} reverts all edits and restores the mode to its initial settings.
+
+
+@{b}Return@{ub} accepts the mode.
+
+
+If you left-click into the picture, P96Prefs will ask you whether or
+not to keep the edits.
+
+@ENDNODE
+@NODE TECHNICAL "Technical background"
+P96 is designed for analog video output as generated by 1990's "Super
+VGA" chipsets. Thus, many of the technical details may not apply to
+more modern cards or digital output. 
+
+
+The analog signal of a signal of a single horizontal line can be
+decomposed into the following signal phases:
+
+@{CODE}
++-+
+| |        +~~~+    +~~~+
+| |        |   |    /   |
+| |   +----+   +~~~+    +~~~~+----+
+| |   |                           |
++ +---+                           +---
+ S     <-B->                  <-B->
+  <---BP---><-active picture-><--FP-->
+<-------------frame size------------->
+@{BODY}
+
+In this picture, @{b}S@{ub} indicates the sync pulse starting the
+line.
+
+
+The @{b}frame size@{ub} corresponds to the duration of the entire
+line. It includes the sync pulse, the active picture and the front and
+back porch.
+
+Enlarging it enlarges the line and thus lowers the horizontal refresh
+frequency, and reduces the area of the active picture relative to the
+entire line, i.e. shrinks the picture.
+
+
+@{b}FP@{ub} is the so-called "front porch", corresponding to what
+P96Prefs calls the @{b}Position@{ub}. It is the signal behind the
+active picture and upfront (thus "front") the sync puluse. Enlarging
+it moves the picture to the left.
+
+
+The region denoted by @{b}B@{ub} is the border area within which no
+active picture is generated and only the background color is shown. It
+is symmetric around the active picture, if it is present at all. For
+some graphics cards, the black level in the border and the active
+picture is "elevated", or rather, the "black" outside the boundary and
+the active picture is "blacker than black".
+
+
+The @{b}active picture@{ub} contains the screen contents, and thus the
+actual picture that is visible on the monitor.
+
+
+@{b}BP@{ub} is the "back porch", and the distance behind the sync
+pulse and the start of the next active picture.
+
+
+The structure of the vertical signal follows approximately the same
+timing. It consists of many active lines as shown above, and an area
+before and behind the active area and the sync pulse, plus a boundary
+region.
+
+@ENDNODE
+@NODE EDIT_SCREEN "Edit modes online"
+@TOC PREFS_EDIT_MODE
+It is usually more convenient to edit P96 modes online and observe the
+changes immediately rather than going through the
+@{"mode editor" link PREFS_EDIT_RESOLUTION} of the P96Prefs window.
+The edit screen can be invoked through the @{b}Edit@{ub} button there.
+
+
+The edit screen can now be adjusted in two different ways: Either, by
+sliders and buttons that correspond exactly to that of the
+@{"mode editor" link PREFS_EDIT_RESOLUTION}. The only addition is the
+inclusion of two text fields that indicate the horizontal and vertical
+refresh rates.
+
+
+The second option is through the keyboard:
+
+
+The @{b}cursor keys@{ub} move the picture to the left, right, top or
+bottom by adjusting the @{"positions" link MODE_POSITION} accordingly.
+
+
+If the @{b}cursor keys@{ub} are pressed along along
+with @{b}shift@{ub}, the @{"frame size" link MODE_FRAMESIZE} is increased
+or decreased in horizontal or vertical direction. Note
+that @{b}increasing@{ub} the frame size will @{b}decrease@{ub} the picture
+size as only a smaller portion of the entire signal then corresponds
+to the active picture.
+
+
+Pressing the @{b}cursor keys@{ub} along with @{b}alt@{ub} increases or
+decreases the @{"border size" link MODE_BORDERSIZE}. The border is
+typically only visible on chunky or planar modes, and then shown in
+gray. For high or true-color modes, the border remains black
+regardless of the border size.
+
+
+If @{b}ctrl+cursor up@{ub} is pressed,
+the @{"pixel clock" link MODE_PIXELCLOCK} is increased, and by that
+both the horizontal and vertical refresh rates are
+enlarged. Similarly, @{b}ctrl+cursor down@{ub} decreases the pixel
+clock, and thus lowers the horizontal and vertical refresh.
+
+
+The @{b}I@{ub} key toggles @{"interlace" link MODE_INTERLACE} on or
+off, and the @{b}D@{ub} key enables or
+disables @{"double scan" link MODE_DOUBLESCAN}. Both will require a
+re-adjustment of frequencies, and thus likely make the signal
+unsuitable for the monitor. They should thus be used with care.
+
+
+The @{b}Del@{ub} and @{b}Help@{ub} keys toggle the horizontal and
+vertical @{"sync polarity" link MODE_SYNCPOLARITY}.
+
+
+The @{b}R@{ub} or @{b}U@{ub} keys revert all adjustments made so far
+and restores the mode to its previous setting.
+
+
+Pressing @{b}Return@{ub} accepts the mode and returns to the P96Prefs
+window, pressing @{b}Esc@{ub} aborts the online mode editor and
+reverts all changes.
+
+
+Finally, closing the window also returns to the P96Prefs window,
+though you are asked whether or not to keep the mode edits.
+
+@ENDNODE
+@NODE OVERALL_LIST "Overall settings"
+@TOC PREFS_OVERALL
+P96Prefs is currently aware of the following settings that apply to
+P96 in total and are not specific to a particular card:
+
+
+@{"Native video frequency if off-monitor" link ENV_AMIGAVIDEO}
+
+@{"Black native video if off-monitor" link ENV_BLACKSWITCHING}
+
+@{"Honor planar mask for direct color modes" link ENV_DIRECTCOLORMASK}
+
+@{"Do not optimize MMU mapping" link ENV_DONOTSETMMU}
+
+@{"Show which modes in requesters" link ENV_SHOWMODES}
+
+@{"Double buffering only on planar modes" link ENV_PLANARONLYDIPFDBUF}
+
+@{"Emulate native blitter by CPU" link ENV_DISABLEAMIGABLITTER}
+
+@{"Place off-screen native bitmaps in fast memory" link ENV_PLANESTOFAST}
+
+@{"Enable BootVGA:Productivity mode" link ENV_ENABLEBOOTVGA}
+
+@{"Redirect software alerts to RTG" link ENV_ALERTSUPPORT}
+
+@{"Emulate area filler by CPU" link ENV_AREAENDSUPPORT}
+
+@{"Keep friend bitmaps on board" link ENV_PREFERFRIENDS}
+
+@{"Mode depth includes stencil and alpha bits" link ENV_DEPTHINCLUDESALPHA}
+
+@{"Emulate planar modes" link ENV_EMULATEPLANAR}
+
+@{"Blit asynchronously" link ENV_ASYNCBLITS}
+
+@ENDNODE
+@NODE ENV_AMIGAVIDEO "Native video frequency if off-monitor"
+@TOC OVERALL_LIST
+@{b}Native video frequency if off-monitor@{ub}: This options allows
+to configure the refresh frequency of the native Amiga video
+output if it is currently turned off, and instead the output of a
+graphics card is shown on a monitor connected both to the graphics
+card and the native output. While the vertical refresh frequency makes
+no visible difference, it impacts the maximal audio sample rate that
+can replayed.
+
+
+Possible options are 15kHz and 31kHz.
+
+@ENDNODE
+@NODE ENV_BLACKSWITCHING "Black native video if off-monitor"
+@TOC OVERALL_LIST
+@{b}Black native video if off-monitor@{ub}: Configures whether the
+native Amiga output is set to black if no screen is shown on it. Can
+be on or off. If off, the last used background color persists on the
+monitor connected to the Amiga RGB port.
+
+@ENDNODE
+@NODE ENV_DIRECTCOLORMASK "Honor planar mask for direct color modes"
+@TOC OVERALL_LIST
+@{b}Honor planar mask for direct color modes@{ub}: Determines whether
+the "bitplane mask" is honored when blitting to high-color or
+true-color screens. This mask determines into which bitplanes of a
+native Amiga video a rendering operation draws into.
+
+
+As the emulation of bitplanes on high- and true-color screens is very
+complex, this option is off by default. Turning it on requires an
+inverse palette lookup for each pixel drawn and will slow down
+rendering if a mask is set.
+@ENDNODE
+@NODE ENV_DONOTSETMMU "Do not optimize MMU mapping"
+@TOC OVERALL_LIST
+@{b}Do not optimize MMU mapping@{ub}: Determines whether P96 should
+attempt to speed-up access to video RAM by adjusting the MMU mapping to
+the board.
+
+
+This option by default off, allowing the optimization. Note that P96 is
+typically smart enough to recognize those cards that benefit (or
+tolerate) this optimization.
+@ENDNODE
+@NODE ENV_SHOWMODES "Show which modes in requesters"
+@TOC OVERALL_LIST
+@{b}Show which modes in requesters@{ub}: Restricts the list of video
+modes listed in standard system screen mode requesters.
+
+
+If this item is set to @{b}Essential@{ub}, then only those modes are
+shown that are typically used or required, and only one mode per
+maximum number of colors on the screen. That is, the screen mode
+requesters will only show at most one high-color, one true-color and
+one true-alpha mode, corresponding to 16, 24 or 32 bits per pixel.
+
+
+If this option is set to @{b}All@{ub}, then also all variations of the
+mode available on the graphics card are shown, leading to up to 6
+high-color and 4 true-color modes with various bit-organizations.
+@ENDNODE
+@NODE ENV_PLANARONLYDIPFDBUF "Double buffering only on planar modes"
+@TOC OVERALL_LIST
+@{b}Double buffering only on planar modes@{ub}: Identifies to the
+system that only planar modes offer double buffering, even though P96
+does natively support double buffering on all modes if sufficient
+video memory is available. This switch may be necessary to fix some
+compatibility issues, though is rarely required as the P96 emulation
+improved.
+
+@ENDNODE
+@NODE ENV_DISABLEAMIGABLITTER "Emulate native blitter by CPU"
+@TOC OVERALL_LIST
+@{b}Emulate native blitter by CPU@{ub}: Selects whether P96 should
+bypass the native Amiga blitter completely and perform blitting by the
+CPU. If the @{b}Native@{ub} monitor icon is installed, this option is
+not present and instead controlled by the above monitor icon.
+
+@ENDNODE
+@NODE ENV_PLANESTOFAST "Place off-screen native bitmaps in fast memory"
+@TOC OVERALL_LIST
+@{b}Place off-screen native bitmaps in fast memory@{ub}: Determines if
+P96 should allocate bitmaps in fast CPU memory rather than chip memory
+if they are not intended to be displayed.
+
+
+If enabled, this option will bypass the system bitmap
+allocator. Bitmaps that are in fast memory will always be blitted by
+the CPU as they are not accessible by the native Amiga blitter.
+
+
+If the @{b}Native@{ub} monitor icon is installed, this option is not
+present and instead controlled by the monitor icon.
+@ENDNODE
+@NODE ENV_ENABLEBOOTVGA "Enable BootVGA:Productivity mode"
+@TOC OVERALL_LIST
+@{b}Enable BootVGA:Productivity mode@{ub}: If enabled, P96 installs
+a mode named BootVGA:Productivity in the display info database that
+represents the first monitor whose
+@{"Redirect native modes to card" link TT_FAKENATIVEMODES} configuration is set.
+
+Some programs may depend on this monitor to be present.
+
+@ENDNODE
+@NODE ENV_ALERTSUPPORT "Redirect software alerts to RTG"
+@TOC OVERALL_LIST
+@{b}Redirect software alerts to RTG@{ub}: If enabled, redirects
+software alerts to the front-most RTG screen. Otherwise, they appear
+only on the native Amiga video output where, however, they may be
+missed - or even invisible if no monitor is connected to this
+output.
+
+
+This option is enabled by default and should usually stay enabled.
+
+@ENDNODE
+@NODE ENV_AREAENDSUPPORT "Emulate area filler by CPU"
+@TOC OVERALL_LIST
+@{b}Emulate area filler by CPU@{ub}: If set, the area fill operations
+are also emulated by the CPU. Otherwise, the call is forwarded to the
+AmigaOs implementation.
+
+@ENDNODE
+@NODE ENV_PREFERFRIENDS "Keep friend bitmaps on board"
+@TOC OVERALL_LIST
+@{b}Keep friend bitmaps on board@{ub}: This flag controls bitmap
+allocation and bitmap migration of non-native bitmaps.
+
+
+If selected, bitmaps that are declared "friend" of the currently
+visible bitmap on the monitor should preferably remain in the memory
+of the RTG card. If video RAM gets low, P96 will start migrating
+bitmaps away from the board into memory only accessible by the
+CPU.
+
+
+There is usually little reason to edit this configuration, leave it at
+its default.
+@ENDNODE
+@NODE ENV_DEPTHINCLUDESALPHA "Mode depth includes stencil and alpha bits"
+@TOC OVERALL_LIST
+@{b}Mode depth includes stencil and alpha bits@{ub}: Selects how
+15-bit high-color and 32-bit true-alpha modes are signaled to the
+system. 
+
+
+These modes include bits within the pixel value that do not contribute
+to the visible pixel color. The system database of available screen
+modes contains now a for each mode the number of displayable colors,
+even though some programs expect instead that this number also
+includes the "meaningless" bits of the 15-bit high-color and 32-bit
+true-alpha modes.
+
+@ENDNODE
+@NODE ENV_EMULATEPLANAR "Emulate planar modes"
+@TOC OVERALL_LIST
+@{b}Emulate planar modes@{ub}: If this option is set, then P96 will
+emulate planar modes by chunky modes.
+
+
+A rendering operation on such an emulated planar mode will trigger a
+following conversion of the planar rendering result to the chunky
+display frame buffer. If enabled, emulation is used if a program
+requests a planar mode of more than 4 bitplanes, or if the graphics
+card does not offer planar modes at all.
+
+@ENDNODE
+@NODE ENV_ASYNCBLITS "Blit asynchronously"
+@TOC OVERALL_LIST
+@{b}Blit asynchronously@{ub}: If this option is set, then P96 will
+trigger blitter (graphics operation) functions, but will not wait for its
+completion. Depending on the RTG board, many graphics operations will
+then be performed asynchronously.
+
+
+This switch will typically result in a performance boost as the 68K main
+CPU of the Amiga will continue processing in parallel to the blitter operating
+on the graphics board. P96 will synchronize the Amiga side with the blitter
+as soon as a program requests access to the active video frame. In most cases,
+enabling this option is advisable as it helps to improve performance, though
+it may trigger compatibility issues with some 3D graphics stacks which are
+not prepared to a running blitter when returning from AmigaOs functions.
+
+@ENDNODE
+@NODE TOOLTYPE_LIST "List of all board specific settings"
+@TOC PREFS_EDIT_BOARD
+P96Prefs supports many board-specific configurations that are listed
+in the following. Not each board recognizes all of the options, and for
+drivers that are part of the P96 distribution, P96Prefs will only list
+the options supported by the corresponding card.
+
+
+Options can (and probably should, typically) be set to @{b}default@{ub},
+which means that a driver-specific default value will be used. This
+corresponds to not setting the corresponding tool type in the monitor
+icon.
+
+
+
+For third party drivers, P96Prefs will list all potential options
+known to the preference editor, though some (or even most of them) may
+not be recognized by the driver and will then be ignored. Such drivers
+may also recognize options P96Prefs is not aware of, and which then
+need to be configured in the tool types of the monitor icon.
+
+
+@{"Use hardware blitter" link TT_BLITTER}
+
+
+The next four options control mouse movements between multiple
+monitors. The options are actually not used by P96 itself, but by the
+@{b}P96ScreenCX@{ub} commodity which can be installed separately. If
+the native Amiga output connects to one of the monitors between which
+the mouse should travel, the @{b}Native@{ub} monitor icon also needs
+to be installed.
+
+@{"Monitor is left of" link TT_LEFT_OF}
+
+@{"Monitor is right of" link TT_RIGHT_OF}
+
+@{"Monitor is above" link TT_ABOVE}
+
+@{"Monitor is below" link TT_BELOW}
+
+
+The following options configure the monitor size and allow P96 to
+derive the resolution of all modes displayed on the attached monitor.
+
+@{"Monitor width" link TT_MONITORWIDTH}
+
+@{"Monitor height" link TT_MONITORHEIGHT}
+
+
+The following options are supported by most drivers and fairly
+generic:
+
+@{"Be quiet" link TT_QUIET}
+
+@{"Software rendered pointer" link TT_SOFTSPRITE}
+
+@{"Large pointer" link TT_BIGSPRITE}
+
+@{"Blank border" link TT_BORDERBLANK}
+
+@{"Share monitor with native output" link TT_DISPLAYCHAIN}
+
+@{"Ignore bitplane mask" link TT_IGNOREMASK}
+
+@{"Allow overclocking" link TT_OVERCLOCK}
+
+@{"Redirect native modes to card" link TT_FAKENATIVEMODES}
+
+
+The remaining options are supported by some, but not by all
+boards. P96 removes them from the list of configurable items if it is
+aware that the board does not support it:
+
+@{"Hardware assisted planar to chunky blits" link TT_PLANAR2CHUNKYBLITS}
+
+@{"Hardware assisted CPU to video RAM blits" link TT_SYSTEM2SCREENBLITS}
+
+@{"Grant direct access to video RAM" link TT_GRANTDIRECTACCESS}
+
+@{"VRAM memory clock" link TT_MEMORYCLOCK}
+
+@{"Enable hardware interrupt" link TT_INTERRUPT}
+
+@{"Hardware accelerated line drawer" link TT_FASTDRAWLINE}
+
+@{"Video RAM memory type" link TT_MEMORYTYPE}
+
+@{"External video switch type" link TT_SWITCHTYPE}
+
+@{"True color erratum workaround" link TT_TRUECOLORKLUDGE}
+
+@{"Border erratum workaround" link TT_BORDERKLUDGE}
+
+@{"Sync signal" link TT_SYNC}
+
+@{"Black level" link TT_BLACKLEVEL}
+
+@{"True color erratum pixel shift" link TT_TRUECOLORPIXSHIFT}
+
+@{"Video RAM driver inversion" link TT_INVMODE}
+
+@{"Video RAM wait states" link TT_WAITSTATES}
+
+@{"Font rendering erratum workaround" link TT_FONTSFIX}
+
+@{"Accelerate masked blits by hardware" link TT_MASKEDBLITS}
+
+@{"Oscillator 1" link TT_OSC1}
+
+@{"Oscillator 2" link TT_OSC2}
+
+@{"Jumpered interrupt level" link TT_IRQLEVEL}
+
+@{"Jumpered mode" link TT_JUMPEREDMODE}
+
+@{"Flicker Fixer Capture Width" link TT_CAPTUREWIDTH}
+
+@{"Flicker Fixer Capture Height" link TT_CAPTUREHEIGHT}
+
+@{"Flicker Fixer Left Edge" link TT_CAPTURELEFT}
+
+@{"Flicker Fixer Top Edge" link TT_CAPTURETOP}
+
+@{"Flicker Fixer Phase Adjustment" link TT_CAPTUREPHASE}
+
+@ENDNODE
+@NODE TT_BLITTER "Use hardware blitter"
+@TOC TOOLTYPE_LIST
+@{b}Use hardware blitter@{ub}: If the graphics card includes a
+"hardware accelerator", this option instruct P96 to use it whenever possible, i.e.
+when the corresponding bitmaps are in the video RAM of the board.
+
+If this option is disabled, or bitmaps are in main memory, the CPU
+performs the graphics operations instead.
+
+
+This option is also available for the @{b}Native@{ub} monitor icon and
+then controls whether the native Amiga blitter is used if possible. If
+bitmaps are outside chip memory, or the option is disabled, the CPU is
+used for blitting.
+
+@ENDNODE
+@NODE TT_LEFT_OF "Monitor is left of"
+@TOC TOOLTYPE_LIST
+@{b}Monitor is left of@{ub}: If multiple monitors are connected to the
+system, and this graphics card is not part of the
+@{"display chain" link DISPLAY_CHAIN}, then this option defines that
+the monitor connected to this graphics card is standing to the left of
+the monitor connected to the board selected by the option.
+
+
+Note that this option requires the @{b}P96ScreenCx@{ub} program to operate.
+
+@ENDNODE
+@NODE TT_RIGHT_OF "Monitor is right of"
+@TOC TOOLTYPE_LIST
+@{b}Monitor is right of@{ub}: Defines the monitor to the right of
+which this monitor is located, or simpler, the monitor to the left of
+the monitor connected to the board to which this setting applies.
+
+
+Note that this option requires the @{b}P96ScreenCx@{ub} program to operate.
+
+@ENDNODE
+@NODE TT_ABOVE "Monitor is above"
+@TOC TOOLTYPE_LIST
+@{b}Monitor is above@{ub}: Defines the monitor above which this
+monitor is placed, i.e. this monitor is above the monitor selected
+in the option.
+
+
+Note that this option requires the @{b}P96ScreenCx@{ub} program to operate.
+
+@ENDNODE
+@NODE TT_BELOW "Monitor is below"
+@TOC TOOLTYPE_LIST
+@{b}Monitor is below@{ub}: Defines the monitor under which this
+monitor is placed.
+
+
+Note that this option requires the @{b}P96ScreenCx@{ub} program to operate.
+
+@ENDNODE
+@NODE TT_MONITORWIDTH "Monitor width"
+@TOC TOOLTYPE_LIST
+
+@{b}Monitor width@{ub}: Informs P96 on the width of the attached
+monitor in millimeters.
+
+If both the width and the height of the monitor are available, P96
+derives from them the resolutions of all the modes displayed on it,
+allowing the operating system to scale graphical elements accordingly.
+@ENDNODE
+@NODE TT_MONITORHEIGHT "Monitor height"
+@TOC TOOLTYPE_LIST
+
+@{b}Monitor height@{ub}: Informs P96 on the height of the attached
+monitor in millimeters.
+
+If both the width and the height of the monitor are available, P96
+derives from them the resolutions of all the modes displayed on it,
+allowing the operating system to scale graphical elements accordingly.
+@ENDNODE
+@NODE TT_QUIET "Be quiet"
+@TOC TOOLTYPE_LIST
+@{b}Be quiet@{ub}: If set, disables all warnings and all console
+output when loading the graphics driver.
+
+@ENDNODE
+@NODE TT_SOFTSPRITE "Software rendered pointer"
+@TOC TOOLTYPE_LIST
+@{b}Software rendered pointer@{ub}: If enabled, the mouse pointer is
+rendered through software instead of using a hardware sprite. If the
+board does not offer a hardware sprite, this option is implicitly
+disabled.
+
+@ENDNODE
+@NODE TT_BIGSPRITE "Large pointer"
+@TOC TOOLTYPE_LIST
+@{b}Large pointer@{ub}: Magnifies the mouse pointer by 2 in each
+dimension.
+
+@ENDNODE
+@NODE TT_BORDERBLANK "Blank border"
+@TOC TOOLTYPE_LIST
+@{b}Blank border@{ub}: Blanks the border around the active display
+area if a border is
+@{"configured in the mode" link PREFS_EDIT_MODE}, i.e. the
+@{b}border@{ub} settings of the mode are non-zero.
+
+
+Most graphics cards implicitly blank the border for high-color or
+true-color graphics modes, i.e. this setting typically only applies to
+chunky or planar modes.
+
+@ENDNODE
+@NODE TT_DISPLAYCHAIN "Share monitor with native output"
+@TOC TOOLTYPE_LIST
+@{b}Share monitor with native output@{ub}: Defines whether this
+graphics card and the native graphics card share the same monitor. One
+also says that this board is in the
+@{"display chain" link DISPLAY_CHAIN}.
+
+
+If this option is enabled, an input connector of the graphics card is
+directly or indirectly connected to the native Amiga RGB output. If it
+is disabled, P96 knows that the graphics card is connected to its own
+monitor.
+
+@ENDNODE
+@NODE TT_IGNOREMASK "Ignore bitplane mask"
+@TOC TOOLTYPE_LIST
+@{b}Ignore bitplane mask@{ub}: Ignore the bitplane mask when
+blitting. This mask defines which bitplanes of a native Amiga bitmap
+are affected by a graphics operation. On chunky bitmaps, this mask
+needs to be emulated by the graphics chip and thus may slow down some
+graphics operations.
+
+
+If this option is selected, the mask is ignored and the entire pixel
+is always included in the blit. Note, however, that this may result in
+some graphics corruptions.
+
+@ENDNODE
+@NODE TT_PLANAR2CHUNKYBLITS "Hardware assisted planar to chunky blits"
+@TOC TOOLTYPE_LIST
+@{b}Hardware assisted planar to chunky blits@{ub}: Performs
+conversions from planar to chunky operations by a hardware accelerator
+if present on the board. Otherwise, the CPU performs the conversion.
+
+@ENDNODE
+@NODE TT_SYSTEM2SCREENBLITS "Hardware assisted CPU to video RAM blits"
+@TOC TOOLTYPE_LIST
+@{b}Hardware assisted CPU to video RAM@{ub}: Performs hardware
+accelerated blits from CPU RAM to video RAM if the board allows
+that. This operation may not operate properly on some boards or board
+revisions and can be disabled by this option.
+
+
+If this option is not set, or the board hardware does not support
+hardware assistance for such operations, the CPU is used.
+
+@ENDNODE
+@NODE TT_OVERCLOCK "Allow overclocking"
+@TOC TOOLTYPE_LIST
+@{b}Allow overclocking@{ub}: If set, the pixel clock may be increased
+beyond the recommended maximum rate documented by the chip
+manufacturer. Note that such high pixel rates may cause an unstable
+picture, pixel jitter and also overheating of the
+chip.
+
+
+Overclocking should be avoided, and setting this option is not
+recommended.
+
+@ENDNODE
+@NODE TT_GRANTDIRECTACCESS "Grant direct access to video RAM"
+@TOC TOOLTYPE_LIST
+@{b}Grant direct access to video RAM@{ub}: This option grants some
+applications direct access to the video RAM. However, on some cards,
+the video RAM sits behind an @{"aperture switch" link APPERTURE} that
+allows byte and word swapping to allow additional modes. Such an
+aperture switch would, however, confuse programs that access video
+RAM directly.
+
+
+This option disables aperture switches, thus reduces the number of
+available graphic modes, but grants some programs direct access to
+video RAM.
+
+@ENDNODE
+@NODE TT_FAKENATIVEMODES "Redirect native modes to card"
+@TOC TOOLTYPE_LIST
+@{b}Redirect native modes to card@{ub}: This option enables a simple
+mode promotion feature which redirects native Amiga modes to 640x480
+VGA modes on the board to which this setting apply.
+
+
+This feature can be used to redirect the boot shell to a non-native
+video output, and thus to have access to the boot shell if the native
+output cannot be used. This feature is automatically enabled for Amiga
+compatible systems without a native RGB video output.
+
+@ENDNODE
+@NODE TT_MEMORYCLOCK "VRAM memory clock"
+@TOC TOOLTYPE_LIST
+@{b}VRAM memory clock@{ub}: For some cards, the memory clock by which
+the chipset addresses video RAM can be adjusted. This has no direct
+consequence for the picture, but it may allow higher pixel clocks as
+pixel data can be delivered faster to the chip.
+
+
+This setting specifies the approximate memory clock in MHz, though it
+depends on the driver which values it accepts and which values are
+useful. Specifying a value that is too large for the RAM chips may
+potentially cause permanent damage to the hardware as it may overheat
+the chips.
+
+
+It is recommended to leave this option alone.
+
+@ENDNODE
+@NODE TT_INTERRUPT "Enable hardware interrupt"
+@TOC TOOLTYPE_LIST
+@{b}Enable hardware interrupt@{ub}: Some boards are able to signal an
+interrupt to the Amiga system when the video beam reaches the vertical
+blank area. This interrupt can be used to synchronize rendering
+operations to the screen. If no such interrupt is available, P96 will
+instead busy-wait for the vertical blank, or will use instead use the
+native Amiga vertical blank interrupt instead, depending on
+application.
+
+
+While the hardware vertical blank interrupt is in general useful, the
+logic to trigger and reset this interrupt is unstable on some boards,
+and if such instabilities are observed, the interrupt can be disabled
+by this option.
+
+@ENDNODE
+@NODE TT_FASTDRAWLINE "Hardware accelerated line drawer"
+@TOC TOOLTYPE_LIST
+@{b}Hardware accelerated line drawer@{ub}: Some graphic chips offer a
+logic to accelerate line drawing, similar to what the Amiga blitter
+can do. 
+
+
+If this switch is enabled, the hardware accelerated line drawer is
+used. This is typically a good idea, and this option should be
+disabled if artifacts are observed.
+@ENDNODE
+@NODE TT_MEMORYTYPE "Video RAM memory type"
+@TOC TOOLTYPE_LIST
+@{b}Video RAM memory type@{ub}: On some boards, different types of
+video RAM chips could be installed that require slightly different
+settings. 
+
+
+This option allows you to select the type of the video RAM if the
+default type does not allow a stable picture.
+@ENDNODE
+@NODE TT_SWITCHTYPE "External video switch type"
+@TOC TOOLTYPE_LIST
+@{b}External video switch type@{ub}: Identifies whether an external
+third-party VGA monitor switch is connected to the graphics card.
+
+
+Such switches are not integrated on the board, but are after-market
+products that can be chained into the video connection
+externally. With such connectors, graphics cards that do not have a
+video-in connector can share the monitor with the native Amiga video
+output.
+
+
+Currently, only one external switch is supported, namely that by Javo.
+
+@ENDNODE
+@NODE TT_TRUECOLORKLUDGE "True color erratum workaround"
+@TOC TOOLTYPE_LIST
+@{b}True color erratum workaround@{ub}: Some video chips show issues
+on displaying true-color modes, such as cutting off the left border of
+the picture. If such problems are observed on true-color modes only,
+and these issues cannot be avoided by adjusting the mode, this setting
+will enable a driver-internal workaround.
+
+@ENDNODE
+@NODE TT_BORDERKLUDGE "Border erratum workaround"
+@TOC TOOLTYPE_LIST
+@{b}Border erratum workaround@{ub}: Some video chips have issues
+generating the border area around the active picture. By enabling this
+switch, the driver attempts to work around the problem, potentially
+ignoring the border timing configured in the mode settings.
+
+@ENDNODE
+@NODE TT_SYNC "Sync signal"
+@TOC TOOLTYPE_LIST
+@{b}Sync signal@{ub}: Defines the type of sync signal the chip should
+generate if non-VGA syncing is available.
+
+
+The recommended default is to leave this at the default value,
+@{b}Tesselated@{ub}, which generates a signal pattern on the sync signal
+during the retrace interval.
+
+
+The option @{b}Composite@{ub} combines both sync pulses on a single
+wire, whereas @{b}Separate@{ub} generates horizontal and vertical sync
+on separate wires, though without the signal pattern enabled by the
+@{b}Tesselated@{ub} option.
+
+
+Finally, @{b}Sync on green@{ub} generates the (composite) sync signal
+on the green signal such that no additional sync wire is required.
+
+
+Only few graphic chips offer this flexibility, please check with your
+monitor which type of syncing is supported. If unsure, use the
+"Tessellated" setting.
+
+@ENDNODE
+@NODE TT_BLACKLEVEL "Black level"
+@TOC TOOLTYPE_LIST
+@{b}Black level@{ub}: Defines by which signal level a black image is
+indicated. For standard TV signals, the black level of the active
+picture area is elevated relatively to the signal level of the front-
+and back-porch areas around the sync pulses, though some monitors may
+then render such black areas as dark gray.
+
+
+This option can be either set to @{b}Pedestal@{ub}, which indicates
+that the black level of the active picture is larger than that of the
+front and back-porch areas, or @{b}Black@{ub}, indicating that no such
+elevation should be used. Only few chips offer this flexibility - use
+the @{"test screen" link PREFS_EDIT_MODE} to check whether adjusting
+the black level is necessary.
+
+@ENDNODE
+@NODE TT_TRUECOLORPIXSHIFT "True color erratum pixel shift"
+@TOC TOOLTYPE_LIST
+@{b}True color erratum pixel shift@{ub}: On some graphics cards, the
+true-color modes are slightly shifted such that the left pixel column
+is not correctly shown on the screen. 
+
+
+This option enables a workaround that will compensate the pixel
+shift. The argument of this option is a number that defines the number
+of pixels by which the image shall be shifted. This should typically
+be a multiple of four.
+
+@ENDNODE
+@NODE TT_INVMODE "Video RAM driver inversion"
+@TOC TOOLTYPE_LIST
+@{b}Video RAM driver inversion@{ub}: Optionally inverts the signal
+between the CPU and the video RAM on some boards. This may be required
+for certain clock frequencies to improve the signal quality.
+
+
+It is recommended not to touch this option as the driver will attempt
+to select signal inversion as necessary. Only touch this option if you
+see instabilities, e.g. bad pixels, on the screen.
+
+@ENDNODE
+@NODE TT_WAITSTATES "Video RAM wait states"
+@TOC TOOLTYPE_LIST
+@{b}Video RAM wait states@{ub}: Adjusts the number of wait states
+inserted for the CPU when attempting to access video RAM. Suitable
+values lie between 2 and 4 and depend on the clock rate of the CPU.
+
+
+It is recommended not to touch this option as the driver will then
+attempt to configure the number of wait states correctly by sampling
+the CPU clock frequency.
+
+@ENDNODE
+@NODE TT_FONTSFIX "Font rendering erratum workaround"
+@TOC TOOLTYPE_LIST
+@{b}Font rendering erratum workaround@{ub}: On some boards, the
+expansion of bitmasks to colored graphics, as required for rendering
+text on the screen, does not work robustly.
+
+
+If this option is enabled, font rendering is instead performed by the
+CPU to avoid the issue. If you see artifacts around rendered text, try
+to enable this option.
+
+@ENDNODE
+@NODE TT_MASKEDBLITS "Accelerate masked blits by hardware"
+@TOC TOOLTYPE_LIST
+@{b}Accelerate masked blits by hardware@{ub}: Selects whether blits
+through a (spatial) mask on high- or true-color states can be
+accelerated through an on-board blitter.
+
+
+Unfortunately, this operation is broken for some third-party drivers,
+in which case such masked blits need to be performed by the CPU. Note
+that the "mask" here refers to a spatial mask, and not a mask that
+selects the bitplanes to modify.
+
+@ENDNODE
+@NODE TT_OSC1 "Oscillator 1"
+@TOC TOOLTYPE_LIST
+@{b}Oscillator 1@{ub}: Informs P96 on the frequency in kHz of a
+user-replacable crystal on some boards. While most boards generate the
+pixel clock internally or from a programmable clock generator, some
+rare boards allow the user to configure the clock frequency by
+exchangeable crystals that must be plugged into a socket on the board.
+
+
+This tool type defines the frequency in kHz of the first (or only)
+crystal. If the tool type is not set, the driver assumes a
+board-specific default.
+@ENDNODE
+@NODE TT_OSC2 "Oscillator 2"
+@TOC TOOLTYPE_LIST
+@{b}Oscillator 2@{ub}: Informs P96 on the frequency in kHz of the
+second user-replacable crystal on some boards. While most boards generate the
+pixel clock internally or from a programmable clock generator, some
+rare boards allow the user to configure the clock frequency by
+exchangeable crystals that must be plugged into a socket on the board.
+
+
+This tool type defines the frequency in kHz of the crystal plugged
+into the second socket on the board. If the tool type is not set, the
+driver assumes a board-specific default.
+
+
+A particular board that offers user-selectable crystals is the A2410
+board from CBM for which uses this tool type to inform P96 on the
+frequency of the second (or higher-clocked) cyrstal.
+
+
+This setting is also used by the VA2000 driver. This card has two
+oscillators, one runs at 40Mhz, the other depending on the firmware
+either with 100Mhz or with 75Mhz. Unfortunately, P96 cannot know which
+firmware you flashed on the card, and thus the right clock frequency
+of the second oscillator has to be communicated to the graphics system
+with this tool type.
+
+
+The 75Mhz clock frequency corresponds to the firmware that supports
+the 1280x720 resolution, the 100Mhz clock frequency to the firmware
+supporting the 1280x1024 resolution.
+
+
+Note that the tool type requires the clock frequency in kHz, though
+for the VA2000 P96Prefs provides somewhat more convenient radio
+buttons as only two frequencies are available for the second
+oscillator anyhow.
+
+@ENDNODE
+@NODE TT_IRQLEVEL "Jumpered interrupt level"
+@TOC TOOLTYPE_LIST
+@{b}Jumpered interrupt level@{ub}: Informs P96 on the interrupt level
+the board will use. Zorro boards can either use interrupt level 2 or
+level 6, and on some boards, the level can be selected with a
+jumper. P96 then needs to be informed on how the jumper is set to be
+able to react on the interrupt.
+
+If a board does not work, study its manual to see whether it includes
+a jumper for the interrupt, and if so, ensure that this tool type is
+set correctly. If the choice exists, it is advisable to use interrupt
+level 2 as it causes less interference with other components in the
+system. Level 2 is also the default.
+@ENDNODE
+@NODE TT_JUMPEREDMODE "Jumpered mode"
+@TOC TOOLTYPE_LIST
+@{b}Jumpered model@{ub}: Informs P96 on the default video mode a board
+is jumpered to such that it can provide this information correctly to
+the Os.
+
+While most boards are flexible and allow the creation of multiple
+resolutions, the video modes of some rare boards can only be
+configured by a jumper on the board itself, without providing the
+ability to read the jumper position through software. The RainbowII
+is one of such boards.
+
+Two choices are possible: Either PAL or NTSC. Please check the manual
+of your card to learn where the video mode jumper is located, and how
+it encodes the video mode. Then set this tool type to inform P96 on
+its position.
+
+The default value for this tool type is PAL.
+@ENDNODE
+@NODE TT_CAPTUREWIDTH "Flicker Fixer Capture Width"
+@TOC TOOLTYPE_LIST
+@{b}Flicker Fixer Capture Width@{ub}: Defines the width of the video
+signal captured by software-configurable flicker fixers such as the
+VA2000CX add-on for the VA2000 graphics card.
+
+
+Without further configuration, the VA2000CX captures 640 pixels top to bottom,
+corresponding to a regular Amiga Hi-Res screen.
+
+@ENDNODE
+@NODE TT_CAPTUREHEIGHT "Flicker Fixer Capture Height"
+@TOC TOOLTYPE_LIST
+@{b}Flicker Fixer Capture Height@{ub}: Defines the height of the video
+signal captured by software-configurable flicker fixers such as the
+VA2000CX add-on for the VA2000 graphics card.
+
+
+Without further configuration, the VA2000CX captures 512 pixels top to bottom,
+corresponding to a regular Amiga PAL Hi-Res screen.
+
+@ENDNODE
+@NODE TT_CAPTURELEFT "Flicker Fixer Left Edge"
+@TOC TOOLTYPE_LIST
+@{b}Flicker Fixer Left Edge@{ub}: Defines the left edge in
+pixels at which software-configurable flicker fixers such as the
+VA2000CX starts capturing the video signal from the Amiga RGB
+slot. Smaller values start capturing earlier, receiving pixels more
+to the left of the screen, and thus move the entire picture on the
+monitor to the right. This tool type should be adjusted to the
+screen horizontal position selectable by the "Overscan" preferences
+program.
+
+
+Without further configuration, this tool type defaults to 66 pixels for
+the VA2000CX, which is approximately the horizontal offset of the
+default overscan configuration.
+
+@ENDNODE
+@NODE TT_CAPTURETOP "Flicker Fixer Top Edge"
+@TOC TOOLTYPE_LIST
+@{b}Flicker Fixer Left Edge@{ub}: Defines the top edge in
+pixels at which software-configurable flicker fixers such as the
+VA2000CX starts capturing the video signal from the Amiga RGB
+slot. Smaller values start capturing earlier, receiving pixels more
+to the top of the screen, and thus move the entire picture on the
+monitor to the bottom. This tool type should be adjusted to the
+screen vertical position selectable by the "Overscan" preferences
+program.
+
+
+Without further configuration, this tool type defaults to 42 lines for
+the VA2000CX, which is approximately the vertical offset of the
+default overscan configuration.
+
+@ENDNODE
+@NODE TT_CAPTUREPHASE "Flicker Fixer Phase Adjustment"
+@TOC TOOLTYPE_LIST
+@{b}Flicker Fixer Phase Adjustment@{ub}: Controls the sampling
+time relative to the Amiga hardware clock at which software-configurable
+flicker fixers sample the signal at the Amiga RGB port. Adjusting this
+value may help to reduce flickering edges of the flicker fixer output.
+
+
+This tool type is most prominently used by the VA2000CX flicker-fixer
+add-on of the VA2000 graphics card and should be adjusted to match the
+specifics of the machine it is installed in. While the best value is
+machine dependent, recommended values for A2000 boards are around -16,
+and values for the A3000 are around +16.
+
+@ENDNODE
+
+@NODE EDIT_MENU "The Edit Menu"
+@TOC PREFS_OVERALL
+The menu, under the title "Edit" allows you to copy modes and
+resolutions between boards. It also offers features to enable or
+disable resolutions or modes, verify modes or remove unused modes. The
+following menu items are available:
+
+@{"Cut" link MENU_CUT}
+
+@{"Copy" link MENU_COPY}
+
+@{"Paste" link MENU_PASTE}
+
+@{"Undo" link MENU_UNDO}
+
+@{"Monitor EDID" link MENU_MONITOR}
+
+@{"Enable item" link MENU_ENABLE}
+
+@{"Validate modes" link MENU_VALIDATE}
+
+@{"Remove Unused Items" link MENU_REMOVE_UNUSED}
+
+@ENDNODE
+@NODE MENU_CUT "Cut"
+@TOC EDIT_MENU
+@{b}Cut@{ub} removes the selected board, resolution or mode from the
+left-hand side list of configurable items and places them into the
+clipboard.
+
+@ENDNODE
+@NODE MENU_COPY "Copy"
+@TOC EDIT_MENU
+@{b}Copy@{ub} creates a duplication of the currently selected board,
+resolution or mode and places the copy into the clipboard.
+
+@ENDNODE
+@NODE MENU_PASTE "Paste"
+@TOC EDIT_MENU
+@{b}Paste@{ub} inserts the configuration item from the clipboard back
+into the list of configurable items.
+
+
+If the clipboard contains a board, i.e. by copying or cutting it from
+the list, pasting "into" a board will overwrite the settings of the
+board in the list with the setting in the clipboard. That is, it makes
+the selected board a copy of the board in the clipboard.
+
+
+Note that you cannot create new boards through @{b}Paste@{ub}. This
+requires installing the board hardware, and placing its monitor icon
+in DEVS:Monitors.
+
+
+If you paste a resolution from the clipboard into a board, the
+resolution from the clipboard is added to the list of resolutions of
+the selected board.
+
+
+A mode can only be pasted into a mode or a resolution, and the
+resolution into which the mode is pasted must have the same pixel
+dimensions as the mode in the clipboard. If so, either a new mode is
+created, or an existing mode is overwritten by the parameters of the
+mode in the clipboard.
+
+
+A typical use case for the edit value is copy the timing parameters
+from one (existing) board into a (freshly installed) new board. For
+this, @{"copy" link MENU_COPY} the already configured board. This will place its
+parameters into the clipboard. Then click onto the board that still
+misses a configuration, and select @{b}paste@{ub}. This will replicate all
+the settings of the existing board.
+
+
+Afterwards, you unfortunately need to test whether all the modes in
+the new board are functional as board timings may be slightly
+different, and not all boards are able to generate all modes.
+
+@ENDNODE
+@NODE MENU_UNDO "Undo"
+@TOC EDIT_MENU
+@{b}Undo@{ub} reverts the last edits on the selected mode, or on all
+modes of the selected resolution or selected board.
+
+@ENDNODE
+@NODE MENU_MONITOR "Monitor EDID menu item"
+@TOC EDIT_MENU
+This menu item indicates whether the selected board includes monitor
+specifications that define monitor capabilities such as its refresh
+range or the powersavings (DPMS) modes it supports. It also offers you
+to loaded monitor EDID data if the selected board does not include
+monitor data yet.
+
+
+EDID data is usually read from a tiny ROM in the monitor itself and
+identifies which modes and frequencies it supports.  Unfortunately,
+Amiga graphics cards typically do not include hardware to read the
+EDID data directly from the monitor, but such files can be downloaded
+from the monitor by PCs and then be transferred to the Amiga.
+
+
+If a checkmark is set behind this item, monitor specifications
+are present, and modes known to the monitor can be added on
+the @{"boards configuration page" link PREFS_EDIT_BOARD}.
+
+
+If you do not have an EDID file of your monitor available, a generic
+monitor can be added on
+the @{"board configuration page" link PREFS_EDIT_MONITOR} which
+can then be edit manually on
+the @{"monitor configuration page" link PREFS_EDIT_MONITOR}.
+
+
+This menu item is a toggle; if no monitor specification is present and
+the menu item is currently unchecked, P96Prefs opens the file dialog
+to select the EDID file. If it is checked and selected again, the
+monitor specification is removed from the board.
+
+
+The @{b}Cut@{ub} item of the @{"edit menu" link EDIT_MENU} can also be
+used to remove a monitor specification from a board, but also copies
+it into the clipboard such that it can be @{b}Pasted@{ub} into another
+board.
+
+@ENDNODE
+@NODE MENU_ENABLE "Enable item"
+@TOC EDIT_MENU
+@{b}Enable item@{ub} enables or disables a resolution or
+mode. Disabling a resolution or mode makes it invisible to the system
+display mode requester such that applications are not able to use
+them. The configuration itself, however, remains in the system and can
+be used, for example, as a template to configure other boards by
+copying it to the clipboard.
+
+
+Enabling a mode or resolution makes it available to the system again,
+however, care should be taken to validate the mode or resolution to
+ensure that the graphics hardware can generate a picture from the
+configuration.
+
+
+Disabled items appear "ghosted" in the list of configurable items.
+
+
+P96Prefs will validate modes and resolutions itself when they are
+added to the board by testing whether the mode parameters are within
+the limits of the graphics card, e.g. whether sufficient RAM is
+available to display a mode. However, this validation is necessarily
+incomplete as it is not aware of the restrictions of the monitor
+connected to the board.
+
+@ENDNODE
+@NODE MENU_VALIDATE "Validate modes"
+@TOC EDIT_MENU
+@{b}Validate modes@{ub} Validates all modes of the selected board or
+resolution, or validates an individual mode.
+
+
+This menu item checks whether parameters of all modes of the board,
+the resolution or the mode itself are within the limits of the
+board. Modes that do not pass the validation are then ghosted and
+excluded from the system. You can still enable them manually, though,
+if you find them working.
+
+@ENDNODE
+@NODE MENU_REMOVE_UNUSED "Remove Unused Items"
+@TOC EDIT_MENU
+@{b}Remove Unused Items@{ub} This item removes all ghosted (disabled)
+icons from the selected board or resolution such that modes or
+resolutions that are not working on the board no longer clutter the
+list.
+
+@ENDNODE
+@NODE DISPLAY_CHAIN "The Display Chain"
+@TOC EDIT_MENU
+The @{b}display chain@{ub} corresponds to the cable that comes out of
+the Amiga RGB connector, and from there runs over one or more graphics
+boards to the primary monitor of the system. VGA switches on the
+graphics boards then allow to either route the native Amiga output to
+the connected monitor, or display the output of the graphics board
+instead. P96 handles these switches such that the front-most screen
+becomes visible on the primary monitor.
+
+
+@{CODE}
+
+Amiga RGB output ---> Board 1 ---> Board 2 ---> Primary monitor
+
+Board 3 ---> Secondary monitor
+
+@{BODY}
+
+The above picture shows a display chain consisting of two graphics
+boards. P96 will always configure the switches on Board 1 and Board 2
+such that the front-most screen is shown on the monitor. Board 3 is
+not "in the display chain", it rather connects to a separate monitor
+and can thus show an independent picture, leaving the output of chain
+1 intact.
+
+
+Thus, a board is "in the display chain" if it potentially shares its
+output with the output of the native Amiga graphics.
+
+@ENDNODE
+@NODE APPERTURE "Video Aperture"
+@TOC EDIT_MENU
+Video RAM is rarely directly connected to the CPU, but is typically
+accessible through the graphics chip on a particular RTG board. This
+graphics chip (or sometimes a separate logic) may touch the address or
+data lines of the CPU such that the same RAM content may become
+visible to the CPU in a configurable way.
+
+
+For example, the chip (or some extra logic) may swap the lower and
+upper half of a 16-bit word such that the little-endian RAM content of
+a PC graphics chipset appears as @{b}big endian@{ub} to the 68K CPU in
+the Amiga. This may be convenient to 16-bit high-color modes, but is
+inconvenient for accessing 8-bit chunky modes as it swaps every other
+pixel with its neighbor.
+
+
+This mechanism is called an @{b}aperture map@{ub}, and it is for the
+reasons given above configurable, if it is present, either through
+accessing the same memory contents through multiple addresses which
+then makes the memory contents appear swapped depending on the address
+it is accessed with, or through a chipset register that selects the
+aperture mapping.
+
+
+As aperture mapping changes the memory contents as it is observable
+from the CPU without actually touching the memory itself, it may have
+undesirable side effects if programs access video RAM bypassing P96
+which, of course, is aware of the aperture map and how to adjust it.
+
+@ENDNODE
+@NODE PREFS_PREFS "Configuring P96Prefs"
+@TOC EDIT_MENU
+P96Prefs can be configured itself by a couple of tool types in its own
+icon. It recognizes the following tool types:
+
+
+@{b}SETTINGSFILE=<filespec>@{ub} Defines where P96Prefs should look
+for the P96 settings file if the monitor file(s) does not include an
+explicit path. The default for this path is DEVS:Picasso96Settings,
+which is also the file name P96 uses by default.
+
+
+@{b}MONITORPATH=<dirname>@{ub} Defines where P96Prefs should look for
+the monitor icons that load the screen modes. This is by default
+DEVS:Monitors.
+
+
+@{b}HELPPATH=<filespec>@{ub} Defines the full path to the file name
+of the P96Prefs.guide. This path will be used for the online help
+system, e.g. the @{b}Help@{ub} menu or the @{b}Help@{ub} key.
+
+
+By default, P96Prefs searches for the guide in HELP:, GUIDES: and
+PROGDIR:, including subdirectories given by the system language.
+
+
+@ENDNODE
+@NODE INDEX "Index"
+@{CODE}
+
+	A...
+
+	@{"Accelerate masked blits by hardware" link TT_MASKEDBLITS}
+	@{"Allow overclocking" link TT_OVERCLOCK}
+
+	B...
+
+	@{"Be quiet" link TT_QUIET}
+	@{"Black level" link TT_BLACKLEVEL}
+	@{"Black native video if off-monitor" link ENV_BLACKSWITCHING}
+	@{"Blank border" link TT_BORDERBLANK}
+	@{"Blit asynchronously" link ENV_ASYNCBLITS}
+	@{"Board specific configurations" link PREFS_EDIT_TOOLTYPE}
+	@{"Border blank erratum workaround" link TT_BORDERKLUDGE}
+	@{"Border size" link MODE_BORDERSIZE}
+
+	C...
+
+	@{"Chunky mode" link MODE_CHUNKY}
+	@{"Configuring boards" link PREFS_EDIT_BOARD}
+	@{"Configuring modes" link PREFS_EDIT_MODE}
+	@{"Configuring P96Prefs" link PREFS_PREFS}
+	@{"Configuring resolutions" link PREFS_EDIT_RESOLUTION}
+	@{"Copy" link MENU_COPY}
+	@{"Cut" link MENU_CUT}
+
+	D...
+
+	@{"Display Chain" link DISPLAY_CHAIN}
+	@{"Do not optimize MMU mapping" link ENV_DONOTSETMMU}
+	@{"Double buffering only on planar modes" link ENV_PLANARONLYDIPFDBUF}
+	@{"Double scan" link MODE_DOUBLESCAN}
+	@{"DPMS capabilities" link PREFS_MONITOR_DPMS}
+
+	E...
+
+	@{"The Edit Menu" link EDIT_MENU}
+	@{"Edit modes online" link EDIT_SCREEN}
+	@{"Editing board specific configurations" link PREFS_EDIT_TOOLTYPE}
+	@{"Emulate area filler by CPU" link ENV_AREAENDSUPPORT}
+	@{"Emulate native blitter by CPU" link ENV_DISABLEAMIGABLITTER}
+	@{"Emulate planar modes" link ENV_EMULATEPLANAR}
+	@{"Enable BootVGA:Productivity mode" link ENV_ENABLEBOOTVGA}
+	@{"Enable hardware interrupt" link TT_INTERRUPT}
+	@{"Enable item" link MENU_ENABLE}
+	@{"External video switch type" link TT_SWITCHTYPE}
+
+	F...
+	
+	@{"Flicker Fixer Capture Height" link TT_CAPTUREHEIGHT}
+	@{"Flicker Fixer Capture Width" link TT_CAPTUREWIDTH}
+	@{"Flicker Fixer Left Edge" link TT_CAPTURELEFT}
+	@{"Flicker Fixer Phase Adjustment" link TT_CAPTUREPHASE}
+	@{"Flicker Fixer Top Edge" link TT_CAPTURETOP}
+	@{"Font rendering erratum workaround" link TT_FONTSFIX}
+	@{"Frame size" link MODE_FRAMESIZE}
+
+	G...
+
+	@{"Grant direct access to video RAM" link TT_GRANTDIRECTACCESS}
+
+	H...
+
+	@{"Hardware accelerated line drawer" link TT_FASTDRAWLINE}
+	@{"Hardware assisted CPU to video RAM" link TT_SYSTEM2SCREENBLITS}
+	@{"Hardware assisted planar to chunky blits" link TT_PLANAR2CHUNKYBLITS}
+	@{"High-color modes" link MODE_HIGHCOLOR}
+	@{"History" link HISTORY}
+	@{"Honor planar mask for direct color modes" link ENV_DIRECTCOLORMASK}
+
+	I...
+
+	@{"Ignore bitplane mask" link TT_IGNOREMASK}
+	@{"Interlace" link MODE_INTERLACE}
+	@{"Interlace capabilities" link PREFS_MONITOR_INTERLACE}
+
+	J...
+
+	@{"Jumpered interrupt level" link TT_IRQLEVEL}
+	@{"Jumpered mode" link TT_JUMPEREDMODE}
+	
+	K...
+
+	@{"Keep friend bitmaps on board" link ENV_PREFERFRIENDS}
+
+	L...
+
+	@{"Large pointer" link TT_BIGSPRITE}
+	@{"The THOR Software License" link LICENCE}
+	@{"List of all board specific settings" link TOOLTYPE_LIST}
+
+	M...
+
+	@{"Mode depth includes stencil and alpha bits" link ENV_DEPTHINCLUDESALPHA}
+	@{"Mode name" link MODE_NAME}
+	@{"Mode pixel clock" link MODE_PIXELCLOCK}
+	@{"Monitor DPMS capabilities" link PREFS_MONITOR_DPMS}
+	@{"Monitor interlace capabilities" link PREFS_MONITOR_INTERLACE}
+	@{"Monitor height" link TT_MONITORHEIGHT}
+	@{"Monitor horizontal refresh" link PREFS_MONITOR_HORIZONTAL}
+	@{"Monitor model information" link PREFS_MONITOR_MODEL}
+	@{"Monitor vertical refresh" link PREFS_MONITOR_VERTICAL}
+	@{"Monitor specification editor" link PREFS_EDIT_MONITOR}
+	@{"Monitor width" link TT_MONITORWIDTH}
+	@{"Monitor EDID menu item" link MENU_MONITOR}
+	@{"Monitor is above" link TT_ABOVE}
+	@{"Monitor is below" link TT_BELOW}
+	@{"Monitor is left of" link TT_LEFT_OF}
+	@{"Monitor is right of" link TT_RIGHT_OF}
+
+	N...
+
+	@{"Native video frequency if off-monitor" link ENV_AMIGAVIDEO}
+
+	O...
+
+	@{"On P96Prefs" link OVERVIEW}
+	@{"Oscillator 1" link TT_OSC1}
+	@{"Oscillator 2" link TT_OSC2}
+	@{"Overall preferences" link PREFS_OVERALL}
+	@{"Overall settings" link OVERALL_LIST}
+
+	P...
+
+	@{"P96Prefs Documentation" link MAIN}
+	@{"Paste" link MENU_PASTE}
+	@{"Place off-screen native bitmaps in fast memory" link ENV_PLANESTOFAST}
+	@{"Planar mode" link MODE_PLANAR}
+	@{"Position" link MODE_POSITION}
+
+	Q...
+
+	@{"Quick installation guide" link QUICK}
+	
+	R...
+
+	@{"Redirect native modes to card" link TT_FAKENATIVEMODES}
+	@{"Redirect software alerts to RTG" link ENV_ALERTSUPPORT}
+	@{"Remove Unused Items" link MENU_REMOVE_UNUSED}
+
+	S...
+
+	@{"Share monitor with native output" link TT_DISPLAYCHAIN}
+	@{"Show which modes in requesters" link ENV_SHOWMODES}
+	@{"Software rendered pointer" link TT_SOFTSPRITE}
+	@{"Sync pulse polarity" link MODE_SYNCPOLARITY}
+	@{"Sync signal" link TT_SYNC}
+	@{"Sync size" link MODE_SYNCSIZE}
+
+	T...
+
+	@{"Technical background" link TECHNICAL}
+	@{"Testing modes" link SCREEN_TEST}
+	@{"True color erratum pixel shift" link TT_TRUECOLORPIXSHIFT}
+	@{"True color erratum workaround" link TT_TRUECOLORKLUDGE}
+	@{"True-alpha modes" link MODE_TRUEALPHA}
+	@{"True-color modes" link MODE_TRUECOLOR}
+
+	U...
+
+	@{"Undo" link MENU_UNDO}
+	@{"Use hardware blitter" link TT_BLITTER}
+
+	V...
+
+	@{"Validate modes" link MENU_VALIDATE}
+	@{"Video Aperture" link APPERTURE}
+	@{"Video RAM driver inversion" link TT_INVMODE}
+	@{"Video RAM memory type" link TT_MEMORYTYPE}
+	@{"Video RAM wait states" link TT_WAITSTATES}
+	@{"Video switch type" link TT_SWITCHTYPE}
+	@{"VRAM memory clock" link TT_MEMORYCLOCK}
+
+
+@{BODY}
+@ENDNODE
+@NODE HISTORY "History"
+@TOC MAIN
+Release 47.1: First public beta release.
+
+
+Release 47.2: The program now checks for duplicate mode IDs and
+re-assigns them potentially when pasting or loading. The environment
+variables to adjust the handling of the native blitter are now removed
+if the "Native" driver is active as it overloads such settings
+anyhow. Added an "Undo" button to the menu which will revert the edits
+in the selected board, resolution or mode. The HELP key now works
+exactly like the HELP menu item and loads the guide at a particular
+page. Fixed handling of AmigaGuide infrastructure. Fixed handling of
+out-of-range board types. Fixed handling of Cut, which forgot to
+update the GUI and request a reboot. Fixed a couple of GUI glitches at
+which entries or menu items were not updated correctly when making
+changes. Added a configuration editor for monitors and
+auto-configuration for monitors. Updated and restructured the guide.
+
+
+Release 47.3: More glitches of the GUI interface had been fixed, in
+particular when restoring the GUI after iconification or when adding
+or removing nodes to the configurable items. P96Prefs has now the
+ability to add monitor specifications to its preferences, and verify
+whether modes are compatible to the monitor. It also attemps to create
+modes such that they are compatible to the monitor. P96Prefs can now
+also create such specifications from binary dumps of monitor EDID
+data, and when creating modes, it will include modes found there.
+
+
+Release 47.4: The GUI has been improved slightly, with some GUI
+elements moved or rescaled a little bit. Also, the online help system
+provides now help for each tool type or each variable setting. The
+online manual is now also searched in the program installation
+directory.
+
+
+Release 47.5: The list view on the left window side now shows only the
+short names corresponding to the tool types and viarable names instead
+of the full names, saving some space. P96Prefs now also shows the
+modes injected by boards rather than coming from the settings file.
+Such modes cannot be edited or copied, only tested. The gadgets of
+the mode editor are thus all ghosted. The editor can now be aborted
+with Ctrl-C.
+
+
+Release 47.6: Resolution names were not correctly derived from the
+board name. In case a settings file contained monitor information,
+this information was not always added to the database. The monitor
+information was formatted wrongly in the list view gadget. When modes
+were changed, P96 did not always remind the user to verify them, the
+verification is now also added when saving modes. The resolution ID of
+resolutions added by the driver remained editable even though they
+should not have been.  If the board and the settings contained
+duplicate IDs, both were added, even though only those from the
+settings should have been present.  Tooltypes and variables are now
+sorted by type and name. The cursor keys now navigate through the list
+view.
+
+
+Release 47.7: Saving did not show the reboot selection requester
+anymore, it vanished shortly after being displayed. The board name and
+configuration name were confused, this should be fixed now. In case
+the board did not have an icon (yet, or not at all), the resolution
+page did not show a board name, and it may have caused a MuForce
+hit. Another MuForce hit was caused by saving configurations into
+icons with tool types not containing an equals("=") sign. This release
+comes now finally with a localization, this time for German.
+
+
+Release 47.8: Enabling or disabling an element by the menu did not
+indicate this as a change of the configuration, and thus the
+modifications were never saved back. The error requester failed to
+show the error message because the wrong function prototype was used
+for creating the requester.
+
+Samir kindly updated the italian translation of P96Prefs. Also, Javier
+de las Rivas provided a spanish translation of the catalog, thanks
+Javier!
+
+
+Release 47.9: This release adds support of tooltypes that are
+supported as of P96 3.4.0, namely the RainbowII and the CBMs only
+graphics card, the A2410. The BSC FrameMaster is technically identical
+and thus also supported by this release. Added some idiocracies of the
+above cards as well when creating modes. Added support for the new
+monitor width and height tool types added to P96 3.4.0. In case more
+than one board was installed, P96Prefs could have shown a dummy
+resolution of 320x200 pixels that is only for internal use. P96Prefs
+disabled modes if the requested clock frequency differed too much from
+the actual clock frequency. This is no longer the case.  Again, I want
+to thank Samir and Javier for updating the Italian and Spanish
+catalogs of P96Prefs.
+
+
+Release 47.10: One GUI glitch in the German translation was fixed
+where one string in the control panel for numerical elements was
+taking too much space.
+
+
+Release 47.11: In case a board is ghosted, P96Prefs now prints a
+reason under the (assumed) board name, either providing information
+that the board driver is not loaded, the monitor icon was not found,
+or the settings are not assigned to a board.
+
+
+Release 47.12: P96Prefs now requests a reboot in case a board
+assignment changed implicitly because an installed board was assigned
+to an already existing preferences setting. P96Prefs now also loads
+the monitor dimensions from the EDID data and fills them in. Setting
+the knob position of numerical tool types was not always set to scale
+correctly.
+
+
+Release 47.13: Only very minor changes have been made in this release,
+this version is now more verbose in case it cannot open its window and
+prints error messages if opening the window fails. Note that P96Prefs
+is designed for classical Amiga Systems, it will not work on PPC
+systems.
+
+
+Release 47.14: P96Prefs re-evaluates now the double scan and interlace
+flags from the board driver, and thus cooperates nicer with the A2410
+driver which turns off the double scan it does not support.
+
+
+Release 47.15: This release adds support for the new VA2000 driver and
+recognizes its tool types and some card pecularities.
+
+
+Release 17.16: P96Prefs is now aware of the Voodoo card and the latest
+Voodoo driver on Aminet.
+
+
+Release 47.17: P96Prefs is now aware of S3ViRGE based PCI cards and
+the latest S3ViRGE driver. If all modes of a resolution are enabled,
+and the resolution is enabled, then it also enables those modes that
+could be verified. P96Prefs now also supports Matrox drivers, though
+possibly not yet all tooltypes the driver offers.
+
+
+Release 47.18: The "Interlace" gadget in the mode GUI is now disabled
+for boards that do not support interlace.
+
+
+Release 47.19: Added support for the tool types of the Matrox P96
+video driver.
+
+
+Release 47.20: Added support for new environment variables appearing
+in P96 3.6.0.
+@ENDNODE

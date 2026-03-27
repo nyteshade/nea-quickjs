@@ -1,0 +1,290 @@
+@database TextEditARexxguide
+@$VER: texteditarexx.guide 47.1 (13.08.2021) English
+
+@node "MAIN" "TextEdit ARexx guide"
+
+  @{b}@{fg shine}@{u}The TextEdit ARexx interface@{ub}@{fg text}@{uu}
+
+  Each project open in TextEdit is given the port name of TEXTEDIT.x,
+  where x is a slot number starting from 1. (For example, if you have
+  two TextEdit programs open, with 2 projects open in each their port
+  names are TEXTEDIT.1 through TEXTEDIT.4) This allows you to refer to
+  a specific TextEdit project from within an ARexx script.
+
+  TextEdit supports the following ARexx commands:
+
+  @{b}NEW@{ub}
+	,
+
+  Starts a new blank text file.
+
+
+  @{b}OPEN@{ub}
+	FILENAME/K
+
+  Opens a text file either by putting up a file requester or from the
+  specified filename.
+
+	* FILENAME Specifies the text filename.
+
+
+  @{b}SAVE@{ub}
+	,
+
+  Saves the project to its file, and opens a file requester
+  if the document have not been saved previously.
+
+
+  @{b}SAVEAS@{ub}
+	NAME/K
+
+  Save the object to the specified file, bringing up a file
+  requester.
+
+	* NAME Specifies the filename suppressing the requester.
+
+
+  @{b}SAVECOPY@{ub}
+	NAME/K
+
+  Works like SAVEAS except TextEdit keeps the original file open,
+  and the copy is just a new file on disk.
+
+	* NAME Specifies the filename suppressing the requester.
+
+
+  @{b}CLOSE@{ub}
+	FORCE/K
+
+  Closes the project.
+
+	* FORCE Suppresses any modified project requester.
+
+
+  @{b}QUIT@{ub}
+	FORCE/K
+
+  Stops TextEdit. If projects are modified, a series of
+  modified project requesters will pop up.
+
+	* FORCE Suppresses any modified project requesters.
+
+
+  @{b}GETATTR@{ub}
+	OBJECT/A,FIELD
+
+  provides information about various objects.
+
+	* OBJECT specifies the object type to obtain information on
+	* FIELD specifies which field to get the value of
+
+  At the moment the only object is PROJECT and it has
+  5 fields:
+
+	* FILE - the name of the file without path
+	* FILENAME - the full path
+	* PATH - the path but without the path part
+	* FILETYPE - the type as defined by the filetype plugin
+	* CHANGED - TRUE or FALSE
+
+  @{b}CUT@{ub}
+	,
+
+  Removes the currently selected text and places it in the
+  clipboard.
+
+
+  @{b}COPY@{ub}
+	,
+
+  Places the currently selected text in the clipboard.
+
+
+  @{b}PASTE@{ub}
+	,
+
+  Puts the contents of the clipboard at the cursor position
+  possibly replacing the selected text.
+
+
+  @{b}ERASE@{ub}
+	,
+
+  Deletes the current selection, but does nothing if there is no 
+  selection
+
+
+  @{b}GOTOLINE@{ub}
+	/N/A
+
+  Moves the cursor to the line specified. With the first line having 
+  number zero.
+
+
+  @{b}GOTOCOLUMN@{ub}
+	/N/A
+
+  Moves the cursor to the column specified. With the first column 
+  having number zero.
+
+
+  @{b}CURSOR@{ub}
+	Up/S,Down/S,Left/S,Right/S
+
+  Moves the cursor as if one of the cursor keys were pressed. Only one 
+  of the switches should be given.
+
+
+  @{b}LINE@{ub}
+	/N/A
+
+  Moves the cursor a negative or positive number of lines up/down 
+  respectively.
+
+
+  @{b}COLUMN@{ub}
+	/N/A
+
+  Moves the cursor a negative or positive number of columnes 
+  left/right respectively.
+
+
+  @{b}NEXT@{ub}
+	Word/S,Sentence/S,Paragraph/S,Page/S
+
+  Moves the cursor to the beginning of the next specified element. 
+  Only one of the switches should be given.
+
+
+  @{b}PREVIOUS@{ub}
+	Word/S,Sentence/S,Paragraph/S,Page/S
+
+  Moves the cursor to the beginning of the current or previous 
+  specified element.
+  Only one of the switches should be given.
+
+
+  @{b}POSITION@{ub}
+	SOF/S,EOF/S,SOL/S,EOL/S,SOW/S,EOW/S,SOV/S,EOV/S
+
+  Moves the cursor to the position specified.
+	* SOF moves it to the beginning of the file.
+	* EOF moves it to the end of the file.
+	* SOL moves it to the beginning of the current line.
+	* EOL moves it to the end of the current line.
+	* SOW moves it to the start of the current word.
+	* EOW moves it to the end of the current word.
+	* SOV moves it to the top of the current view.
+	* EOV moves it to the bottom of the current view
+
+
+  @{b}SETBOOKMARK@{ub}
+	OFF/S,TOGGLE/S,/N
+
+  Sets a bookmark (remembers the place). There can be a bookmark on 
+  any line.
+  The bookmarks don't have numbers to  /N is ignored but not illegal 
+  to preserve compatibility
+
+
+  @{b}GOTOBOOKMARK@{ub}
+	PREVIOUS/S,NEXT/S,/N
+
+  Moves the cursor to the beginning of the line with the previous or 
+  next bookmark. You can specifiy jumping to the n'th bookmark. See 
+  LISTBOOKMARKS below for an ordered list of current bookmarks
+
+
+  @{b}LISTBOOKMARKS@{ub}
+	,
+
+  Lists the current bookmarks.
+
+
+  @{b}CLEARBOOKMARKS@{ub}
+	,
+
+  Removes all bookmarks.
+
+
+  @{b}TEXT@{ub}
+	/F
+
+  Inserts the specified text removing any selected text in the process.
+
+
+  @{b}UNDO@{ub}
+	,
+
+  Undoes the last change
+
+
+  @{b}REDO@{ub}
+	,
+
+  Redoes the last undone change
+
+
+  @{b}GETLINE@{ub}
+	,
+
+  Returns the text of the line where the cursor is placed with newline
+  unless it is the final line in the document.
+
+
+  @{b}GETCURSOR@{ub}
+	LINE/S,COLUMN/S
+
+  Returns either the line or the column number (zero based)
+
+
+  @{b}MARK@{ub}
+	ON/S,OFF/S
+
+  Corresponds to holding down the shift key when moving the cursor 
+  around, with the exception being that the selection is unselected 
+  when OFF is issued.
+
+
+  @{b}DELETE@{ub}
+	,
+
+  Equivalent to pressing the delete key on the keyboard
+
+
+  @{b}BACKSPACE@{ub}
+	,
+
+  Equivalent to pressing the backspace key on the keyboard
+
+
+  @{b}GETSELECTEDTEXT@{ub}
+	,
+
+  Returns the current selection, but beware that ARexx has a limit 64K 
+  strings
+
+
+  @{b}BEGINMULTICHANGE@{ub}
+	,
+
+  Begin a multichange that will only show up as a single undo step. 
+  Don't forget to call ENDMULTICHANGE exactly as many times as calling 
+  this.
+
+
+  @{b}ENDMULTICHANGE@{ub}
+	,
+
+  This ends a multichange sequence.
+
+
+  @{b}APICURSOR@{ub}
+	ON/S,OFF/S
+
+  Switches to an alternate cursor so you can make changes without 
+  moving the original cursor. Obviosuly if the original cursor is a 
+  selection and you make changes within the original selection will 
+  change in size.
+
+@endnode

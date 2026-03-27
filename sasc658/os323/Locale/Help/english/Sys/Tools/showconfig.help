@@ -1,0 +1,95 @@
+@database ShowConfig
+@node "MAIN"
+@{IMG SYS:Tools/ShowConfig.info}
+   NAME
+	SHOWCONFIG - Displays system configuration information.
+  
+   FORMAT
+	SHOWCONFIG [DEBUG] [GUI] [REPORT {<path and filename>}] 
+	[FORMAT [TEXT|GUIDE]]
+  
+   TEMPLATE
+	DEBUG/S, GUI/S, REPORT/K, FORMAT/K
+  
+   PATH
+	TOOLS/SHOWCONFIG
+
+   FUNCTION
+	SHOWCONFIG displays system configuration information including 
+	processors, custom chips, software versions, RAM and any plug-in 
+	boards when ran from the Shell. 
+
+	SHOWCONFIG is useful when requesting hardware/software technical 
+	support.
+
+	Whenever it it is ran from Workbench, or in the CLI with the GUI 
+	option, it will display much more detailed information which 
+	includes system memory, libraries, devices, resources, residents 
+	and drives.
+
+	DEBUG
+	Prints out more detailed debug information on the expansion boards 
+	detected.
+
+	GUI
+	Brings up the graphic user interface when called from the Shell.
+
+	REPORT
+	SHOWCONFIG can generate a system report file which by default will 
+	be formatted as an AmigaGuide. The REPORT generator should be 
+	invoked from the CLI specifying the path to the file name's output.
+
+	FORMAT
+	Determines the format of the report file which can either be GUIDE 
+	to have a generated AmigaGuide output, or TEXT for a simpler 
+	unformatted text output.
+
+	NOTE: To properly identify the ever-growing list of available 
+	expansion boards, SHOWCONFIG makes use of the boards.library 
+	("BoardsLib" on Aminet).
+
+	Also, to properly identify Memory Management Units (MMU) and 
+	Floating Point Processors/Units (FPU), SHOWCONFIG makes use of the 
+	"MMULib" package, also available on Aminet.
+
+   EXAMPLE
+	 1> SHOWCONFIG REPORT RAM:MyReport.txt FORMAT TEXT
+
+	Will generate a report file in RAM: called Myreport.txt and the 
+	file will be formated as plain text.
+
+
+	The ShowConfig Interface
+	========================
+  
+	In its window title bar, SHOWCONFIG displays its name, along with 
+	its current version numbers.
+
+	Several hardware and software minutia will be displayed. Many of it 
+	will be grouped and categorized under several window tabs which you 
+	can safely explore by clicking on them.
+
+	When navigating tabbed windows, if you click within a column's title 
+	you will be able to sort the list it holds. By clicking again on it, 
+	you may invert the sorting order.
+
+	Additionally, by clicking on some of the tabbed displayed elements 
+	from the listings, a small subwindow will pop up with further 
+	details about them.
+
+
+	The Pull-Down Menu
+	==================
+  
+  
+	PROJECT
+
+	<Generate Report> 
+	Opens the report generator subwindow which allows you to specify 
+	which component details should the report include, how the formatted 
+	output will look like, and where it should be created. 
+
+	<Quit> 
+	Exits the SHOWCONFIG program.
+
+@endnode

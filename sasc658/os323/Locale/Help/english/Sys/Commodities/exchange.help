@@ -1,0 +1,47 @@
+@database Exchange
+@node "MAIN"
+@{IMG SYS:Tools/Commodities/Exchange.info}
+   NAME
+	EXCHANGE - Monitors and controls the Commodity Exchange programs. 
+
+   FORMAT
+	 EXCHANGE [CX_PRIORITY <priority>] [CX_POPKEY <key>] 
+	 [CX_POPUP <yes | no>]
+
+   TEMPLATE
+	CX_PRIORITY/N/K,CX_POPKEY/K,CX_POPUP/K
+
+   PATH
+	TOOLS/COMMODITIES/EXCHANGE
+
+   FUNCTION
+	When EXCHANGE is loaded, it displays its user interface from where 
+	you can view a list, or force the exit, hide or show the 
+	interface of commodity programs.
+
+	Please note that most but not all Commodities report as such to 
+	the system, so not all of them can be manipulated by EXCHANGE.
+
+	Press Ctrl+C or use the BREAK command to exit Exchange when it is 
+	started from a Shell.
+
+	CX_PRIORITY sets the priority of the commodity in relation to all 
+	the other Commodity Exchange programs. All the Commodity Exchange 
+	programs are set to a default priority of 0. Values should have an 
+	integer value between -128 to 127 (i.e., CX_PRIORITY=10). 
+
+	CX_POPKEY allows you to specify the hot key for the program. If 
+	more than one key is specified, be sure to enclose the entire 
+	argument in double quotes (i.e., CX_POPKEY="Shift F4"). 
+  
+	CX_POPUP will either enable (Yes) or disable (No) the program 
+	window from opening. By default, program windows tend to open when 
+	they are invoked (i.e., CX_POPUP=Yes).
+	
+   EXAMPLE
+	1> EXCHANGE CX_POPKEY "Shift F1"
+
+	The Exchange program is started and its window appears on the 
+	screen. When its window is hidden, pressing Shift+F1 reveals it.
+
+@endnode

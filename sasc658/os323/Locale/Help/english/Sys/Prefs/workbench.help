@@ -1,0 +1,102 @@
+@database Workbench
+@node "MAIN"
+@{IMG SYS:Prefs/Workbench.info}
+  WORKBENCH
+  =========
+
+  The Workbench Preferences editor is used to customize various 
+  behavioral characteristics of the Workbench screen, such as screen 
+  title, defining hidden devices, icon behavior, etc.
+
+  HIDDEN DEVICES: 
+  Enables you select devices that you do not want to show on the 
+  Workbench screen, although they can still be accessed by programs or 
+  via the Shell. Clicking on a device name will cause the accompanying 
+  word to toggle between "visible" and "hidden".
+
+  NO VOLUME GAUGE
+  Selecting this box removes the vertical space-used bar down the 
+  left-hand side of device windows. The default is selected.
+
+  DRAWERS (TEXT):
+  Defines how Workbench text mode drawers should be displayed.
+  <Mixed> shows drawer names mixed with file names (default).
+  <Top> all grouped together before file names.
+  <Bottom> all grouped together after file names.
+
+  STACK SIZE: 
+  Enables you to customize the default size of the Stack 
+  allocated when a program is started. This can of course be 
+  overridden by the Tool Type entry in the program's icon. The default 
+  value is 4KB.
+
+  KEYBOARD SELECTION DELAY:
+  This value is used to set the keyboard icon selection restart delay.
+  Minimum value is 1 second. Maximum value is 10 secs. Default is 3 
+  secs.
+
+  SCREEN TITLE FORMAT: 
+  Enables you to customize the heading on the Workbench screen title 
+  bar by typing into the text box provided. The only restriction is 
+  the number of characters that can fit on a single line across the 
+  top of the Workbench screen, and this depends on your screen 
+  resolution. You can also include system variables as part of the 
+  text by clicking on the "Insert" gadget wherever you want to insert 
+  them, and selecting items from the various menus.
+
+  Each time a variable is inserted, it will appear as an abbreviation 
+  for that variable with a % in front of it, in a text box
+
+  NO TITLEBAR
+  Selecting this box removes the Workbench title bar entirely.
+  
+  UPDATE DELAY 
+  Control how long the default Workbench title bar message is allowed 
+  to display before the user-defined text replaces it, each time you 
+  boot the system and is measured in 10ths of a second. The minimum 
+  value is 1 1/10 s. The maximum value is 5000 1/10 s. The default is 
+  50 1/10 s. 
+
+  ICONS
+
+  NO COLOR ICONS
+  Disables colors in icons.
+
+  NO NEWICONS
+  Ignores the NewIcon format in icons.
+
+  SET MAGICWB
+  Sets a palette suitable for 8-color MagicWB-style icons.
+
+  QUALITY
+  Options are: "Best", "Good", "Poor" or "Bad".
+
+  BORDER SIZE
+  Options are: "No Border", "Small", "Medium" or "Large".
+
+  MAXIMUM FILE NAME LENGTH
+  Sets the maximum length for filenames. Default value is 25. The 
+  maximum will depend on the file system used.
+  
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+  
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+@endnode

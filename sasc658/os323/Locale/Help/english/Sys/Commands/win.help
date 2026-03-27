@@ -1,0 +1,24 @@
+   NAME
+	WIN - Opens Workbench windows from the Shell/CLI. 
+
+   FORMAT
+	WIN <path name>
+
+   TEMPLATE
+	(none)
+
+   PATH
+	S/WIN
+
+   FUNCTION
+	WIN is an ARexx script designed for opening Workbench windows from 
+	the Shell/CLI.
+
+   EXAMPLES
+	    1>Win sys:expansion
+
+	Will open the Expansion drawer located on the SYS: volume.
+
+
+   SEE ALSO
+	WBLOAD

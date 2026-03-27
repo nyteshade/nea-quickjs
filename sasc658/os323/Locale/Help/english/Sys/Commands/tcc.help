@@ -1,0 +1,19 @@
+   NAME
+	TCC - Closes the tracing console window.
+
+   FORMAT
+	TCC
+
+   TEMPLATE
+	(none)
+
+   PATH
+	REXXC/TCC
+
+   FUNCTION
+	TCC closes the global tracing console as soon as all active 
+	programs are no longer using it. All read requests queued to the 
+	console must be satisfied before it can be closed.
+
+   SEE ALSO
+	TCO, TS, TE

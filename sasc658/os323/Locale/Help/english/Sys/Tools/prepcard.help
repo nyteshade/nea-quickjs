@@ -1,0 +1,35 @@
+@database PrepCard
+@node "MAIN"
+@{IMG SYS:Tools/PrepCard.info}
+   NAME
+	PREPCARD - Prepares a PCMCIA memory card for use as a disk device 
+	           or system RAM on systems with card slots, such as the 
+	           Amiga 600 and Amiga 1200.
+
+   FORMAT
+	PREPCARD [DISK | RAM]
+
+   TEMPLATE
+	DISK/S,RAM/S
+
+   PATH
+	TOOLS/PREPCARD
+
+   FUNCTION
+	The DISK option prepares the PCMCIA card for use as disk device 
+	CC0:. Reading and writing to the DISK-prepared card is the same as 
+	reading and writing to a floppy disk. We recommend that you use a 
+	battery-backed-up PCMCIA card as-a-disk if you wish to preserve 
+	your work.
+
+	The RAM option prepares the PCMCIA card for use as system RAM. 
+	Booting or rebooting with the card inserted adds the card's memory 
+	to the existing memory in the Amiga. You can use any PCMCIA cards 
+	as RAM, except Read Only Memory (ROM) cards.
+
+	The DISK and RAM options are mutually exclusive; if you specify 
+	both options, PrepCard uses the first option specified and 
+	disregards the other. An error message results if you try to use 
+	PrepCard on an Amiga that does not have a card slot.
+
+@endnode

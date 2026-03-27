@@ -1,0 +1,18 @@
+/* win(.rexx) */
+options results
+
+PARSE ARG WINDIR
+
+if strip(WINDIR)="" then WINDIR=PRAGMA('D')
+else if index(WINDIR,'"')>0 then WINDIR=strip(translate(WINDIR,'','"'))
+if ~exists(WINDIR) then signal BADARG
+
+ADDRESS 'WORKBENCH' 'WINDOW "'||WINDIR||'" OPEN'
+
+signal QUIT
+
+BADARG:
+say 'Input error! That argument is not a valid path.'
+
+QUIT:
+exit

@@ -1,0 +1,124 @@
+@database PrinterGfx
+@node "MAIN"
+@{IMG SYS:Prefs/PrinterGfx.info}
+  PRINTERGFX
+  ==========
+  
+  The PrinterGfx Preferences editor specifies graphic printing 
+  options.
+  
+  Note: If you selected the PostScript printer driver, use the 
+  PrinterPS Preferences editor to make graphics settings. This 
+  overrides settings made in the PrinterGfx Preferences editor.
+  
+  DITHERING
+  Dithering prints patterns of dots in different colors (or different 
+  densities) so that they appear as one color or as shades of grey. 
+  This has the effect of smoothing out the picture and giving the 
+  impression of more colors. The available dithering options are:
+  "Ordered", "Halftone" and "Floyd-Steinberg".
+  
+  SCALING
+  Scaling is the process of changing the size of an image. The actual 
+  size of the printout is determined by the Limits setting. The 
+  available Scaling options are: "Fraction" and "Integer".
+  
+  IMAGE
+  Determines whether an image is printed normally or with a reverse 
+  shading. This option affects only Black & White and greyscale 
+  printing. When set to Positive, the image is printed as it appears 
+  on the screen. When set to Negative, the image is reversed, similar 
+  to a photographic negative.
+  
+  ASPECT
+  Determines the direction on the paper that the image is printed. 
+  When set to Horizontal (often called Portrait), the image is printed 
+  as it appears on the screen. When set to Vertical (often called 
+  Landscape), the image is printed sideways.
+  
+  SHADE
+  Allows you to select the colors to print. Not all printers support 
+  these options. The available options are: "Black & White", "Grey 
+  Scale 1", "Grey Scale 2" and "Color".
+  
+  THRESHOLD
+  Determines the colors on the screen that are printed as black or as 
+  white. This setting is effective only in Black & White mode.
+  Increasing the Threshold value causes more colors to be printed as 
+  black. 
+  
+  DENSITY
+  Selects the graphics print density. The lower the density, the 
+  faster the image prints on those printers with multiple densities. 
+  When a higher density is selected, more dots create a sharper image. 
+  However, it takes longer for the image to print. This option is not 
+  supported by every printer.
+  
+  SMOOTHING
+  Used to smooth any diagonal lines that appear jagged. This option is 
+  best suited for use with programs that do graphic dumps of text. 
+  When smoothing is turned on, printing may be slower. Floyd-Steinberg 
+  dithering cannot be used with Smoothing.
+  
+  CENTER PICTURE
+  Horizontally centers the printed picture on the page. Any value 
+  entered for the Left Offset is ignored when Center Picture is on.
+  
+  COLOR CORRECTION 
+  Matches the colors on your printout more closely to the colors on 
+  the screen. Color correction can be used on red, green, or blue or 
+  on a combination of colors. Color correction reduces the number of 
+  printed colors. When color correction is not used, all the available 
+  colors displayed by the Amiga can be printed on a color printer. For 
+  each color that is chosen for correction, several shades of that 
+  color are lost. The number of colors that can be printed is shown in 
+  the Colors gadget to the right of the color correction boxes.
+  
+  LEFT EDGE (INCHES/10)
+  Determines the distance of shift, or offset, of the printed picture. 
+  This is similar to setting up a left margin. The Center Picture 
+  option disables Left Edge. To enter the value, select the Left Edge 
+  gadget, delete the current value, enter the correct value, and press 
+  Return. Choosing Use Metric System? in the Settings menu lets you 
+  specify the value in millimeters rather than tenths of inches.
+  
+  LIMITS
+  Interprets the Width and Height limits, depending on the Type 
+  setting. The available options are: "Ignore", "Bounded", "Absolute",
+  "Pixels", "Multiply" and "Width/Height".
+  
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+  
+  Note: To be able to use multiple printers, copy the printer 
+  preferences, open the information window on the copy, and add the 
+  Tool Type "UNIT=1" (or whatever). This icon then sets the 
+  preferences for the printer.device unit 1. Continue with as many 
+  units as you want to have. The printer.device now also reads 
+  printergfxN.prefs and printerPSN.prefs for consistency when using 
+  multiple printers. For this purpose, the PrinterGfx and PrinterPS 
+  preferences editors now support the UNIT Tool Type and the UNIT 
+  command line argument.
+  
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+  [UNIT] Causes an additional text gadget to appear in the editor for 
+  setting the unit number.
+
+@endnode

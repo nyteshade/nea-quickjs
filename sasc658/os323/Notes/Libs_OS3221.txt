@@ -1,0 +1,60 @@
+Sys:Devs/
+ clipboard.device 47.1
+ mfm.device 45.4
+ parallel.device 45.2
+ postscript_init.ps 39.1
+ printer.device 47.3
+ serial.device 45.2
+ trackfile.device 2.48
+
+ /DataTypes/
+  8SVX 40.1
+  ACBM 47.1
+  AIFF 47.1
+  AMIGAGUIDE 40.1
+  ANIM 40.1
+  BMP 40.1
+  CDXL 40.1
+  FTXT 40.1
+  GIF 47.1
+  ICON 47.1
+  ILBM 40.1
+  JPEG 47.6
+  PNG 47.3
+  WAVE 47.1
+
+Sys:Libs/
+ 68020.library 46.4
+ 68030.library 46.6
+ 68040.library 46.3
+ 68060.library 46.4
+ 680x0.library 46.1
+ amigaguide.library 45.5
+ asl 47.9
+ boards.library 3.82
+ bullet.library 46.4
+ commodities.library 45.2
+ datatypes.library 47.3
+ disassembler.library 40.9
+ diskfont.library 47.1
+ icon.library 51.4.589
+ icon.library 47.5
+ icon.library 51.4.589
+ iffparse.library 45.3
+ locale.library 47.30
+ lowlevel.library 47.1
+ mathieeedoubbas.library 47.3
+ mathieeedoubtrans.library 47.2
+ mathieeesingtrans.library 45.11
+ mathtrans.library 47.1
+ memory.library 40.1
+ mmu.library 46.21
+ nonvolatile.library 40.36
+ intuition.library 40.87
+ Picasso96API.library 2.359
+ realtime.library 40.3
+ rexxsupport.library 34.1
+ rexxsyslib.library 47.2
+ version.library 47.4
+ ViNCEd 3.107
+ workbench.library 47.37

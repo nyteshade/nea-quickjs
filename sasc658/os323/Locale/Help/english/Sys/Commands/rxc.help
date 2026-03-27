@@ -1,0 +1,17 @@
+   NAME
+	RXC - Closes the ARexx resident process.
+
+   FORMAT
+	RXC
+
+   TEMPLATE
+	(none)
+
+   PATH
+	REXXC/RXC
+
+   FUNCTION
+	RXC closes the resident process. The "REXX" public port is 
+	withdrawn immediately, and the resident process exits as soon as 
+	the last ARexx program finishes. No new programs can be launched 
+	after a close request.

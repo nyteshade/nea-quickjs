@@ -1,0 +1,18 @@
+   NAME
+	TE - Clears the global tracing flag.
+
+   FORMAT
+	TE
+
+   TEMPLATE
+	(none)
+
+   PATH
+	REXXC/TE
+
+   FUNCTION
+	TE clears the global tracing flag, which forces the tracing mode
+	to OFF for all active ARexx programs.
+
+   SEE ALSO
+	TCO, TCC, TS

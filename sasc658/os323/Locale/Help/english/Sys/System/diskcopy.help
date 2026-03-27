@@ -1,0 +1,46 @@
+   NAME
+	DISKCOPY - Copies the entire contents of one volume to another. 
+ 
+   FORMAT
+	DISKCOPY [FROM] <device> TO <device> [NAME <name>] [NOVERIFY] 
+	[MULTI] 
+  
+   TEMPLATE
+	FROM/A,TO/A,NAME/K,NOVERIFY/S,MULTI/S 
+  
+   PATH
+	SYSTEM/DISKCOPY
+  
+   FUNCTION 
+	The DISKCOPY command copies the entire contents of one volume to 
+	another. 
+  
+	The <device> parameters specify the name of the disk devices to 
+	copy from and to copy to; for example, DF0: or DF1:. 
+  
+	A floppy disk containing an altered icon can be displayed from the 
+	Workbench by removing the disk from the drive and reinserting it. 
+  
+	By default, the destination disk will have the same name as the 
+	source disk. If you specify the NAME option, you can give the 
+	destination disk a different name from the source disk. 
+  
+	Normally during a DISKCOPY, the Amiga copies and verifies each 
+	cylinder of data. The NOVERIFY option allows you to skip the 
+	verification process, making the copy faster. 
+  
+	The MULTI option loads the data on the source disk into memory, 
+	allowing you to make multiple copies without having to read the 
+	data from the source disk each time. 
+  
+   EXAMPLES 
+	1> DISKCOPY DF0: to DF1: 
+  
+	Copies the contents of the disk in drive DF0: to the disk in drive 
+	DF1: overwriting the contents of the disk in drive DF1:  
+  
+	1> DISKCOPY DF0: to DF1: NAME NewDisk NOVERIFY 
+  
+	Copies the contents of the disk in drive DF0: to the disk in drive 
+	DF1: and gives the disk in drive DF1: the name NewDisk. The disk 
+	will not be verified as it is copied. 

@@ -1,0 +1,35 @@
+   NAME
+	MORE - Displays the contents of an ASCII file.
+ 
+   FORMAT
+	MORE <filename> 
+  
+   TEMPLATE
+	FILENAME/K 
+  
+   PATH
+	SYS:UTILITIES/MORE 
+  
+   FUNCTION 
+	MORE displays the contents of the file <filename>. If the file is 
+	not in the current directory, you must specify the complete path. 
+	If you don't specify a file, MORE will display a file requester. 
+  
+	Command keys for MORE are explained on-screen when you press the 
+	"H" key. 
+  
+	MORE also accepts input from a PIPE. Since standard input from a 
+	PIPE is of unknown length, the Previous Page (Backspace or b), 
+	Last Page (>), and More N% into file (%N) commands are disabled 
+	when the MORE input is from a PIPE. 
+  
+	If the EDITOR environment variable is defined and you are using 
+	MORE from the Shell, you can bring up an editor to use on the file 
+	you are viewing (press Shift+E). The EDITOR variable should have 
+	the complete path to the editor specified; i.e., C:ED. 
+  
+   EXAMPLE
+	    1> MORE DF0:TestFile 
+  
+	Displays the contents of the ASCII file called TestFile on the 
+	disk in drive DF0:.

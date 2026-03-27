@@ -1,0 +1,31 @@
+   NAME
+	FINDRESIDENT - Finds a resident Kickstart ROM module. 
+
+   FORMAT
+	FINDRESIDENT [MODULE]
+
+   TEMPLATE
+	MODULE/A
+   
+   PATH
+	HDSetup3.2:C/FINDRESIDENT
+   
+   FUNCTION
+	FINDRESIDENT will attempt to find a resident Kickstart ROM module.
+	Generally used to detect hardware from within a Shell script.
+
+	Returns an error code of 1 if the module is not found.
+
+	It is not deployed by the default OS installation, and is only 
+	present in the HDSetup3.2 disk, in its C directory.
+
+   EXAMPLES
+
+	FINDRESIDENT cdui.library
+	  If warn
+	    Echo "This is a CD32"
+	  Else
+	    Echo "This is not a CD32"
+	  EndIf
+
+	Will detect if the current machine is an Amiga CD32.

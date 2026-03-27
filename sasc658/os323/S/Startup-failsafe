@@ -1,0 +1,47 @@
+; $VER: Startup-Sequence_Failsafe 47.1 (12.09.2020)                  |
+; +----------------------------------------------------------------+ |
+; | DON'T TOUCH THIS FILE - It may be overwritten without warning! | |
+; +----------------------------------------------------------------+ |
+;                                                                    |
+; If you decide in your infinite wisdom to change this file you will |
+; be burnt at the stake by a rabid horde of teenage Atari fans!      |
+;--------------------------------------------------------------------|
+;                                                                    |
+; The purpose of this startup file is to disable for safety reasons  |
+; the following features:                                            |
+;                                                                    |
+; Extra floppy buffers, 680x0.library check, HappyENV, auto-mounting |
+; of DOSDrivers, special display drivers, Expansion drawer-based     |
+; drivers, Console clipboard, ARexx, Saved preferences loading & use.| 
+;                                                                    |
+; Also the WBStartup folder won't have its contents processed and the| 
+; user-startup won't be executed either.                             |
+;--------------------------------------------------------------------|
+
+FailAt 10
+SetPatch >NIL:
+Version >NIL:
+
+MakeDir RAM:T RAM:ENV
+Copy ENVARC: RAM:ENV QUIET ALL NOREQ
+
+Assign >NIL: ENV: RAM:ENV
+Assign >NIL: T:   RAM:T
+
+FailAt 21
+Assign PRINTERS: DEVS:Printers
+Assign KEYMAPS: DEVS:Keymaps
+Assign LOCALE: SYS:Locale
+Assign LIBS: SYS:Classes ADD
+Assign HELP: LOCALE:Help DEFER
+
+AddDataTypes REFRESH QUIET
+
+Path C: SYS:Utilities SYS:Rexxc SYS:System S: SYS:Prefs SYS:Tools SYS:Tools/Commodities
+
+LoadWB SKIP
+
+Wait 1
+RequestChoice "                  ATTENTION!                  " "You have booted into Failsafe mode.*nSeveral features have been disabled.*n*nThis is a safe environment to carry out*nmaintenance and troubleshooting tasks." "OK" >NIL:
+
+EndCLI >NIL:

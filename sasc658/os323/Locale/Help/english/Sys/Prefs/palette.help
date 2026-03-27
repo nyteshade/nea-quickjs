@@ -1,0 +1,57 @@
+@database Palette
+@node "MAIN"
+@{IMG SYS:Prefs/Palette.info}
+  PALETTE
+  =======
+
+  The Palette Preferences editor enables you to specify the color 
+  palette to be used on your system. 
+  
+  When Palette is invoked, it will display the following:
+  
+  In the top right, a cycle gadget will let the user decide from two 
+  available options: 4 COLOR SETTINGS and MULTICOLOR SETTINGS. 
+  Depending on the choice made, either four or eight preset color 
+  selection gadgets will be present in the upper-left section of the 
+  program window. 
+  
+  A color wheel in the upper left section, along with sliders will 
+  enable the user to change any selected preset color.
+  
+  In the right upper section, a list of Workbench elements with a 
+  preceding color selection box will be available for modification.
+  For this purpose, the user can select one of the elements in that 
+  list with the mouse, and change its color by then clicking on the 
+  preset color boxes present below the list. Notice that the preceding 
+  Workbench element box will change accordingly.
+  
+  At the bottom of the program's window the user will be able to 
+  preview the changes.
+  
+  PalettePrefs has some color presets built-in which may help you 
+  achieve a specific look without much effort. These are available by 
+  accessing the Edit pull-down menu and by selecting either 
+  "Classic Presets" or "NewLook Presets" submenus.
+  
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+@endnode

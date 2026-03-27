@@ -25,7 +25,7 @@
 /* AmigaOS / SAS-C 6.58: pull in inline/attribute/etc. shims before quickjs.h */
 #ifdef __SASC
 #include "cutils.h"
-#include "amiga/amiga_ssl.h"
+#include "amiga_ssl.h"
 /* defined in qjs.c — set by --color flag */
 extern int amiga_force_color;
 #endif

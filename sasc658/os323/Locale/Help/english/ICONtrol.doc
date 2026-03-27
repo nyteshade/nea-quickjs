@@ -1,0 +1,287 @@
+                               ICONtrol
+
+                              Version 1.0
+
+                  © Copyright 1991, Stefan Winterstein
+
+
+
+
+                                Overview
+                                ========
+
+    ICONtrol  is  an easy-to-use CLI-command that gives you control over
+Workbench  icons.  It's main purpose is to update the look of your icons
+for OS 2.0; this can be done by swapping the colors in an icon or giving
+new  images  to  them.   Moreover,  it  can  be  used to clear an icon's
+absolute  position in a drawer or on Workbench.  So it is also a helpful
+tool if you are not yet using OS 2.0.
+    ICONtrol  does   NOT  require  OS 2.0,  features  full  support  for
+AmigaDOS-wildcards,    can    recursively   enter   subdirectories,   is
+Enforcer-tested and may be made resident.
+
+
+                             A Quick Start
+                             =============
+
+    ICONtrol  takes,  in that order, a path, a keyword and some optional
+parameters as arguments.  Here is a short description:
+
+Path
+    may  be  any  file,  icon  or  directory;  if omitted, all icons are
+processed.  Amiga-DOS wildcards ARE supported.
+
+WARNING:  Due  to  a  bug  in RAM-handler,  it is not recommended to use
+          ICONtrol on "RAM:"; see "Known Bugs" for details.
+
+Keywords are:
+    RECOLOR             Switch between icon coloring
+                        for old and new Workbench.
+    GETIMAGE <from>     Give a new image to an icon. The name of the
+                        source icon follows the keyword directly.
+    FREEPOS             Let Workbench freely place the icon.
+
+    ALL                 will recursively enter all sub-directories.
+
+Types
+    are  "FILES",  "DIRS"  and  "DISKS".   If  one  or  more  of them is
+specified, only icons of these types will be changed.
+
+    To see some examples simply skip the next section, which gives you a
+more detailed description of the program.
+
+
+                          How To Use ICONtrol
+                          ===================
+
+    Important  note  for  1.2/1.3  users:  If you change an icon that is
+currently  visible  on  the  workbench,  it  will  not  automatically be
+changed  on  the  screen.  First close the window that contains the icon
+and open it again.
+
+ICONtrol is invoked from the CLI; its syntax is as follows:
+
+            ICONtrol [<path>] <keyword> [ALL] [<type>...]
+
+    Parameters  in  []  may be omitted; so the only argument that really
+must  be  present is the keyword that determines what ICONtrol should do
+to the icons.  An explanation of the various components follows.
+
+Path
+----
+    ICONtrol  accepts  any  valid AmigaDOS(tm) path specification, which
+may  describe  a  directory, a single icon or a file pattern.  It is not
+necessary  to supply the ".info"-suffix.  The icon of a disk is the file
+"disk.info"  in  the  root  directory of that disk.
+
+    Wildcards  are  fully  supported but are allowed for filenames only,
+not   for   directories.    So   "SYS:System/a#?"   is   valid,  whereas
+"SYS:S#?/a#?" is not.  Note that '*' is not a valid AmigaDOS wildcard.
+
+    If  no  path  argument  is  given,  ICONtrol  works  in  the current
+directory  and  uses the universal wildcard "#?", matching all the icons
+it  can  find.  You can, however, specify the types of icons you wish to
+change,  see  section  on  "Types".
+
+    Please  note  an  important convention:  if the pathname describes a
+directory, ICONtrol will interpret it as the icon of that directory, NOT
+its  contents.   Thus,  if  you  specify  "SYS:System",  the drawer icon
+"SYS:System.info" will be accessed, not the icons inside it.  This is to
+prevent  you  from  mistakenly changing the wrong icons.  If you want to
+change  the  contents  of  a  directory,  simply  append  a  '/'  as  in
+"SYS:System/".
+
+
+Keywords
+--------
+    ICONtrol's  operation controlled via keywords.  One of the following
+must be specified:
+
+RECOLOR
+    This  switches  between  icon coloring for the old (pre 2.0) and new
+Workbench.   With  OS 2.0,  the  default  colors  for the Workbench were
+changed,  so  old  icons look rather strange on the new Workbench:  What
+used  to  be light is now dark and vice versa.  If you simply change two
+colors  (1  and 2), the icon will look normal again.  Of course, you can
+undo the change by recoloring the icon again, thus switching between the
+old and the new coloring.
+
+GETIMAGE
+    This  gives a new image to an icon.  The pathname of the source icon
+must  follow  right after this keyword (again, the ".info"-suffix is not
+necessary).   Any  matching  icon  will  then  get the same image as the
+source  icon;  its type, drawer size, tooltypes and other parameters are
+not changed.  It is therefore possible to make a file look like a drawer
+or a drawer look like a disk.
+    In order to prevent you from accidently making all icons look alike,
+ICONtrol  checks  the  type  of  the  source  icon and, by default, only
+changes  icons of the same type.  If, for example, you use a drawer icon
+as  source, only icons belonging to directories will get this new image,
+whereas  file  icons  will  not.   To  override this precaution, you can
+explicitly specify which icon types to change; see section on "Types".
+
+FREEPOS
+    This lets Workbench freely place an icon.  After freeing it, an icon
+has  no fixed position in a drawer (or on the screen).  It appears where
+Workbench  thinks  it  fits  best.   So if you do this to all icons in a
+drawer,  its  contents will always be displayed in a (more or less) neat
+arrangement.   Note  that  this does not affect the position and size of
+the window that a drawer opens, but only the position of the drawer icon
+itself.
+
+HELP (or ?)
+    As  you  might  probably  have expected, this gives you a summary of
+this document.
+
+
+ALL
+---
+    This   makes   ICONtrol  recursively  enter  all  subdirectories  it
+encounters  .   So if you specify "SYS:" as a pathname and use the "ALL"
+option,  all  directories  and  subdirectories of your boot disk will be
+searched for matching icons.
+
+
+Types
+-----
+    To  process  only  certain types of icons, say all drawer icons, you
+can specify one or more of the types "FILES", "DIRS" or "DISKS".  So the
+keyword  "RECOLOR"  along with type "DIRS" will change colors for drawer
+icons  only.   "FILES"  matches  project  and  tool icons, "DIRS" is for
+drawer icons, and "DISKS" will select disk (and kickstart) icons.
+    If  no type is specified, all icons regardless of their type will be
+processed.   (An  exception is "GETIMAGE", which by default only affects
+icons of the same type as the source icon; see there.)
+
+
+                                Examples
+                                ========
+
+Changing single icons
+---------------------
+    If  you  simply  want  to  change  colors for a single icon, say for
+"NoFastMem" in the "System" drawer, use
+
+                 ICONtrol SYS:system/nofastmem recolor
+
+This works for drawers, too:
+
+                      ICONtrol SYS:system recolor
+
+will  recolor  the  drawer  icon  of the "System" directory (but not the
+icons within!).
+
+
+Changing icons within drawers
+-----------------------------
+    To  clean  up  the  position  of  all icons within a drawer (say the
+"System" drawer), use the following:
+
+                      ICONtrol SYS:system/ freepos
+
+    If  you wanted to do this for all icons in a directory and below it,
+use the "ALL" option:
+
+                   ICONtrol SYS:MyFiles/ freepos all
+
+
+Changing all icons on a volume
+------------------------------
+    To recolor all icons on a disk in df0:, use:
+
+                       ICONtrol df0: recolor all
+
+    If  your  current directory is already set to "df0:", you can omit a
+path completely.  In this case,
+
+                          ICONtrol recolor all
+
+will do the job.
+
+
+Changing icons of a certain type
+--------------------------------
+    To recolor all icons on df0:  belonging to files (that is, tool- and
+project-icons), add the type:
+
+                    ICONtrol df0: recolor all files
+
+    Say  you wanted to make all the drawer icons on your harddisk "dh0:"
+look like the drawers on newer Fish disks:
+
+           ICONtrol dh0: getimage AmigaLibDisk500:Signal all
+
+This  uses  "Signal.info" on Fish 500 as source for all icons on "dh0:".
+Since  ICONtrol  knows  its  a  drawer  icon, it will set this image for
+drawers only.
+
+
+                               Known Bugs
+                               ==========
+
+    There  IS  a  problem  when  using  ICONtrol  on "RAM:":  Do not use
+wildcards  when  operating on the RAM-disk; the program will process the
+same   files   over   and   over   again,  get  hung  or  produce  other
+nondeterministic garbage.
+    This  is  not  ICONtrol's  fault,  but  seems to be a problem of the
+ram-handler:   It  probably  looses control of an ExNext()-chain when it
+writes  to  its  volume  during  a scan.  That is the case when ICONtrol
+writes  back  a  modified  icon  and wants to continue with scanning the
+directory  after  that.   I suppose the  handler  does  not  update  the
+information  it  uses for ExNext() to reflect the changes that have been
+made  by  the  write  operation.   Thus  it gets confused when trying to
+execute the next ExNext() using out-of-date InfoBlocks.
+    Since  this is a system problem, I see no reason why ICONtrol should
+try  to  get  round the problem.  If you do not trust ICONtrol to access
+your  harddisk  or  disk directly, you still can use "RAD:" to copy your
+icons to, change them there and then copy them back.
+    What  really  surprised  me is, provided my assumptions are correct,
+that ram-handler has not been fixed over all these years.  The bug still
+exists under OS 2.0.  Has anybody encountered the same problem before?
+
+
+                         COPYRIGHT & DISCLAIMER
+                         ======================
+
+    ICONtrol  is  copyright  ©  1991  by  Stefan Winterstein, all rights
+reserved.   This program is not public domain, but freely distributable,
+provided  it is not modified in its operation, distributed together with
+this documentation and used for non-commercial purposes only.
+    Though  it  was tested rather thoroughly, ICONtrol is made available
+"as-is",  without warranty of any kind.  Any damage caused by the use of
+this program is the sole responsibility of the user.
+
+
+                            Revision History
+                            ================
+
+1.0 (21-Oct-91)
+---------------
+    First release, sent to Fred Fish.
+
+
+                             Contributions
+                             =============
+
+    ICONtrol was developed under Kickstart 1.3 using SAS_C 5.10.  It has
+also  been  tested on systems with OS 2.0 (Version 37.143) and Kickstart
+1.2.
+    The pattern matching routine used is PatMatch, found with the source
+of  "dr"  on  Fish disk 429; it was ported from BCPL by Jeff Lydiatt and
+enhanced  by Paul Kienitz.  The CLI parser was inspired by Dave Haynie's
+"SetCPU" from Fish disk 400.
+    Many  thanks  go to my fellow students Tom Kroener, Oliver Kripfgans
+and Lothar Fritsch for useful suggestions and beta testing.
+    If  you  have  any  comments, complaints or suggestions on ICONtrol,
+feel free to contact me (sorry, E-Mail not available, yet):
+
+                           Stefan Winterstein
+                            Schwarzbachstr.7
+                            W-6650 Homburg 6
+                                GERMANY
+
+    I  would  like  to  thank  all  programmers who have made their work
+available  through  Public Domain and Freeware, and namely Fred Fish for
+his outstanding work for the programmers' community.
+
+        They all "make the Amiga shine the way it was meant to".

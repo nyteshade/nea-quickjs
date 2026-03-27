@@ -1,0 +1,38 @@
+   NAME
+	RENAME - Changes the name of a file or directory.
+
+   FORMAT
+	RENAME [{FROM}] <name> [TO|AS] <name> [QUIET]
+
+   TEMPLATE
+	FROM/A/M,TO=AS/A,QUIET/S
+
+   PATH
+	C:RENAME
+
+   FUNCTION
+	RENAME renames the FROM file or directory with the specified TO 
+	name. FROM and TO must be on the same disk. If the name refers to 
+	a directory, RENAME leaves the contents of the directory unchanged 
+	(the directories and files within that directory keep the same 
+	names and contents).
+
+	If you rename a directory, or if you use RENAME to give a file 
+	another directory name (for example, you rename :Bill/Letter to 
+	:Mary/Letter), AmigaDOS changes the position of that directory or 
+	file in the filing system hierarchy.
+
+	Filenames are displayed on the screen as they are renamed. To 
+	suppress the screen output, use the QUIET option.
+
+   EXAMPLES
+	    1> RENAME Work/Prog1 AS :Arthur/Example
+
+	Renames the file Prog1 as Example, and moves it from the Work
+	directory to the Arthur directory. The Arthur directory must exist 
+	in the root directory for this command to work.
+
+	    1> RENAME 7.2Fax 8.16Fax 9.22Fax TO Faxes
+
+	Moves the 7.2Fax, 8.16Fax, and 9.22Fax files to the Faxes 
+	directory. The Faxes directory must already exist.

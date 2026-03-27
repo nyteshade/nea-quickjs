@@ -1,0 +1,51 @@
+   NAME
+	ROMReserveLow - ROM reservation of low 16KB
+
+   FORMAT
+	ROMRESERVELOW [QUIET/S] [REMOVE/S] [QUIET/S]
+
+   TEMPLATE
+	CHECK/S,REMOVE/S,QUIET/S
+
+   PATH
+	C:ROMReserveLow
+
+   FUNCTION
+	This command sets a cookie (setting) for the ROM code check and
+	performs memory setup, ensuring that software emulators such as
+	Shapeshifter can function correctly without conflicts. 
+	The setting is applied during system boot, so requires a reboot.
+
+   OPTIONS
+	The options are:
+
+	ROMRESERVELOW without options
+
+        Asks ROM to reserve low 16KB space during system boot
+
+    CHECK
+
+        Checks if the the cookie is set and reports status
+
+    REMOVE
+
+        Removes 16KB ROM space reservation cookie after reboot
+
+    QUIET
+
+        Run silently without message output
+
+   EXAMPLES
+
+	1> ROMRESERVELOW
+
+    Sets the cookie for next system boot
+    Displays "Rom low memory reservation cookie set"
+
+	1> ROMRESERVELOW REMOVE
+
+    Removes the cookie for next system boot
+    Displays "Rom low memory reservation cookie removed"
+
+   SEE ALSO
+	AVAIL

@@ -1,0 +1,106 @@
+  The Startup-failsafe
+  ====================
+
+  This script is located in the "S" drawer. Its purpose is to boot 
+  only a minimal subset of components in order to provide a more 
+  robust and safe environment to carry out maintenance and 
+  troubleshooting operations. 
+  
+  This special purpose Startup-failsafe script will only be executed 
+  at startup if either the user agreed to do it when booting without a 
+  68040/60 library when their systems required one, or by selecting 
+  the "Failsafe boot" check box in the Amiga Early Startup Menu, which 
+  can be accessed by holding both mouse buttons at boot or by keeping 
+  the HELP key depressed when booting.
+  
+  The following features have been disabled for Startup-failsafe 
+  operation:
+
+  Extra floppy buffers, 680x0.library check, HappyENV, auto-mounting 
+  of DOSDrivers, special display drivers, Expansion drawer-based 
+  drivers, Console clipboard, ARexx, Saved preferences loading & use. 
+
+  Also the WBStartup folder won't have its contents processed and the 
+  User-startup won't be executed either.
+  
+  The following is a breakdown of AmigaOS 3.2 Startup-failsafe script 
+  along with comments describing what each section does. Don't be 
+  alarmed if it does not exactly match yours. This example is only 
+  meant to provide you with a general overview of what is involved.
+
+----------------------------------------------------------------------
+  FailAt 10
+----------------------------------------------------------------------
+
+  Sets the failure tolerance limit within this script for commands to 
+  the default value.
+
+----------------------------------------------------------------------
+  SetPatch >NIL:
+----------------------------------------------------------------------
+
+  Applies several patches and fixes to many OS components. Since we 
+  don't like to have the list shown, it is redirected to NIL:
+
+----------------------------------------------------------------------
+  Version >NIL:
+----------------------------------------------------------------------
+  
+  Initializes the Kickstart and Workbench variables.
+
+----------------------------------------------------------------------
+  MakeDir RAM:T RAM:ENV
+  Copy ENVARC: RAM:ENV QUIET ALL NOREQ
+----------------------------------------------------------------------
+
+  Creates several temporal directories. 
+  It also copies the contents of ENVARC: to ENV:
+  In this way they become faster since they end up in RAM.
+
+----------------------------------------------------------------------
+  Assign ENV: RAM:ENV
+  Assign T: RAM:T
+
+  FailAt 21
+  Assign PRINTERS: DEVS:Printers
+  Assign KEYMAPS: DEVS:Keymaps
+  Assign LOCALE: SYS:Locale
+  Assign LIBS: SYS:Classes ADD
+  Assign HELP: LOCALE:Help DEFER
+----------------------------------------------------------------------
+
+  Generates multiple Assigns required for proper OS usage.
+
+----------------------------------------------------------------------
+  AddDataTypes REFRESH QUIET
+----------------------------------------------------------------------
+
+  Initializes system data types.
+  
+----------------------------------------------------------------------
+  Path C: SYS:Utilities SYS:Rexxc SYS:System S: SYS:Prefs SYS:Tools SYS:Tools/Commodities
+----------------------------------------------------------------------
+
+  Defines the access path for programs so that they can be directly 
+  run from the CLI/Shell without having to specify their exact 
+  location.
+
+----------------------------------------------------------------------
+  LoadWB SKIP
+----------------------------------------------------------------------
+  
+  Loads Workbench but does not process the WBStartup drawer contents.
+
+----------------------------------------------------------------------
+  Wait 1
+  RequestChoice "                  ATTENTION!" "You have booted into Failsafe mode.*nSeveral features have been disabled.*n*nThis is a safe environment to carry out*nmaintenance and troubleshooting tasks." "OK" >NIL:
+----------------------------------------------------------------------
+
+  Waits till Workbench loads and displays a message to inform users.
+
+----------------------------------------------------------------------  
+  EndCLI >NIL:
+----------------------------------------------------------------------
+
+  Closes the current CLI/Shell interface.
+  

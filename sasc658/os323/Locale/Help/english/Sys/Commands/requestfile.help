@@ -1,0 +1,71 @@
+   NAME
+	REQUESTFILE - Allows AmigaDOS and ARexx scripts to use a
+	              file requester.
+
+   FORMAT
+	REQUESTFILE [Drawer <drawer name>] [FILE <file>] 
+	            [PATTERN <pattern>] [TITLE <title>] [POSITIVE <text>] 
+	            [NEGATIVE <text>] [ACCEPTPATTERN <pattern>] 
+	            [REJECTPATTERN <pattern>] [SAVEMODE] [MULTISELECT] 
+	            [DRAWERSONLY] [NOICONS] 
+	            [PUBSCREEN <public screen name>] 
+	            [SET <shell variable>]
+
+   TEMPLATE
+	DRAWER,FILE/K,PATTERN/K,TITLE/K,POSITIVE/K,NEGATIVE/K,
+	ACCEPTPATTERN/K,REJECTPATTERN/K,SAVEMODE/S,MULTISELECT/S,
+	DRAWERSONLY/S,NOICONS/S,PUBSCREEN/K, SET/K
+
+   PATH
+	C:REQUESTFILE
+
+   FUNCTION
+	When entered with no arguments, a file requester with OK, Volumes,
+	Parent, and Cancel buttons is created. Its Drawer and File gadgets
+	are empty and it displays the contents of the current directory.
+
+	The DRAWER argument specifies the initial contents of the Drawer
+	gadget.
+
+	The FILE option specifies the initial contents of the File gadget.
+
+	The PATTERN option allows the use of a standard AmigaDOS pattern. 
+	It includes a Pattern gadget in the requester and specifies the 
+	initial contents of the gadget. If this option is not provided, 
+	the file requester does not have any Pattern gadget.
+
+	The TITLE option specifies the title of the requester.
+
+	The POSITIVE option specifies the text to appear in the positive
+	(left) choice in the file requester.
+
+	The NEGATIVE option specifies the text to appear in the negative
+	(right) choice in the file requester.
+
+	The ACCEPTPATTERN option specifies a standard AmigaDOS pattern. 
+	Only files matching this pattern are displayed in the file 
+	requester.
+
+	The REJECTPATTERN option specifies a standard AmigaDOS pattern. 
+	Files matching this pattern are not displayed in the file 
+	requester.
+
+	If SAVEMODE is specified, the requester is used for writing files 
+	to disk. If MULTISELECT is specified, the requester allows 
+	multiple files to be selected at once. If DRAWERSONLY is 
+	specified, the requester does not have a File gadget. This 
+	effectively turns the file requester into a directory requester. 
+	If NOICONS is specified, the requester does not display icons 
+	(.info files).
+
+	The PUBSCREEN argument allows the requester to open its window on 
+	a public screen.
+ 
+	The SET keyword copies the selected file (or files) to a Shell 
+	variable.
+
+   EXAMPLES
+	1> REQUESTFILE DRAWER Devs: TITLE "My Req" NOICONS
+
+   SEE ALSO
+	REQUESTCHOICE

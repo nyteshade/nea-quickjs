@@ -1,0 +1,30 @@
+------------------------------------------------------------------------
+                        MUI - MagicUserInterface
+
+                              Version 3.9
+
+                (C) Copyright 1992-2006, Stefan Stuntz
+          (C) Copyright 2006-2014, Thore Böckelmann, Jens Maus
+
+------------------------------------------------------------------------
+
+What you find here is a fully 68020 optimized version of the Magic User
+Interface (MUI) version 3.9. It is the direct successor of the well known
+MUI 3.8 being developed with full permission by the original author
+Stefan Stuntz.
+
+MUI still requires a valid keyfile like its old 3.8 version. Fortunately,
+if you have been registered to MUI 3.8 already in the past, all you have
+to do is copy over your old "mui.key" file to e.g. 'S:' and reboot your
+machine. Afterwards, MUI 3.9 should perfectly recognize your keyfile and
+will allow you to change all possible configuration.
+
+If you haven't purchased a MUI keyfile yet, but want to do it now, please
+go to http://www.sasg.com/ and/or contact Stefan Stuntz directly as he is
+the only officially representative for accepting registrations and
+generating valid keyfiles. Please hold back from contacting Hyperion
+Entertainment and/or Jens Langner/Stefan Burström directly for asking
+on how to register your copy of MUI.
+
+February 2014
+Thore Böckelmann, Jens Maus

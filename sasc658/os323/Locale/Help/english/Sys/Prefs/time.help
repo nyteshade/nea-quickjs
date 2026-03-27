@@ -1,0 +1,50 @@
+@database Time
+@node "MAIN"
+@{IMG SYS:Prefs/Time.info}
+  TIME
+  ====
+  
+  The Time Preferences editor is used to set the system clock and 
+  date.
+  
+  The box in the top left is used for entering the current year.
+  
+  Immediately to its right is a cycle gadget where the user can 
+  select the month.
+
+  Below you will find a calendar displaying one month at a time where 
+  the user can choose the exact day.
+  
+  There are hours and minutes sliders that will let you set the 
+  current time.
+  
+  At the bottom there is a small window that will display the 
+  currently selected settings.
+  
+  WARNING: Not all Amigas contain a battery-backed clock/calendar, and 
+  even then, many of them may have a faulty or drained battery. If 
+  that is the case, the settings will be reset to default values after 
+  a power off.
+  
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+  
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+@endnode

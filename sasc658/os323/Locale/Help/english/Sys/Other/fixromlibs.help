@@ -1,0 +1,39 @@
+   NAME
+	FIXROMLIBS - Ensures icon.library and workbench.library versions 
+	             are identical to the specified value.
+
+   FORMAT
+	FIXROMLIBS <version number>
+
+   TEMPLATE
+	RAMVERS/A/N
+
+   PATH
+	INSTALL3.2:C/FIXROMLIBS
+
+   FUNCTION
+	Checks whether icon.library and workbench.library versions (not 
+	revisions!) are identical to RAMVERS. If not, removes their 
+	version numbers and gets them from their disk counterparts instead.
+
+	FIXROMLIBS removes incompatible workbench and icon.libraries from 
+	the romtags such that the libraries on disk are used. This is 
+	particularly important for the 4000T which comes with a v40 
+	icon.library in ROM but no workbench.library. The disk-based 
+	workbench.library will then attempt to open a v45 icon.library, 
+	but will fail because the v40 icon.library in ROM will override 
+	the disk-based version and will prevent it from opening.
+
+   EXAMPLES
+
+	The Startup-sequence script in the Install3.2 disk contains as a
+	first line:
+
+	FIXROMLIBS 47
+
+	This line is intended to make sure that both workbench and icon 
+	libraries remain compatible despite the possibility that they may 
+	come from different AmigaOS versions.
+
+   SEE ALSO
+	LOADMODULE

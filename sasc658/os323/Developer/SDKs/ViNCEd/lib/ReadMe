@@ -1,0 +1,38 @@
+The files in this drawer are link libraries containing stub routines 
+for the SAS/Lattice C. You MAY use direct library calls to VNC without 
+stub routines, although this is NOT RECOMMENDED. There is a small difference 
+between the stub and the raw library functions: For quite a lot raw entry 
+points the register a5 MUST contain a pointer to the ViNCWindow structure. 
+This is not necessary if you use the stub-routines, but you MUST set the 
+window affected with SetCNWindow() before calling functions of this type.
+This is a service ONLY available by the stub-routines. It simplifies the
+work of the compiler a lot since register a5 can be used better for other
+purposes.
+
+The stub routines are NOT available for the Manx/Aztec compiler cause this
+compiler uses a private, non compatible library format.
+
+If you want to use this compiler, you MUST use direct library calls. 
+I haven't tested this method, it is possible that you get problems because 
+the register a5 is used. You may also contact me if you need the 
+stub routines for a different compiler...
+
+vnc.stub.lib
+   Standard library stub routines: No base relative addressing, parameters
+   are passed in the stack.
+
+vnc.stub.base.lib
+   Stub routines for base relative adressing. The base register is a4, as
+   used by Lattice/SAS.
+
+vnc.stub.rr.lib
+   Stub routines for registerized parameters with no base relative
+   addressing. The first two integer arguments are passed in d0,d1, the
+   first two pointers in a0,a1. This is the SAS convention for passing
+   arguments.
+
+vnc.stub.rr.base.lib
+   Stub routines for registerized parameters and base relative addressing
+   with register a4
+
+Thomas Richter.

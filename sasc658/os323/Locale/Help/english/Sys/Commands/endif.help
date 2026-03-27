@@ -1,0 +1,23 @@
+   NAME
+	ENDIF - Terminates an IF block in a script file.
+
+   FORMAT
+	ENDIF
+
+   TEMPLATE
+	(none)
+
+   PATH
+	Internal
+
+   FUNCTION
+	ENDIF is used in scripts at the end of an IF block. If the IF
+	condition is not true, or if the true condition commands were
+	executed and an ELSE has been encountered, the execution of the
+	script will skip to the next ENDIF command. Every IF statement 
+	must be terminated by an ENDIF.
+
+	The ENDIF applies to the most recent IF or ELSE command.
+
+   SEE ALSO
+	IF, ELSE

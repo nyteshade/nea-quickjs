@@ -1,0 +1,25 @@
+   NAME
+	WHY - Prints an error message explaining the reason for why the 
+	      previous command failed.
+
+   FORMAT
+	WHY
+  
+   TEMPLATE
+	(none) 
+   
+   PATH
+	Internal 
+  
+   FUNCTION 
+	Usually when a command fails, the screen displays a brief message. 
+	This message typically includes the name of the file (if that was 
+	the problem) but does not go into detail. 
+  
+	For example, the message "Can't open <filename>" may appear. This 
+	could happen for a number of reasons -- AmigaDOS may not be able 
+	to locate the file, the file is of the wrong type, or there was 
+	insufficient disk space or RAM for the operation requested. 
+  
+	If the reason is not immediately obvious, enter WHY to get a more 
+	complete explanation. 

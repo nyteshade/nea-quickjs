@@ -1,0 +1,984 @@
+@database wbbasicsguide
+@$VER: wbbasics.guide 47.3 (02.11.2021)
+
+@node MAIN "Workbench Basics"
+@{b}@{u}@{fg shine}The V47 Workbench Manual@{fg text}@{uu}@{ub}
+
+@{"What is Workbench?                                  " link WHATISW}
+@{"Workbench Components                                " link WBCOMPO}
+@{"Mouse Usage                                         " link MOUSEUS}
+@{"Window System Gadgets                               " link WINSYSG}
+@{"Icons                                               " link WICONSZ}
+@{"Menus                                               " link WBMENUS}
+@{"The WBStartup drawer                                " link WSTARTU}
+@{"Devs and Storage drawers                            " link DEVSTOR}
+@{"RAM: and RAD:                                       " link RAMDRAD}
+
+@endnode
+@node WHATISW "What is Workbench"
+@{b}@{u}@{fg shine}What is Workbench?@{fg text}@{uu}@{ub}
+
+AmigaOS has two ways to interact with the user. A text-based command 
+line interface called "Shell", and another one which is graphically 
+oriented around windows and icons. This is what we call "Workbench".
+
+The focus of this document is to describe the latter. But bear in mind 
+that in old Amiga folklore the term "Workbench" is wrongly used as a 
+synonym for AmigaOS. This was later properly rectified, but 
+unfortunately some bad habits die hard. 
+
+@endnode
+@node WBCOMPO "Workbench components"
+@{b}@{u}@{fg shine}Workbench components@{fg text}@{uu}@{ub}
+
+As a user it is important that you get used to properly name and
+identify the different types of objects that are part of the Workbench 
+interface.
+
+@{u}Workbench Screen@{uu}
+This is the main display environment. Its more relevant 
+characteristics are resolution and number of colors. The Workbench 
+Screen also has a title bar that usually displays the available 
+memory and other information.                         
+
+@{u}Windows@{uu}
+Are graphic rectangles within a screen representing a working 
+context. Each window may have a number of control elements called 
+system gadgets symbolized by a graphic image. They can be operated 
+with the mouse or keyboard. These gadgets allow the user to control 
+window properties like size, shape and position, among others.
+
+@{u}Menus@{uu}
+These are a list of choices displayed at the top of a screen that can 
+be selected with the right mouse button (RMB).
+
+@{u}Requesters@{uu}
+These are subwindows for confirming and canceling operations, 
+accessing files, reporting information, and other special actions. 
+
+@{u}Icons@{uu}
+Are small graphical representations of devices, files or directories. 
+In Amiga slang, the term "drawer" is more commonly used when visually 
+referencing a directory.
+
+@endnode
+@node MOUSEUS "Mouse usage"
+@{b}@{u}@{fg shine}Mouse usage@{fg text}@{uu}@{ub}
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/pointer.iff"}@{LINDENT 0}
+Your Amiga mouse should have at least two buttons. The Left Mouse 
+Button (abbreviated as LMB) and the Right Mouse Button (abbreviated as 
+RMB) that are often used to control Workbench.
+
+@{u}@{b}The Scroll Wheel (or Mouse Wheel)@{uu}@{ub}
+
+More modern mice might have a scroll wheel, that if supplied with the
+corresponding "New Mouse" style driver, may help scrolling Workbench 
+content in a much easier manner. For this purpose, make sure you have 
+selected the IControl Preferences "Scroll Wheel Enabled:" check box.
+
+@{u}@{b}The Right Mouse Button (RMB)@{uu}@{ub}
+
+This button while being depressed, activates pull-down menus that are 
+available at the top of the screen. To select a menu item simply move 
+the pointer to the chosen menu item (remember to keep the RMB pressed 
+while doing this). To select it, release the RMB when the pointer is 
+over it.
+
+@{u}@{b}The Left Mouse Button (LMB)@{uu}@{ub}
+
+This button is used for moving icons and for clicking on both gadgets 
+and icons to activate them.
+
+@{u}Single-click (LMB)@{uu}
+To select icons just move the pointer over the desired icon and 
+click once. Some icons may display a different image when selected to 
+illustrate its status. 
+
+To activate system gadgets, like the ones used on most windows to 
+for example close them, just perform a single-click over them.
+
+@{u}Double-click (LMB)@{uu}
+This procedure is used to run programs and to open drawers or disks. 
+Move the pointer to the desired icon and double-click it.
+
+@{u}Multiple selection@{uu}
+To select more than one icon at a time, hold down the [Ctrl] key and 
+single-click each of the desired icons. Only release the 
+[Ctrl] key after all the icons have already been clicked.
+
+Another method involves placing the pointer to the upper left empty 
+area near the group of icons, and while holding down the LMB, 
+travel diagonally with it towards the bottom right. A box shape will 
+be drawn in this process. This selects each icon within the box.  
+
+@{u}Dragging (LMB)@{uu}
+This is a method for moving objects like icons and windows. It also 
+enables the adjustment of some system gadgets like the ones used to 
+resize windows and scroll their content between many others.   
+
+For this to work, select the objects, hold down the left mouse button 
+(LMB) and while keeping it depressed, move those objects to the 
+desired location. Release the left mouse button (LMB) when the 
+destination is reached.
+
+Pressing the right mouse button while dragging a screen, window or 
+icons cancels the operation and makes the object jump back to its 
+initial position.
+
+@{u}@{b}Mouse Emulation and Substitution@{uu}@{ub}
+
+If for some reason a mouse is unavailable or defective, you can 
+emulate one. Also some keyboard shortcuts can even help by performing 
+the action directly.
+
+  [Amiga] + [Cursor keys]  Moves the pointer.
+
+  [Amiga] + [Shift] + [Cursor keys]  Moves the pointer faster.
+
+  [Amiga] + [Right-Alt]  Performs a Right-Mouse Button (RMB) click.
+
+  [Amiga] + [Left-Alt]  Performs a Left-Mouse Button (LMB) click.
+  
+  [Amiga] + O  Opens the selected file(s).
+
+  Typing the first few characters of an icon's name with the keyboard 
+  is sufficient to identify and select a file or drawer inside 
+  the active window. To start over with a new file name, wait three 
+  seconds.
+
+  [Tab]  Will cycle through the icons of the active window.
+
+  [Shift] + [Tab]  Will cycle through the icons of the active window 
+                   in reverse order.
+
+  [Alt] + [Cursor-Up]  Opens and activates the window associated with 
+                       the current directory's parent directory.
+
+  [Alt] + [Cursor-Left]  Will cycle through all currently open drawer 
+                         windows in a clockwise manner.
+
+  [Alt] + [Cursor-Right]  Will cycle through all currently open drawer 
+                          windows in a counter-clockwise manner.
+                        
+  [Alt] + [Cursor-down]  Will open the drawer and make its window the 
+                         active one, if a drawer-like icon 
+                         currently selected (drawer, disk, trashcan).
+
+  [Left-Amiga] + V  Activates the leftmost button in a requester 
+                    (usually the 'OK' button).
+
+  [Left-Amiga] + B  Activates the rightmost button in a requester with 
+                    more than one button (usually the 'Cancel' button).
+
+  [Left-Amiga] + M  Flips through each open screen.
+
+  [Left-Amiga] + N  Brings the Workbench screen to the front.
+
+  [Ctrl] + [Cursor keys] Moves all icons within an active window as a 
+                         block in single pixel steps.
+                         
+  [Shift] + [Cursor keys] Moves all icons within an active window as a 
+                          block in steps which are half the size of 
+                          the current window dimensions.
+
+  [Cursor keys] Will cycle icons of the active window following the 
+                cursor keys direction if any icon is selected on the 
+                active window. However, if no icon is selected, it 
+                will move all icons within the active window as a 
+                block in steps of several pixels.
+
+  Note: A few of these keyboard commands may be remapped through the 
+        IControl Preferences editor.
+
+@endnode
+@node WINSYSG "Window System Gadgets"
+@{b}@{u}@{fg shine}Window System Gadgets@{fg text}@{uu}@{ub}
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-window.iff"}@{LINDENT 0}
+Please note that some windows will only contain a subset of the 
+gadgets described below. 
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-tbar.iff"}@{LINDENT 0}
+The @{u}Title Bar@{uu} and the @{u}Drag Bar@{uu}
+The Title Bar is the top border of a window usually containing the 
+name of a program or drawer. It may also include some additional 
+information. It shares its location with the Drag Bar that allows the 
+user to change the position of the window. Window drags may be 
+cancelled by pressing the right mouse button before the drag is 
+completed.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-iconify.iff"}@{LINDENT 0}
+@{u}Iconify Gadget@{uu}
+Hides all windows of a program usually resulting in a special kind of 
+icon (technically called "AppIcon") to appear on the Workbench 
+screen.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-zoom.iff"}@{LINDENT 0}
+@{u}Zoom Gadget@{uu}
+The Zoom Gadget allows the user to quickly alternate between two 
+preset window size and position values. The zoom gadget is always 
+placed immediately to the left of the depth gadget. If there is no 
+depth gadget on the window, the zoom gadget will still appear next to 
+where the depth gadget would have been. Shift-clicking zoom will
+maximize the window size to full screen.
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-depth.iff"}@{LINDENT 0}
+@{u}Depth Gadget@{uu}
+The Depth Gadget is always positioned in the upper right corner of the 
+window. Clicking the depth gadget will move the frontmost window 
+behind all other windows. If the window is not the frontmost, it will 
+be moved to the front. Selecting the depth gadget with the Shift 
+qualifier always moves the window to the back (behind other windows).
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-vscroller.iff"}@{LINDENT 0}
+@{u}Vertical Scroll Bar@{uu}
+Moves the visible area inside of a window up and down by dragging a 
+bar located at the right border of the window.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-varrows.iff"}@{LINDENT 0}
+@{u}Vertical Scroll Arrows@{uu}
+Moves the visible area inside of a window up and down by using a 
+pair of static gadgets that have the image of an arrow pointing 
+towards different directions.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-size.iff"}@{LINDENT 0}
+@{u}Sizing Gadget@{uu}
+Changes the size of the window. The sizing gadget is always positioned 
+in the lower right corner of the window. It allows the user to drag 
+this corner of the window to a new position changing the width and 
+height of the window. Window sizing using the sizing gadget may be 
+cancelled by pressing the right mouse button before releasing the left 
+mouse button.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-harrows.iff"}@{LINDENT 0}
+@{u}Horizontal Scroll Arrows@{uu}
+Moves the visible area inside of a window left and right by using a 
+pair of static gadgets that have the image of an arrow pointing in 
+opposite directions.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-scroller.iff"}@{LINDENT 0}
+@{u}Horizontal Scroll Bar@{uu}
+Moves the visible area inside of a window left and right by dragging a 
+bar located at the bottom of the window.
+
+@{LINDENT 3}@{IMG "GUIDEDIR:/.images/wbbasics/wbbasics-close.iff"}@{LINDENT 0}
+@{u}Close Gadget@{uu}
+The Close Gadget when selected causes the closing of its window. The 
+close gadget is always positioned in the upper left corner of the 
+window.
+
+@endnode
+@node WICONSZ "Icons"
+@{b}@{u}@{fg shine}Icons@{fg text}@{uu}@{ub}
+@{LINDENT 3}@{IMG "SYS:Disk.info"}@{LINDENT 0}
+Icons are small graphical representations of devices, files or 
+directories that are contained in files with the ".info" file 
+extension.
+
+On the Amiga, unlike many other platforms, icons may hold
+two images: one representing its "normal" state when unselected and 
+the "selected" state that is only visible when the icon has been been 
+selected. This dual image feature is often used to animate and thus 
+enrich the user experience with the goal of intuitively illustrating 
+the icon's purpose.
+
+AmigaOS comes with a program to create and edit icons. Appropriately 
+named "IconEdit" it is located in the "Tools" drawer.
+
+@{b}Tool Types@{ub}
+These are parameters passed to programs from the icon file associated 
+with them. To be able to view Tool Types you must select an icon, then 
+choose "Information..." from the "Icons menu". Within the window that 
+appears, you can add, delete, or change Tool Types.
+
+@{b}Icon Formats@{ub}
+Several kinds of icon formats have existed during the course of the 
+Amiga's lifetime. They each have their own peculiarities. These are a 
+few of the most popular ones:
+
+Planar - default AmigaOS icons in 4 colors.
+
+GlowIcons - icons that can have up to 256 colors and their selected 
+            image usually displays a glow effect.
+            
+MagicWB - third party 8-color icons that require a customized palette 
+          to properly display them.
+
+@{u}Types of icons:@{uu}
+
+@{b}Disk@{ub}
+Icon for storage media devices.
+
+@{b}Drawer@{ub}
+Icon used to represent a directory.
+
+@{b}Tool@{ub}
+Icon for a program.
+
+@{b}Project@{ub}
+Icon containing data that can open the application (with a 
+double-click) that created the file along with the file itself.
+
+@{b}Garbage@{ub}
+A special purpose icon designed to temporarily store deleted files and 
+eventually recover some of them. Note that this feature is optional.
+
+@{b}DefIcons@{ub}
+DefIcons are icons that come with an accompanying program that aims to 
+provide a default icon image for all files that (for whatever reason) 
+do not have their own associated icons.
+
+@{b}AppIcons@{ub}
+These are icons that are created by application programs. The function 
+of these icons is determined by the application that generated them.
+
+These are generally the result of a window "Iconify" gadget selection, 
+where the program window is hidden from view, while the program 
+remains operating in the background, and its window can be recalled by 
+double-clicking on an icon residing on Workbench window.
+
+@endnode
+@node WBMENUS "Menus"
+@{b}@{u}@{fg shine}Menus@{fg text}@{uu}@{ub}
+
+Workbench has a four-menu system that can be activated by holding down 
+the right mouse button (RMB) and releasing it when the pointer is on 
+top of the desired "menu item".
+
+Each menu, has different "menu items" and many of them even have 
+"submenu items", all of which, are explained below:
+
+ @{" Workbench " link MWORKB}
+ @{" Windows   " link MWINDO}
+ @{" Icons     " link MICONS}
+ @{" Tools     " link MTOOLS}
+
+@endnode
+@node MWORKB "Workbench"
+@{b}@{fg shine}Workbench@{fg text}@{ub}
+
+Manages Workbench procedures.
+ 
+Click on each one of them below to learn more.
+
+ @{" Backdrop?          " link MBACK}
+ @{" Execute command... " link MEXEC}
+ @{" Open volume     >> " link MOPEV}
+ @{" Redraw all         " link MREDR}
+ @{" Update all         " link MBUPA}
+ @{" Last message       " link MLAST}
+ @{" About...           " link MABOU}
+ @{" Quit...            " link MQUIT}
+
+@endnode
+@node MBACK "Backdrop?"
+Workbench @{b}@{fg shine}-> Backdrop?@{fg text}@{ub}
+
+Switches between a normal window with borders for Workbench and a 
+special borderless window that is always behind other windows opened 
+on Workbench.  This item is indented to indicate that it is a toggle 
+switch.
+
+Shortcut: @{b}[Right-Amiga] + B@{ub}
+
+@endnode
+@node MEXEC "Execute command..."
+Workbench @{b}@{fg shine}-> Execute command...@{fg text}@{ub}
+
+Opens a window where you can enter program names to be run.
+
+Shortcut: @{b}[Right-Amiga] + E@{ub}
+
+@endnode
+@node MOPEV "Open volume     >>"
+Workbench @{b}@{fg shine}-> Open volume     >>@{fg text}@{ub}
+
+Shows a list of currently available volumes, and if any of them are 
+selected, it will open a window displaying their contents.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MREDR "Redraw all"
+Workbench @{b}@{fg shine}-> Redraw all@{fg text}@{ub}
+
+Refreshes all open windows in Workbench. Nothing is re-read from disk, 
+and nothing is moved around visually.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MBUPA "Update all"
+Workbench @{b}@{fg shine}-> Update all@{fg text}@{ub}
+
+Closes and reloads each open window, updating its content so that it 
+reflects its current state.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MLAST "Last message"
+Workbench @{b}@{fg shine}-> Last message@{fg text}@{ub}
+
+Displays the last information or error message that appeared on 
+Workbench's title bar.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MABOU "About..."
+Workbench @{b}@{fg shine}-> About...@{fg text}@{ub}
+
+Brings up a requester that details information about AmigaOS versions 
+and copyrights.
+
+Shortcut: @{b}[Right-Amiga] + ?@{ub}
+
+@endnode
+@node MQUIT "Quit..."
+Workbench @{b}@{fg shine}-> Quit...@{fg text}@{ub}
+
+Attempts to end all ongoing Workbench operations and actually quit 
+Workbench itself. If there are Workbench programs being run, it won't 
+let you quit until you manually terminate all of them.
+
+Shortcut: @{b}[Right-Amiga] + Q@{ub}
+
+@endnode
+@node MWINDO "Windows"
+@{b}@{fg shine}Windows@{fg text}@{ub}
+
+Controls window operations.
+ 
+Click on each one of them below to learn more.
+
+ @{" New drawer      " link MNEWD}
+ @{" Open parent     " link MOPEP}
+ @{" Close           " link MCLOS}
+ @{" Update          " link MUPDA}
+ @{" Select contents " link MSELE}
+ @{" Clear selection " link MCLEA}
+ @{" Clean up by  >> " link MCLEB}
+ @{" Resize to fit   " link MRESI}
+ @{" Snapshot     >> " link MSNAM}
+ @{" Show         >> " link MSHOW}
+ @{" View by      >> " link MVIEW}
+ @{" Sort Order   >> " link MSORT}
+ @{" Find...         " link MFIND}
+
+@endnode
+@node MNEWD "New drawer"
+Windows @{b}@{fg shine}-> New drawer@{fg text}@{ub}
+
+Creates a new drawer with an associated icon, allowing you to specify 
+its name.
+
+Shortcut: @{b}[Right-Amiga] + N@{ub}
+
+@endnode
+@node MOPEP "Open parent"
+Windows @{b}@{fg shine}-> Open parent@{fg text}@{ub}
+
+Opens the window that contains the icon for the current window.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MCLOS "Close"
+Windows @{b}@{fg shine}-> Close@{fg text}@{ub}
+
+Closes the current window.
+
+Shortcut: @{b}[Right-Amiga] + K@{ub}
+
+@endnode
+@node MUPDA "Update"
+Windows @{b}@{fg shine}-> Update@{fg text}@{ub}
+
+Re-reads the drawer's contents from disk and redraws the selected 
+window. As a side effect, it also moves the drawer's icons back to 
+their snapshotted position, except for icons of currently opened 
+drawers. This is useful for refreshing the window contents which might 
+have changed since it was opened.
+
+Shortcut: @{b}[Right-Amiga] + M@{ub}
+
+@endnode
+@node MSELE "Select contents"
+Windows @{b}@{fg shine}-> Select contents@{fg text}@{ub}
+
+Selects all the icons of the currently active window. 
+
+Shortcut: @{b}[Right-Amiga] + A@{ub}
+
+@endnode
+@node MCLEA "Clear selection"
+Windows @{b}@{fg shine}-> Clear selection@{fg text}@{ub}
+
+Cancels the currently active icon selection.
+
+Shortcut: @{b}[Right-Amiga] + Z@{ub}
+
+@endnode
+@node MCLEB "Clean up by  >>"
+Windows @{b}@{fg shine}-> Clean up by  >>@{fg text}@{ub}
+
+Prevents icons from overlapping and sorts them according to different 
+criteria.
+
+Click on each one of them below to learn more.
+
+ @{" Column " link MCOLU}
+ @{" Name   " link MNAME}
+ @{" Date   " link MDATE}
+ @{" Size   " link MSIZE}
+ @{" Type   " link MTYPE}
+
+@endnode
+@node MCOLU "Column"
+Windows -> Clean up by  @{b}@{fg shine}>> Column@{fg text}@{ub}
+
+Arranges icons by column  using equidistant spacing to prevent 
+overlap.
+
+Shortcut: @{b}[Right-Amiga] + .@{ub}
+
+@endnode
+@node MNAME "Name"
+Windows -> Clean up by  @{b}@{fg shine}>> Name@{fg text}@{ub}
+
+Arranges icons by name using equidistant spacing to prevent overlap.
+
+Shortcut: @{b}[Right-Amiga] + 6@{ub}
+
+@endnode
+@node MDATE "Date"
+Windows -> Clean up by  @{b}@{fg shine}>> Date@{fg text}@{ub}
+
+Arranges icons by date using equidistant spacing to prevent overlap.
+
+Shortcut: @{b}[Right-Amiga] + 7@{ub}
+
+@endnode
+@node MSIZE "Size"
+Windows -> Clean up by  @{b}@{fg shine}>> Size@{fg text}@{ub}
+
+Arranges icons by size using equidistant spacing to prevent overlap.
+
+Shortcut: @{b}[Right-Amiga] + 8@{ub}
+
+@endnode
+@node MTYPE "Type"
+Windows -> Clean up by  @{b}@{fg shine}>> Type@{fg text}@{ub}
+
+Arranges icons by type using equidistant spacing to prevent overlap.
+
+Shortcut: @{b}[Right-Amiga] + 9@{ub}
+
+@endnode
+@node MRESI "Resize to fit"
+Windows @{b}@{fg shine}-> Resize to fit@{fg text}@{ub}
+
+Adjusts the window dimensions to make all its icons fit without the 
+need for any scrolling aid.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MSNAM "Snapshot     >>"
+Windows @{b}@{fg shine}-> Snapshot     >>@{fg text}@{ub}
+
+Saves the position of the window and icons.
+
+Click on each one of them below to learn more.
+
+ @{" Window " link MWINW}
+ @{" All    " link MALLN}
+
+@endnode
+@node MWINW "Window"
+Windows -> Snapshot     @{b}@{fg shine}>> Window@{fg text}@{ub}
+
+Saves the position and dimensions of a window.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MALLN "All"
+Windows -> Snapshot     @{b}@{fg shine}>> All@{fg text}@{ub}
+
+Saves both the position and dimensions of a window, along with the 
+position of the icons it contains.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MSHOW "Show         >>"
+Windows @{b}@{fg shine}-> Show         >>@{fg text}@{ub}
+
+Controls the types of icons that are displayed in a window.
+
+Click on each one of them below to learn more.
+
+ @{" Only icons " link MOICO}
+ @{" All files  " link MALLF}
+
+@endnode
+@node MOICO "Only icons"
+Windows -> Show        @{b}@{fg shine} >> Only icons@{fg text}@{ub}
+
+Only displays files and directories with an associated ".info" 
+file.
+
+Shortcut: @{b}[Right-Amiga] + [-]@{ub}
+
+@endnode
+@node MALLF "All files"
+Windows -> Show         @{b}@{fg shine}>> All files@{fg text}@{ub}
+
+Displays all files and directories, regardless of whether they have an 
+.info file associated or not. If they don't have an .info file 
+associated, the system will temporarily create a pseudo icon. 
+Snapshotting pseudo icons turns them into real ones.
+
+Shortcut: @{b}[Right-Amiga] + [+]@{ub}
+
+@endnode
+@node MVIEW "View by      >>"
+Windows @{b}@{fg shine}-> View by      >>@{fg text}@{ub}
+
+Changes the window viewing mode.
+
+Click on each one of them below to learn more.
+
+ @{" Icon " link MVICO}
+ @{" Name " link MVNAM}
+ @{" Date " link MVDAT}
+ @{" Size " link MVSIZ}
+ @{" Type " link MVTYP}
+
+@endnode
+@node MVICO "Icon "
+Windows -> View by      @{b}@{fg shine}>> Icon @{fg text}@{ub}
+
+Changes the window viewing mode to show icons. This is the default 
+one.
+
+Shortcut: @{b}[Right-Amiga] + 1@{ub}
+
+@endnode
+@node MVNAM "Name"
+Windows -> View by      @{b}@{fg shine}>> Name@{fg text}@{ub}
+
+Changes the window viewing mode to show a list of file names sorted 
+alphabetically.
+
+Shortcut: @{b}[Right-Amiga] + 2@{ub}
+
+@endnode
+@node MVDAT "Date"
+Windows -> View by      @{b}@{fg shine}>> Date@{fg text}@{ub}
+
+Changes the window viewing mode to show a list of file names sorted by 
+date.
+
+Shortcut: @{b}[Right-Amiga] + 3@{ub}
+
+@endnode
+@node MVSIZ "Size"
+Windows -> View by      @{b}@{fg shine}>> Size@{fg text}@{ub}
+
+Changes the window viewing mode to show a list of file names sorted by 
+size.
+
+Shortcut: @{b}[Right-Amiga] + 4@{ub}
+
+@endnode
+@node MVTYP "Type"
+Windows -> View by      @{b}@{fg shine}>> Type@{fg text}@{ub}
+
+Changes the window viewing mode to show a list of file names sorted by 
+type.
+
+Shortcut: @{b}[Right-Amiga] + 5@{ub}
+
+@endnode
+@node MSORT "Sort Order    >>"
+Windows @{b}@{fg shine}-> Sort Order    >>@{fg text}@{ub}
+
+Changes the window sorting mode.
+
+Click on each one of them below to learn more.
+
+ @{" Forward " link MSOFO}
+ @{" Reverse " link MSORE}
+
+@endnode
+@node MSOFO "Forward"
+Windows -> Sort Order   @{b}@{fg shine}>> Forward@{fg text}@{ub}
+
+Changes the window viewing mode to show a list of file names sorted in
+ascending order.
+
+Shortcut: @{b}[Right-Amiga] + G@{ub}
+
+@endnode
+@node MSORE "Reverse"
+Windows -> Sort Order   @{b}@{fg shine}>> Reverse@{fg text}@{ub}
+
+Changes the window viewing mode to show a list of file names sorted in 
+descending order.
+
+Shortcut: @{b}[Right-Amiga] + H@{ub}
+
+@endnode
+@node MFIND "Find..."
+Windows @{b}@{fg shine}-> Find...@{fg text}@{ub}
+
+Launches the System/Find utility.
+
+Shortcut: @{b}[Right-Amiga] + F@{ub}
+
+@endnode
+@node MICONS "Icons"
+@{b}@{fg shine}Icons@{fg text}@{ub}
+
+Allows you to work with icons. 
+
+Click on each one of them below to learn more.
+
+ @{" Open           " link MOPEI}
+ @{" Copy           " link MCOPY}
+ @{" Rename...      " link MRENA}
+ @{" Information... " link MINFO}
+ @{" Snapshot       " link MSNAP}
+ @{" UnSnapshot     " link MUNSN}
+ @{" Leave out      " link MLEAV}
+ @{" Put away       " link MPUTA}
+ @{" Delete...      " link MDELE}
+ @{" Format disk... " link MFORM}
+ @{" Eject disk     " link MEJEC}
+ @{" Empty trash    " link MEMPT}
+
+@endnode
+@node MOPEI "Open"
+Icons -> @{b}@{fg shine}Open@{fg text}@{ub}
+
+Depending on the icon type, it may open a window with the storage 
+device's or directory content, or may start a program.
+
+Shortcut: @{b}[Right-Amiga] + O@{ub}
+
+@endnode
+@node MCOPY "Copy"
+Icons -> @{b}@{fg shine}Copy@{fg text}@{ub}
+
+Attempts to create a duplicate of the selected icon/s and its 
+associated content.
+
+Shortcut: @{b}[Right-Amiga] + C@{ub}
+
+@endnode
+@node MRENA "Rename..."
+Icons -> @{b}@{fg shine}Rename...@{fg text}@{ub}
+
+Allows changing the name of the selected icon and its associated 
+contents.
+
+Shortcut: @{b}[Right-Amiga] + R@{ub}
+
+@endnode
+@node MINFO "Information..."
+Icons -> @{b}@{fg shine}Information...@{fg text}@{ub}
+
+Opens a window that contains many useful information such as icon 
+name, icon type, size, amount of stack, file attributes, Tool Types, 
+between many other relevant details.
+
+Tool Types can be created, deleted and modified from this window.
+
+Shortcut: @{b}[Right-Amiga] + I@{ub}
+
+@endnode
+@node MSNAP "Snapshot"
+Icons -> @{b}@{fg shine}Snapshot@{fg text}@{ub}
+
+Saves the position of the selected icons.
+
+Shortcut: @{b}[Right-Amiga] + S@{ub}
+
+@endnode
+@node MUNSN "UnSnapshot"
+Icons -> @{b}@{fg shine}UnSnapshot@{fg text}@{ub}
+
+Erases the previously saved position of icons.
+
+Shortcut: @{b}[Right-Amiga] + U@{ub}
+
+@endnode
+@node MLEAV "Leave out "
+Icons -> @{b}@{fg shine}Leave out@{fg text}@{ub}
+
+Moves a selected icon to the Workbench window so that it may be 
+accessed more quickly. 
+
+Shortcut: @{b}[Right-Amiga] + L@{ub}
+
+@endnode
+@node MPUTA "Put away"
+Icons -> @{b}@{fg shine}Put away@{fg text}@{ub}
+
+Returns an icon that was previously left out, to its original drawer.
+
+Shortcut: @{b}[Right-Amiga] + P@{ub}
+
+@endnode
+@node MDELE "Delete..."
+Icons -> @{b}@{fg shine}Delete...@{fg text}@{ub}
+
+Erases the selected icon(s) with their associated files.
+
+Shortcut: @{b}[Right-Amiga] + D@{ub}
+
+@endnode
+@node MFORM "Format disk..."
+Icons -> @{b}@{fg shine}Format disk...@{fg text}@{ub}
+
+When a disk icon is selected, this menu option is enabled. If 
+selected, it will open the Format program to be able to prepare 
+storage media.
+
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MEJEC "Eject disk"
+Icons -> @{b}@{fg shine}Eject disk@{fg text}@{ub}
+
+When a disk icon is selected, this menu option is enabled. If 
+selected, it will attempt to eject removable media from a storage 
+device.
+
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MEMPT "Empty trash"
+Icons -> @{b}@{fg shine}Empty trash@{fg text}@{ub}
+
+Deletes all the files contained in the specialized Trashcan folder.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node MTOOLS "Tools"
+@{b}@{fg shine}Tools@{fg text}@{ub}
+
+Usually contains only the "ResetWB" menu item, but other Amiga 
+programs may also add items.
+
+Click on the item below to learn more.
+ 
+ @{" ResetWB " link MRESE}
+
+@endnode
+@node MRESE "ResetWB"
+Tools @{b}@{fg shine}-> ResetWB@{fg text}@{ub}
+
+Resets Workbench, redrawing the screen and re-reading mounted volumes, 
+reobtaining and reopening everything in reverse order.
+
+Shortcut: @{b}None@{ub}
+
+@endnode
+@node WSTARTU "The WBStartup folder"
+@{b}@{u}@{fg shine}The WBStartup folder@{fg text}@{uu}@{ub}
+@{LINDENT 3}@{IMG "SYS:WBStartup.info"}@{LINDENT 0}
+The WBStartup folder is the place where you can move icons of programs 
+that you wish to automatically run every time Workbench is loaded.
+
+The behavior of the programs that reside in this folder can be 
+tweaked by adding or editing the following Tool Types on each of the 
+involved icons:
+
+@{b}DONOTWAIT@{ub}
+Instructs Workbench not to wait for the return of a program before 
+running the next one.
+
+@{b}STARTPRI=@{ub}
+Sets the order in which icons are opened. The valid range is from 
+-128 to +127. Default value is 0. A higher number means a greater 
+priority to start a program.
+
+@{b}WAIT=@{ub}
+Defines the pause interval, in seconds, between each WBStartup 
+program that is being run (e.g. WAIT=3 waits three seconds). 
+
+@endnode
+@node DEVSTOR "Devs and Storage drawers"
+@{b}@{u}@{fg shine}Devs and Storage drawers@{fg text}@{uu}@{ub}
+
+Both the Devs and Storage drawers share the same subdirectory layout 
+but, despite their similar look, their functionality is opposed: the 
+Devs drawer holds active AmigaOS components while the Storage drawer 
+holds the inactive ones.
+
+@{LINDENT 3}@{IMG "SYS:Devs/DataTypes.info"}@{LINDENT 0}@{u}DataTypes@{uu}
+Contains different file format descriptions that can be reused by all 
+programs that support the DataType plug-in system.
+
+@{LINDENT 3}@{IMG "SYS:Devs/DOSDrivers.info"}@{LINDENT 0}@{u}DOSDrivers@{uu}
+Contains mount files that instruct AmigaOS on how to make a device 
+accessible to the system.
+
+@{LINDENT 3}@{IMG "SYS:Devs/Keymaps.info"}@{LINDENT 0}@{u}Keymaps@{uu}
+Contains keyboard mappings to match different layouts, languages and 
+character sets.
+
+@{LINDENT 3}@{IMG "SYS:Devs/Monitors.info"}@{LINDENT 0}@{u}Monitors@{uu}
+Contains display drivers.
+
+@{LINDENT 3}@{IMG "SYS:Devs/Printers.info"}@{LINDENT 0}@{u}Printers@{uu}
+Contains printer drivers.
+
+@endnode
+@node RAMDRAD "RAM: and RAD:"
+@{b}@{u}@{fg shine}RAM: and RAD:@{fg text}@{uu}@{ub}
+@{LINDENT 3}@{IMG "SYS:Prefs/Env-Archive/Sys/def_RAM.info"}@{LINDENT 0}
+The Ram Disk icon in Workbench represents the RAM: volume. This is a 
+virtual RAM drive that is created every time you boot. It is dynamic, 
+this means that it automatically expands and has the added bonus that 
+its size is never much bigger than the content it holds. 
+
+The greatest benefit it has, is that it is extremely fast and 
+outperforms any hard drive. So it is the suitable place to carry 
+script experiments, use as temporary storage space, practical for 
+copying and running performance critical programs and ideal to test 
+applications, beyond many other practical uses.
+ 
+Its biggest drawback is that its content will get lost once the 
+machine is reset or powered down; it is also limited by the amount of 
+available system RAM.
+
+@{LINDENT 3}@{IMG "SYS:Prefs/Env-Archive/Sys/def_RAD.info"}@{LINDENT 0}
+The RAD: disk, unlike the RAM: disk, can survive a reboot, but not a 
+power down. It also has the additional benefit that it can be 
+bootable.
+
+This makes it an interesting choice for procedures that require to be 
+active since the initial stages of the machine's boot, like for 
+example, to test installation disks, to have some specific device 
+drivers loaded at startup, etc.
+
+It does come with its own particular limitations though. Its size is 
+fixed, so it will use as much memory as the size it was configured to 
+have, and does not auto expand. By default, the RAD: size is 880 KB 
+which is enough to hold the contents of one double density floppy 
+disk. Of course, this value can be modified by altering its mount file 
+which is available in the Storage/DOSDrivers drawer.
+
+To activate the RAD:, double-click on the RAD icon in the DOSDrivers 
+drawer of the Storage directory. To start RAD: whenever you boot, copy 
+the RAD icon to the Devs/DOSDrivers drawer on the Workbench disk. When 
+RAD: has been activated, a disk icon labeled RAM_0 will appear on the 
+Workbench screen.
+
+@endnode

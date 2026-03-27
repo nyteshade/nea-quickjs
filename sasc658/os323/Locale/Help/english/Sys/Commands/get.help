@@ -1,0 +1,31 @@
+   NAME
+	GET - Gets the value of a local variable.
+
+   FORMAT
+	GET <name> 
+
+   TEMPLATE
+	NAME/A
+
+   PATH
+	Internal
+
+   FUNCTION
+	GET is used to retrieve and display the value of a local 
+	environment variable. The value is displayed in the current 
+	window. Local environment variables are only recognized by the 
+	Shell in which they are created, or by any Shells created from a 
+	NEWSHELL command executed in the original Shell. If you open an 
+	additional Shell by opening the Shell icon or by using the Execute 
+	Command menu item, previously created local environment variables 
+	will not be available.
+
+	By default, a line feed character will be added to variable value
+	unless one is already present. 
+	
+   EXAMPLES
+	    1> GET editor
+	    Extras2.0:Tools/MEmacs
+
+   SEE ALSO
+	SET

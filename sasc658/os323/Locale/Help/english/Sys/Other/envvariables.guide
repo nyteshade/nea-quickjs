@@ -1,0 +1,40 @@
+@database wbbasics.guide 47.2 (10.11.2021)
+@node MAIN "Environment Variables"
+@{b}@{u}@{fg shine}Environment Variables@{fg text}@{uu}@{ub}
+
+A variable is a value that can change, depending on conditions. On 
+AmigaOS, environment variables are often generated and used by 
+programs to communicate, or define values, or even just to store small 
+amounts of information. They are most commonly used in Shell scripts.
+
+AmigaOS manages two types of environment variables:
+
+"Local variables" that are only valid in the current Shell. They can 
+be defined by the command @{"SET" link sys/Commands/SET.help/MAIN} and retrieved by the command @{"GET" link sys/Commands/GET.help/MAIN}.
+
+"Global variables" that are available system-wide. They can be defined 
+by the command @{"SETENV" link sys/Commands/SETENV.help/MAIN} and retrieved by the command @{"GETENV" link sys/Commands/GETENV.help/MAIN}.
+
+Both global and local variables are referred to with a dollar sign 
+($) in front of the variable name; for example: $kickstart
+ 
+In case of name collision, local variables have priority over global 
+variables. 
+
+Global variables are kept as files in ENV:, and optionally saved 
+on-disk in ENVARC: to survive reboot and power cycling because 
+otherwise they would get lost when your machine is powered down.
+
+ENV: is (by default) an assign to RAM:Env, and ENVARC: is an assign to 
+SYS:Prefs/Env-archive (where SYS: refers to the boot device). On 
+bootup, the content of ENVARC: is copied to ENV: or linked to it for 
+accessibility.
+
+Workbench programs (and many third-party ones) usually save their 
+configuration data in ENVARC:. This commonly applies to Workbench 
+Preference editors that when clicked on the "Save" gadget, the 
+settings are saved in ENVARC: and are permanent. But if the user 
+chooses the "Use" gadget instead, they are saved to ENV: and then only 
+remain valid until the next restart. 
+
+@endnode

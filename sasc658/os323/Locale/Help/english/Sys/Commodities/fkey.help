@@ -1,0 +1,38 @@
+@database FKey
+@node "MAIN"
+@{IMG SYS:Tools/Commodities/FKey.info}
+   NAME
+	FKEY - Assigns commands to special key sequences, eliminating the 
+	       need for repetitive typing.
+
+   FORMAT
+	FKEY [CX_PRIORITY <priority>] [CX_POPKEY <key>] 
+	[CX_POPUP <yes | no>]
+
+   TEMPLATE
+	CX_PRIORITY/N/K,CX_POPKEY/K,CX_POPUP/K
+
+   PATH
+	TOOLS/COMMODITIES/FKEY
+
+   FUNCTION
+	FKey assigns any of eight commands to any key sequence that can be 
+	entered.
+
+	Press Ctrl+C or use the BREAK command to exit FKey when it is 
+	started from a Shell.
+
+	CX_PRIORITY sets the priority of the commodity in relation to all 
+	the other Commodity Exchange programs. All the Commodity Exchange 
+	programs are set to a default priority of 0. Values should have an 
+	integer value between -128 to 127 (i.e., CX_PRIORITY=10). 
+
+	CX_POPKEY allows you to specify the hot key for the program. If 
+	more than one key is specified, be sure to enclose the entire 
+	argument in double quotes (i.e., CX_POPKEY="Shift F4"). 
+  
+	CX_POPUP will either enable (Yes) or disable (No) the program 
+	window from opening. By default programs windows tend to open when 
+	they are invoked (i.e., CX_POPUP=Yes).
+
+@endnode

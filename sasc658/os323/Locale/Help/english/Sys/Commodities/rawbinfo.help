@@ -1,0 +1,134 @@
+   NAME
+	RAWBINFO - Enhanced replacement of the icon information tool that 
+	           uses ReAction for its user interface.
+
+
+   TEMPLATE
+	
+
+   FORMAT
+	AGS=AUTOGETSIZE/S,AGV=AUTOGETVERSION/S,AC=AUTOCLOSE/S,
+	SDT=SHORTDATETIME/S,SLX=SCALELAYOUTX/N/K,SLY=SCALELAYOUTY/N/K,
+	WP=WINPOS/K,SBB=SIZEBBOTTOM/S,DNI=DROPNEWICONSDATA/S,
+	DP=DROPPLANARDATA/S,DW=DESTWIDTH/N/K,DH=DESTHEIGHT/N/K,
+	CI=CREATEICON/K,IE=ICONEDIT/K,MV=MULTIVIEW/K,LP=LOADPATH/K,
+	SP=SAVEPATH/K,T=TOOLS/M,IF=ICONFIRST/S,I2I=IMAGE2ICON/K,
+	I2IOPTS=IMAGE2ICONOPTS/K,APPICON/S,AIX=APPICONX/N/K,
+	AIY=APPICONY/N/K,NSP=NOSHOWPOS/S,NWW=NOWORDWRAP/S
+
+   PATH
+	WBSTARTUP/RAWBINFO
+
+   FUNCTION
+	RAWBInfo is a replacement for the AmigaOS icon information. Unlike 
+	the original one, this one uses ReAction for the user interface.
+
+	The program can be started from shell as well as Workbench. It
+	currently takes the following arguments:
+
+	AGS=AUTOGETSIZE
+	Setting this option causes RAWBInfo to automatically start 
+	calculating the drawer size.
+
+	AGV=AUTOGETVERSION
+	Setting this option causes RAWBInfo to automatically get the 
+	version number of a file/program.
+
+	AC=AUTOCLOSE
+	Setting this option causes the program to automatically close a 
+	"disk" window when removing the disk from the drive.
+
+	SDT=SHORTDATETIME
+	This option tells RAWBInfo to use the short date and time format 
+	of the current locale. Enabling it makes the icon information 
+	windows a bit smaller.
+
+	SLX=SCALELAYOUTX and SLY=SCALELAYOUTY 
+	These two allow you to increase the initial size of any "non-disk" 
+	window. Defaults to 0 percent (= no change).
+
+	WP=WINPOS
+	Place where the window should be opened. Possible 
+	keywords are (default is TOPLEFT):
+	                                  TOPLEFT: open the window in the 
+	                                           left corner right under 
+	                                           the title bar.
+
+	                                  CENTER: center the window on the 
+	                                          screen.
+
+	                                  MOUSE: open it relative to the 
+	                                         mouse pointer.
+
+	SIZEBBOTTOM
+	Makes the bottom border of information windows as high as the 
+	sizing gadget.
+
+	DNI=DROPNEWICONSDATA
+	When an icon was originally saved in NewIcons format, setting this 
+	option keeps icon.library from saving the information back to the 
+	.info file.
+
+	DP=DROPPLANARDATA
+	Setting this option will keep icon.library from storing any pre 
+	OS3.5 image data.
+
+	DW=DESTWIDTH and DH=DESTHEIGHT 
+	The maximum size of the icon to create when creating a new icon 
+	image from a picture object (eg. via IconImages/Extras/Pic2Icon).
+
+	CREATEICON
+	For objects that don't have an icon, RAWBINFO automatically saves 
+	one to disk. If you don't want this to happen or only optionally, 
+	you can set this option to either NEVER or ASK.
+
+	IE=ICONEDIT 
+	The path of IconEdit, defaults to Sys:Tools/IconEdit.
+
+	MV=MULTIVIEW
+	The path were MultiView can be found. 
+	Default: Sys/Utilities/Multiview.
+
+	LOADPATH
+	Initial path of the "Icon Image/Load ..." file requester 
+	(see later).
+
+	SAVEPATH
+	Initial path of the "Icon Image/Save ..." file requester
+	(see later).
+
+	TOOLS
+	A list of default tools that are available when you click on the 
+	dropdown chooser (that's the button on the _right_ side of the 
+	default tool string gadget). Example: TOOLS="MultiView" "Installer"
+
+	IF=ICONFIRST
+	Makes the Information requester open with the "Icon" tab already 
+	selected.
+
+	I2I=IMAGE2ICON 
+	Specifies the path of an external program to perform the "Image to 
+	icon" function in place of the built-in code.
+
+	I2IOPTS=IMAGE2ICONOPTS 
+	Specifies the command line arguments for the external program 
+	mentioned in the IMAGE2ICON option.
+
+	APPICON 
+	When this option is set, the program adds an AppIcon on which you 
+	can drop other icons to get information on them.
+
+	AIX=APPICONX and AIY=APPICONY 
+	They specify the coordinates of the AppIcon added to the desktop 
+	when the APPICON switch is also present.
+
+	NSP=NOSHOWPOS
+	Turns off the snapshot coordinates of an icon that are 
+	displayed below the icon image.
+
+	NWW=NOWORDWRAP
+	Turns off word wrapping in the Tool Type editing area.
+
+	Once the program has been started it can be removed by either 
+	sending CTRL-C to it, by the system tool Exchange or by starting
+	it a second time.

@@ -1,0 +1,38 @@
+   NAME
+	SETCLOCK - Sets or reads the battery backed-up hardware clock.
+
+   FORMAT
+	SETCLOCK LOAD|SAVE|RESET
+
+   TEMPLATE
+	LOAD/S,SAVE/S,RESET/S
+
+   PATH
+	C:SETCLOCK
+
+   FUNCTION
+	SETCLOCK SAVE sets the date and time of the battery backed-up
+	hardware clock from the current system time (saved with the Time
+	editor or with the DATE command). SETCLOCK SAVE is typically used
+	after a DATE command.
+
+	SETCLOCK LOAD sets the current system time from the battery 
+	backed-up clock. It is typically included in the Startup-sequence 
+	to automatically load the correct time when the Amiga is booted.
+
+	The RESET option resets the clock completely. This may be 
+	necessary if a poorly-written program that does not follow the 
+	rules turns the clock off or sets the test bit of the clock.
+
+   EXAMPLES
+	    1> DATE 17-Aug-92 05:45:54
+	    1> SETCLOCK SAVE
+
+	Saves the date, August 17, 1992, and the time, 5:45 a.m., to the
+	battery backed-up hardware clock. That clock keeps time even when 
+	the Amiga is powered off. When the system is booted, the SETCLOCK 
+	LOAD command in the Startup-sequence sets the system clock with 
+	the time saved in the hardware clock.
+
+   SEE ALSO
+	DATE

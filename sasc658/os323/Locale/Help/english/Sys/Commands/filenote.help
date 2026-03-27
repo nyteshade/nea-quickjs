@@ -1,0 +1,58 @@
+   NAME
+	FILENOTE - Attaches a comment to a file.
+
+   FORMAT
+	FILENOTE [FILE] {<file|pattern>} [COMMENT] <comment> [ALL]
+	         [QUIET]
+
+   TEMPLATE
+	FILE/A,COMMENT/A,ALL/S,QUIET/S
+
+   PATH
+	C:FILENOTE
+
+   FUNCTION
+	FILENOTE attaches an optional comment or characters to the 
+	specified file or to all files matching the given pattern. The 
+	size of the comment is limited, which means that the <comment> 
+	argument may be truncated before it is used.
+
+	If the <comment> includes spaces, it must be enclosed in double
+	quotes. To include double quotes in a filenote, each literal quote
+	mark must be immediately preceded by an asterisk (*), and the 
+	entire comment must be enclosed in quotes, regardless of whether 
+	the comment contains any spaces.
+
+	To delete an existing filenote from a file, use "" as the 
+	<comment> argument.
+
+	Creating a comment with FILENOTE is the same as entering a comment
+	into the Comment gadget of an icon's Information window. Changes 
+	made with FILENOTE will be reflected in the Information window, 
+	and vice versa.
+
+	When an existing file is copied to (specified as the TO argument 
+	of a COPY command), it will be overwritten, but its comment will 
+	be retained. Any comment attached to a FROM file will not be 
+	copied unless the CLONE or COM option of COPY is specified.
+
+   OPTIONS
+	The options are:
+
+	ALL
+
+	    If the ALL option is given, FILENOTE will add the <comment> to 
+	    all the files in the specified directory.
+
+	QUIET
+
+	    If the QUIET option is given, screen output is suppressed.
+
+	   EXAMPLES
+	    1> FILENOTE Sonata "allegro non troppo"
+
+	attaches the filenote allegro non troppo to the Sonata file.
+
+	    1> FILENOTE Toccata "*"presto*""
+
+	Here the filenote is "presto".

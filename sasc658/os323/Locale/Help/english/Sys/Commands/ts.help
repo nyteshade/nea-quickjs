@@ -1,0 +1,24 @@
+   NAME
+	TS - Starts interactive tracing.
+
+   FORMAT
+	TS
+
+   TEMPLATE
+	(none)
+
+   PATH
+	REXXC/TS
+
+   FUNCTION
+	TS starts interactive tracing by setting the external trace flag,
+	which forces all active ARexx programs into interactive tracing 
+	mode. Programs will start producing trace output and will pause 
+	after the next statement. This command is useful for regaining 
+	control over programs caught in infinite loops or otherwise 
+	misbehaving. The trace flag remains set until cleared by the TE 
+	command, so subsequent program invocations will be executed in 
+	interactive tracing mode.
+
+   SEE ALSO
+	TCO, TCC, TE

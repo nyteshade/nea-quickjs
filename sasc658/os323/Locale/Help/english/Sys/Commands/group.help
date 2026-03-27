@@ -1,0 +1,44 @@
+   NAME
+	GROUP - Changes the access rights of a file or directory.
+
+   FORMAT
+	GROUP [FILE] {<file|pattern>} [GROUP] <name or number> [ALL]
+
+   TEMPLATE
+	FILE/A/M,GROUP/A,ALL/S
+
+   PATH
+	C:GROUP
+
+   FUNCTION
+	Each file or directory contains information describing who may
+	access it. This information can be displayed by the LIST command 
+	and is important if that file or directory is made accessible 
+	through a networked file system.
+
+	The GROUP command will change the access rights of one or more 
+	files or directories. The 'group' must be given either as a name 
+	or a number. The file system will have to understand the name 
+	given, or you will see an error message to this effect. If you 
+	know in advance which numeric group ID should be used in place of 
+	a name, you can provide this instead. Note that group names cannot 
+	be longer than 31 characters and that numeric group IDs must be in
+	the range 0..65535. An empty name given for the group will remove
+	the access rights information.
+
+   OPTIONS
+	The options are:
+
+	ALL
+
+	    If the ALL option is given, GROUP will change the access
+	    rights of all the files in the specified directory.
+
+   EXAMPLES
+	    1> GROUP textfile admin
+
+	Grants access rights to "textfile" to the group "admin"
+
+	    1> GROUP textfile ""
+
+	Removes any access rights from "textfile".

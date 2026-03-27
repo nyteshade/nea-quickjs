@@ -1,0 +1,201 @@
+   NAME
+	ASSIGN - Controls assignment of logical device names to file 
+	         system directories.
+
+   FORMAT
+	ASSIGN [<name>:{dir}] [LIST] [EXISTS] [DISMOUNT] [DEFER] [PATH] 
+	       [ADD] [REMOVE] [VOLS] [DIRS] [DEVICES] [DENIED]
+
+   TEMPLATE
+	NAME,TARGET/M,LIST/S,EXISTS/S,DISMOUNT/S,DEFER/S,PATH/S, ADD/S,
+	REMOVE/S,VOLS/S,DIRS/S,DEVICES/S,DENIED/S
+
+   PATH
+	C:ASSIGN
+
+   FUNCTION
+	ASSIGN allows directories to be referenced via short, convenient
+	logical device names rather than their usual names or complete 
+	paths. ASSIGN gives an alternative directory name, much like ALIAS 
+	permits alternative command names. The ASSIGN command can create 
+	assignments, remove assignments, or list some or all current 
+	assignments.
+
+	If the <name> and {dir} arguments are given, ASSIGN will assign 
+	the given name to the specified directory. Each time the assigned 
+	logical device name is referred to, AmigaDOS will access the 
+	specified directory. If the <name> given is already assigned to a 
+	directory, the new directory will replace the previous directory. 
+	(Always be sure to include a colon after the <name> argument.)
+
+	If only the <name> argument is given, any existing ASSIGN of a
+	directory to that logical device will be canceled.
+
+	You can assign several logical device names to the same directory 
+	by using multiple ASSIGN commands.
+
+	You can assign one logical device name to several directories by
+	specifying each directory after the <name> argument or by using 
+	the ADD option. When the ADD option is specified, any existing 
+	directory assigned to <name> is not canceled. Instead, the newly 
+	specified directory is added to the assign list, and the system 
+	will search for both directories when <name> is encountered. If 
+	the original directory is not available, ASSIGN will be satisfied 
+	with the newly-added directory.
+
+	To delete a name from the assign list, use the REMOVE option.
+
+	If no arguments are given with ASSIGN, or if the LIST keyword is 
+	used, a list of all current assignments will be displayed. If the 
+	VOLS, DIRS, or DEVICES switch is specified, ASSIGN will limit the 
+	display to volumes, directories, or devices, respectively.
+
+	When the EXIST keyword is given along with a logical device name,
+	AmigaDOS will search the ASSIGN list for that name and display the
+	volume and directory assigned to that device. If the device name 
+	is not found, the condition flag is set to 5 (WARN). This is 
+	commonly used in scripts.
+
+	Normally, when the {dir} argument is given, AmigaDOS immediately 
+	looks for that directory. If the ASSIGN commands are part of
+	S:Startup-sequence, the directories need to be present on a 
+	mounted disk during the boot procedure. If an assigned directory 
+	cannot be found, a requester appears asking for the volume 
+	containing that directory. However, two new options, DEFER and 
+	PATH, will wait until the directory is actually needed before 
+	searching for it.
+
+	The DEFER option creates a "late-binding" ASSIGN. This assign only
+	takes effect when the assigned object is first referenced, rather 
+	than when the assignment is made. This eliminates the need to 
+	insert disks during the boot procedure that contain the 
+	directories that are assigned during the Startup-sequence. When 
+	the DEFER option is used, the disk containing the assigned 
+	directory is not needed until the object is actually called upon.
+
+	For example, if you assign FONTS: to DF0:Fonts with the DEFER 
+	option, the system will associate FONTS: with whatever disk is in 
+	DF0: at the time FONTS: is called. If you have a Workbench disk in 
+	DF0: at the time the FONTS: is used, the system will associate 
+	FONTS: with that particular Workbench disk. If you later remove 
+	that Workbench disk and insert another disk containing a Fonts 
+	directory, the system will specifically request the original 
+	Workbench disk the next time FONTS: is needed.
+
+	The PATH option creates a "non-binding" ASSIGN. A non-binding 
+	ASSIGN acts like a DEFERred ASSIGN except that it is reevaluated 
+	each time the assigned name is referenced. This prevents the 
+	system from expecting a particular volume in order to use a 
+	particular directory (such as the situation described in the 
+	example above). For instance, if you assign FONTS: to DF0:Fonts 
+	with the PATH option, any disk in DF0: will be searched when 
+	FONTS: is referenced. As long as the disk contains a Fonts 
+	directory, it will satisfy the ASSIGN. You cannot assign multiple
+	directories with the PATH option.
+
+	The PATH option is especially useful to users with floppy disk 
+	systems as it eliminates the need to reinsert the original 
+	Workbench disk used to boot the system. As long as the drive you 
+	have assigned with the PATH option contains a disk with the 
+	assigned directory name, the system will use that disk.
+
+	The DENIED option displays a list of all volume requests that have 
+	been denied by the user since last boot/reboot when using the 
+	ASSIGNWEDGE command.
+	
+	Warning: The DISMOUNT option (called REMOVE in V1.3) disconnects a
+	volume or device from the list of mounted devices. It does not 
+	free up resources; it merely removes the name from the list. There 
+	is no way to cancel a DISMOUNT without rebooting. DISMOUNT is 
+	primarily for use during software development. Careless use of 
+	this option may cause a software failure. On AmigaOS 3.2 the user 
+	can cleanly unmount a volume by using ASSIGN DISMOUNT in 
+	conjunction with MOUNT SHUTDOWN commands.
+
+	Instead of specifying on the command line which assignments to set 
+	up and how, you can tell the ASSIGN command to read a list of
+	specifications from a file using the FROM option. In that file, 
+	there must be one assignment specification per line; lines 
+	beginning with the ';' character are ignored. The file could look 
+	like this:
+
+	    FONTS: MyFonts:Fontdir
+	    LIBS: SYS:Libs BigAssem:Libs PDAssem:Libs
+	    WorkDisk: DF0: DEFER
+	    C: DF0:C PATH
+
+	As you can see, it is possible to set up deferred and path
+	assignments and assignment lists, too.
+
+   EXAMPLES
+	    1> ASSIGN FONTS: MyFonts:Fontdir
+
+	Assigns the system FONTS: directory to Fontdir on MyFonts:.
+
+	    1> ASSIGN LIST
+	    Volumes:
+	    Ram Disk [Mounted]
+	    Workbench2.0 [Mounted]
+	    MyFonts [Mounted]
+
+	    Directories:
+	    CLIPS        Ram Disk:Clipboards
+	    ENV          Ram Disk:Env
+	    T            Ram Disk:T
+	    ENVARC       Workbench2.0:Prefs/Env-Archive
+	    SYS          Workbench2.0:
+	    C            Workbench2.0:C
+	    S            Workbench2.0:S
+	    L            Workbench2.0:L
+	    FONTS        MyFonts:Fontdir
+	    DEVS         Workbench2.0:Devs
+	    LIBS         Workbench2.0:Libs
+
+	    Devices:
+	    PIPE AUX SPEAK RAM CON
+	    RAW PAR SER PRT DF0 DF1
+
+	Shows a list of all current assignments.
+
+	    1> ASSIGN FONTS: EXISTS
+	    FONTS   MyFonts:FontDir
+
+	Is an inquiry into the assignment of FONTS:. AmigaDOS responds by
+	showing that FONTS: is assigned to the FontDir directory of the 
+	MyFonts volume.
+
+	    1> ASSIGN LIBS:  SYS:Libs  BigAssem:Libs  PDAssem:Libs
+
+	Is a multiple-directory assignment that creates a search path
+	containing three Libs directories. These directories will be 
+	searched in sequence each time LIBS: is invoked.
+
+	    1> ASSIGN WorkDisk: DF0: DEFER
+	    1> ASSIGN WorkDisk: EXISTS
+	    WorkDisk <DF0:>
+
+	Set up a late-binding assignment of the logical device WorkDisk:. 
+	The disk does not have to be inserted in DF0: until the first time 
+	you refer to the name WorkDisk:. Notice that ASSIGN shows DF0: 
+	enclosed in angle brackets to indicate that it is DEFERred. After 
+	the first reference to WorkDisk:, the volume name of the disk that 
+	was in DF0: at the time will replace <DF0:>.
+
+	    1> ASSIGN C: DF0:C  PATH
+	    1> ASSIGN C: EXISTS
+	    C            [DF0:C]
+
+	Will reference the C directory of whatever disk is in DF0: at the 
+	time a command is searched for. Notice that ASSIGN shows DF0:C in 
+	square brackets to indicate that is a non-binding ASSIGN.
+
+	    1> ASSIGN LIBS: ZCad:Libs  ADD
+
+	Adds ZCad:Libs to the list of directories assigned as LIBS:.
+
+	    1> ASSIGN LIBS: ZCad:Libs  REMOVE
+
+	Removes ZCad:Libs from the list of directories assigned to LIBS:.
+
+   SEE ALSO
+	MOUNT

@@ -1,0 +1,22 @@
+   NAME
+	MENUTOOLS - Adds the "Help" menu item to the "Tools" menu. 
+
+   FORMAT
+	MENUTOOLS
+
+   TEMPLATE
+	MENUTOOLS
+
+   PATH
+	WBSTARTUP/MENUTOOLS
+
+   FUNCTION
+	This is actually an ARexx script that adds the "Help" menu item to 
+	the "Tools" menu. By selecting this "Help" menu item, the AmigaOS 
+	Help subsystem gets launched.
+
+
+	Advanced users may use any Amiga text editor to examine this 
+	script and by following its built-in instructions, reconfigure it 
+	to create new menus to launch their favorite games and 
+	applications.

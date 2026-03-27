@@ -1,0 +1,37 @@
+   NAME
+	SPAT - Adds pattern matching to single-argument commands. 
+
+   FORMAT
+	SPAT <command> <pattern matching> [<command options>]
+
+   TEMPLATE
+	     COM/A,PAT/A,OPT1,OPT2,OPT3,OPT4
+
+   PATH
+	S/SPAT
+
+   FUNCTION
+	SPAT adds pattern matching to single-argument commands that don't 
+	have it. After SPat and the command name, enter the arguments, 
+	using the wildcard required to produce the desired matches.
+
+	This is in fact a script that allows single pattern matching with 
+	commands that do not normally support it. When you run it with a 
+	command, it uses the LIST command to create temporary script files 
+	in the T: directory and then execute the scripts. It can also be 
+	used with command aliases.
+
+   EXAMPLES
+	    1> SPat ED S:s#?
+
+	A script similar to the following is generated:
+
+	ED "s:Shell-startup"
+	ED "s:SPat"
+	ED "s:Startup-sequence"
+	
+	SPat executes the script, invoking ED three times to display the 
+	files.
+
+   SEE ALSO
+	DPAT

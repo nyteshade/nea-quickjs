@@ -1,0 +1,107 @@
+   NAME
+	PATH - Controls the directory list that the Shell searches to
+	       find commands.
+
+   FORMAT
+	PATH [{<dir>}] [ADD] [SHOW] [RESET] [QUIET] [REMOVE] [HEAD]
+
+   TEMPLATE
+	PATH/M,ADD/S,SHOW/S,RESET/S,REMOVE/S,HEAD/S,QUIET/S
+
+   PATH
+	Internal
+
+   FUNCTION
+	PATH lets you see, add to, or change the search path that
+	AmigaDOS follows when looking for a command or program to execute.
+	When a directory is in the search path, you no longer need to 
+	specify the complete path to any files or subdirectories within 
+	that directory. You can just enter the filename, and AmigaDOS will 
+	look through the directories in the search path until it finds the 
+	file.
+
+	Enter the PATH command alone, or with the SHOW option, and the 
+	directory names in the current search path will be displayed. 
+	Normally, when PATH is displaying the directory names, a requester 
+	appears if a volume that is part of the search path cannot be 
+	found. For instance, if you added a floppy disk to the search 
+	path, then removed that disk from the disk drive, a requester 
+	would ask you to insert the disk.
+
+	If you specify the QUIET option, PATH will not display requesters 
+	for volumes that are not currently mounted. If PATH encounters an 
+	unmounted volume, it simply displays the appropriate error code, 
+	but continues with the listing.
+
+	The ADD option specifies directory names to be added to the 
+	current PATH. You can add as many directories at a time as you 
+	wish; the ADD keyword is optional. Names of the directories must 
+	be separated by at least one space. When you issue the PATH 
+	command, AmigaDOS searches for each of the ADDed directories.
+
+	Directories within the PATH are searched in the order they 
+	appeared on the command line, with new PATH components added to 
+	the tail of the PATH list. That is, commands in a former PATH 
+	directory override those in a later directory because they are 
+	found first when the Shell searches for commands.
+
+	If you specify the HEAD keyword, however, new directories are 
+	added to the HEAD of the PATH, to be searched first for commands.
+
+	To replace the existing search path with a completely new one, use 
+	PATH RESET followed by the names of the directories. The existing 
+	search path, except for the current directory and C:, is then 
+	erased and the new one is substituted.
+
+	The REMOVE option eliminates the named directory from the search 
+	path.
+
+   EXAMPLES
+	1> PATH EXTRAS2.0:Tools ADD
+
+	adds the Tools directory on the Extras2.0 disk to the search path 
+	of the Shell. If the Extras2.0 disk is not in a disk drive, a 
+	requester will ask you to insert it in any drive.
+
+	If you remove Extras2.0 from the drive, and type
+
+	1> PATH
+
+	a list of directories in the search path will be displayed. A 
+	requester will ask you to insert Extras2.0. However, if you had 
+	typed:
+
+	1> PATH QUIET
+
+	The list of directores in the search path will be displayed; 
+	however, when the path comes to Extras2.0:Tools, only an error 
+	message
+
+	device (or volume) is not mounted
+
+	will appear in the list.
+
+	If you use two different versions of the "cmp" program, one 
+	residing in SYS:Tools and another in SYS:Compiler/bin, and you add 
+	only the former directory to the path in the User-startup by
+
+	PATH SYS:Tools ADD
+
+	only "SYS:Tools/Cmp" will be used whenever you run the "cmp" 
+	program from the shell. Even if you enlarge the path manually by
+
+	1> PATH SYS:Compiler/bin ADD
+
+	the "SYS:Tools/Cmp" program gets used because the new directory is 
+	added to the tail of the directory list making up the PATH, and 
+	"SYS:Tools/Cmp" is found before "SYS:Compiler/bin" is searched for 
+	another "cmp" program.
+  
+	However, if you had specified
+
+	1> PATH SYS:Compiler/bin ADD HEAD
+
+	The directory "SYS:Compiler/bin" would have been added in front of
+	"SYS:Tools", and hence the Shell would have looked there first. 
+	Therefore, "Cmp" would then refer to "SYS:Compiler/bin/Cmp" rather 
+	than "SYS:Tools/Cmp" because it is found first.

@@ -1,0 +1,20 @@
+@database KeyShow
+@node "MAIN"
+@{IMG SYS:Tools/KeyShow.info}
+   NAME
+	KEYSHOW - Displays the current Keymap.
+
+   FORMAT
+	KEYSHOW
+
+   TEMPLATE
+	(none)
+
+   PATH
+	TOOLS/KEYSHOW
+
+   FUNCTION
+	Displays the current keyboard's Keymap. There are no arguments for the 
+	KEYSHOW command.
+
+@endnode

@@ -1,0 +1,92 @@
+@database WBPattern
+@node "MAIN"
+@{IMG SYS:Prefs/WBPattern.info}
+  WBPATTERN
+  =========
+  
+  The WBPattern Preferences editor enables creation or use of 
+  background patterns for Workbench, its windows and the screen.
+    
+  BACKGROUND
+  
+  PLACEMENT: <Workbench> <Windows> <Screen>
+  Defines the place where the background will be displayed.
+  
+  TYPE: <Pattern> <Picture>
+  Provides a choice between using a picture or by applying the image 
+  drawn in the PATTERN EDITOR.
+  
+  SELECT PICTURE...
+  If a picture is the selected type, clicking on this gadget opens a 
+  file requester to load the picture to be used.
+  
+  LAYOUT: <Tiled> <centered> <Scaled> <Interpolated>
+  Configures the layout of the picture to be used. <Tiled> means that 
+  the image will be attached to another copy of itself in each border 
+  in a consecutive fashion (like a mosaic). <Centered> will attempt to 
+  align the picture to the center of its destination object. <Scaled> 
+  means that the image will be resized to match its location. And 
+  lastly, <Interpolated> will try to average the pixel data to enlarge 
+  the image, this will attempt to retain as much quality as possible.
+  
+  DITHERING: <Best> <Poor> <Good>
+  Sets the color reduction quality.
+  
+  COLOR: <Best> <Poor> <Good>
+  Sets the color quality of the image.
+  
+  TEST
+  Tests current settings without exiting the program or saving 
+  changes.
+  
+  PATTERN EDITOR
+  
+  PREVIEW
+  Displays a window showing what the pattern will look like on the 
+  screen.
+  
+  PRESETS
+  These are sample patterns which can be used as a template and 
+  recolored or changed as necessary.
+  
+  SKETCH
+  This is the bitmap drawing window for creating a pattern with the 
+  first four colors of the palette represented in a column to its 
+  right.
+  
+  CLEAR
+  Fills the entire bitmap drawing window with a solid color.
+  
+  UNDO
+  Reverts to the last drawing operation performed. 
+
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+
+  [CLIPUNIT=<clipboard unit>] Determines which Clipboard unit to use 
+  during cut and paste operations.
+
+  [NOREMAP] Turns off color mapping so that the system displays the 
+  exact colors which were saved. Workbench by default tries to remap 
+  them, this has the side effect that you may end up with colors that 
+  weren't the originally intended ones.
+  
+@endnode

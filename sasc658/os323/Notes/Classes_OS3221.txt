@@ -1,0 +1,66 @@
+Sys:Classes/
+ arexx.class 47.2
+ requester.class 47.9
+ window.class 47.36
+
+ /DataTypes/
+  8svx.datatype 47.1
+  acbm.datatype 47.1
+  aiff.datatype 47.2
+  amigaguide 47.28
+  anim.datatype 47.2
+  animation.datatype 47.11
+  ascii.datatype 47.1
+  bmp.datatype 47.3
+  cdxl.datatype 47.6
+  gif.datatype 47.4
+  icon.datatype 47.3
+  ilbm.datatype 47.6
+  jpeg.datatype 47.8
+  picture.datatype 47.19
+  png 47.5
+  sound.datatype 47.6
+  text 47.14
+  wav.datatype 47.2
+
+ /Gadgets/
+  button.gadget 47.7
+  checkbox.gadget 47.2
+  chooser.gadget 47.9
+  clicktab.gadget 47.18
+  colorwheel.gadget 47.3
+  datebrowser.gadget 47.2
+  fuelgauge.gadget 47.4
+  getcolor.gadget 47.6
+  getfile.gadget 47.3
+  getfont.gadget 47.2
+  getscreenmode.gadget 47.2
+  gradientslider.gadget 47.3
+  integer.gadget 47.5
+  layout.gadget 47.57
+  listbrowser.gadget 47.65
+  listview.gadget 47.3
+  palette.gadget 47.4
+  radiobutton.gadget 47.3
+  scroller.gadget 47.21
+  sketchboard.gadget 47.26
+  slider.gadget 47.6
+  space.gadget 47.3
+  speedbar.gadget 47.9
+  string.gadget 47.25
+  tabs.gadget 47.2
+  tapedeck.gadget 47.6
+  texteditor.gadget 47.65
+  textentry.gadget 40.15
+  textfield.gadget 3.1
+  virtual.gadget 47.4
+
+ /Images/
+  bevel.image 47.15
+  bitmap.image 47.4
+  boingball.image 47.3
+  drawlist.image 47.4
+  glyph.image 47.9
+  label.image 47.5
+  led.image 47.3
+  penmap.image 47.6

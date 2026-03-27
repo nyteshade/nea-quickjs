@@ -1,0 +1,62 @@
+   NAME
+	SKIP - Skips to a label when executing script files.
+
+   FORMAT
+	SKIP [<label>] [BACK]
+
+   TEMPLATE
+	LABEL,BACK/S
+
+   PATH
+	Internal
+
+   FUNCTION
+	SKIP is used in scripts to allow you to skip ahead in the script 
+	to a <label> defined by a LAB statement. If no <label> is 
+	specified, SKIP jumps to the next LAB statement.
+
+	SKIP always searches forward from the current line of the file.
+	However, when the BACK option is used, SKIP starts searching for 
+	the label from the beginning of the file. This allows SKIPs to 
+	points prior to the SKIP command.
+
+	You can only SKIP back as far as the last EXECUTE statement. If 
+	there are no EXECUTE statements in a script, you will SKIP back to 
+	the beginning of the file.
+
+	If SKIP does not find the label you specified but finds an
+	ENDSKIP statement, SKIP jumps to the line following the ENDSKIP
+	statement and sets the return code to 5 (WARN).
+
+	If SKIP finds neither the label nor an ENDSKIP statement, the
+	command sequence terminates, the error message "Object not
+	found" is displayed and the return code is set to 10 (ERROR).
+
+   EXAMPLES
+	Assume you have the following script, called CheckFile:
+
+	    .KEY name
+	    IF exists <name>
+	        SKIP message
+	    ELSE
+	        ECHO "<name> is not in this directory."
+	    ENDIF
+	    LAB message
+	    ECHO "The <name> file does exist."
+
+	You can run the script by typing:
+
+	    1> EXECUTE CheckFile Document
+
+	If the Document file exists in the current directory, the 
+	execution of the script will skip ahead to the LAB command. The 
+	message "The Document file does exist" will be displayed in the 
+	Shell window.
+
+	If the Document file is not in the current directory, the 
+	execution of the script will jump to the line after the ELSE 
+	statement, and the message "Document is not in this directory" 
+	will be displayed.
+
+   SEE ALSO
+	EXECUTE, LAB

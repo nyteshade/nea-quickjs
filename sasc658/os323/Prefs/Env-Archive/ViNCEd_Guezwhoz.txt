@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/Guezwhoz.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(8,8,8) brighter rgb(10,10,10)
+red Alpha:255 rgb(251,95,95) brighter rgb(255,114,114)
+green Alpha:255 rgb(135,215,175) brighter rgb(162,255,210)
+yellow Alpha:255 rgb(215,215,135) brighter rgb(255,255,162)
+blue Alpha:255 rgb(95,175,216) brighter rgb(114,210,255)
+magenta Alpha:255 rgb(175,175,255) brighter rgb(210,210,255)
+cyan Alpha:255 rgb(95,215,215) brighter rgb(114,255,255)
+white Alpha:255 rgb(218,218,218) brighter rgb(255,255,255)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x1c1c,0x1c1c,0x1c1c
+COLOR=NOLOAD,ANSI,0x0808,0x0808,0x0808
+COLOR=NOLOAD,ANSI,0xfbfb,0x5f5f,0x5f5f
+COLOR=NOLOAD,ANSI,0x8787,0xd7d7,0xafaf
+COLOR=NOLOAD,ANSI,0xd7d7,0xd7d7,0x8787
+COLOR=NOLOAD,ANSI,0x5f5f,0xafaf,0xd8d8
+COLOR=NOLOAD,ANSI,0xafaf,0xafaf,0xffff
+COLOR=NOLOAD,ANSI,0x5f5f,0xd7d7,0xd7d7
+COLOR=NOLOAD,ANSI,0xdada,0xdada,0xdada
+COLOR=NOLOAD,ANSI,0x0a0a,0x0a0a,0x0a0a
+COLOR=NOLOAD,ANSI,0xffff,0x7272,0x7272
+COLOR=NOLOAD,ANSI,0xa2a2,0xffff,0xd2d2
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xa2a2
+COLOR=NOLOAD,ANSI,0x7272,0xd2d2,0xffff
+COLOR=NOLOAD,ANSI,0xd2d2,0xd2d2,0xffff
+COLOR=NOLOAD,ANSI,0x7272,0xffff,0xffff
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xffff

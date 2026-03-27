@@ -1,0 +1,20 @@
+   NAME
+	LAB - Specifies a label in a script file.
+
+   FORMAT
+	LAB <string>
+
+   TEMPLATE
+	(none)
+
+   PATH
+	Internal
+
+   FUNCTION
+	LAB is used in scripts to define a label that is looked for by the
+	SKIP command. The label <string> may be of any length but must be
+	alphanumeric characters. No symbols are allowed. If the <string>
+	contains spaces, it must be enclosed in quotes.
+
+   SEE ALSO
+	SKIP, IF, EXECUTE

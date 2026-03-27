@@ -1,0 +1,413 @@
+   NAME
+	DACONTROL - Loads and mounts, ejects or creates an Amiga Disk 
+	            File (ADF).
+
+   FORMAT
+	DACONTROL [[LOAD|EJECT|CHANGE] 
+	[START|STOP] [DEVICE {<unit or device>}]] [TIMEOUT <number of 
+	seconds>] [PROTECT|WRITEPROTECTED {<YES|NO>}]
+	[USECHECKSUMS {<YES|NO>}] [ENABLECACHE={<YES|NO>}] 
+	[PREFILLCACHE={<YES|NO>}] [CACHESIZE=<size>] 
+	[SAFEEJECT {<YES|NO>}] [CREATE [BOOTABLE=INSTALL] 
+	[DISKTYPE <DD|HD>] [LABEL] <name>] [OVERWRITE] [FILESYSTEM <name>] 
+	[FILESYSTEMTYPE [<OFS|FFS>] [+INTERNATIONAL] 
+	[+<LONGNAME|DIRCACHE>]]] [INFO [SHOWCHECKSUMS] [SHOWBOOTBLOCKS] 
+	[GET <keyword>] [SHOWVOLUMES]] [SETENV] [SETVAR] [QUIET|VERBOSE] 
+	[IGNORE] [[FILE] {<name|pattern>}]
+
+   TEMPLATE
+	LOAD/S,EJECT/S,CHANGE/S,TIMEOUT/K/N,START/S,STOP/S,CREATE/S,
+	USECHECKSUMS/K,ENABLECACHE/K,PREFILLCACHE/K,CACHESIZE/K/N, 
+	SAFEEJECT/K,BOOTABLE=INSTALL/S,FILESYSTEM/K,FILESYSTEMTYPE/K,
+	OVERWRITE/S,DISKTYPE/K,LABEL/K,PROTECT=WRITEPROTECTED/K,
+	UNIT=DEVICE/K,INFO/S,GET/K,SHOWCHECKSUMS/S,SHOWBOOTBLOCKS/S,SETENV/S,
+	SETVAR/S,QUIET/S,VERBOSE/S,IGNORE/S,FILE/M
+
+   PATH
+	C/DACONTROL
+
+   FUNCTION
+	The DACONTROL command loads ADF (Amiga Disk File) image files and
+	makes them available to the system in a very similar way to how
+	physical floppy disks are handled. It requires "trackfile.device" 
+	to function.
+
+	Only ADF image files of certain sizes are supported, such as for
+	double density and high density 3.5" floppy disks, as well as
+	for 5.25" double density disks. These disks must be "formatted"
+	for use with the Amiga, i.e. they must be either 880 KBytes
+	or 1760 KBytes in size.
+
+	Like a floppy disk drive, "trackfile.device" supports multiple
+	"drives", each corresponding to a unit number. For example, unit 0
+	corresponds to device name "DA0:", similar to how "DF0:" 
+	corresponds to floppy disk unit 0.
+
+	The number of such units is limited only by available memory. You 
+	can either request a specific unit number to be used or let 
+	DACONTROL reuse an unused or empty unit whose medium has just been 
+	ejected.
+
+	DACONTROL can load, eject or change a medium, i.e. a disk image 
+	file. You can tell it which unit to use, or you just say which 
+	device you want, e.g. "DA0:" if you want to eject what's 
+	in "DA0:". Changing a medium implies ejecting a medium already 
+	present first, then loading the new medium. Changing a medium is 
+	safe even if there is currently no medium loaded. Also supported 
+	are the FILESYSTEM and USECHECKSUMS tool types.
+
+	The default for disk images is the read-only state. If you need to
+	write to the media, you need to specifically say so.
+
+	You can add a project icon with "C:DAControl" as its default tool 
+	to have for example, a particular ADF file mounted when you 
+	double-click on its icon in Workbench. Use the WRITEPROTECTED=NO 
+	Tool Type to have the file mounted as a writable disk. PROTECT may 
+	be used in place of WRITEPROTECTED.
+
+	Available options:
+
+	LOAD
+	    Loads a specific ADF file and mounts it as a file system 
+	    device. Wildcards are supported if you want to load more than 
+	    an ADF file. The LOAD option implies that a unit is started or 
+	    reused for this file first.
+
+	    Once the ADF file is loaded, it cannot be deleted or moved. 
+	    You would need to eject it first.
+
+	EJECT
+	    Ejects a medium, i.e. an ADF file. You need to state which 
+	    unit or device name it is associated with. Once the medium is 
+	    ejected, you can move or delete the file.
+
+	CHANGE
+	    Removes an ADF file from a unit, if present, and then loads a 
+	    new ADF file for it. You need to specify which unit or device 
+	    name is associated with the ADF file that should be ejected. 
+	    It is safe to try and eject an ADF file from a unit which has 
+	    none loaded yet.
+
+	TIMEOUT
+	    Once an ADF file is mounted, AmigaDOS may keep it busy 
+	    pointer when it reads from it or changes are made to its 
+	    contents. If you use the EJECT or CHANGE option, it may not 
+	    immediately have the desired effect. Use the TIMEOUT option to 
+	    state for how long the DACONTROL command should wait for the 
+	    medium to be safely ejected. The minimum time to wait is  five 
+	    seconds.
+
+	    If you do not want to wait any longer while DACONTROL is 
+	    trying to eject a medium, press the [Ctrl]+C keys or use the 
+	    BREAK Shell command instead.
+
+	WRITEPROTECTED
+	    If you use the LOAD or CHANGE options, the disk image file 
+	    will be mounted as read-only. To make the image writable 
+	    instead, use the WRITEPROTECTED=NO option. 
+
+	CREATE
+	    Creates a "blank" disk image file when it starts up and has it
+	    formatted and mounted. This image file will always be 
+	    writable, overriding the WRITEPROTECTED=YES option.
+
+	    You can only create a disk image file if this would not result
+	    in an existing file getting overwritten.
+
+	BOOTABLE
+	    This option will make the image file created through the 
+	    CREATE option bootable, as if the INSTALL command had been 
+	    used on it.
+
+	USECHECKSUMS
+	    No two disk images with the same contents should be active at
+	    the same time, or otherwise mounting the disk image may crash
+	    as a result. To guard against this possibility, you can enable
+	    disk and track checksums which reduce the risk of a crash at
+	    the expense of the mount operation taking slightly longer.
+	    It will take slightly longer because the entire disk image 
+	    file will have to be read first.  The USECHECKSUMS=YES option 
+	    enables the use of disk image checksums.
+
+	ENABLECACHE={<YES|NO>}
+	    Will enable and/or disable the use of a cache at medium 
+	    insertion time. The cache is shared among all cache enabled 
+	    units. 
+
+	PREFILLCACHE={<YES|NO>}
+	    Much like ENABLECACHE, also works at medium insertion time and 
+	    is also shared between all cache enabled units. Prefilling the 
+	    cache for a unit makes sense only if the size of the cache is 
+	    901,120 bytes or higher since the prefill operation will 
+	    otherwise replace cache entries which it previously created.
+
+	    Please note that PREFILLCACHE=yes also implies ENABLECACHE=yes 
+	    and will even override the ENABLECACHE=no option.
+
+	CACHESIZE=<size>
+	    The minimum cache size that makes sense to use is 46000 and is 
+	    shared between all cache enabled units.
+
+	SAFEEJECT
+	    Ejecting or changing the disk image file associated with a device or
+	    unit requires that the image file is not currently in use. The removal
+	    of the image file therefore has to wait until the file system has
+	    stopped using. A floppy disk drive LED will be turned off when the
+	    drive's motor has stopped, indicating that pressing the eject button
+	    is now possible. The DAControl command will likewise wait for the same
+	    type of signal before removing the image file.
+
+	    This approach is not as robust as the alternative, namely asking the
+	    file system which tends to a disk drive to let go of the medium,
+	    writing back any buffered data first, and only then ejecting the disk
+	    image file. This is the safer approach and also much faster than
+	    waiting for the file system to spin down the drive motor. Use the
+	    SAFEEJECT=YES option to enable this faster eject operation. Note that
+	    the SAFEEJECT=YES option may not be supported well by some software
+	    which may have trouble detecting that a volume is no longer pr
+
+	FILESYSTEM
+	    DAControl will use the same filesystem software which the disk
+	    drives DF0: through DF3: and even RAD: would use. You can use 
+	    a different file system of your choice which serves the same 
+	    purpose, such as the "L:FileSystem" which is used mostly by 
+	    hard disk partitioning software. This can be useful for the 
+	    purpose of testing software with older or newer Amiga 
+	    filesystems, rather than the filesystem software your system 
+	    starts with.
+
+	    Please note that DAControl will load this filesystem software 
+	    every time you use the FILESYSTEM option, even if you used it 
+	    before with the same option and filesystem name. You may want 
+	    to keep an eye on how much memory this will consume!
+
+	FILESYSTEMTYPE
+	    This option will change the file system type or mode of 
+	    operation for the image file created through the CREATE 
+	    option. The type must be one of either OFS or FFS, which can 
+	    be combined with the modes INTERNATIONAL, DIRCACHE and 
+	    LONGNAMES. Not all combinations are permitted. Use the "+" 
+	    sign to combine type and modes, such as in OFS+INTERNATIONAL 
+	    or FFS+LONGNAMES.
+
+	OVERWRITE
+	    Unless you use the OVERWRITE option, the CREATE option will first
+	    check if there already is a file, directory or link by the given
+	    file name, and abort the CREATE operation immediately. With the
+	    OVERWRITE option in use, any existing file will be overwritten
+	    without a prior check to avoid this.
+
+	LABEL
+	    Tells DACONTROL which label to use for a newly-created empty 
+	    disk image file. If you omit the LABEL options, DACONTROL will 
+	    automatically assign a default label instead of just using 
+	    "Empty".
+
+	DISKTYPE
+	    This option has an effect on the size of the image file to be
+	    created through the CREATE option. It can either be a DD 
+	    (880 KB double density) or HD (1.76 MB high density) image 
+	    file.
+
+	UNIT/DEVICE
+	    Some of the options need to know which AmigaDOS file system
+	    device, e.g. "DA0:" or which corresponding unit number is
+	    involved. DACONTROL automatically determines whether you 
+	    provided a unit number or an AmigaDOS file system device name.
+
+	    Instead of using a unit number or device name, you can also 
+	    use the keywords ANY or LAST. ANY will pick the next unused 
+	    unit and reuse it, if necessary, or start a new unit instead. 
+	    LAST will consult the "DA_LASTDEVICE" environment variable and
+	    use what it found there.
+
+	START
+	    Each time you use the LOAD or CREATE options, DACONTROL will
+	    either reuse an unused unit or it will start a new unit for 
+	    you, followed by mounting a disk image file. You can also 
+	    choose to directly start a new unit with the START option, 
+	    without attaching a disk image file to it yet.
+
+	    You can combine the START option with the LOAD and CHANGE 
+	    options in that the unit will first be started, followed by a 
+	    single disk image file being loaded.
+
+	    The START option requires a unit number to make sense, unless 
+	    it is paired with the LOAD or CHANGE options.
+
+	STOP
+	    You can save memory by stopping a unit which you no longer 
+	    need. While it can be reused later, in the mean time between 
+	    12-17 KBytes of RAM can be released. Please note that the 
+	    AmigaDOS device attached to the unit, such as "DA0:" for 
+	    unit 0, will remain active with the unit shut down. It will 
+	    appear like an empty disk drive.
+
+	    Stopping a unit requires that the medium associated with it 
+	    has been ejected. You can combine the EJECT and STOP options 
+	    to the effect that the medium will be ejected first, and then 
+	    the unit will be stopped.
+
+	INFO
+	    Shows which units have been started, whether they are active, 
+	    have a medium loaded, and which further information is 
+	    available on them.
+	    
+	GET
+	    Returns the information which the INFO option produces, in a
+	    form more suitable for processing by script files and their
+	    like. "DAControl GET ?" will print a list of keywords which
+	    may be used. Some of these keywords require that a device or
+	    unit name is provided, e.g. the "FILE" keyword. A full list
+	    of devices currently known is produced by the "DEVICELIST"
+	    keyword, e.g. "DAControl GET DEVICELIST". The list of
+	    currently supported keywords corresponds to the display
+	    options used by the INFO option:
+
+	        ACCESS (1)
+	        ACTIVE (1)
+	        BUSY (1)
+	        BOOTABLE (1)
+	        CACHERATE (1)
+	        CACHING (1)
+	        CHECKSUM (1)
+	        DEVICELIST
+	        FILE (1)
+	        FILESYSTEM (1)
+	        TYPE (1)
+	        VOLUMEDATE (1)
+	        VOLUMENAME (1)
+
+	    Note (1): These keywords require a DEVICE or UNIT parameter.
+
+	    The output of "DAControl GET" can be an empty string, for
+	    example if the device in question has no disk image file
+	    attached. You should also check the return code of the
+	    DAControl command: unless it is 0 (success), an empty
+	    string produced by the "DAControl GET" is not meaningful.
+
+	    New in V48.
+	    
+	SHOWCHECKSUMS
+	    Information on the currently active units does not include the
+	    disk checksum information by default. Use the SHOWCHECKSUMS
+	    options to show it. Please note that a unit has to have the
+	    checksum feature enabled in order for a disk checksum to be
+	    displayed (it is disabled by default).
+
+	    Checksum information is updated in real time as the contents
+	    of a disk image are modified.
+
+	SHOWVOLUMES
+	    When using the INFO option, shows the volume names and 
+	    creation dates associated with the contents of the disk image 
+	    files. Please note that this information may not be available 
+	    for all disk images and at all times. If the volume creation 
+	    date and time is unavailable, so will the be the volume name.
+
+	    Volume information is updated in real time as the contents
+	    of a disk image are modified.
+
+	SHOWBOOTBLOCKS
+	    When using the INFO option, shows the file system signature 
+	    and whether or not the disk is supposed to be bootable. Please 
+	    note that this information may not be available for all disk 
+	    images.
+
+	    Boot block and file system signature information is updated in
+	    real time as the contents of a disk image are modified.
+
+	SETVAR and SETENV
+	    If you use one of these options, DACONTROL will store the
+	    name of the last AmigaDOS device it used in the environment
+	    variable "DA_LASTDEVICE". You can use this variable in 
+	    AmigaDOS scripts for example, or you can tell DACONTROL the 
+	    next time you start it with DEVICE=LAST to consult the 
+	    environment variable.
+
+	    SETVAR will create a local variable which is only visible to 
+	    the Shell or script in which DACONTROL was used. SETENV will 
+	    create an environment variable which is visible to all Shells 
+	    and scripts.
+
+	QUIET
+	    Performs the instructed operation without displaying any 
+	    progress messages on the screen, unless error messages need to
+	    be printed.
+	    
+	    Please note that the QUIET option works for all error output and 
+	    can be useful in conjunction with the GET option. For example, 
+	    you might only be interested in what the GET option produced but
+	    not so much about any error message printed as well.
+
+	VERBOSE
+	    Performs the instructed operation displaying more detail on 
+	    what is being done.
+
+	IGNORE
+	    If the files to load or change are missing, or if such files 
+	    are present but unsuitable, DACONTROL will print an error 
+	    message, stop and exit. Use the IGNORE option to make 
+	    DACONTROL continue instead of stopping and exiting.
+
+	    Please note that error messages will still be printed if the
+	    IGNORE option is used. DACONTROL will still stop and exit if a
+	    problem is more serious than missing files or unsuitable
+	    files.
+
+	FILE
+	    The LOAD and CREATE options require the name of a disk image 
+	    file which should be loaded or created. You may use wildcards 
+	    when loading disk image files.
+
+   EXAMPLES
+	1> DACONTROL load #?.adf
+
+	Will load all ADF files in the current directory, You will quickly
+	see all the volumes pop up on your Workbench backdrop
+
+	1> DACONTROL load disk.adf device da0:
+
+	will load an ADF file and make it available through DA0:, if this
+	is possible.
+
+	1> DACONTROL load adf/test1.adf writeprotected=no
+
+	Will give you a write-enabled volume.
+
+	1> DACONTROL create label=empty ade/empty.adf
+
+	Will create an empty disk image file, make it writable and format 
+	it using "empty" as the volume name.
+
+	1> DACONTROL info
+	Device  Unit Type Active  Access     File
+	DA0     3.5" DD   Yes     read-only  Archive:Demo 1.adf
+	DA1     3.5" DD   Yes     read-only  Archive:Demo 2.adf
+	DA2     3.5" DD   Yes *   read-only  Archive:Mindwalker.adf
+	DA3     3.5" DD   Yes     read-only  Archive:Workbench.adf
+	DA4     3.5" DD   Yes     read-only  Archive:Amiga Extras.adf
+	DA5     3.5" DD   No      -          -
+
+	This will show the units which have been started so far. Each unit
+	corresponds to an AmigaDOS file system device, such as 0 
+	to "DA0:". In this example unit 5 has been stopped. Unit 2 is 
+	currently busy indicate by the "Yes *" in the "Active" column. 
+	Being busy means that the "disk motor" is spinning and the disk 
+	image file is being read or written to.
+
+	1> DACONTROL info showchecksums
+	Device    Type     Checksum     Active  Access      File
+	DA0       3.5" DD  yaz8H2pEvGi  Yes     read-only   AR:Demo1.adf
+
+	If a unit is keeping checksums for tracks and the disk, then these
+	may be shown as an 11 character representation.
+
+	1> DACONTROL eject timeout=5 stop unit 0
+
+	Will first try to eject the medium loaded in unit 0 and wait for
+	up to 5 seconds to succeed. Once the medium is ejected, the unit
+	will be stopped.
+
+   SEE ALSO
+	MOUNT, FORMAT, INSTALL, EJECT

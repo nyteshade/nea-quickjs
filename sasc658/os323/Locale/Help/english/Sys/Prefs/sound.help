@@ -1,0 +1,56 @@
+@database Sound
+@node "MAIN"
+@{IMG SYS:Prefs/Sound.info}
+  SOUND
+  =====
+  
+  The Sound Preferences editor signals an application error or prompt.
+  
+  SIGNAL TYPE <Flash Display> <Make Sound>
+  The type of signal can be produced by either generating a 
+  <Flash Display> or <Make Sound>, or both options at the same time.
+  Default is <Flash Display>.
+  
+  SOUND SETTINGS
+  
+  SOUND TYPE: <beep> <sample sound>
+  Determines the type of audio that will be produced.
+  
+  SOUND VOLUME:
+  Sets the volume of the audio generated.
+  
+  SOUND PITCH:
+  When the <beep> option is selected, it controls its tone. When the 
+  <sample sound> is chosen it modifies the playback speed.
+  
+  BEEP LENGTH:
+  Sets the duration of the beep.
+  
+  SELECT SAMPLE...
+  Opens a file requester for selection of the <sample sound>.
+  
+  TEST SOUND
+  Plays back the selected sound.
+  
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+  
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+@endnode

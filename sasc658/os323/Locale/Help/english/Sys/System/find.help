@@ -1,0 +1,49 @@
+@database Find
+@node "MAIN"
+@{IMG SYS:System/Find.info}
+   NAME
+	FIND - Searches for files. 
+
+   FORMAT
+	FIND <string> [PATTERN] [CONTAINS] [STRING]
+	[FROM <volume or directory path>] 
+
+   TEMPLATE
+	SEARCH,PATTERN/S,CONTAINS/S,FROM/K
+
+   PATH
+	SYSTEM/FIND
+
+   FUNCTION
+	When run from the Shell, the FIND program will only be loaded 
+	according to the parameters provided, but will not perform any 
+	search until the user presses the "Start" gadget on the bottom 
+	right corner of the dialog box.
+
+	FIND has a menu which includes the option to copy the found path. 
+	Its window is resizable and icons dropped onto the FIND window 
+	inserts the file path into the source directory.
+
+	PATTERN
+	Determines an Amiga pattern matching string that should be used 
+	for the search.
+
+	CONTAINS
+	Sets a string that the filename to be searched for should contain. 
+
+	STRING
+	Sets a string that the file to be searched for should contain. 
+
+	If neither the STRING, PATTERN nor the CONTAIN options are used, 
+	FIND defaults to searching for files with an exact name match.
+
+	FROM
+	Defines the location that should be searched. This could be either 
+	a volume or path name. If this option is absent, FIND defaults to
+	search on all volumes.
+
+	Note: All searches conducted are case insensitive. This means that 
+	any string will be treated with upper and lowercase letters as 
+	being the same. So for example, "test" will be the same as "TEST".
+
+@endnode

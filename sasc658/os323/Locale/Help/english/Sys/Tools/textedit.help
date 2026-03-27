@@ -1,0 +1,120 @@
+@database TextEdit
+@node "MAIN"
+@{IMG SYS:Tools/TextEdit.info}
+   NAME
+	TEXTEDIT - Opens a simple text document editor. 
+
+   FORMAT
+	TEXTEDIT
+
+   TEMPLATE
+	(none)
+
+   PATH
+	TOOLS/TEXTEDIT
+
+   FUNCTION
+	TEXTEDIT opens a text editor program. The command does not support 
+	any arguments and should only be operated from its graphic user 
+	interface.
+ 
+	Besides handling ordinary text, TextEdit has a very convenient 
+	68k assembler, ARexx, C and Shell Script syntax highlighter.
+ 
+	Available Tool Types:
+
+	     PUBSCREEN 
+	     Defines the public screen name. Workbench is the default.
+
+	     SETTINGS
+	     Loads settings from the specified location.
+
+
+	The Graphical User Interface
+	============================
+  
+	By default, TEXTEDIT opens its user interface window with a new 
+	untitled text document (the name of the document is displayed in 
+	its window title bar). The size and position of its window can be 
+	adjusted like any other Workbench-compatible program.
+ 
+	After you have selected some text, you can click on the selection 
+	and drag it to a new location.
+ 
+	Line and column number are displayed on its window title bar.
+ 
+	A menu is available by holding the right mouse button. 
+	It contains the following options: 
+ 
+	PROJECT <New> <Open...> <Save> <Save As...> <Reveal Previous> 
+	<Reveal Next> <Close> <Quit>
+	This menu entry holds file operations and the exit function. 
+ 
+	EDIT <Cut> <Copy> <Paste> <Select All> <Undo> <Redo> 
+	<Selection Mode <Normal | Rectangular>> <Search> 
+	<Search & Replace> <Hide Search Bar> <Go To...> 
+	<Transform Selection> <Bookmarks>
+	Contains available editing, conversion, selection and search 
+	processes. 
+
+	The <Go To...> menu item opens a string gadget at the bottom of 
+	the window where you may enter a destination where to jump to:
+
+
+	You may write l <number> to go to a specific line number, or just 
+	type the number directly.
+
+	You may write b <number> to go to a particular bookmark number you 
+	have already set.
+
+	You may write l <number> c <number> to go to a matching line and 
+	column number. Be aware that you cannot simply write c <number>, but 
+	you may use <number> c <number> to go to a line and column 
+	combination.
+
+	The <Transform Selection> menu item has the following convertion 
+	submenu items available: <Spaces to Tabs> <Tabs to Spaces> 
+	<To Uppercase> <To Lowercase>.
+
+	The <Bookmarks> menu item has the following submenu items 
+	available: <Toggle Bookmark> <Clear All Bookmarks In File> 
+	<Previous Bookmark In File> <Next Bookmark In File>.
+
+	FILETYPE
+	<Generic Text> <ARexx> <Shell script> <C> <Assembler 68k>
+	Configures the syntax highlighting mode to ease development 
+	according to the programming language selected by the user.
+	Currently 68k assembler, ARexx, Shell Script and C syntax 
+	highlighters are available.
+
+	SETTINGS
+	<Monospaced Font> <Remember Window Geometry> <Filetype Options...> 
+	<Save Settings>
+	Adjusts settings based on user preference.
+
+	The <Filetype Options...> menu item opens a new window which lets 
+	you configure options for each file type. These include: 
+	Text wrapping settings, line number visibility, and the ability to 
+	cut or copy a line when no text has been selected.
+
+	By clicking on the ">" symbol that precedes either <Generic Text>, 
+	<ARexx>, <Shell script>, <C>, or <Assembler 68k> file type options, 
+	those section will expand into subsections <Indentation> and 
+	<Highlighting> when available, which will further increase the 
+	customization possibilities for these type of files:
+	
+	              <Indentation>
+	              Lets you configure with a great degree of freedom the
+	              indentation features and the associated usage of the 
+	              Tab key. 
+	              
+	              <Highlighting>
+	              Lets you set the color and text style (Bold, Italic 
+	              and Underline) for each of the syntax elements.              
+
+
+	NOTE:
+	TextEdit features a built-in ARexx port whose details can be found 
+	@{"here" link "GUIDEDIR:/Other/TEXTEDITAREXX.guide/MAIN"}.
+
+@endnode

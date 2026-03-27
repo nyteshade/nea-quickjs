@@ -1,0 +1,69 @@
+   NAME
+	DELETE - Deletes files or directories.
+
+   FORMAT
+	DELETE {<name|pattern>} [ALL] [QUIET] [FORCE]
+
+   TEMPLATE
+	FILE/M/A,ALL/S,QUIET/S,FORCE/S
+
+   PATH
+	C:DELETE
+
+   FUNCTION
+	DELETE attempts to delete (erase) the specified file(s). If more 
+	than one file was specified, AmigaDOS continues to the next file 
+	in the list.
+
+	You can use pattern matching to delete files. The pattern may 
+	specify directory levels as well as filenames. All files that 
+	match the pattern are deleted. To abort a multiple-file DELETE, 
+	press Ctrl-C.
+
+	AmigaDOS does not request confirmation of deletions. An error in a
+	pattern-matching DELETE can have severe consequences, as deleted 
+	files may not be recoverable. Be sure you understand pattern 
+	matching before you use this feature, and keep backups of 
+	important files.
+
+	Warning: If you try to delete a directory that contains files, you 
+	will receive a message stating that the directory could not be 
+	deleted as it is not empty. To override this, use the ALL option.
+	DELETE ALL deletes the named directory, its subdirectories, and 
+	all files.
+
+	Filenames are displayed on the screen as they are deleted. To 
+	suppress the screen output, use the QUIET option.
+
+	If the d (deletable) protection bit of a file has been cleared, 
+	that file cannot be deleted unless the FORCE option is used.
+
+	The DELETE command does not guarantee that the file contents will 
+	be securely deleted because the file system and the underlying 
+	storage hardware may reduce the effectiveness of the overwrite 
+	operations. The FORMAT command may be more effective in securely 
+	wiping a storage medium, albeit at the expense of wiping the 
+	entire partition/disk rather than just a single file.
+
+   EXAMPLES
+	1>DELETE Old-file
+
+	Deletes the Old-file file in the current directory.
+
+	1> DELETE  Work/Prog1  Work/Prog2  Work
+
+	Deletes the files Prog1 and Prog2 in the Work directory, and then
+	deletes the Work directory (if there are no other files left in 
+	it).
+
+	1> DELETE  T#?/#?(1|2)
+
+	Deletes all files that end in 1 or 2 in directories that start 
+	with T.
+
+	1> DELETE DF1:#? ALL FORCE
+
+	Deletes all the files on DF1:, even those set as not deletable.
+
+   SEE ALSO
+	PROTECT, FORMAT

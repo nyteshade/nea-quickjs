@@ -1,0 +1,151 @@
+; $VER: Help 47.7 (05.05.2020)
+;
+; Call from shell with command name to get help or documentation on the program
+; DS switches deep scanning for all possible documents
+; CS switches content search of all documentation (can be slow)
+
+.KEY ABOUT,DS/S,CS/S
+
+Set currentpath `cd`
+Set multiviewpath "SYS:Utilities/MultiView"
+
+If "<ABOUT>" EQ ""
+
+  If EXISTS "HELP:$Language/Sys/Workbench.guide"
+    RUN >NIL: $multiviewpath "HELP:$Language/Sys/Workbench.guide"
+  Else
+    If EXISTS "HELP:english/Sys/Workbench.guide"
+      RUN >NIL: $multiviewpath "HELP:english/Sys/Workbench.guide"
+    EndIf
+  EndIf
+  SKIP finished
+
+Else
+
+  Echo "Searching help, please wait... "  NOLINE
+  Set HELPFILE=""
+  If EXISTS "HELP:$Language/Sys"
+    Set HELPFILE="`List "HELP:$Language/Sys/#?/<ABOUT>.help" LFORMAT=%S%S`"
+    If "$HELPFILE" EQ ""
+      Set HELPFILE="`List "HELP:$Language/Sys/#?/<ABOUT>.guide" LFORMAT=%S%S`"
+      If "$HELPFILE" EQ ""
+        If Exists "HELP:$Language/Sys/<ABOUT>.guide"
+          Set HELPFILE="HELP:$Language/Sys/<ABOUT>.guide"
+        EndIf
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:$Language/<ABOUT>.guide"
+        Set HELPFILE="HELP:$Language/<ABOUT>.guide"
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:$Language/<ABOUT>.doc"
+        Set HELPFILE="HELP:$Language/<ABOUT>.doc"
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:$Language/<ABOUT>.txt"
+        Set HELPFILE="HELP:$Language/<ABOUT>.txt"
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:$Language/<ABOUT>.readme"
+        Set HELPFILE="HELP:$Language/<ABOUT>.readme"
+      EndIf
+    EndIf
+  EndIf
+
+  If "$HELPFILE" EQ ""
+    Set HELPFILE="`List "HELP:english/Sys/#?/<ABOUT>.help" LFORMAT=%S%S`"
+    If "$HELPFILE" EQ ""
+      Set HELPFILE="`List "HELP:english/Sys/#?/<ABOUT>.guide" LFORMAT=%S%S`"
+      If "$HELPFILE" EQ ""
+        If Exists "HELP:english/Sys/<ABOUT>.guide"
+          Set HELPFILE="HELP:english/Sys/<ABOUT>.guide"
+        EndIf
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:english/<ABOUT>.guide"
+        Set HELPFILE="HELP:english/<ABOUT>.guide"
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:english/<ABOUT>.doc"
+        Set HELPFILE="HELP:english/<ABOUT>.doc"
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:english/<ABOUT>.txt"
+        Set HELPFILE="HELP:english/<ABOUT>.txt"
+      EndIf
+    EndIf
+    If "$HELPFILE" EQ ""
+      If Exists "HELP:english/<ABOUT>.readme"
+        Set HELPFILE="HELP:english/<ABOUT>.readme"
+      EndIf
+    EndIf
+  EndIf
+
+  If "$HELPFILE" EQ ""
+    Set HELPFILE="`List "HELP:#?/<ABOUT>.guide" LFORMAT=%S%S`"
+  EndIf
+
+  If "$HELPFILE" NOT EQ ""
+    Echo "*E[33mFound*E[0m *"*E[32m<ABOUT>*E[0m*""
+    RUN >NIL: $multiviewpath "$HELPFILE"
+    SKIP exit	
+  Else
+    If Exists "<ABOUT>"
+      Echo "*E[33mFound*E[0m *"*E[32m<ABOUT>*E[0m*""
+      RUN >NIL: $multiviewpath "<ABOUT>"
+      SKIP exit	
+    Else
+      Echo "*E[33mNo help found for*E[0m *"*E[32m<ABOUT>*E[0m*""
+    EndIf
+  EndIf
+
+EndIf
+
+; Try to deep scan the available documentation for given keyword
+
+IF "<DS>" NOT EQ ""
+  Echo "Trying document match, please stand by... " NOLINE
+  Search >NIL: "HELP:" SEARCH "#?<ABOUT>#?" QUIET ALL FILE
+  IF NOT WARN
+    ECHO "*E[33mFound document(s):*E[0m*N"
+    LIST "HELP:" PAT "#?<ABOUT>#?" lformat "%-24m (%p%n)" FILES QUICK ALL
+    SKIP searchinfo
+  ENDIF
+  Echo "*E[33mNo matches found for*E[0m *"*E[32m<ABOUT>*E[0m*""
+ENDIF
+
+; Dig deeper if user requested full search
+
+IF "<CS>" NOT EQ ""
+  Echo "Starting content search, please stand by... "  NOLINE
+  Search >T:searchresult.tmp "HELP:" SEARCH "<ABOUT>" QUIET ALL
+  IF NOT WARN
+    ECHO "*E[33m*NKeyword*E[0m *"*E[32m<ABOUT>*E[0m*" *E[33mfound in the following documents:*E[0m*N"
+    TYPE T:searchresult.tmp
+    SKIP searchinfo
+  ENDIF
+  Echo "*E[33mNo help available for*E[0m *"*E[32m<ABOUT>*E[0m*""
+ENDIF
+
+SKIP exit
+
+LAB searchinfo
+ECHO "*NEnter *"*E[32mHelp *<path:documentname*>*E[0m*" to view the document!*N"
+SKIP exit
+
+LAB exit
+DELETE >NIL: T:searchresult.tmp QUIET FORCE
+
+LAB finished
+Unset HELPFILE
+CD "$currentpath"
+UNSET currentpath
+UNSET multiviewpath
+QUIT 0

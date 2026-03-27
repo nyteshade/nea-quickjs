@@ -1,0 +1,21 @@
+   NAME
+	UNSETENV - Removes a global variable.
+
+   FORMAT
+	UNSETENV [DELETE] [<name>]
+
+   TEMPLATE
+	DELETE/S,NAME/A/M
+
+   PATH
+	Internal
+
+   FUNCTION
+	UNSETENV removes the named global variables from the current 
+	variable list. The current global variable list will persist only 
+	until the system is restarted, so removing one variable will not 
+	affect the default value it is initialized with at system startup. 
+	To also remove this default value, use the 'DELETE' parameter.
+
+   SEE ALSO
+	SETENV

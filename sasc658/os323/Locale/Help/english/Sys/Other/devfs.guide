@@ -1,0 +1,175 @@
+@database devfs.guide 47.2 (10.11.2021)
+@node MAIN "Device and Filesystem Quirks"
+@{u}Device Naming@{uu}
+
+AmigaOS associates devices to hardware. These devices can be 
+addressed by using the following naming standard:
+
+@{b}AUX:@{ub}
+Represents an unbuffered version of the serial device. For example, 
+the command NEWSHELL AUX: allows you to run a Shell over the serial 
+port.
+
+@{b}CC0:@{ub}
+Represents the credit-card device (PCMCIA). Only Amiga 600 and 
+Amiga 1200 models have this type of device.
+
+@{b}CON:@{ub} 
+Represents the Console (the Console is where you can type in text 
+commands and have the system display them, like for example the Shell 
+window).
+
+@{b}CONSOLE:@{ub} 
+Represents the current console window. An asterisk "*" symbol can
+also be used in place of CONSOLE:.
+
+@{b}DF0:@{ub}
+Represents the built-in floppy disk drive unit that nearly all Amigas 
+come with. 
+
+@{b}NIL:@{ub}
+Represents a non-existant device that discards any output that is sent 
+to it.
+
+@{b}PAR:@{ub}
+Represents the parallel port.
+
+@{b}PIPE:@{ub}
+Represents a communication channel for data exchange between different 
+tasks. It is actually a small memory buffer of 4 KB that can be used 
+by these tasks.
+
+@{b}PRT:@{ub}
+Represents the currently selected printer.
+
+@{b}RAD:@{ub}
+Represents a fixed size RAM disk that can survive warm resets and is 
+bootable (A power off kills it though).
+
+@{b}RAM:@{ub}
+Represents the auto-resizeable RAM disk. Its contents does not survive 
+a reboot.
+
+@{b}RAW:@{ub}
+While similar to CON: device, this represents the unbuffered screen 
+and keyboard I/O. Key presses are unfiltered and all key combinations 
+are processed. Keystrokes are not automatically echoed in the RAW: 
+window.
+
+@{b}SER:@{ub}
+Represents the serial port.
+
+@{b}SYS:@{ub} 
+Represents the volume that holds AmigaOS files.
+
+Of course, many other AmigaDOS devices implemented as handlers may be 
+added to the system and come under different names. You should consult 
+their respective manuals for further information.
+
+@{u}AmigaOS File Systems Quirks@{uu}
+
+The Rigid Disk Block (RDB) is how the Amiga holds information about 
+mass storage physical structure and partitioning. It is comparable to 
+the old, but still widely-used PC "Master Boot Record" (MBR), or the 
+current "GUID Partition Table" (GPT) standard. It is a flexible 
+structure with a list of partitions that is held in the storage 
+medium, together with the file system executable and boot code.
+ 
+In computing, a filesystem controls how data is stored and retrieved.
+By default, AmigaOS supports various filesystems variants. The 
+first filesystem was known as the "Old or Original" File System (OFS) 
+and was suitable mainly for floppy disks. It was soon superseded by 
+the Fast File System (FFS), which was more efficient on bigger drives 
+and quite faster than OFS.
+
+FFS was later expanded to be able to handle cached directories, 
+international naming, allowing accented characters in file and 
+partition names, and finally long filenames of up to 107 characters 
+(a far cry from the original 31 characters limit).
+
+FFS operates in several modes (DOSTypes). These are identified by a 
+four letter descriptor which is specified either in the RDB or a 
+@{"MountList" link MOUNTLISTS.help/MAIN}.
+
+@{u}Available FFS DOSTypes:@{uu}
+
+DOS\0  This is the oldest OFS variant and only kept for compatibility 
+      purposes. Allows filenames to reach up to 31 characters.
+
+DOS\1  First version of FFS without any additional characteristics. 
+      Allows filenames to reach up to 31 characters.
+
+DOS\2  OFS with "International" mode (OFS-INTL). Allows filenames to 
+      reach up to 31 characters.
+
+DOS\3  FFS with International mode (FFS-INTL). Allows filenames to 
+      reach up to 31 characters. This is the most commonly used and 
+      compatible FFS mode.
+
+DOS\4  OFS with "Directory Cache" (OFS-DC) mode. Allows filenames to 
+      reach up to 31 characters. This makes it faster for directory 
+      listing, but slower for most other tasks. International mode is 
+      always enabled.
+
+DOS\5  FFS with directory caching (FFS-DC). Allows filenames to reach 
+      up to 31 characters. This makes it faster for directory 
+      listing, but slower for most other tasks. International mode is 
+      always enabled.
+
+DOS\6  OFS with "Long Filename" (OFS-LNFS). Allows filenames to reach 
+      up to 107 characters. No directory caching mode available and 
+      International mode always enabled.
+
+DOS\7  FFS with Long filenames (FFS-LNFS). Allows filenames to reach 
+      up to 107 characters. No directory caching mode available and 
+      International mode always enabled.
+
+
+@{u}Protection bits@{uu}
+
+Protection bits are attributes that files, links and directories have 
+in the filesystem. They indicate different permissions related to a 
+given functionality. 
+
+To change a protection bit you can either use the @{"PROTECT" link sys/Commands/PROTECT.help/MAIN} command, or 
+perform a Workbench operation which involves selecting the file, 
+directory or link and accesing the "Information..." menu-item from the
+"Icons" menu.
+
+AmigaOS supports the following set of protection bits:
+
+H = Executable files with the H bit set will automatically become 
+    resident on first execution. This protection bit was often wrongly 
+    attributed to the capability of hiding files.
+
+S = Indicates that the file is a shell script which can be invoked 
+    directly. Otherwise, the @{"EXECUTE" link sys/Commands/EXECUTE.help/MAIN} command will need to get 
+    involved.
+
+P = The Pure bit was used to indicate reentrant commands that will 
+    also be made resident after their first run. In AmigaOS 3.2 we use 
+    it mostly to flag the ROM modules we wish to install with the 
+    @{"LOADMODULE" link sys/Commands/LOADMODULE.help/MAIN} command.
+
+A = Archived bit, used by some backup programs to flag that the file 
+    has already been backed up.
+
+R = Permission to read a file or view the content of a directory.
+
+W = Permission to write a file or within a directory.
+
+E = Permission to execute or enter a directory. Requires R bit set to 
+    work.
+
+D = Delete permission.
+
+
+@{u}Filenotes@{uu}
+
+AmigaOS gives users the possibility of having a comment or note 
+attached to each file. These comments are better known as filenotes 
+and can be of up to 80 characters long. By utilizing the @{"FILENOTE" link sys/Commands/FILENOTE.help/MAIN} 
+command, any user may be able to set and modify them at their own 
+will. 
+
+@endnode

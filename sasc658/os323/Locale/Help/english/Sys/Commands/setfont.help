@@ -1,0 +1,54 @@
+   NAME
+	SETFONT - Changes the Shell font.
+
+   FORMAT
+	SETFONT <font> <size> [SCALE] [PROP] [ITALIC] [BOLD]
+	        [UNDERLINE]
+
+   TEMPLATE
+	NAME/A,SIZE/N/A,SCALE/S,PROP/S,ITALIC/S,BOLD/S,UNDERLINE/S
+
+   PATH
+	C:SETFONT
+
+   FUNCTION
+	SETFONT lets you change the font used in a particular Shell 
+	window, overriding the System Default Text setting specified in 
+	the Font editor. SETFONT is only effective in the window in which 
+	it is invoked.
+
+	You must specify both a font name and a size when using the 
+	SETFONT command.
+
+	Invoking SETFONT will clear the Shell window of its current 
+	contents and display a new prompt, in the new font, at the top of 
+	the window.
+
+   OPTIONS
+	The other options are:
+
+	SCALE
+
+	    Enables bitmap font scaling.
+
+	PROP
+
+	    Allows proportional fonts.
+
+	ITALIC
+
+	    The font will be italic.
+
+	BOLD
+
+	    The font will be boldface.
+
+	UNDERLINE
+
+	    The font will be underlined.
+
+	EXAMPLES
+	    1> SETFONT Fixed 13 BOLD UNDERLINE
+
+	The Shell window will clear, and the new prompt will be in 13 
+	pixels Fixed.font, underlined and boldface.

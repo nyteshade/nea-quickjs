@@ -1,0 +1,18 @@
+   NAME
+	HI - Halts all ARexx programs.
+
+   FORMAT
+	HI
+
+   TEMPLATE
+	(none)
+
+   PATH
+	REXXC/HI
+
+   FUNCTION
+	Sets the global halt flag, which causes all active ARexx programs 
+	to receive an external halt request. Each program will exit 
+	immediately unless its HALT interrupt has been enabled. The halt 
+	flag does not remain set, but is cleared automatically after all 
+	current programs have received the request.

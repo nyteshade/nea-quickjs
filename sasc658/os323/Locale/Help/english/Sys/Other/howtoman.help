@@ -1,0 +1,123 @@
+  How to understand an AmigaOS command manual page
+  ================================================
+
+  Understanding AmigaOS command manual pages can be difficult for the 
+  newcomer, or even for the old Amiga veteran that forgot half of the 
+  platform tricks.
+  
+  Here we will attempt to lend a helping hand to improve upon this 
+  unfortunate circumstance.
+  
+  The best way to learn (or re-learn) is with examples. So we will 
+  analyze the manual page of the ADDBUFFERS command. We will do this 
+  by describing it in sections. 
+  
+  Lines will be used to separate the actual example manual page 
+  fragment from the comments and explanations about it.
+  
+  --------------------- Start of fragment 1 --------------------------
+  
+      NAME
+  	ADDBUFFERS - Commands the file system to add cache buffers.
+  
+  ---------------------- End of fragment 1 ---------------------------
+  
+  NAME obviously displays the name of the command and provides along a 
+  brief description of what it actually does.
+  
+  --------------------- Start of fragment 2 --------------------------
+  
+      FORMAT
+  	ADDBUFFERS <drive> [<n>] 
+  
+  ---------------------- End of fragment 2 ---------------------------
+  
+  FORMAT informs the user how the system expects that command to be 
+  written in the CLI.
+  
+  The greater than and less than symbols "<>" enclose the syntax of an 
+  argument that must be filled for the command to work. In this case 
+  ADDBUFFERS requires a drive name.
+  
+  The brackets "[]" indicate on an optional argument. In this 
+  particular case of the ADDBUFFERS command, it is a number.
+  
+  Several options can be grouped by using the "|" symbol.
+  
+  --------------------- Start of fragment 3 --------------------------
+  
+      TEMPLATE
+  	DRIVE/A,BUFFERS/N
+  
+  ---------------------- End of fragment 3 ---------------------------
+  
+  All commands should display a TEMPLATE that indicates arguments, 
+  parameters, additional options, etc. in an abbreviated fashion by 
+  simply typing their name and an '?' symbol after them on the CLI.
+  
+  Lets see the actual example to understand this:
+  
+  1> ADDBUFFERS ?
+  DRIVE/A,BUFFERS/N:
+
+  After each argument there is a slash and a character. This specifies 
+  the kind of argument required, such as an option, a name or a value.
+
+     /A   - Argument must be supplied.
+     /F   - Must be the final or last argument.
+     /K   - Keyword must be entered with a parameter.
+     /M   - Multiple arguments may be supplied.
+     /N   - A number is required.
+     /S   - Switch or option. Supply this function to 
+            activate it.
+
+  --------------------- Start of fragment 4 --------------------------
+  
+      PATH
+  	C:ADDBUFFERS
+  
+  ---------------------- End of fragment 4 ---------------------------
+  
+  PATH indicates the location of the command. That said, some commands 
+  are built into the Shell, and don't exist as an individual 
+  executable file. These type of commands are called internal and 
+  should be marked as such in this field by placement of that word.
+  
+  --------------------- Start of fragment 5 --------------------------
+  
+      FUNCTION
+  	ADDBUFFERS adds <n> buffers to the list of buffers available for
+  	<drive>. A buffer is a temporary storage area in memory. 
+  
+  ---------------------- End of fragment 5 ---------------------------
+  
+  The FUNCTION section should completely describe the command's 
+  functionality with all its details.
+  
+  --------------------- Start of fragment 6 --------------------------
+  
+      EXAMPLES
+  	Add 25 buffers to drive DF1:.
+  
+  	1> ADDBUFFERS DF1: 25
+  	DF1: has 30 buffers
+  
+  ---------------------- End of fragment 6 ---------------------------
+  
+  EXAMPLES are immensely useful for depicting real world scenarios 
+  where commands will be used. Along with the text entered in the CLI, 
+  a brief explanation of what that particular example does, should be 
+  provided.
+  
+  --------------------- Start of fragment 7 --------------------------
+  
+      SEE ALSO
+  	AVAIL
+  
+  ---------------------- End of fragment 7 ---------------------------
+  
+  And finally if this optional SEE ALSO field is present, it provides 
+  a suggestion for another command manual page to read, as it has some 
+  relation in functionality to the current one which could eventually 
+  prove useful.
+  

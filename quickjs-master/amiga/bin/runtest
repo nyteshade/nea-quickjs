@@ -1,0 +1,2 @@
+version file qjs.060 full
+qjs.060 -m /tests/amiga_test.js >/tests/amiga_test.amiberry.output.txt

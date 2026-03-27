@@ -1,0 +1,62 @@
+   NAME
+	PROMPT - Changes the prompt string of the current Shell.
+
+   FORMAT
+	PROMPT [<prompt>]
+
+   TEMPLATE
+	PROMPT
+
+   PATH
+	Internal
+
+   FUNCTION
+	PROMPT allows you to customize the prompt string, the text printed 
+	by the Shell at the beginning of a command line. The prompt string 
+	may contain any characters, including escape sequences. In the 
+	examples in this manual, the prompt string is shown as 1>.
+
+	The default prompt string is:
+
+	    "%N.%S> "
+
+	which displays the Shell number, a period, the current directory, 
+	a right angle-bracket and a space.
+
+	The substitutions available for the <prompt> string are:
+
+	    %N    Displays the Shell number. This is also available in the
+	          form of the $Process environment variable.
+	    %R    Displays the return code for the last operation. This is
+	          also available as the $RC environment variable.
+	    %S    Displays the current directory.
+	    
+	A space is not automatically added to the end of the string. If 
+	you want a space between the prompt and typed-in text, place it in 
+	the string, and enclose the string in double quotes.
+
+	You can embed commands in the prompt string by enclosing the 
+	command in backward quotes (`).
+
+	PROMPT alone, without a string argument, resets the prompt to the
+	default. 
+
+
+   EXAMPLES
+	    1> PROMPT %N
+	    1
+
+	Only the Shell number is shown. The > is removed from the prompt.
+
+	    1> PROMPT "%N.%S.%R> "
+	    1.SYS:.0>
+
+	The Shell number, current directory, and return code of the 
+	previous command are shown. A space is included after the >.
+
+	    1> PROMPT " `date`>"
+	    Tuesday 11-Sep-90 14:36:39>
+
+	The DATE command is executed and used as the prompt. The prompt is
+	not updated as the time changes. You would have to execute the 
+	PROMPT command again to update the Shell prompt.

@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/elemental.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(77,76,64) brighter rgb(93,92,77)
+red Alpha:255 rgb(168,58,26) brighter rgb(202,70,32)
+green Alpha:255 rgb(89,166,88) brighter rgb(107,200,106)
+yellow Alpha:255 rgb(145,130,33) brighter rgb(174,156,40)
+blue Alpha:255 rgb(92,145,143) brighter rgb(111,174,172)
+magenta Alpha:255 rgb(144,97,64) brighter rgb(173,117,77)
+cyan Alpha:255 rgb(73,143,108) brighter rgb(88,172,130)
+white Alpha:255 rgb(147,140,135) brighter rgb(177,168,162)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x2d2d,0x2c2c,0x2626
+COLOR=NOLOAD,ANSI,0x4d4d,0x4c4c,0x4040
+COLOR=NOLOAD,ANSI,0xa8a8,0x3a3a,0x1a1a
+COLOR=NOLOAD,ANSI,0x5959,0xa6a6,0x5858
+COLOR=NOLOAD,ANSI,0x9191,0x8282,0x2121
+COLOR=NOLOAD,ANSI,0x5c5c,0x9191,0x8f8f
+COLOR=NOLOAD,ANSI,0x9090,0x6161,0x4040
+COLOR=NOLOAD,ANSI,0x4949,0x8f8f,0x6c6c
+COLOR=NOLOAD,ANSI,0x9393,0x8c8c,0x8787
+COLOR=NOLOAD,ANSI,0x5d5d,0x5c5c,0x4d4d
+COLOR=NOLOAD,ANSI,0xcaca,0x4646,0x2020
+COLOR=NOLOAD,ANSI,0x6b6b,0xc8c8,0x6a6a
+COLOR=NOLOAD,ANSI,0xaeae,0x9c9c,0x2828
+COLOR=NOLOAD,ANSI,0x6f6f,0xaeae,0xacac
+COLOR=NOLOAD,ANSI,0xadad,0x7575,0x4d4d
+COLOR=NOLOAD,ANSI,0x5858,0xacac,0x8282
+COLOR=NOLOAD,ANSI,0xb1b1,0xa8a8,0xa2a2

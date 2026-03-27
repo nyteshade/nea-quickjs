@@ -1,0 +1,5 @@
+.key CLI/A
+.bra <
+.ket >
+
+SetVNC ForeGround <CLI>

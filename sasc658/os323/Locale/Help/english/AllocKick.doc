@@ -1,0 +1,37 @@
+
+         AllocKick - Allocate memory occupied by the kickstart image
+         ===========================================================
+                               (C) SinSoft 1993
+                               ================
+
+NOTE:   Beginning  with  V3.40  of  SKick,  users may add their non-autoconfig
+memory  boards  using  the  new  SKick  feature,  ADDMEM.  Usefullness of this
+program  is lowered by this change.  Please read the full SKick doc how to use
+the ADDMEM option!
+
+
+This  very little utility was written to help SKick users with non- autoconfig
+memory  boards.   With these, SKick should be used with FORCE option to ensure
+loading onto memory unknown to the system and to avoid automatic allocation of
+the kickstart image, which is unusable in such a case.  This causes the effect
+of the kickstart image being unprotected and easily overwritten by any program
+requiring a lot of memory.
+
+Recommended usage of the program is as follows:
+
+In Your startup-sequence, put the following commands in the following order: 
+
+SKick .... FORCE
+AddMem ....
+AllocKick
+...
+
+These  three  commands should be at the top of the startup-sequence before any
+other commands (SetPatch etc).
+
+AllocKick  does  not  require  any  parameters and doesn't print any messages.
+After  successful  allocating,  return  code  is set to 0.  When unsuccessful,
+AllocKick returns 5.
+
+Users  with  standard  Zorro-II or Zorro-III autoconfig boards don't need this
+program because the memory allocation should be done by SKick automatically.

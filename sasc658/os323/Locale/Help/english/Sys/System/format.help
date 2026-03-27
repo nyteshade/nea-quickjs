@@ -1,0 +1,82 @@
+@database Format
+@node "MAIN"
+@{IMG SYS:System/Format.info}
+   NAME
+	FORMAT - Formats a disk for use with the Amiga.
+
+   FORMAT
+	FORMAT DEVICE | DRIVE <device> NAME <name> [OFS | FFS] 
+	[INTERNATIONAL | NOINTERNATIONAL] [DIRCACHE | NODIRCACHE] 
+	[LONGNAMES] [NOLONGNAMES] [NOICONS] [QUICK]
+
+   TEMPLATE
+	DEVICE=DRIVE/K/A,NAME/K/A,OFS/S,FFS/S,INTL=INTERNATIONAL/S,
+	NOINTL=NOINTERNATIONAL/S,DIRCACHE/S,NODIRCACHE/S,LONGNAMES,
+	NOLONGNAMES,NOICON/S,QUICK/S
+
+   PATH
+	SYSTEM/FORMAT
+
+   FUNCTION
+	You must specify both the DEVICE and the NAME keywords to format a 
+	disk. The name can be up to 31 characters in length. If there are 
+	spaces in the name, enclose it in double quotation marks.
+
+	The OFS option formats the disk using the Old File System. The FFS 
+	option formats the disk using the Fast File System. FFS formatted 
+	disks are faster than OFS formatted disks; however, the FFS disks 
+	are not compatible with Amiga system software releases prior to 
+	v2.04. The default setting for floppy disks is OFS and for PCMCIA 
+	cards and hard drive partitions it is FFS.
+
+	The INTERNATIONAL option formats disks using the international 
+	versions of the file systems. International file systems handle 
+	upper and lower letter case conversions of international 
+	characters in file names. The NOINTERNATIONAL option forces the 
+	non-international file system on devices for which International 
+	mode is the default. The default setting for floppy disks and 
+	PCMCIA cards is NOINTERNATIONAL and for hard drive partitions is 
+	INTERNATIONAL. Disks created with INTERNATIONAL mode set are not 
+	compatible with Amiga system software releases prior to v2.04.
+
+	The DIRCACHE option enables directory caching, which speeds the 
+	opening of drawers, files, requesters, and listings. Using 
+	directory caching for floppy disks and systems with slow hard 
+	drives speeds directory listings and Workbench window opening. 
+	Directory caching is not useful on systems with fast hard drives 
+	or flash-memory media. 
+
+	The NODIRCACHE option disables directory caching. Disks formatted 
+	with Directory Caching are not compatible with Amiga system 
+	software releases prior to v3.0. The default setting for floppy 
+	disks, PCMCIA cards, and hard drives is NODIRCACHE.
+
+	The LONGNAMES option enables the use of the new long name feature 
+	of the file system (DOS\6 and DOS\7) which allows for 
+	file names with a size of up to 107 characters.
+
+	On the other hand, the NOLONGNAMES option formats the selected 
+	volume with DOS\6 or DOS\7, but disables long file names use in 
+	order to preserve backwards compatibility.
+
+	The NOICONS option prevents a Trashcan icon and directory from 
+	being added to the newly-formatted disk.
+
+	The QUICK option specifies that FORMAT only formats and creates 
+	the root block (and track), and creates the bitmap blocks. This 
+	can only be used with previously formatted disks. You cannot use 
+	this to reformat disks for AmigaDOS that were previously formatted 
+	for CrossDOS and vice versa.
+
+   EXAMPLES
+   
+	1> FORMAT DRIVE DF0: NAME EmptyDisk
+
+	Formats the disk in drive DF0:; erasing any data, and names the 
+	disk EmptyDisk.
+
+	1> FORMAT DRIVE DF2: NAME NewDisk QUICK
+
+	Re-formats, or erases, a disk that already contains data.
+
+@endnode

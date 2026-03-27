@@ -1,0 +1,31 @@
+https://github.com/mbadolato/iTerm2-Color-Schemes/raw/master/screenshots/birds_of_paradise.png
+Colors in second rgb call are brightened by 120%
+
+black Alpha:255 rgb(106,78,52) brighter rgb(128,94,63)
+red Alpha:255 rgb(201,66,55) brighter rgb(242,80,66)
+green Alpha:255 rgb(127,175,156) brighter rgb(153,210,188)
+yellow Alpha:255 rgb(236,171,66) brighter rgb(255,206,80)
+blue Alpha:255 rgb(111,153,186) brighter rgb(134,184,224)
+magenta Alpha:255 rgb(186,149,180) brighter rgb(224,179,216)
+cyan Alpha:255 rgb(136,180,186) brighter rgb(164,216,224)
+white Alpha:255 rgb(229,225,197) brighter rgb(255,255,237)
+
+ViNCEd Color Scheme
+
+CURSORCOLOR=NOLOAD,ANSI,0x3838,0x2929,0x2727
+COLOR=NOLOAD,ANSI,0x6a6a,0x4e4e,0x3434
+COLOR=NOLOAD,ANSI,0xc9c9,0x4242,0x3737
+COLOR=NOLOAD,ANSI,0x7f7f,0xafaf,0x9c9c
+COLOR=NOLOAD,ANSI,0xecec,0xabab,0x4242
+COLOR=NOLOAD,ANSI,0x6f6f,0x9999,0xbaba
+COLOR=NOLOAD,ANSI,0xbaba,0x9595,0xb4b4
+COLOR=NOLOAD,ANSI,0x8888,0xb4b4,0xbaba
+COLOR=NOLOAD,ANSI,0xe5e5,0xe1e1,0xc5c5
+COLOR=NOLOAD,ANSI,0x8080,0x5e5e,0x3f3f
+COLOR=NOLOAD,ANSI,0xf2f2,0x5050,0x4242
+COLOR=NOLOAD,ANSI,0x9999,0xd2d2,0xbcbc
+COLOR=NOLOAD,ANSI,0xffff,0xcece,0x5050
+COLOR=NOLOAD,ANSI,0x8686,0xb8b8,0xe0e0
+COLOR=NOLOAD,ANSI,0xe0e0,0xb3b3,0xd8d8
+COLOR=NOLOAD,ANSI,0xa4a4,0xd8d8,0xe0e0
+COLOR=NOLOAD,ANSI,0xffff,0xffff,0xeded

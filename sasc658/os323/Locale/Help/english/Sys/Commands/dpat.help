@@ -1,0 +1,34 @@
+   NAME
+	DPAT - Adds pattern matching to double-argument commands. 
+
+   FORMAT
+	DPAT <command> <pattern matching> [<command options>]
+
+   TEMPLATE
+	     COM/A,PAT/A,DIR/A,OPT1,OPT2,OPT3,OPT4
+
+   PATH
+	S/DPAT
+
+   FUNCTION
+	DPat adds pattern matching to double-argument commands that don't 
+	have it. After DPat and the command name, enter the two arguments 
+	separated by a space, using the wildcards required to produce the 
+	desired matches.
+
+	This is in fact, a script that allows double pattern matching with 
+	commands that do not normally support it. When you run it with a 
+	command, it uses the LIST command to create temporary script files 
+	in the T: directory and then execute the scripts. It can also be 
+	used with command aliases.
+
+   EXAMPLES
+	    1> DPAT RENAME SYS:#?.lha SYS:Expansion
+
+	This example assumes you have several LHA files in your SYS: 
+	volume and that you want them placed in your system's Expansion 
+	drawer. Here, DPAT inserts the filename in two places in the 
+	RENAME command.
+
+   SEE ALSO
+	SPAT

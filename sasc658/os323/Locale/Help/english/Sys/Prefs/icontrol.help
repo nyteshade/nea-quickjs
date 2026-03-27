@@ -1,0 +1,160 @@
+@database IControl
+@node "MAIN"
+@{IMG SYS:Prefs/IControl.info}
+  ICONTROL
+  ========
+  
+  The IControl Preferences editor specifies parameters used by 
+  AmigaOS.
+   
+  SCREEN DRAG 
+  
+  <Shift> <Ctrl> <Alt> <Left Amiga>
+  Sets the qualifier keys to drag the Workbench screen.
+  Default is <Left Amiga>.
+  
+  
+  SCREENS
+   
+  MENU SNAP:
+  When the screen is bigger than the monitor's display area, the 
+  screen shifts while the menu button (right mouse button) is being 
+  pressed. 
+  Default is selected.
+  
+  AVOID FLICKER:
+  Prevents the back screen from becoming interlaced, when the front 
+  screen is pulled down to display it. 
+  Default is selected.
+   
+  MODE PROMOTION:
+  Allows PAL and NTSC screen modes on AGA-based Amigas to be promoted
+  to a mode that does not flicker. This is not recommended for use 
+  when performing video-related work.
+  Default is selected.
+  
+  TEXT GADGET FILTER:
+  Defines the behavior of control characters in text gadgets. When 
+  filtering is active, control characters operate performing their 
+  special function. When inactive, they appear as a non-standard 
+  character. 
+  Default is selected.
+ 
+ 
+  WINDOWS
+  
+  CAN MOVE OFF-SCREEN:
+  Controls the behavior of Intuition's ability to move windows out of 
+  the screen. 
+  Default is unselected.
+  
+  RESIZABLE FROM ALL SIDES:
+  This option enables window resizing by selecting and dragging any 
+  border. Note that this only applies to newly-opened windows. If 
+  enabled, the pointer images matching the corresponding operation 
+  will be used: 'Resize Horizontal', 'Resize Diagonal Fwd', 'Resize 
+  Vertical', and 'Resize Diagonal Bwd'.
+  Default is unselected.
+  
+  APPEARANCE SETTINGS...
+  Supports user-configurable aspect ratio settings aiming at making 
+  window and screen borders look more pleasant with nearly or exactly 
+  square shapes on any display device and resolution. 
+
+  RIGHT/BOTTOM WINDOW BORDERS
+  Defines the relation (ratio) between the right and bottom window 
+  borders. 
+
+  Legacy Look
+  Makes the horizontal borders 2 pixels thick.
+  
+  18x14 (9:7)
+  Makes the horizontal borders 3 pixels thick. Much like AmigaOS 3.9 
+  with 1:1 aspect ratio enabled.
+  
+  18x16 (9:8)
+  Makes the horizontal borders 4 pixels thick, like the vertical 
+  borders.
+  
+  18x18 (1:1)
+  Makes the horizontal borders 4 pixels thick, like the vertical 
+  borders.
+
+  Square Proportional Look
+  Sets the square look as a proportion of the Title Bar height.
+  (50%, 67%, 75% and 100% Of Tile Bar)
+
+  TITLE BAR EXTRA HEIGHT
+  Allows you to increment the size (in pixels) of both screens and 
+  windows title bars in order to achieve the desired appearance.
+
+  Screen: 
+  (From 0 to 16)
+
+  Window: 
+  (From 0 to 16)
+
+  MANAGE EXCEPTIONS...
+  Due to their hard-coded design, there is a chance a few programs or 
+  screens might actually look worse when their aspect ratio is 
+  modified. 
+
+  For this purpose you have an editable list that lets you define 
+  exception entries for specific programs and screen names (wildcards 
+  are allowed), which you can enforce so that they can keep using 
+  backwards compatible settings such as:
+
+  Use Compatible Title Bar Height
+
+  Use Compatible Window Borders
+  (No, Only Those Without Gadgets, Only Those With Gadgets, Always)
+
+
+  MOUSE INTERACTION
+  
+  POINTER REFLECTS:
+  Sets the mouse pointer appearance to change on the currently 
+  <Active Window> or when it is over any window <Hovered Window> 
+  Bear in mind that regardless of the above setting, the mouse 
+  appearance will change when the mouse hovers over the system gadgets 
+  in the window frame.
+  Default is <Active Window>.
+  
+  SCROLL WHEEL ENABLED:
+  This is required for scroll wheel mouse operation as Intuition needs 
+  to spend some time finding out what gadget is under the pointer.
+  
+  It also enables gadgets to specify a unique mouse pointer. Programs 
+  need to be build-aware of this feature to be of use. Up to 40 mouse 
+  pointers are available for programs and gadgets to ask for. By 
+  default, only a few of the extra pointers are set.
+  Default is unselected. 
+  
+  POINTER HOVER MAX LAG:
+  This slider gadget, sets the amount of load for Intuition to use 
+  for the mouse pointer changes. The smaller the value, the bigger the 
+  amount of CPU cycles assigned for this task.
+  
+
+  Click "Save" to make your changes permanent, "Use" to retain your 
+  changes until the next reboot or power-down, or "Cancel" to discard 
+  any changes and revert to the previous settings.
+  
+  AVAILABLE TOOL TYPES
+  --------------------
+
+  [ACTION=EDIT] Opens the editor. This is the default if you enter 
+  the editor name alone.
+
+  [ACTION=USE] Uses the settings from a file without opening the 
+  editor.
+
+  [ACTION=SAVE] Saves the settings as a default without opening the 
+  editor.
+
+  [CREATEICONS=YES|NO] Creates an icon when saving a setting.
+  
+  [PUBSREEN=<public screen name>] Allows the editor to open its 
+  window on a public screen.
+  
+@endnode

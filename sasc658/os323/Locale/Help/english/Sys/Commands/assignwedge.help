@@ -1,0 +1,37 @@
+   NAME
+	ASSIGNWEDGE - Dynamically assigns or denies a volume.
+  
+   FORMAT
+	ASSIGNWEDGE [QUIT]
+   
+   TEMPLATE
+	QUIT/S
+   
+   PATH
+	C:ASSIGNWEDGE
+  
+   FUNCTION
+	ASSIGNWEDGE is, as the name suggests, a clean re-implementation of 
+	the popular ASSIGNWEDGE patch that extends the standard AmigaDOS 
+	volume request ("Please insert volume...") with additional 
+	features that allows the user to retry, create an ASSIGN, 
+	permanently deny or cancel the requested volume until next reboot.
+
+	It is generally placed in the Startup-sequence script.
+
+	ASSIGNWEDGE can be terminated by sending a CTRL-C to its process.
+ 
+	The QUIT command line argument terminates an already-running 
+	instance of ASSIGNWEDGE.
+
+	Note: The ASSIGN DENIED command will display a list of all volume 
+	requests that have been denied by the user since last boot/reboot.
+  
+   EXAMPLE
+	1> ASSIGNWEDGE <>NIL: &
+  
+	Executes ASSIGNWEDGE as a background task without accepting any 
+	input nor emitting any output.
+  
+   SEE ALSO
+	ASSIGN

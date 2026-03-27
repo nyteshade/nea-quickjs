@@ -1,0 +1,5 @@
+This is the .fd (function descriptor) file for ViNCEd 3.70. It is required
+by some compilers to build the pragma and proto files for the includes; 
+some debuggers might make use of them, too.
+
+Thomas Richter.
