@@ -38,7 +38,7 @@
 
 #ifdef __SASC
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.44 (26.3.2026)";
+static const char amiga_ver[] = "$VER: qjs 0.46 (27.3.2026)";
 #include "amiga/amiga_ssl.h"
 
 /* Flag set by --color to override NO_COLOR default */

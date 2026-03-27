@@ -131,10 +131,9 @@ test("Math.floor(3.7)", Math.floor(3.7), 3);
 test("Math.floor(-3.2)", Math.floor(-3.2), -4);
 test("Math.ceil(3.2)", Math.ceil(3.2), 4);
 test("Math.ceil(-3.7)", Math.ceil(-3.7), -3);
-/* Math.round: known issue on 68k — FPU parameter passing may
- * corrupt the floor(x+0.5) intermediate result. Test loosely. */
-test_approx("Math.round(3.5)", Math.round(3.5), 4, 1);
-test_approx("Math.round(-0.5)", Math.round(-0.5), 0, 1);
+test("Math.round(3.5)", Math.round(3.5), 4);
+test("Math.round(2.5)", Math.round(2.5), 3);
+test("Math.round(-0.5)", Math.round(-0.5), -0);
 test("Math.trunc(3.7)", Math.trunc(3.7), 3);
 test("Math.trunc(-3.7)", Math.trunc(-3.7), -3);
 test("Math.abs(-42)", Math.abs(-42), 42);
@@ -477,14 +476,19 @@ section("bjson module");
     test("bjson roundtrip e", decoded.e, null);
 }
 {
-    /* test various types */
+    /* test various types — try/catch each to find failures */
     let cases = [42, -1, 0, 3.14, "", "hello", true, false, null, [1,2], {x:1}];
     for (let i = 0; i < cases.length; i++) {
         let v = cases[i];
-        let enc = bjson.write(v, 0);
-        let dec = bjson.read(enc, 0, enc.byteLength, 0);
-        test("bjson roundtrip " + JSON.stringify(v),
-             JSON.stringify(dec), JSON.stringify(v));
+        try {
+            let enc = bjson.write(v, 0);
+            let dec = bjson.read(enc, 0, enc.byteLength, 0);
+            test("bjson roundtrip " + JSON.stringify(v),
+                 JSON.stringify(dec), JSON.stringify(v));
+        } catch(e) {
+            fail++;
+            std.puts("FAIL: bjson roundtrip " + JSON.stringify(v) + " (exception: " + e.message + ")\n");
+        }
     }
 }
 

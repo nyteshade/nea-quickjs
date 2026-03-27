@@ -46774,6 +46774,22 @@ static double js_math_sign(double a)
 
 static double js_math_round(double a)
 {
+#ifdef __SASC
+    /* SAS/C: uint64_t is 32-bit, so all 64-bit bit manipulation
+     * in the upstream version is broken. Use FPU arithmetic instead. */
+    if (a != a) return a;  /* NaN */
+    if (a >= -0.5 && a < 0.0) {
+        /* JS spec: round(-0.5) = -0, round(-0.3) = -0 */
+        static const unsigned long _nzero[2] = {0x80000000UL, 0x00000000UL};
+        double r;
+        memcpy(&r, _nzero, 8);
+        return r;
+    }
+    if (a >= 0.0)
+        return floor(a + 0.5);
+    else
+        return ceil(a - 0.5);
+#else
     JSFloat64Union u;
     uint64_t frac_mask, one;
     unsigned int e, s;
@@ -46782,11 +46798,7 @@ static double js_math_round(double a)
     e = (u.u64 >> 52) & 0x7ff;
     if (e < 1023) {
         /* abs(a) < 1 */
-#ifdef __SASC
-        if (e == (1023 - 1) && u.u64 != ((uint64_t)0xbfe00000UL << 32)) {
-#else
         if (e == (1023 - 1) && u.u64 != 0xbfe0000000000000) {
-#endif
             /* abs(a) > 0.5 or a = 0.5: return +/-1.0 */
             u.u64 = (u.u64 & ((uint64_t)1 << 63)) | ((uint64_t)1023 << 52);
         } else {
@@ -46802,6 +46814,7 @@ static double js_math_round(double a)
     }
     /* otherwise: abs(a) >= 2^52, or NaN, +/-Infinity: no change */
     return u.d;
+#endif
 }
 
 static JSValue js_math_hypot(JSContext *ctx, JSValueConst this_val,
