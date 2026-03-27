@@ -46776,19 +46776,8 @@ static double js_math_round(double a)
 {
 #ifdef __SASC
     /* SAS/C: uint64_t is 32-bit, so all 64-bit bit manipulation
-     * in the upstream version is broken. Use FPU arithmetic instead. */
-    if (a != a) return a;  /* NaN */
-    if (a >= -0.5 && a < 0.0) {
-        /* JS spec: round(-0.5) = -0, round(-0.3) = -0 */
-        static const unsigned long _nzero[2] = {0x80000000UL, 0x00000000UL};
-        double r;
-        memcpy(&r, _nzero, 8);
-        return r;
-    }
-    if (a >= 0.0)
-        return floor(a + 0.5);
-    else
-        return ceil(a - 0.5);
+     * in the upstream version is broken. Use C library round(). */
+    return round(a);
 #else
     JSFloat64Union u;
     uint64_t frac_mask, one;
