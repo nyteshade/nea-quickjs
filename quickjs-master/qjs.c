@@ -41,8 +41,9 @@
 static const char amiga_ver[] = "$VER: qjs 0.49 (27.3.2026)";
 #include "amiga/amiga_ssl.h"
 
-/* Flag set by --color to override NO_COLOR default */
-int amiga_force_color = 0;
+/* amiga_force_color is defined in amiga_compat.c so standalone
+ * apps (qjsc output) can link without qjs.o */
+extern int amiga_force_color;
 
 #include <proto/dos.h>
 

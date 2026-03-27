@@ -12,6 +12,10 @@
 #include <proto/exec.h>
 #include <proto/dos.h>
 
+/* Flag set by qjs --color; default off. Shared between qjs.c and
+ * quickjs-libc.c. Defined here so standalone apps link without qjs.o. */
+int amiga_force_color = 0;
+
 /* Standard C headers */
 #include <stdlib.h>
 #include <stdio.h>
