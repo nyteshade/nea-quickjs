@@ -1048,18 +1048,22 @@ void js_dtoa_dump_stats(void)
 
 /* Extract the high and low 32-bit words of a double's IEEE 754 bit
  * pattern.  On big-endian 68k, bytes 0-3 are the high word. */
+/* Extract IEEE 754 hi/lo 32-bit words from a double.
+ * Must use a union — taking &d directly fails with MATH=68881
+ * because SAS/C passes doubles in FPU registers, so &d on the
+ * stack contains garbage. */
 static uint32_t sasc_dbl_hi(double d)
 {
-    unsigned char *p = (unsigned char *)&d;
-    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
-           ((uint32_t)p[2] <<  8) |  (uint32_t)p[3];
+    union { double d; unsigned long w[2]; } u;
+    u.d = d;
+    return u.w[0];  /* big-endian 68k: high word at w[0] */
 }
 
 static uint32_t sasc_dbl_lo(double d)
 {
-    unsigned char *p = (unsigned char *)&d;
-    return ((uint32_t)p[4] << 24) | ((uint32_t)p[5] << 16) |
-           ((uint32_t)p[6] <<  8) |  (uint32_t)p[7];
+    union { double d; unsigned long w[2]; } u;
+    u.d = d;
+    return u.w[1];  /* big-endian 68k: low word at w[1] */
 }
 
 /*
