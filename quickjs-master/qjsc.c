@@ -34,6 +34,10 @@
 #include "cutils.h"
 #include "quickjs-libc.h"
 
+#ifdef __SASC
+static const char amiga_ver[] = "$VER: qjsc 0.49 (27.3.2026)";
+#endif
+
 typedef enum {
     OUTPUT_C,
     OUTPUT_C_MAIN,
