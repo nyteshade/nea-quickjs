@@ -494,8 +494,210 @@ amiga_standalone() {
     echo "==> Standalone binary: $outbin ($(ls -lh "$outbin" | awk '{print $5}'))"
 }
 
+# ===========================================================================
+# Library build functions
+# ===========================================================================
+
+_AMIGA_LIB_ROOT="$_AMIGA_PROJECT_ROOT/library"
+_AMIGA_LIB_SRC="$_AMIGA_LIB_ROOT/src"
+_AMIGA_LIB_FD="$_AMIGA_LIB_ROOT/fd"
+_AMIGA_LIB_OUT="$_AMIGA_LIB_ROOT/libs"
+
+# amiga_compile_lib FILE [EXTRA_FLAGS...]
+# Compile a file for the shared library build.
+# Uses LIBCODE (shared library code generation) and NOSTACKCHECK.
+# FILE is relative to the library/src/ directory.
+amiga_compile_lib() {
+    _amiga_check_env || return 1
+    local file="$1"; shift
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -V inc:"$_AMIGA_INCLUDE" \
+        -V libsrc:"$_AMIGA_LIB_SRC" \
+        sc:c/sc "libsrc:$file" \
+        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP IDLEN=80 \
+        IDIR=qjs: IDIR=inc: IDIR=sc:include \
+        IDIR=sc:sdks/AmiSSL/Developer/include \
+        IDIR=sc:sdks/netinclude NOICONS \
+        "$@"
+}
+
+# amiga_compile_lib_engine FILE [EXTRA_FLAGS...]
+# Compile a QuickJS engine file for inclusion in the shared library.
+# Uses LIBCODE so the code works inside a library context.
+# FILE is relative to quickjs-master/.
+amiga_compile_lib_engine() {
+    _amiga_check_env || return 1
+    local file="$1"; shift
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -V inc:"$_AMIGA_INCLUDE" \
+        sc:c/sc "qjs:$file" \
+        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP IDLEN=80 \
+        IDIR=qjs: IDIR=inc: IDIR=sc:include \
+        IDIR=sc:sdks/AmiSSL/Developer/include \
+        IDIR=sc:sdks/netinclude NOICONS \
+        "$@"
+}
+
+# amiga_compile_lib_src FILE [EXTRA_FLAGS...]
+# Compile a src/ file for inclusion in the shared library.
+amiga_compile_lib_src() {
+    _amiga_check_env || return 1
+    local file="$1"; shift
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -V inc:"$_AMIGA_INCLUDE" \
+        -V src:"$_AMIGA_SRC" \
+        sc:c/sc "src:$file" \
+        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP IDLEN=80 \
+        IDIR=qjs: IDIR=inc: IDIR=sc:include \
+        IDIR=sc:sdks/AmiSSL/Developer/include \
+        IDIR=sc:sdks/netinclude NOICONS \
+        "$@"
+}
+
+# amiga_link_lib
+# Link all .o files into quickjs.library.
+# Uses libent.o + libinit.o startup (shared data — all openers share
+# the same data segment; safe because QuickJS allocates runtime state
+# on the heap via JS_NewRuntime, so each opener is isolated).
+#
+# LIBPREFIX _LIB strips "_LIB" from C symbols to match FD names:
+#   _LIBQJS_NewRuntime (SAS/C adds _) → QJS_NewRuntime
+#
+# LIBFD tells slink the function order from the FD file.
+# SD = shared data (single data section for all openers).
+amiga_link_lib() {
+    _amiga_check_env || return 1
+    mkdir -p "$_AMIGA_LIB_OUT"
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -V src:"$_AMIGA_SRC" \
+        -V libsrc:"$_AMIGA_LIB_SRC" \
+        -V libfd:"$_AMIGA_LIB_FD" \
+        -V libout:"$_AMIGA_LIB_OUT" \
+        sc:c/slink \
+        FROM sc:lib/libent.o \
+        libsrc:quickjs_libinit.o \
+        libsrc:quickjs_library.o \
+        qjs:quickjs.o qjs:quickjs-libc.o \
+        qjs:libregexp.o qjs:libunicode.o qjs:dtoa.o \
+        src:amiga_compat.o src:amiga_ssl.o \
+        qjs:gen/repl.o qjs:gen/standalone.o \
+        TO libout:quickjs.library \
+        LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib \
+        LIBPREFIX _LIB \
+        LIBFD libfd:quickjs_lib.fd \
+        BATCH \
+        NOICONS
+}
+
+# amiga_build_lib
+# Full library build: compile all engine files with LIBCODE, compile
+# the library wrapper, and link into quickjs.library.
+amiga_build_lib() {
+    _amiga_check_env || return 1
+    echo "==> quickjs.library: compiling engine with LIBCODE..." &&
+    amiga_compile_lib_engine dtoa.c &&
+    amiga_compile_lib_engine libregexp.c &&
+    amiga_compile_lib_engine libunicode.c &&
+    amiga_compile_lib_src amiga_compat.c &&
+    amiga_compile_lib_engine gen/repl.c &&
+    amiga_compile_lib_engine gen/standalone.c &&
+    amiga_compile_lib_engine quickjs-libc.c CODE=FAR &&
+    amiga_compile_lib_engine quickjs.c CODE=FAR &&
+    amiga_compile_lib_src amiga_ssl.c MEMSIZE=HUGE IDLEN=80 &&
+    echo "==> quickjs.library: compiling library init + wrapper..." &&
+    amiga_compile_lib quickjs_libinit.c &&
+    amiga_compile_lib quickjs_library.c &&
+    echo "==> quickjs.library: linking..." &&
+    amiga_link_lib &&
+    echo "==> quickjs.library built: $_AMIGA_LIB_OUT/quickjs.library"
+}
+
+# amiga_compile_libtest FILE [EXTRA_FLAGS...]
+# Compile a test app that uses quickjs.library.
+# The test app includes <proto/quickjs.h> from library/include/.
+amiga_compile_libtest() {
+    _amiga_check_env || return 1
+    local file="$1"; shift
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V qjs:"$_AMIGA_QJS_ROOT" \
+        -V inc:"$_AMIGA_INCLUDE" \
+        -V libinc:"$_AMIGA_LIB_ROOT/include" \
+        -V libtests:"$_AMIGA_LIB_ROOT/tests" \
+        sc:c/sc "libtests:$file" \
+        MATH=68881 DATA=FARONLY NOSTACKCHECK NOCHKABORT ABSFP \
+        IDIR=libinc: IDIR=qjs: IDIR=inc: IDIR=sc:include NOICONS \
+        "$@"
+}
+
+# amiga_link_libtest
+# Link a test app. The test app does NOT link against QuickJS directly —
+# it uses the library via pragmas. Only needs c.o + amiga.lib.
+amiga_link_libtest() {
+    _amiga_check_env || return 1
+    local ofile="$1" outname="$2"
+    amiga_clear
+    vamos \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V libtests:"$_AMIGA_LIB_ROOT/tests" \
+        -V libout:"$_AMIGA_LIB_OUT" \
+        sc:c/slink \
+        sc:lib/c.o \
+        "libtests:$ofile" \
+        TO "libout:$outname" \
+        LIB sc:lib/scnb.lib sc:lib/scm881nb.lib sc:lib/amiga.lib NOICONS
+}
+
+# amiga_run_libtest TESTBIN [ARGS...]
+# Run a library test app under vamos.
+# Copies quickjs.library to sys:libs/ (sc:os323/libs/) so AmigaOS
+# can find it via OpenLibrary() through the LIBS: assign.
+amiga_run_libtest() {
+    _amiga_check_env || return 1
+    local testbin="$1"; shift
+    mkdir -p "$SC/os323/libs"
+    cp "$_AMIGA_LIB_OUT/quickjs.library" "$SC/os323/libs/"
+    amiga_clear
+    vamos -S -C 68040 -m 65536 -H disable -s 2048 \
+        -c "$_AMIGA_VAMOS_CFG" \
+        -V sc:"$SC" \
+        -V libout:"$_AMIGA_LIB_OUT" \
+        -- "libout:$testbin" "$@"
+}
+
+# amiga_build_libtest
+# Build and link the library test application.
+amiga_build_libtest() {
+    _amiga_check_env || return 1
+    echo "==> test_quickjs_lib: compiling..." &&
+    amiga_compile_libtest test_quickjs_lib.c &&
+    echo "==> test_quickjs_lib: linking..." &&
+    amiga_link_libtest test_quickjs_lib.o test_quickjs_lib &&
+    echo "==> test_quickjs_lib built: $_AMIGA_LIB_OUT/test_quickjs_lib"
+}
+
 # ---------------------------------------------------------------------------
 
 echo "amiga-env loaded  USER=$USER  SC=${SC:-(not set)}"
 echo "  amiga_build_fpu / amiga_build_soft / amiga_build_040 / amiga_build_060 / amiga_build_all"
+echo "  amiga_build_lib / amiga_build_libtest / amiga_run_libtest test_quickjs_lib"
 echo "  amiga_standalone JSFILE [020|soft|040|060]"

@@ -1,0 +1,16 @@
+##base _QJSMediumBase
+##bias 30
+##public
+NewRuntime()()
+FreeRuntime(rt)(a0)
+NewContext(rt)(a0)
+NewContextRaw(rt)(a0)
+FreeContext(ctx)(a0)
+GetVersion()()
+AddBaseObjects(ctx)(a0)
+AddEval(ctx)(a0)
+RunGC(rt)(a0)
+SetMemoryLimit(rt,limit)(a0,d0)
+SetMaxStackSize(rt,stack_size)(a0,d0)
+Eval(result,ctx,input,input_len,filename,eval_flags)(a0/a1/a2,d0,a3,d1)
+##end

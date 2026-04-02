@@ -1,0 +1,8 @@
+tiny.library test
+tiny.library opened at 0x873da44
+GetMessage() = 'Hello from tiny.library!'
+GetCounter() = 42 (expect 42)
+GetCounter() = 100 (expect 100)
+Add(17,25) = 42 (expect 42)
+AllocTest(256) = 0x873def8
+Done.

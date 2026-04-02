@@ -1,0 +1,6 @@
+##base _QJSMediumBase
+##bias 30
+##public
+GetInterface()()
+FreeInterface(iface)(a0)
+##end

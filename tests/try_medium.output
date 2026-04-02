@@ -1,0 +1,5 @@
+medium.library test
+medium.library opened at 0x9ff78f4
+GetVersion() = '0.12.1'
+NewRuntime() = 0x0
+FATAL: NewRuntime returned NULL

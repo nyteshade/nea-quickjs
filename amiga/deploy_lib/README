@@ -1,0 +1,89 @@
+quickjs.library deployment test package
+=======================================
+
+This directory contains three test libraries and their test apps.
+Run the tests IN ORDER — tiny first, then medium, then full.
+
+SETUP
+-----
+Copy the libraries to LIBS:
+
+  Copy tiny.library LIBS:
+  Copy medium.library LIBS:
+  Copy quickjs.library LIBS:
+
+TEST 1: tiny.library (936 bytes — sanity check)
+------------------------------------------------
+This is a minimal library with no QuickJS engine. Tests basic
+library open/close, const data access, global variable read/write,
+arithmetic, and memory allocation.
+
+  try_tiny
+
+Expected output:
+  tiny.library test
+  tiny.library opened at 0x...
+  GetMessage() = 'Hello from tiny.library!'
+  GetCounter() = 42 (expect 42)
+  GetCounter() = 100 (expect 100)
+  Add(17,25) = 42 (expect 42)
+  AllocTest(256) = 0x...
+  Done.
+
+If this FAILS, the basic library mechanism is broken.
+If this PASSES, proceed to test 2.
+
+
+TEST 2: medium.library (903 KB — QuickJS engine, 6 functions)
+-------------------------------------------------------------
+This links the full QuickJS engine but exposes only 6 functions.
+Tests whether the engine's data segment is accessible through
+the library mechanism.
+
+  try_medium
+
+Expected output:
+  medium.library test
+  medium.library opened at 0x...
+  GetVersion() = '0.12.1'
+  NewRuntime() = 0x...       <-- should be non-zero
+  NewContext() = 0x...       <-- should be non-zero
+  Eval('1+1') tag=0 val=2   <-- tag=0 is JS_TAG_INT, val=2
+  Done.
+
+If GetVersion works but NewRuntime returns 0 or crashes,
+the issue is data segment relocation for large binaries.
+
+
+TEST 3: test_quickjs_lib (16 KB — uses quickjs.library, 212 functions)
+----------------------------------------------------------------------
+This is the full test suite for quickjs.library. It tests eval,
+value creation, properties, arrays, JSON, atoms, error handling,
+and more.
+
+  test_quickjs_lib
+
+Expected output:
+  quickjs.library test suite
+  ==========================
+
+  quickjs.library opened at 0x...
+
+  [Version]
+    OK: QJS_GetVersion()
+
+  [Runtime & Context]
+    OK: QJS_NewRuntime()
+    OK: QJS_SetMemoryLimit()
+    ...etc...
+
+  Results: NN/NN passed, 0 failed
+
+
+NOTES
+-----
+- All binaries are compiled for 68020+ with FPU (MATH=68881)
+- The libraries use DATA=FARONLY (absolute data addressing)
+- quickjs.library version is 0.49, matching qjs binary
+- If medium.library works but quickjs.library doesn't, the
+  issue is specific to the 212-function jump table

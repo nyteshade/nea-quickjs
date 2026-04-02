@@ -1,0 +1,10 @@
+##base _TinyBase
+##bias 30
+##public
+GetMessage()()
+GetCounter()()
+SetCounter(val)(d0)
+Add(a,b)(d0/d1)
+AllocTest(size)(d0)
+FreeTest(ptr,size)(a0,d0)
+##end

@@ -33,6 +33,16 @@
 #warning "amiga_compat.h included on a non-SAS/C compiler"
 #endif
 
+/* For shared library builds, move static const data to the far data
+ * section so it doesn't count toward the 32K near data limit.
+ * Use: static QJS_FARCONST int table[] = { ... };
+ * This resolves to __far on SAS/C, nothing on other compilers. */
+#ifdef __SASC
+#define QJS_FARCONST __far const
+#else
+#define QJS_FARCONST const
+#endif
+
 /* -----------------------------------------------------------------------
  * C99 fixed-width integer types (stdint.h / inttypes.h)
  * SAS/C 6.58 does not ship these headers; include our portable replacements.

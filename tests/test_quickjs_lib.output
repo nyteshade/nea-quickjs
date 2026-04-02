@@ -1,0 +1,11 @@
+quickjs.library test suite
+==========================
+
+quickjs.library opened at 0x873d2b0
+
+[Version]
+  OK: QJS_GetVersion()
+
+[Runtime & Context]
+
+
