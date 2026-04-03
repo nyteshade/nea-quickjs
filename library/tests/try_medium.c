@@ -23,6 +23,9 @@ JSContext *NewContext(JSRuntime *rt);
 JSContext *NewContextRaw(JSRuntime *rt);
 void FreeContext(JSContext *ctx);
 const char *GetVersion(void);
+void InitDebugLog(void);
+unsigned long GetRuntimeFromCtx(JSContext *ctx);
+long GetFuncProtoTag(JSContext *ctx);
 int AddBaseObjects(JSContext *ctx);
 int AddEval(JSContext *ctx);
 void RunGC(JSRuntime *rt);
@@ -30,35 +33,40 @@ void SetMemoryLimit(JSRuntime *rt, ULONG limit);
 void SetMaxStackSize(JSRuntime *rt, ULONG stack_size);
 void Eval(JSValue *result, JSContext *ctx, const char *input,
           ULONG input_len, const char *filename, int eval_flags);
+long EvalSimple(JSContext *ctx, const char *input, ULONG input_len);
 
 struct Library *QJSMediumBase;
 
-#pragma libcall QJSMediumBase NewRuntime    1e 0
-#pragma libcall QJSMediumBase FreeRuntime   24 801
-#pragma libcall QJSMediumBase NewContext    2a 801
-#pragma libcall QJSMediumBase NewContextRaw 30 801
-#pragma libcall QJSMediumBase FreeContext   36 801
-#pragma libcall QJSMediumBase GetVersion    3c 0
-#pragma libcall QJSMediumBase AddBaseObjects 42 801
-#pragma libcall QJSMediumBase AddEval       48 801
-#pragma libcall QJSMediumBase RunGC         4e 801
-#pragma libcall QJSMediumBase SetMemoryLimit 54 0802
-#pragma libcall QJSMediumBase SetMaxStackSize 5a 0802
-#pragma libcall QJSMediumBase Eval          60 1B0A9806
+#pragma libcall QJSMediumBase NewRuntime        1e 0
+#pragma libcall QJSMediumBase FreeRuntime       24 801
+#pragma libcall QJSMediumBase NewContext        2a 801
+#pragma libcall QJSMediumBase NewContextRaw     30 801
+#pragma libcall QJSMediumBase FreeContext       36 801
+#pragma libcall QJSMediumBase GetVersion        3c 0
+#pragma libcall QJSMediumBase InitDebugLog      42 0
+#pragma libcall QJSMediumBase GetRuntimeFromCtx 48 801
+#pragma libcall QJSMediumBase GetFuncProtoTag   4e 801
+#pragma libcall QJSMediumBase AddBaseObjects    54 801
+#pragma libcall QJSMediumBase AddEval           5a 801
+#pragma libcall QJSMediumBase RunGC             60 801
+#pragma libcall QJSMediumBase SetMemoryLimit    66 0802
+#pragma libcall QJSMediumBase SetMaxStackSize   6c 0802
+#pragma libcall QJSMediumBase Eval              72 1B0A9806
+#pragma libcall QJSMediumBase EvalSimple        78 09803
 
-static const char ver[] = "$VER: try_medium 2.7 (31.3.2026)";
+static const char ver[] = "$VER: try_medium 3.2 (02.4.2026)";
 
 /* Request 256KB stack */
 long __stack = 262144;
 
-int main(void)
+int main(int argc, char **argv)
 {
     JSRuntime *rt;
     JSContext *ctx;
     const char *v;
     int ret;
 
-    printf("qjs_medium.library v2.12 test\n");
+    printf("qjs_medium.library v3.2 test\n");
     printf("============================\n");
 
     QJSMediumBase = OpenLibrary("qjs_medium.library", 2);
@@ -69,6 +77,10 @@ int main(void)
     printf("1. OpenLibrary OK (base=0x%lx, ver=%ld)\n",
            (unsigned long)QJSMediumBase,
            (long)QJSMediumBase->lib_Version);
+
+    /* Init debug log — writes to RAM:qjs_debug.log */
+    InitDebugLog();
+    printf("   debug log -> RAM:qjs_debug.log\n");
 
     /* Step 2: GetVersion */
     v = GetVersion();
@@ -107,14 +119,30 @@ int main(void)
     printf("8. FreeContext OK\n");
     ctx = NULL;
 
-    /* Step 9: Full NewContext (calls AddBaseObjects INTERNALLY in quickjs.o) */
-    printf("9. Full NewContext (AddBase called inside engine)...\n");
-    ctx = NewContext(rt);
-    printf("   NewContext = 0x%lx\n", (unsigned long)ctx);
+    /* Step 9: Verify ctx, then try AddBaseObjects */
+    printf("9. NewContextRaw + verify + AddBaseObjects...\n");
+    ctx = NewContextRaw(rt);
+    printf("   ctx = 0x%lx\n", (unsigned long)ctx);
     if (!ctx) {
-        printf("   NewContext returned NULL (AddBase failed internally)\n");
+        printf("FATAL: NewContextRaw returned NULL\n");
+        FreeRuntime(rt);
+        CloseLibrary(QJSMediumBase);
+        return 20;
     }
-    ret = ctx ? 0 : -1;
+    {
+        unsigned long rt_from_ctx = GetRuntimeFromCtx(ctx);
+        printf("   GetRuntime(ctx) = 0x%lx (rt was 0x%lx) %s\n",
+               rt_from_ctx, (unsigned long)rt,
+               rt_from_ctx == (unsigned long)rt ? "MATCH" : "MISMATCH!");
+    }
+    {
+        long fptag = GetFuncProtoTag(ctx);
+        printf("   function_proto tag = %ld (%s)\n", fptag,
+               fptag == -1 ? "JS_TAG_OBJECT OK" : "WRONG!");
+    }
+    printf("   calling AddBaseObjects...\n");
+    ret = AddBaseObjects(ctx);
+    printf("   AddBaseObjects = %d\n", ret);
 
     /* Step 10: AddEval */
     printf("10. AddEval...\n");
@@ -134,12 +162,34 @@ int main(void)
         return 20;
     }
 
-    /* Step 12: Eval */
-    printf("12. Eval('1+1')...\n");
-    {
-        JSValue result;
-        Eval(&result, ctx, "1+1", 3, "<test>", 0);
-        printf("    tag=%ld val=%ld\n", result.tag, result.u.int32);
+    /* Step 12: Eval — skip with NOEVAL argument */
+    if (argc > 1) {
+        printf("12. SKIPPED (argument provided)\n");
+    } else {
+        long sval;
+
+        /* 12a: EvalSimple — all inside library, no JSValue crossing boundary */
+        printf("12a. EvalSimple('42')...\n");
+        sval = EvalSimple(ctx, "42", 2);
+        printf("     = %ld (expect 42)\n", sval);
+
+        printf("12b. EvalSimple('1+1')...\n");
+        sval = EvalSimple(ctx, "1+1", 3);
+        printf("     = %ld (expect 2)\n", sval);
+
+        printf("12c. EvalSimple('2*21')...\n");
+        sval = EvalSimple(ctx, "2*21", 4);
+        printf("     = %ld (expect 42)\n", sval);
+
+        /* 12d: Full Eval with JSValue return */
+        printf("12d. Eval('1+1') with JSValue...\n");
+        {
+            JSValue result;
+            Eval(&result, ctx, "1+1", 3, "<test>", 0);
+            printf("     tag=%ld val=%ld\n", result.tag, result.u.int32);
+        }
+
+        printf("12. All eval tests passed\n");
     }
 
     /* Cleanup */

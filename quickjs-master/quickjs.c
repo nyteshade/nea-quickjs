@@ -36507,10 +36507,13 @@ static JSValue __JS_EvalInternal(JSContext *ctx, JSValueConst this_obj,
     JSModuleDef *m;
     bool is_strict_mode;
 
+    _qjs_dbg("[EVAL] parse_init\n");
     js_parse_init(ctx, s, input, input_len, filename, line);
+    _qjs_dbg("[EVAL] skip_shebang\n");
     skip_shebang(&s->buf_ptr, s->buf_end);
 
     eval_type = flags & JS_EVAL_TYPE_MASK;
+    _qjs_dbg("[EVAL] eval_type set\n");
     m = NULL;
     if (eval_type == JS_EVAL_TYPE_DIRECT) {
         JSObject *p;
@@ -36537,9 +36540,11 @@ static JSValue __JS_EvalInternal(JSContext *ctx, JSValueConst this_obj,
             is_strict_mode = true;
         }
     }
+    _qjs_dbg("[EVAL] new_function_def\n");
     fd = js_new_function_def(ctx, NULL, true, false, filename, line, 1);
     if (!fd)
         goto fail1;
+    _qjs_dbg("[EVAL] function_def ok\n");
     s->cur_func = fd;
     fd->eval_type = eval_type;
     fd->has_this_binding = (eval_type != JS_EVAL_TYPE_DIRECT);
@@ -36572,21 +36577,26 @@ static JSValue __JS_EvalInternal(JSContext *ctx, JSValueConst this_obj,
     push_scope(s); /* body scope */
     fd->body_scope = fd->scope_level;
 
+    _qjs_dbg("[EVAL] parse_program\n");
     err = js_parse_program(s);
     if (err) {
     fail:
+        _qjs_dbg("[EVAL] parse FAILED\n");
         free_token(s, &s->token);
         js_free_function_def(ctx, fd);
         goto fail1;
     }
+    _qjs_dbg("[EVAL] parse ok\n");
 
     if (m != NULL)
         m->has_tla = fd->has_await;
 
     /* create the function object and all the enclosed functions */
+    _qjs_dbg("[EVAL] create_function\n");
     fun_obj = js_create_function(ctx, fd);
     if (JS_IsException(fun_obj))
         goto fail1;
+    _qjs_dbg("[EVAL] create_function ok\n");
     /* Could add a flag to avoid resolution if necessary */
     if (m) {
         m->func_obj = fun_obj;
@@ -36597,7 +36607,9 @@ static JSValue __JS_EvalInternal(JSContext *ctx, JSValueConst this_obj,
     if (flags & JS_EVAL_FLAG_COMPILE_ONLY) {
         ret_val = fun_obj;
     } else {
+        _qjs_dbg("[EVAL] exec bytecode\n");
         ret_val = JS_EvalFunctionInternal(ctx, fun_obj, this_obj, var_refs, sf);
+        _qjs_dbg("[EVAL] exec done\n");
     }
     return ret_val;
  fail1:
@@ -36686,10 +36698,12 @@ JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
                 const char *filename, int eval_flags)
 {
     JSEvalOptions options;
+    _qjs_dbg("[EVAL] enter\n");
     options.version    = JS_EVAL_OPTIONS_VERSION;
     options.filename   = filename;
     options.line_num   = 1;
     options.eval_flags = eval_flags;
+    _qjs_dbg("[EVAL] calling EvalThis2\n");
     return JS_EvalThis2(ctx, ctx->global_obj, input, input_len, &options);
 }
 
@@ -55729,6 +55743,15 @@ static int JS_AddIntrinsicBasicObjects(JSContext *ctx)
 
     return 0;
 }
+
+/* Debug trace — implementation in library/tests/qjs_debug.c */
+#ifdef __SASC
+extern void _qjs_dbg(const char *msg);
+extern void JS_InitDebugLog(void);
+extern void JS_CloseDebugLog(void);
+#else
+#define _qjs_dbg(msg) ((void)0)
+#endif
 
 int JS_AddIntrinsicBaseObjects(JSContext *ctx)
 {

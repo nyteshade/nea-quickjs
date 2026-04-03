@@ -962,3 +962,81 @@ If `S:QJS-Startup.js` exists, it is evaluated before any user code
 REPL hooks, or configure the environment.  Errors in the startup
 script are non-fatal.  The script is loaded with module auto-detection
 (use `import` statements if needed).
+
+---
+
+## quickjs.library — Shared Library (sessions 10-12)
+
+### Status
+
+Steps 1-11 PASS on Amiberry (68020 emulation, JIT on/off). Step 12 (JS_Eval) crashes the emulator. Untested on real 68060 hardware with the working build.
+
+Working test build: `amiga/qjs_medium.library` v3.3-3.5 + `amiga/try_medium`.
+
+### Architecture
+
+The test library (`medium_lib_nolibfd.c`) uses:
+- **Manual function table** in C (no slink LIBFD) — avoids slink's library-specific hunk processing
+- **`libent.o`** from SAS/C for the RomTag/entry point
+- **`libversion.c`** compiled with `DATA=NEAR` for `_LibName`/`_LibID` (libent.o needs near-data access to these)
+- **`LIBVERSION`/`LIBREVISION`** slink flags for version symbols
+- **AllocMem-based allocator** via `JS_NewRuntime2()` — the C runtime heap (`malloc/free`) is not available in library context because `c.o` startup doesn't run
+- **DOSBase opened in `myLibInit`** — CRITICAL: without this, AddBaseObjects crashes. Something in the engine code path dispatches through DOSBase.
+- **SysBase set from address 4** in `myLibInit`
+- **DATA=FARONLY + CODE=FAR** on all compilation units
+- **No `__saveds`** on any function — with DATA=FARONLY, `__saveds` can corrupt register parameters (Fiona's diagnosis)
+- **No `LIBCODE`** — incompatible with DATA=FARONLY
+
+### Key Findings — SAS/C Shared Library Limitations
+
+1. **32K near data limit**: slink enforces a 32KB limit on near data for ALL shared libraries, not just those using the `SD` flag. QuickJS has ~123KB of static data. Cannot be bypassed with `DATA=FARONLY` (which eliminates near data but introduces other problems), `DATA=FAR`, `DATA=AUTO`, `STRMER` (STRINGMERGE), or `__far` on const arrays.
+
+2. **DATA=FARONLY frees A4 as scratch register**: The compiler can use A4 for temporary values. This means `__saveds` (which sets A4) can have its value clobbered by subsequent code. scnb.lib functions compiled with DATA=NEAR expect A4 to be stable. However, this turned out NOT to be the root cause of the AddBaseObjects crash — DOSBase initialization was.
+
+3. **`__saveds` + `register __d0` conflict on `_LibInit`**: The compiler may assign the D0 parameter to A4, then `__saveds` overwrites A4 with `_LinkerDB`. This corrupts the library base pointer, causing OpenLibrary to crash. Fix: never use `__saveds` on init functions that receive parameters in D0.
+
+4. **`#pragma libcall` on static variables corrupts relocations**: Adding `#pragma libcall private_base func offset regspec` where `private_base` is a static variable causes slink to generate conflicting relocations. The library crashes at OpenLibrary. Fix: never use `#pragma libcall` with private library bases inside library code.
+
+5. **DOSBase must be initialized**: The library must `OpenLibrary("dos.library", 36)` during init and store the result in a global `DOSBase`. Without this, code paths that eventually dispatch through DOSBase crash. The standalone executable doesn't have this issue because `c.o` auto-initializes DOSBase.
+
+6. **STRMER (STRINGMERGE)** moves string literals and simple `static const` scalars to the CODE section, but does NOT move `static const` struct arrays containing pointers (like function pointer tables). These need runtime relocations that can't be PC-relative.
+
+7. **slink ALV (Automatic Link Vectors)**: slink automatically inserts trampolines for 16-bit BSR calls that can't reach their target. vlink does NOT do this, so linking SAS/C .o files (which use 16-bit BSR for scnb.lib internals) with vlink fails with relocation errors. Solution: compile all library code with `CODE=FAR`.
+
+### JS_Eval Crash
+
+JS_Eval crashes the Amiberry emulator (both JIT and interpretive mode). The crash occurs inside JS_Eval itself — even `EvalSimple('42')` which keeps everything inside the library crashes. The exact crash point is unknown — we added debug trace points but quickjs.c is too large for the SAS/C warning limit (Error 166) when `proto/dos.h` is included. Next step: use a separate debug logging file (`qjs_debug.c`) or try VBCC.
+
+### VBCC Alternative
+
+VBCC (Frank Wille's compiler) is available at `$HOME/vbcc/` with:
+- `vlink` v0.18 — cross-linker, runs natively on macOS
+- `fd2pragma` — generates pragma headers from FD/SFD files
+- `vbcc-librarytemplate/` — complete shared library template
+- `posixlib/` — POSIX compatibility library
+
+Strategy: compile engine with SAS/C (proven working as standalone), link as shared library with vlink (avoids slink's 32K limit and LIBFD issues). The vbcc library template provides the RomTag, function table, and init/cleanup infrastructure.
+
+### Files
+
+```
+library/
+├── fd/quickjs_lib.fd              212-function FD file
+├── include/
+│   ├── clib/quickjs_protos.h      C prototypes with docs
+│   ├── pragmas/quickjs_pragmas.h  Auto-generated libcall pragmas
+│   └── proto/quickjs.h            Standard AmigaOS proto header
+├── src/
+│   ├── quickjs_library.c          212 wrapper implementations
+│   └── quickjs_libinit.c          Custom library init (no data copy)
+├── tests/
+│   ├── medium_lib_nolibfd.c       Working 16-function test library (no LIBFD)
+│   ├── medium_lib.c               12-function test library (with LIBFD, crashes)
+│   ├── try_medium.c               Incremental test app
+│   ├── standalone_test.c          Standalone proof (works on real hardware)
+│   ├── flushlibs.c                Library cache flushing utility
+│   ├── libversion.c               Near-data version symbols for libent.o
+│   ├── qjs_debug.c               Debug logging (separate file for proto/dos.h)
+│   └── qjs_interface.h            Interface struct definition (Option C)
+└── README.md
+```

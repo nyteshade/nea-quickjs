@@ -14,13 +14,15 @@
 #include "cutils.h"
 #include "quickjs.h"
 
-static const char ver[] = "$VER: qjs_medium.library 2.10 (31.3.2026)";
+static const char ver[] = "$VER: qjs_medium.library 3.1 (01.4.2026)";
 
-/* _LibName and _LibID are referenced by libent.o for the RomTag.
- * _LibVersion and _LibRevision are provided by slink via
- * LIBVERSION/LIBREVISION flags, so we don't define them here. */
-char __far _LibName[] = "medium.library";
-char __far _LibID[] = "medium.library 3.1 (30.3.2026)\r\n";
+/* _LibName, _LibID, _LibVersion, _LibRevision are in libversion.c
+ * (compiled with DATA=NEAR so libent.o can reach them). */
+extern char _LibName[];
+extern char _LibID[];
+/* _LibVersion/_LibRevision provided by slink LIBVERSION/LIBREVISION flags */
+extern long _LibVersion;
+extern long _LibRevision;
 
 /* --- AllocMem allocator (same as before) --- */
 typedef struct { ULONG size; ULONG magic; } AllocHeader;
@@ -95,6 +97,34 @@ static void __asm myFreeContext(
 static const char * __asm myGetVersion(void)
 { return JS_GetVersion(); }
 
+/* SysBase and DOSBase — initialized in myLibInit.
+ * SysBase is at absolute address 4 on all Amigas.
+ * DOSBase opened via OpenLibrary for dos.library calls. */
+extern struct ExecBase *SysBase;
+struct Library *DOSBase = 0;
+
+/* Open debug log at RAM:qjs_debug.log */
+extern void JS_InitDebugLog(void);
+extern void JS_CloseDebugLog(void);
+static void __asm myInitDebugLog(void)
+{ JS_InitDebugLog(); }
+
+/* Diagnostic: read ctx->rt to verify ctx pointer is valid */
+static ULONG __asm myGetRuntimeFromCtx(
+    register __a0 JSContext *ctx)
+{ return (ULONG)JS_GetRuntime(ctx); }
+
+/* Diagnostic: read ctx->function_proto (JSValue = 12 bytes)
+ * Returns the tag field. JS_TAG_OBJECT = -1 means valid object. */
+static long __asm myGetFuncProtoTag(
+    register __a0 JSContext *ctx)
+{
+    JSValue fp = JS_GetFunctionProto(ctx);
+    long tag = (long)JS_VALUE_GET_TAG(fp);
+    JS_FreeValue(ctx, fp);
+    return tag;
+}
+
 static int __asm myAddBaseObjects(
     register __a0 JSContext *ctx)
 { return JS_AddIntrinsicBaseObjects(ctx); }
@@ -126,6 +156,30 @@ static void __asm myEval(
     register __d1 int eval_flags)
 { *result = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags); }
 
+/* EvalSimple: calls JS_Eval internally, returns the int32 result.
+ * Avoids JSValue struct return across the library boundary.
+ * Returns -9999 on exception. */
+static long __asm myEvalSimple(
+    register __a0 JSContext *ctx,
+    register __a1 const char *input,
+    register __d0 ULONG input_len)
+{
+    JSValue result;
+    long ret;
+    int32_t ival;
+    result = JS_Eval(ctx, input, (size_t)input_len, "<lib>", 0);
+    if (JS_IsException(result)) {
+        JS_FreeValue(ctx, JS_GetException(ctx));
+        return -9999;
+    }
+    if (JS_ToInt32(ctx, &ival, result) < 0)
+        ret = -9998;
+    else
+        ret = (long)ival;
+    JS_FreeValue(ctx, result);
+    return ret;
+}
+
 /* --- Library init/open/close/expunge --- */
 
 typedef LONG (*myPFL)();
@@ -137,11 +191,13 @@ static ULONG __asm myLibInit(register __a0 APTR seglist,
                               register __d0 struct Library *libbase)
 {
     seglist_store = (ULONG)seglist;
+    SysBase = *((struct ExecBase **)4L);
+    DOSBase = OpenLibrary("dos.library", 36);
     libbase->lib_Node.ln_Type = NT_LIBRARY;
     libbase->lib_Node.ln_Name = _LibName;
     libbase->lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
-    libbase->lib_Version = 2;
-    libbase->lib_Revision = 10;
+    libbase->lib_Version = (UWORD)_LibVersion;
+    libbase->lib_Revision = (UWORD)_LibRevision;
     libbase->lib_IdString = (APTR)_LibID;
     return (ULONG)libbase;
 }
@@ -186,18 +242,22 @@ static myPFL _LibFuncTab[] = {
     (myPFL)myLibClose,
     (myPFL)myLibExpunge,
     NULL,
-    (myPFL)myNewRuntime,      /* offset -30 (0x1e) */
-    (myPFL)myFreeRuntime,     /* offset -36 (0x24) */
-    (myPFL)myNewContext,      /* offset -42 (0x2a) */
-    (myPFL)myNewContextRaw,   /* offset -48 (0x30) */
-    (myPFL)myFreeContext,     /* offset -54 (0x36) */
-    (myPFL)myGetVersion,      /* offset -60 (0x3c) */
-    (myPFL)myAddBaseObjects,  /* offset -66 (0x42) */
-    (myPFL)myAddEval,         /* offset -72 (0x48) */
-    (myPFL)myRunGC,           /* offset -78 (0x4e) */
-    (myPFL)mySetMemoryLimit,  /* offset -84 (0x54) */
-    (myPFL)mySetMaxStackSize, /* offset -90 (0x5a) */
-    (myPFL)myEval,            /* offset -96 (0x60) */
+    (myPFL)myNewRuntime,         /* 0x1e */
+    (myPFL)myFreeRuntime,        /* 0x24 */
+    (myPFL)myNewContext,         /* 0x2a */
+    (myPFL)myNewContextRaw,      /* 0x30 */
+    (myPFL)myFreeContext,        /* 0x36 */
+    (myPFL)myGetVersion,         /* 0x3c */
+    (myPFL)myInitDebugLog,       /* 0x42 */
+    (myPFL)myGetRuntimeFromCtx,  /* 0x48 */
+    (myPFL)myGetFuncProtoTag,    /* 0x4e */
+    (myPFL)myAddBaseObjects,     /* 0x54 */
+    (myPFL)myAddEval,            /* 0x5a */
+    (myPFL)myRunGC,              /* 0x60 */
+    (myPFL)mySetMemoryLimit,     /* 0x66 */
+    (myPFL)mySetMaxStackSize,    /* 0x6c */
+    (myPFL)myEval,               /* 0x72 */
+    (myPFL)myEvalSimple,         /* 0x78 */
     (myPFL)-1
 };
 
