@@ -518,6 +518,17 @@ int main(int argc, char **argv)
     amiga_load_config(&argc, &argv);
 #endif
 
+#ifdef QJS_USE_LIBRARY
+    /* Open quickjs.library — bridge provides all JS_* symbols via LVO */
+    {
+        extern int quickjs_bridge_init(void);
+        if (quickjs_bridge_init() < 0) {
+            fprintf(stderr, "qjs: cannot open quickjs.library\n");
+            exit(2);
+        }
+    }
+#endif
+
     /* save for later */
     qjs__argc = argc;
     qjs__argv = argv;
@@ -858,10 +869,16 @@ start:
                best[1] + best[2] + best[3] + best[4],
                best[1], best[2], best[3], best[4]);
     }
+#ifdef QJS_USE_LIBRARY
+    { extern void quickjs_bridge_cleanup(void); quickjs_bridge_cleanup(); }
+#endif
     return 0;
  fail:
     js_std_free_handlers(rt);
     JS_FreeContext(ctx);
     JS_FreeRuntime(rt);
+#ifdef QJS_USE_LIBRARY
+    { extern void quickjs_bridge_cleanup(void); quickjs_bridge_cleanup(); }
+#endif
     return 1;
 }

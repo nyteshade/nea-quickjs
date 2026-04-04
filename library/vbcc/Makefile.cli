@@ -1,0 +1,92 @@
+# Makefile.cli — Build qjs CLI tool using quickjs.library (VBCC)
+#
+# The CLI links the bridge (quickjs_bridge.o) instead of the full engine.
+# At runtime it opens quickjs.library for all JS_* function calls.
+#
+# Usage:
+#   make -f Makefile.cli        — build qjs
+#   make -f Makefile.cli clean  — remove build artifacts
+
+VBCC ?= $(HOME)/vbcc
+VC   = $(VBCC)/bin/vc
+
+# Directories
+ROOT     = ../..
+QJS      = $(ROOT)/quickjs-master
+INCLUDE  = $(ROOT)/include
+TEMPLATE = $(ROOT)/vbcc-librarytemplate
+LIBVBCC  = $(ROOT)/library/vbcc
+SRC      = $(ROOT)/src
+OUTDIR   = $(ROOT)/amiga
+
+# Compiler flags
+CFLAGS = +aos68k -c -cpu=68020 -fpu=68881 -O1 \
+         -DQJS_USE_LIBRARY \
+         -I$(VBCC)/targets/m68k-amigaos/include \
+         -I$(VBCC)/posixlib/include \
+         -I$(INCLUDE) -I$(QJS) \
+         -I$(TEMPLATE) -I$(LIBVBCC)
+
+# Link flags — link with amiga.lib and posix.lib for C runtime
+LDFLAGS = +aos68k -cpu=68020 -fpu=68881 \
+          -L$(VBCC)/posixlib/AmigaOS3
+
+OBJDIR = /tmp/qjscli
+
+# Source files
+CLI_SRC    = $(QJS)/qjs.c
+LIBC_SRC   = $(QJS)/quickjs-libc.c
+BRIDGE_SRC = $(LIBVBCC)/quickjs_bridge.c
+STUBS_SRC  = $(SRC)/amiga_posix_stubs.c
+COMPAT_SRC = $(SRC)/amiga_compat_vbcc.c
+
+# Bytecode modules (compiled by qjsc on host)
+REPL_SRC   = $(QJS)/repl.c
+STAND_SRC  = $(QJS)/standalone.c
+
+# Object files
+OBJS = $(OBJDIR)/qjs.o \
+       $(OBJDIR)/quickjs-libc.o \
+       $(OBJDIR)/quickjs_bridge.o \
+       $(OBJDIR)/amiga_posix_stubs.o \
+       $(OBJDIR)/amiga_compat_vbcc.o \
+       $(OBJDIR)/repl.o \
+       $(OBJDIR)/standalone.o
+
+TARGET = $(OUTDIR)/qjs
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(VC) $(LDFLAGS) $(OBJS) -lposix -o $@
+	@ls -la $@
+
+$(OBJDIR)/qjs.o: $(CLI_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/quickjs-libc.o: $(LIBC_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/quickjs_bridge.o: $(BRIDGE_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/amiga_posix_stubs.o: $(STUBS_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/amiga_compat_vbcc.o: $(COMPAT_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/repl.o: $(REPL_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/standalone.o: $(STAND_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR):
+	@mkdir -p $@
+
+clean:
+	rm -rf $(OBJDIR)
+	rm -f $(TARGET)
