@@ -326,18 +326,35 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj));
     fprintf(stderr, "[ctx] done, NewArray...\n"); fflush(stderr);
     args = JS_NewArray(ctx);
-    fprintf(stderr, "[ctx] setting args...\n"); fflush(stderr);
+    fprintf(stderr, "[ctx] HasExc=%d after SPFL\n", JS_HasException(ctx)); fflush(stderr);
+    fprintf(stderr, "[ctx] argc=%d\n", qjs__argc); fflush(stderr);
     for(i = 0; i < qjs__argc; i++) {
+        fprintf(stderr, "[ctx] arg[%d]='%s' exc=%d\n", i, qjs__argv[i], JS_HasException(ctx)); fflush(stderr);
         JS_SetPropertyUint32(ctx, args, i, JS_NewString(ctx, qjs__argv[i]));
     }
-    JS_SetPropertyStr(ctx, global, "execArgv", args);
-    JS_SetPropertyStr(ctx, global, "argv0", JS_NewString(ctx, qjs__argv[0]));
+    fprintf(stderr, "[ctx] HasExc=%d after args loop\n", JS_HasException(ctx)); fflush(stderr);
+    fprintf(stderr, "[ctx] global=%08lx%08lx args=%08lx%08lx\n",
+            (unsigned long)(global >> 32), (unsigned long)(global & 0xFFFFFFFFUL),
+            (unsigned long)(args >> 32), (unsigned long)(args & 0xFFFFFFFFUL));
+    fflush(stderr);
+    JS_DefinePropertyValueStr(ctx, global, "execArgv", args, JS_PROP_C_W_E);
+    JS_DefinePropertyValueStr(ctx, global, "argv0",
+                              JS_NewString(ctx, qjs__argv[0]), JS_PROP_C_W_E);
+    fprintf(stderr, "[ctx] HasExc=%d after argv0\n", JS_HasException(ctx)); fflush(stderr);
+    /* Navigator: simplified for library bridge — set userAgent as plain string */
     navigator_proto = JS_NewObject(ctx);
-    JS_SetPropertyFunctionList(ctx, navigator_proto, navigator_proto_funcs, countof(navigator_proto_funcs));
+    {
+        char ver[64];
+        snprintf(ver, sizeof(ver), "quickjs-ng/%s", JS_GetVersion());
+        JS_DefinePropertyValueStr(ctx, navigator_proto, "userAgent",
+                                  JS_NewString(ctx, ver), JS_PROP_C_W_E);
+    }
     navigator = JS_NewObjectProto(ctx, navigator_proto);
-    JS_DefinePropertyValueStr(ctx, global, "navigator", navigator, JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
+    JS_DefinePropertyValueStr(ctx, global, "navigator", navigator,
+                              JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
     JS_FreeValue(ctx, global);
     JS_FreeValue(ctx, navigator_proto);
+    fprintf(stderr, "[ctx] HasExc=%d end of NewCustomContext\n", JS_HasException(ctx)); fflush(stderr);
 
     return ctx;
 }
@@ -824,12 +841,20 @@ start:
             JS_FreeValue(ctx, call_args[2]);
         } else if (expr) {
             int flags = (module > 0) ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
+            fprintf(stderr, "[pre-eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
+            /* Clear any pending exception from context setup */
+            if (JS_HasException(ctx)) {
+                JSValue exc = JS_GetException(ctx);
+                fprintf(stderr, "[pre-eval] cleared exception\n"); fflush(stderr);
+                JS_FreeValue(ctx, exc);
+            }
             fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
                 fprintf(stderr, "[eval] FAILED\n"); fflush(stderr);
                 goto fail;
             }
             fprintf(stderr, "[eval] OK\n"); fflush(stderr);
+            fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */
             interactive = 1;
@@ -851,9 +876,12 @@ start:
                 r = js_std_loop(ctx);
             }
         } else {
+            fprintf(stderr, "[loop] entering js_std_loop\n"); fflush(stderr);
             r = js_std_loop(ctx);
+            fprintf(stderr, "[loop] returned %d\n", r); fflush(stderr);
         }
         if (r) {
+            fprintf(stderr, "[loop] dumping error\n"); fflush(stderr);
             js_std_dump_error(ctx);
             goto fail;
         }

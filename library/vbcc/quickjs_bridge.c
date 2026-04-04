@@ -865,9 +865,13 @@ int JS_SetPropertyUint32(JSContext *ctx, JSValueConst this_obj, uint32_t idx, JS
 }
 
 int JS_SetPropertyStr(JSContext *ctx, JSValueConst this_obj, const char *prop, JSValue val) {
-    typedef int (*F)(R6, RA0 void *, RA1 JSValue *, RA2 void *, RA3 JSValue *);
-    _sp0 = (void *)ctx; _sv0 = this_obj; _sp1 = (void *)prop; _sv1 = val;
-    { int _r; SA6; _r = (int)LVO(QJSBase,588,F)((void*)QJSBase, _sp0, &_sv0, _sp1, &_sv1); RA6; return _r; }
+    /* LVO -588 fails through bridge (returns -1 "no setter") but
+     * DefinePropertyValueStr at LVO -666 works. Use it as workaround.
+     * TODO: investigate why LVO -588 fails with static params. */
+    return JS_DefinePropertyValueStr(ctx, this_obj, prop, val,
+                                     JS_PROP_HAS_VALUE | JS_PROP_HAS_CONFIGURABLE |
+                                     JS_PROP_HAS_WRITABLE | JS_PROP_HAS_ENUMERABLE |
+                                     JS_PROP_C_W_E);
 }
 
 int JS_HasProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop) {
