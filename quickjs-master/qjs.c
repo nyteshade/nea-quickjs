@@ -298,15 +298,31 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     JSValue global, args, navigator_proto, navigator;
     int i;
 
+    fprintf(stderr, "[ctx] JS_NewContext...\n");
     ctx = JS_NewContext(rt);
     if (!ctx)
         return NULL;
+    fprintf(stderr, "[ctx] ctx=%p, init std...\n", (void *)ctx);
     /* system modules */
     js_init_module_std(ctx, "qjs:std");
+    fprintf(stderr, "[ctx] init os...\n");
     js_init_module_os(ctx, "qjs:os");
+    fprintf(stderr, "[ctx] init bjson...\n"); fflush(stderr);
     js_init_module_bjson(ctx, "qjs:bjson");
+    fprintf(stderr, "[ctx] bjson done\n"); fflush(stderr);
+    fprintf(stderr, "[ctx] NewObject test...\n"); fflush(stderr);
+    {
+        JSValue test_obj = JS_NewObject(ctx);
+        fprintf(stderr, "[ctx] NewObject=%08lx%08lx\n",
+                (unsigned long)(test_obj >> 32),
+                (unsigned long)(test_obj & 0xFFFFFFFFUL)); fflush(stderr);
+        JS_FreeValue(ctx, test_obj);
+        fprintf(stderr, "[ctx] FreeValue OK\n"); fflush(stderr);
+    }
+    fprintf(stderr, "[ctx] get global...\n"); fflush(stderr);
 
     global = JS_GetGlobalObject(ctx);
+    fprintf(stderr, "[ctx] set func list...\n");
     JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj));
     args = JS_NewArray(ctx);
     for(i = 0; i < qjs__argc; i++) {
