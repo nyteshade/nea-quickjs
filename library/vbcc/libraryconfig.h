@@ -257,6 +257,241 @@ int QJS_AddRuntimeFinalizer(
     __reg("a1") void *finalizer,
     __reg("a2") void *arg);
 
+/* --- Batch 2: Value Management --- */
+
+void QJS_FreeValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr);
+
+void QJS_FreeValueRT(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") JSValue *val_ptr);
+
+void QJS_DupValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr);
+
+void QJS_DupValueRT(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSRuntime *rt,
+    __reg("a2") JSValue *val_ptr);
+
+/* --- Batch 2: Value Creation --- */
+
+void QJS_NewNumber(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") double *d_ptr);
+
+void QJS_NewBigInt64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") long long *v_ptr);
+
+void QJS_NewBigUint64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") unsigned long long *v_ptr);
+
+/* --- Batch 2: Strings --- */
+
+void QJS_NewStringLen(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *str,
+    __reg("d0") ULONG len);
+
+void QJS_NewAtomString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *str);
+
+void QJS_ToString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr);
+
+void QJS_ToPropertyKey(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr);
+
+const char *QJS_ToCStringLen2(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") ULONG *plen,
+    __reg("a1") JSValue *val_ptr,
+    __reg("d0") int cesu8);
+
+void QJS_FreeCString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *ptr);
+
+/* --- Batch 2: Conversion --- */
+
+int QJS_ToBool(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr);
+
+int QJS_ToInt32(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") long *pres,
+    __reg("a1") JSValue *val_ptr);
+
+int QJS_ToInt64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") long long *pres,
+    __reg("a1") JSValue *val_ptr);
+
+int QJS_ToFloat64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") double *pres,
+    __reg("a1") JSValue *val_ptr);
+
+void QJS_ToNumber(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr);
+
+/* --- Batch 2: Objects --- */
+
+void QJS_NewObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+void QJS_NewObjectClass(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("d0") ULONG class_id);
+
+void QJS_NewObjectProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *proto_ptr);
+
+void QJS_NewArray(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+int QJS_IsArray(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr);
+
+int QJS_IsFunction(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr);
+
+int QJS_IsConstructor(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr);
+
+void QJS_GetGlobalObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+void QJS_ToObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr);
+
+/* --- Batch 2: Exceptions --- */
+
+void QJS_Throw(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *obj_ptr);
+
+void QJS_GetException(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+int QJS_HasException(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_IsError(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr);
+
+void QJS_NewError(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+void QJS_ThrowOutOfMemory(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+/* --- Batch 2: Detect Module --- */
+
+int QJS_DetectModule(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") const char *input,
+    __reg("d0") ULONG input_len);
+
+/* --- Batch 2: Memory Allocation --- */
+
+void *QJS_Malloc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG size);
+
+void QJS_Free(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *ptr);
+
+void *QJS_Realloc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *ptr,
+    __reg("d0") ULONG size);
+
+void *QJS_Calloc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG count,
+    __reg("d1") ULONG size);
+
+void *QJS_Mallocz(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG size);
+
+char *QJS_Strdup(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *str);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -323,6 +558,46 @@ void QJS_Eval(
     (APTR) QJS_IsSameValue, \
     (APTR) QJS_IsSameValueZero, \
     (APTR) QJS_ComputeMemoryUsage, \
-    (APTR) QJS_AddRuntimeFinalizer
+    (APTR) QJS_AddRuntimeFinalizer, \
+    (APTR) QJS_FreeValue, \
+    (APTR) QJS_FreeValueRT, \
+    (APTR) QJS_DupValue, \
+    (APTR) QJS_DupValueRT, \
+    (APTR) QJS_NewNumber, \
+    (APTR) QJS_NewBigInt64, \
+    (APTR) QJS_NewBigUint64, \
+    (APTR) QJS_NewStringLen, \
+    (APTR) QJS_NewAtomString, \
+    (APTR) QJS_ToString, \
+    (APTR) QJS_ToPropertyKey, \
+    (APTR) QJS_ToCStringLen2, \
+    (APTR) QJS_FreeCString, \
+    (APTR) QJS_ToBool, \
+    (APTR) QJS_ToInt32, \
+    (APTR) QJS_ToInt64, \
+    (APTR) QJS_ToFloat64, \
+    (APTR) QJS_ToNumber, \
+    (APTR) QJS_NewObject, \
+    (APTR) QJS_NewObjectClass, \
+    (APTR) QJS_NewObjectProto, \
+    (APTR) QJS_NewArray, \
+    (APTR) QJS_IsArray, \
+    (APTR) QJS_IsFunction, \
+    (APTR) QJS_IsConstructor, \
+    (APTR) QJS_GetGlobalObject, \
+    (APTR) QJS_ToObject, \
+    (APTR) QJS_Throw, \
+    (APTR) QJS_GetException, \
+    (APTR) QJS_HasException, \
+    (APTR) QJS_IsError, \
+    (APTR) QJS_NewError, \
+    (APTR) QJS_ThrowOutOfMemory, \
+    (APTR) QJS_DetectModule, \
+    (APTR) QJS_Malloc, \
+    (APTR) QJS_Free, \
+    (APTR) QJS_Realloc, \
+    (APTR) QJS_Calloc, \
+    (APTR) QJS_Mallocz, \
+    (APTR) QJS_Strdup
 
 #endif /* LIBRARYCONFIG_H */

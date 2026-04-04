@@ -93,6 +93,46 @@ typedef void JSRuntimeFinalizer(JSRuntime *rt, void *arg);
 extern int JS_AddRuntimeFinalizer(JSRuntime *rt,
                                   JSRuntimeFinalizer *finalizer, void *arg);
 
+/* --- Batch 2 engine externs --- */
+extern JSValue JS_DupValue(JSContext *ctx, JSValue v);
+extern JSValue JS_DupValueRT(JSRuntime *rt, JSValue v);
+extern void JS_FreeValueRT(JSRuntime *rt, JSValue v);
+extern JSValue JS_NewNumber(JSContext *ctx, double d);
+extern JSValue JS_NewBigInt64(JSContext *ctx, long long v);
+extern JSValue JS_NewBigUint64(JSContext *ctx, unsigned long long v);
+extern JSValue JS_NewStringLen(JSContext *ctx, const char *str1, size_t len1);
+extern JSValue JS_NewAtomString(JSContext *ctx, const char *str);
+extern JSValue JS_ToString(JSContext *ctx, JSValue val);
+extern JSValue JS_ToPropertyKey(JSContext *ctx, JSValue val);
+extern const char *JS_ToCStringLen2(JSContext *ctx, size_t *plen,
+                                    JSValue val1, int cesu8);
+extern void JS_FreeCString(JSContext *ctx, const char *ptr);
+extern int JS_ToBool(JSContext *ctx, JSValue val);
+extern int JS_ToInt64(JSContext *ctx, long long *pres, JSValue val);
+extern int JS_ToFloat64(JSContext *ctx, double *pres, JSValue val);
+extern JSValue JS_ToNumber(JSContext *ctx, JSValue val);
+extern JSValue JS_NewObject(JSContext *ctx);
+extern JSValue JS_NewObjectClass(JSContext *ctx, unsigned long class_id);
+extern JSValue JS_NewObjectProto(JSContext *ctx, JSValue proto);
+extern JSValue JS_NewArray(JSContext *ctx);
+extern int JS_IsArray(JSValue val);
+extern int JS_IsFunction(JSContext *ctx, JSValue val);
+extern int JS_IsConstructor(JSContext *ctx, JSValue val);
+extern JSValue JS_GetGlobalObject(JSContext *ctx);
+extern JSValue JS_ToObject(JSContext *ctx, JSValue val);
+extern JSValue JS_Throw(JSContext *ctx, JSValue obj);
+extern int JS_HasException(JSContext *ctx);
+extern int JS_IsError(JSValue val);
+extern JSValue JS_NewError(JSContext *ctx);
+extern JSValue JS_ThrowOutOfMemory(JSContext *ctx);
+extern int JS_DetectModule(const char *input, size_t input_len);
+extern void *js_malloc(JSContext *ctx, size_t size);
+extern void js_free(JSContext *ctx, void *ptr);
+extern void *js_realloc(JSContext *ctx, void *ptr, size_t size);
+extern void *js_calloc(JSContext *ctx, size_t count, size_t size);
+extern void *js_mallocz(JSContext *ctx, size_t size);
+extern char *js_strdup(JSContext *ctx, const char *str);
+
 /* ---- Serial debug output via RawPutChar (exec LVO -516) ---- */
 #define LVO_CALL(base, offset, type) ((type)((char *)(base) - (offset)))
 
@@ -666,4 +706,364 @@ int QJS_AddRuntimeFinalizer(
     __reg("a2") void *arg)
 {
     return JS_AddRuntimeFinalizer(rt, (JSRuntimeFinalizer *)finalizer, arg);
+}
+
+/* ---- Batch 2: Value Management ---- */
+
+void QJS_FreeValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr)
+{
+    JS_FreeValue(ctx, *val_ptr);
+}
+
+void QJS_FreeValueRT(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") JSValue *val_ptr)
+{
+    JS_FreeValueRT(rt, *val_ptr);
+}
+
+void QJS_DupValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_DupValue(ctx, *val_ptr);
+}
+
+void QJS_DupValueRT(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSRuntime *rt,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_DupValueRT(rt, *val_ptr);
+}
+
+/* ---- Batch 2: Value Creation ---- */
+
+void QJS_NewNumber(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") double *d_ptr)
+{
+    *result = JS_NewNumber(ctx, *d_ptr);
+}
+
+void QJS_NewBigInt64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") long long *v_ptr)
+{
+    *result = JS_NewBigInt64(ctx, *v_ptr);
+}
+
+void QJS_NewBigUint64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") unsigned long long *v_ptr)
+{
+    *result = JS_NewBigUint64(ctx, *v_ptr);
+}
+
+/* ---- Batch 2: Strings ---- */
+
+void QJS_NewStringLen(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *str,
+    __reg("d0") ULONG len)
+{
+    *result = JS_NewStringLen(ctx, str, (size_t)len);
+}
+
+void QJS_NewAtomString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *str)
+{
+    *result = JS_NewAtomString(ctx, str);
+}
+
+void QJS_ToString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_ToString(ctx, *val_ptr);
+}
+
+void QJS_ToPropertyKey(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_ToPropertyKey(ctx, *val_ptr);
+}
+
+const char *QJS_ToCStringLen2(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") ULONG *plen,
+    __reg("a1") JSValue *val_ptr,
+    __reg("d0") int cesu8)
+{
+    size_t slen;
+    const char *r;
+    r = JS_ToCStringLen2(ctx, plen ? &slen : NULL, *val_ptr, cesu8);
+    if (plen && r)
+        *plen = (ULONG)slen;
+    return r;
+}
+
+void QJS_FreeCString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *ptr)
+{
+    JS_FreeCString(ctx, ptr);
+}
+
+/* ---- Batch 2: Conversion ---- */
+
+int QJS_ToBool(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr)
+{
+    return JS_ToBool(ctx, *val_ptr);
+}
+
+int QJS_ToInt32(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") long *pres,
+    __reg("a1") JSValue *val_ptr)
+{
+    return JS_ToInt32(ctx, pres, *val_ptr);
+}
+
+int QJS_ToInt64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") long long *pres,
+    __reg("a1") JSValue *val_ptr)
+{
+    return JS_ToInt64(ctx, pres, *val_ptr);
+}
+
+int QJS_ToFloat64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a2") double *pres,
+    __reg("a1") JSValue *val_ptr)
+{
+    return JS_ToFloat64(ctx, pres, *val_ptr);
+}
+
+void QJS_ToNumber(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_ToNumber(ctx, *val_ptr);
+}
+
+/* ---- Batch 2: Objects ---- */
+
+void QJS_NewObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_NewObject(ctx);
+}
+
+void QJS_NewObjectClass(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("d0") ULONG class_id)
+{
+    *result = JS_NewObjectClass(ctx, (unsigned long)class_id);
+}
+
+void QJS_NewObjectProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *proto_ptr)
+{
+    *result = JS_NewObjectProto(ctx, *proto_ptr);
+}
+
+void QJS_NewArray(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_NewArray(ctx);
+}
+
+int QJS_IsArray(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsArray(*val_ptr);
+}
+
+int QJS_IsFunction(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr)
+{
+    return (int)JS_IsFunction(ctx, *val_ptr);
+}
+
+int QJS_IsConstructor(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr)
+{
+    return (int)JS_IsConstructor(ctx, *val_ptr);
+}
+
+void QJS_GetGlobalObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_GetGlobalObject(ctx);
+}
+
+void QJS_ToObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_ToObject(ctx, *val_ptr);
+}
+
+/* ---- Batch 2: Exceptions ---- */
+
+void QJS_Throw(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *obj_ptr)
+{
+    *result = JS_Throw(ctx, *obj_ptr);
+}
+
+void QJS_GetException(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_GetException(ctx);
+}
+
+int QJS_HasException(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return (int)JS_HasException(ctx);
+}
+
+int QJS_IsError(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsError(*val_ptr);
+}
+
+void QJS_NewError(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_NewError(ctx);
+}
+
+void QJS_ThrowOutOfMemory(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_ThrowOutOfMemory(ctx);
+}
+
+/* ---- Batch 2: Detect Module ---- */
+
+int QJS_DetectModule(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") const char *input,
+    __reg("d0") ULONG input_len)
+{
+    return (int)JS_DetectModule(input, (size_t)input_len);
+}
+
+/* ---- Batch 2: Memory Allocation ---- */
+
+void *QJS_Malloc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG size)
+{
+    return js_malloc(ctx, (size_t)size);
+}
+
+void QJS_Free(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *ptr)
+{
+    js_free(ctx, ptr);
+}
+
+void *QJS_Realloc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *ptr,
+    __reg("d0") ULONG size)
+{
+    return js_realloc(ctx, ptr, (size_t)size);
+}
+
+void *QJS_Calloc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG count,
+    __reg("d1") ULONG size)
+{
+    return js_calloc(ctx, (size_t)count, (size_t)size);
+}
+
+void *QJS_Mallocz(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG size)
+{
+    return js_mallocz(ctx, (size_t)size);
+}
+
+char *QJS_Strdup(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *str)
+{
+    return js_strdup(ctx, str);
 }
