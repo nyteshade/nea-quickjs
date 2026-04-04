@@ -133,6 +133,38 @@ extern void *js_calloc(JSContext *ctx, size_t count, size_t size);
 extern void *js_mallocz(JSContext *ctx, size_t size);
 extern char *js_strdup(JSContext *ctx, const char *str);
 
+/* --- Batch 3 engine externs --- */
+extern JSValue JS_GetProperty(JSContext *ctx, JSValue this_obj, unsigned long prop);
+extern JSValue JS_GetPropertyUint32(JSContext *ctx, JSValue this_obj, unsigned long idx);
+extern JSValue JS_GetPropertyInt64(JSContext *ctx, JSValue this_obj, long long idx);
+extern JSValue JS_GetPropertyStr(JSContext *ctx, JSValue this_obj, const char *prop);
+extern int JS_SetProperty(JSContext *ctx, JSValue this_obj, unsigned long prop, JSValue val);
+extern int JS_SetPropertyUint32(JSContext *ctx, JSValue this_obj, unsigned long idx, JSValue val);
+extern int JS_SetPropertyStr(JSContext *ctx, JSValue this_obj, const char *prop, JSValue val);
+extern int JS_HasProperty(JSContext *ctx, JSValue this_obj, unsigned long prop);
+extern int JS_DeleteProperty(JSContext *ctx, JSValue obj, unsigned long prop, int flags);
+extern int JS_SetPrototype(JSContext *ctx, JSValue obj, JSValue proto_val);
+extern JSValue JS_GetPrototype(JSContext *ctx, JSValue val);
+extern int JS_GetLength(JSContext *ctx, JSValue obj, long long *pres);
+extern int JS_SetLength(JSContext *ctx, JSValue obj, long long len);
+extern int JS_IsExtensible(JSContext *ctx, JSValue obj);
+extern int JS_PreventExtensions(JSContext *ctx, JSValue obj);
+extern int JS_SealObject(JSContext *ctx, JSValue obj);
+extern int JS_FreezeObject(JSContext *ctx, JSValue obj);
+extern int JS_DefinePropertyValue(JSContext *ctx, JSValue this_obj,
+                                   unsigned long prop, JSValue val, int flags);
+extern int JS_DefinePropertyValueUint32(JSContext *ctx, JSValue this_obj,
+                                         unsigned long idx, JSValue val, int flags);
+extern int JS_DefinePropertyValueStr(JSContext *ctx, JSValue this_obj,
+                                      const char *prop, JSValue val, int flags);
+extern int JS_SetOpaque(JSValue obj, void *opaque);
+extern void *JS_GetOpaque(JSValue obj, unsigned long class_id);
+extern void *JS_GetOpaque2(JSContext *ctx, JSValue obj, unsigned long class_id);
+extern int JS_GetOwnPropertyNames(JSContext *ctx, void **ptab,
+                                   unsigned long *plen, JSValue obj, int flags);
+extern void JS_FreePropertyEnum(JSContext *ctx, void *tab, unsigned long len);
+extern int JS_IsInstanceOf(JSContext *ctx, JSValue val, JSValue obj);
+
 /* ---- Serial debug output via RawPutChar (exec LVO -516) ---- */
 #define LVO_CALL(base, offset, type) ((type)((char *)(base) - (offset)))
 
@@ -1066,4 +1098,272 @@ char *QJS_Strdup(
     __reg("a1") const char *str)
 {
     return js_strdup(ctx, str);
+}
+
+/* ---- Batch 3: Property Get ---- */
+
+void QJS_GetProperty(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *this_ptr,
+    __reg("d0") ULONG prop)
+{
+    *result = JS_GetProperty(ctx, *this_ptr, (unsigned long)prop);
+}
+
+void QJS_GetPropertyUint32(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *this_ptr,
+    __reg("d0") ULONG idx)
+{
+    *result = JS_GetPropertyUint32(ctx, *this_ptr, (unsigned long)idx);
+}
+
+void QJS_GetPropertyStr(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *this_ptr,
+    __reg("a3") const char *prop_str)
+{
+    *result = JS_GetPropertyStr(ctx, *this_ptr, prop_str);
+}
+
+void QJS_GetPropertyInt64(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *this_ptr,
+    __reg("d0") LONG idx)
+{
+    *result = JS_GetPropertyInt64(ctx, *this_ptr, (long long)idx);
+}
+
+/* ---- Batch 3: Property Set (engine CONSUMES val) ---- */
+
+int QJS_SetProperty(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("d0") ULONG prop,
+    __reg("a2") JSValue *val_ptr)
+{
+    return JS_SetProperty(ctx, *this_ptr, (unsigned long)prop, *val_ptr);
+}
+
+int QJS_SetPropertyUint32(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("d0") ULONG idx,
+    __reg("a2") JSValue *val_ptr)
+{
+    return JS_SetPropertyUint32(ctx, *this_ptr, (unsigned long)idx, *val_ptr);
+}
+
+int QJS_SetPropertyStr(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("a2") const char *prop_str,
+    __reg("a3") JSValue *val_ptr)
+{
+    return JS_SetPropertyStr(ctx, *this_ptr, prop_str, *val_ptr);
+}
+
+/* ---- Batch 3: Property Query/Delete ---- */
+
+int QJS_HasProperty(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("d0") ULONG prop)
+{
+    return JS_HasProperty(ctx, *this_ptr, (unsigned long)prop);
+}
+
+int QJS_DeleteProperty(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("d0") ULONG prop,
+    __reg("d1") int flags)
+{
+    return JS_DeleteProperty(ctx, *obj_ptr, (unsigned long)prop, flags);
+}
+
+/* ---- Batch 3: Prototype ---- */
+
+int QJS_SetPrototype(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("a2") JSValue *proto_ptr)
+{
+    return JS_SetPrototype(ctx, *obj_ptr, *proto_ptr);
+}
+
+void QJS_GetPrototype(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *val_ptr)
+{
+    *result = JS_GetPrototype(ctx, *val_ptr);
+}
+
+/* ---- Batch 3: Length ---- */
+
+int QJS_GetLength(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("a2") long long *pres)
+{
+    return JS_GetLength(ctx, *obj_ptr, pres);
+}
+
+int QJS_SetLength(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("d0") LONG len)
+{
+    return JS_SetLength(ctx, *obj_ptr, (long long)len);
+}
+
+/* ---- Batch 3: Extensibility/Seal/Freeze ---- */
+
+int QJS_IsExtensible(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    return JS_IsExtensible(ctx, *obj_ptr);
+}
+
+int QJS_PreventExtensions(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    return JS_PreventExtensions(ctx, *obj_ptr);
+}
+
+int QJS_SealObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    return JS_SealObject(ctx, *obj_ptr);
+}
+
+int QJS_FreezeObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    return JS_FreezeObject(ctx, *obj_ptr);
+}
+
+/* ---- Batch 3: Define Property (engine CONSUMES val) ---- */
+
+int QJS_DefinePropertyValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("d0") ULONG prop,
+    __reg("a2") JSValue *val_ptr,
+    __reg("d1") int flags)
+{
+    return JS_DefinePropertyValue(ctx, *this_ptr, (unsigned long)prop,
+                                  *val_ptr, flags);
+}
+
+int QJS_DefinePropertyValueUint32(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("d0") ULONG idx,
+    __reg("a2") JSValue *val_ptr,
+    __reg("d1") int flags)
+{
+    return JS_DefinePropertyValueUint32(ctx, *this_ptr, (unsigned long)idx,
+                                        *val_ptr, flags);
+}
+
+int QJS_DefinePropertyValueStr(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *this_ptr,
+    __reg("a2") JSValue *val_ptr,
+    __reg("a3") const char *prop_str,
+    __reg("d0") int flags)
+{
+    return JS_DefinePropertyValueStr(ctx, *this_ptr, prop_str,
+                                     *val_ptr, flags);
+}
+
+/* ---- Batch 3: Opaque ---- */
+
+int QJS_SetOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("a0") void *opaque)
+{
+    return JS_SetOpaque(*obj_ptr, opaque);
+}
+
+void *QJS_GetOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *obj_ptr,
+    __reg("d0") ULONG class_id)
+{
+    return JS_GetOpaque(*obj_ptr, (unsigned long)class_id);
+}
+
+void *QJS_GetOpaque2(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("d0") ULONG class_id)
+{
+    return JS_GetOpaque2(ctx, *obj_ptr, (unsigned long)class_id);
+}
+
+/* ---- Batch 3: Own Property Names ---- */
+
+int QJS_GetOwnPropertyNames(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void **ptab,
+    __reg("a2") ULONG *plen,
+    __reg("a3") JSValue *obj_ptr,
+    __reg("d0") int flags)
+{
+    return JS_GetOwnPropertyNames(ctx, ptab,
+                                  (unsigned long *)plen, *obj_ptr, flags);
+}
+
+void QJS_FreePropertyEnum(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *tab,
+    __reg("d0") ULONG len)
+{
+    JS_FreePropertyEnum(ctx, tab, (unsigned long)len);
+}
+
+/* ---- Batch 3: InstanceOf ---- */
+
+int QJS_IsInstanceOf(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr,
+    __reg("a2") JSValue *obj_ptr)
+{
+    return JS_IsInstanceOf(ctx, *val_ptr, *obj_ptr);
 }
