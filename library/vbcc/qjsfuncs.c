@@ -95,6 +95,13 @@ static struct ExecBase *g_dbg_sys;
 extern void sharedlib_time_init(struct Library *dosBase);
 extern void sharedlib_time_cleanup(void);
 
+/* From sharedlib_math_soft.c or sharedlib_math.c — sets math library bases.
+ * Soft-float build: sets MathIeeeDoubBasBase/MathIeeeDoubTransBase globals.
+ * FPU build: no-op stubs. */
+extern void sharedlib_math_soft_init(struct Library *basBase,
+                                      struct Library *transBase);
+extern void sharedlib_math_soft_cleanup(void);
+
 /* The JSMallocFunctions callbacks receive 'opaque' which we set to
  * the library base pointer in QJS_NewRuntime. This gives every
  * allocation call access to SysBase and the memory pool. */
@@ -157,6 +164,11 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
     if (!aBase->iMathDoubTransBase)
         return TRUE;
 
+    /* Init math subsystem — sets globals for soft-float LVO calls.
+     * No-op for FPU build (stubs in sharedlib_math.c). */
+    sharedlib_math_soft_init(aBase->iMathDoubBasBase,
+                              aBase->iMathDoubTransBase);
+
     /* Create memory pool for all engine allocations */
     if (AmigaPoolInit(aBase))
         return TRUE;
@@ -176,6 +188,9 @@ VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
 
     /* Tear down time subsystem */
     sharedlib_time_cleanup();
+
+    /* Tear down math subsystem */
+    sharedlib_math_soft_cleanup();
 
     if (aBase->iMathDoubTransBase) {
         __CloseLibrary(sys, aBase->iMathDoubTransBase);

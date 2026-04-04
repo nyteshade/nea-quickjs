@@ -17,6 +17,11 @@
 #define M_LN2 0.69314718055994530942
 #endif
 
+/* No-op stubs — soft-float build sets these up with real values.
+ * FPU build doesn't need math library bases. */
+void sharedlib_math_soft_init(void *basBase, void *transBase) { }
+void sharedlib_math_soft_cleanup(void) { }
+
 double atan2(double y, double x)
 {
     if (x > 0.0)
