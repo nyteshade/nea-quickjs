@@ -691,6 +691,9 @@ int main(int argc, char **argv)
 
 start:
 
+#ifdef QJS_USE_LIBRARY
+    fprintf(stderr, "[qjs] bridge init OK, creating runtime...\n");
+#endif
     if (trace_memory) {
         js_trace_malloc_init(&trace_data);
         rt = JS_NewRuntime2(&trace_mf, &trace_data);
@@ -705,6 +708,9 @@ start:
         fprintf(stderr, "qjs: cannot allocate JS runtime\n");
         exit(2);
     }
+#ifdef QJS_USE_LIBRARY
+    fprintf(stderr, "[qjs] runtime=%p, setting up...\n", (void *)rt);
+#endif
     if (memory_limit >= 0)
         JS_SetMemoryLimit(rt, (size_t)memory_limit);
     if (stack_size >= 0)
@@ -712,18 +718,30 @@ start:
     if (dump_flags != 0)
         JS_SetDumpFlags(rt, dump_flags);
     js_std_set_worker_new_context_func(JS_NewCustomContext);
+#ifdef QJS_USE_LIBRARY
+    fprintf(stderr, "[qjs] calling js_std_init_handlers...\n");
+#endif
     js_std_init_handlers(rt);
+#ifdef QJS_USE_LIBRARY
+    fprintf(stderr, "[qjs] creating context...\n");
+#endif
     ctx = JS_NewCustomContext(rt);
     if (!ctx) {
         fprintf(stderr, "qjs: cannot allocate JS context\n");
         exit(2);
     }
+#ifdef QJS_USE_LIBRARY
+    fprintf(stderr, "[qjs] context=%p, setting module loader...\n", (void *)ctx);
+#endif
 
     /* loader for ES6 modules */
     JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
 
     /* exit on unhandled promise rejections */
     JS_SetHostPromiseRejectionTracker(rt, js_std_promise_rejection_tracker, NULL);
+#ifdef QJS_USE_LIBRARY
+    fprintf(stderr, "[qjs] setup complete, running...\n");
+#endif
 
     if (!empty_run) {
         js_std_add_helpers(ctx, argc - optind, argv + optind);

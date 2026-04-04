@@ -62,6 +62,11 @@ static void _bridge_close(struct Library *lib)
 int quickjs_bridge_init(void)
 {
     QJSBase = _bridge_open("quickjs.library", 0);
+    if (QJSBase) {
+        fprintf(stderr, "[bridge] quickjs.library opened at %p\n", (void *)QJSBase);
+    } else {
+        fprintf(stderr, "[bridge] FAILED to open quickjs.library!\n");
+    }
     return QJSBase ? 0 : -1;
 }
 
