@@ -29,6 +29,7 @@
 extern int amiga_force_color;
 #elif defined(__VBCC__)
 #include "amiga_compat_vbcc.h"
+extern int amiga_force_color;
 #endif
 #include "quickjs.h"
 #include <stdlib.h>
@@ -793,7 +794,7 @@ int js_module_set_import_meta(JSContext *ctx, JSValueConst func_val,
         return -1;
     if (!strchr(module_name, ':')) {
         strcpy(buf, "file://");
-#if !defined(_WIN32) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
         /* realpath() cannot be used with modules compiled with qjsc
            because the corresponding module source code is not
            necessarily present */
@@ -1206,7 +1207,7 @@ static void safe_close(FILE *f, bool is_popen)
     if (is_stdio(f))
         return;
     if (is_popen) {
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
         pclose(f);
 #endif
     } else {
@@ -1305,7 +1306,7 @@ static JSValue js_std_open(JSContext *ctx, JSValueConst this_val,
     return JS_EXCEPTION;
 }
 
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
 static JSValue js_std_popen(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv)
 {
@@ -1376,7 +1377,7 @@ static JSValue js_std_fdopen(JSContext *ctx, JSValueConst this_val,
     return JS_EXCEPTION;
 }
 
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
 static JSValue js_std_tmpfile(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
@@ -1455,7 +1456,7 @@ static JSValue js_std_file_close(JSContext *ctx, JSValueConst this_val,
         return JS_ThrowTypeError(ctx, "invalid file handle");
     if (is_stdio(s->f))
         return JS_ThrowTypeError(ctx, "cannot close stdio");
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
     if (s->is_popen)
         err = js_get_errno(pclose(s->f));
     else
@@ -1817,8 +1818,8 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         dbuf_free(&cmd_buf);
         return JS_EXCEPTION;
     }
-#if defined(__SASC) || defined(__VBCC__)
-    /* AmigaOS: use native AmiSSL HTTP client instead of curl */
+#if defined(__SASC)
+    /* AmigaOS / SAS-C: use native AmiSSL HTTP client instead of curl */
     {
         char *body = NULL;
         int body_len = 0, http_status = 0;
@@ -1879,7 +1880,7 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         }
         return response;
     }
-#endif /* __SASC */
+#else /* !__SASC: popen/curl fallback (VBCC uses this path too) */
     /*    printf("%s\n", (char *)cmd_buf.buf); */
     f = popen((char *)cmd_buf.buf, "r");
     dbuf_free(&cmd_buf);
@@ -1975,6 +1976,7 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
     JS_FreeValue(ctx, response);
     return JS_EXCEPTION;
 }
+#endif /* __SASC */
 #endif /* !defined(__wasi__) */
 
 static JSClassDef js_std_file_class = {
@@ -2025,7 +2027,7 @@ static const JSCFunctionListEntry js_std_funcs[] = {
 
     /* FILE I/O */
     JS_CFUNC_DEF("open", 2, js_std_open ),
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
     JS_CFUNC_DEF("popen", 2, js_std_popen ),
     JS_CFUNC_DEF("tmpfile", 0, js_std_tmpfile ),
 #endif
@@ -2804,7 +2806,7 @@ static JSValue js_os_signal(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
-#if !defined(_WIN32) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
 static JSValue js_os_cputime(JSContext *ctx, JSValueConst this_val,
                              int argc, JSValueConst *argv)
 {
@@ -3559,7 +3561,7 @@ done:
 #endif
 }
 
-#if !defined(_WIN32) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
 #define PAT "XXXXXX"
 #define PSZ (sizeof(PAT)-1)
 static JSValue js_os_mkdstemp(JSContext *ctx, JSValueConst this_val,
@@ -3797,7 +3799,7 @@ static char *realpath(const char *path, char *buf)
 }
 #endif
 
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
 /* return [path, errorcode] */
 static JSValue js_os_realpath(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
@@ -3822,6 +3824,8 @@ static JSValue js_os_realpath(JSContext *ctx, JSValueConst this_val,
 #endif
 
 #if !defined(_WIN32) && !defined(__wasi__) && !(defined(__APPLE__) && (TARGET_OS_TV || TARGET_OS_WATCH))
+
+#if !defined(__SASC) && !defined(__VBCC__)
 static JSValue js_os_symlink(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
@@ -3865,6 +3869,7 @@ static JSValue js_os_readlink(JSContext *ctx, JSValueConst this_val,
     JS_FreeCString(ctx, path);
     return make_string_error(ctx, buf, err);
 }
+#endif /* !__SASC && !__VBCC__ */
 
 static char **build_envp(JSContext *ctx, JSValue obj)
 {
@@ -3925,6 +3930,7 @@ static char **build_envp(JSContext *ctx, JSValue obj)
     goto done;
 }
 
+#if !defined(__SASC) && !defined(__VBCC__)
 /* execvpe is not available on non GNU systems */
 static int my_execvpe(const char *filename, char **argv, char **envp)
 {
@@ -3980,10 +3986,11 @@ static int my_execvpe(const char *filename, char **argv, char **envp)
         errno = EACCES;
     return -1;
 }
+#endif /* !__SASC && !__VBCC__ */
 
 static void (*js_os_exec_closefrom)(int);
 
-#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC) || defined(__VBCC__)
+#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
 
 static js_once_t js_os_exec_once = JS_ONCE_INIT;
 
@@ -4312,6 +4319,7 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
     goto done;
 }
 
+#if !defined(__SASC) && !defined(__VBCC__)
 /* getpid() -> pid */
 static JSValue js_os_getpid(JSContext *ctx, JSValueConst this_val,
                             int argc, JSValueConst *argv)
@@ -4406,6 +4414,7 @@ static JSValue js_os_dup2(JSContext *ctx, JSValueConst this_val,
     ret = js_get_errno(dup2(fd, fd2));
     return JS_NewInt32(ctx, ret);
 }
+#endif /* !__SASC && !__VBCC__ */
 
 #endif /* !_WIN32 */
 
@@ -4924,7 +4933,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     OS_FLAG(SIGILL),
     OS_FLAG(SIGSEGV),
     OS_FLAG(SIGTERM),
-#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) || defined(__VBCC__)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
     OS_FLAG(SIGQUIT),
     OS_FLAG(SIGPIPE),
     OS_FLAG(SIGALRM),
@@ -4951,7 +4960,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("chdir", 0, js_os_chdir ),
     JS_CFUNC_DEF("mkdir", 1, js_os_mkdir ),
     JS_CFUNC_DEF("readdir", 1, js_os_readdir ),
-#if !defined(_WIN32) && !defined(__wasi__)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
     JS_CFUNC_MAGIC_DEF("mkdtemp", 0, js_os_mkdstemp, 'd' ),
     JS_CFUNC_MAGIC_DEF("mkstemp", 0, js_os_mkdstemp, 's' ),
 #endif
@@ -4971,14 +4980,17 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_MAGIC_DEF("stat", 1, js_os_stat, 0 ),
     JS_CFUNC_DEF("utimes", 3, js_os_utimes ),
     JS_CFUNC_DEF("sleep", 1, js_os_sleep ),
-#if !defined(__wasi__)
+#if !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
     JS_CFUNC_DEF("realpath", 1, js_os_realpath ),
 #endif
 #if !defined(_WIN32) && !defined(__wasi__) && !(defined(__APPLE__) && (TARGET_OS_TV || TARGET_OS_WATCH))
+#if !defined(__SASC) && !defined(__VBCC__)
     JS_CFUNC_MAGIC_DEF("lstat", 1, js_os_stat, 1 ),
     JS_CFUNC_DEF("symlink", 2, js_os_symlink ),
     JS_CFUNC_DEF("readlink", 1, js_os_readlink ),
+#endif
     JS_CFUNC_DEF("exec", 1, js_os_exec ),
+#if !defined(__SASC) && !defined(__VBCC__)
     JS_CFUNC_DEF("getpid", 0, js_os_getpid ),
     JS_CFUNC_DEF("waitpid", 2, js_os_waitpid ),
     OS_FLAG(WNOHANG),
@@ -4986,6 +4998,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("kill", 2, js_os_kill ),
     JS_CFUNC_DEF("dup", 1, js_os_dup ),
     JS_CFUNC_DEF("dup2", 2, js_os_dup2 ),
+#endif
 #endif
 #if defined(__SASC) || defined(__VBCC__)
     JS_CFUNC_DEF("getvar", 1, js_os_getvar ),
