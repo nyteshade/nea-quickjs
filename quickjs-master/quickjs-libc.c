@@ -22,12 +22,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-/* AmigaOS / SAS-C 6.58: pull in inline/attribute/etc. shims before quickjs.h */
-#ifdef __SASC
+/* AmigaOS: pull in compat shims before quickjs.h */
+#if defined(__SASC)
 #include "cutils.h"
 #include "amiga_ssl.h"
-/* defined in qjs.c — set by --color flag */
 extern int amiga_force_color;
+#elif defined(__VBCC__)
+#include "amiga_compat_vbcc.h"
 #endif
 #include "quickjs.h"
 #include <stdlib.h>
@@ -62,7 +63,7 @@ extern int amiga_force_color;
 #define rmdir _rmdir
 #define getcwd _getcwd
 #define chdir _chdir
-#elif defined(__SASC)
+#elif defined(__SASC) || defined(__VBCC__)
 /* AmigaOS / SAS-C 6.58: use stub headers from qjs:amiga/ via IDIR */
 #include <sys/ioctl.h>
 #include <poll.h>
@@ -983,7 +984,7 @@ static JSValue js_std_getenv(JSContext *ctx, JSValueConst this_val,
     if (!name)
         return JS_EXCEPTION;
     str = getenv(name);
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
     /* AmigaOS default: treat NO_COLOR as "1" if not set in the environment.
      * This disables ANSI SGR color codes in the REPL by default.
      * Override with: qjs --color  or  setenv NO_COLOR 0  in AmigaDOS shell */
@@ -1710,7 +1711,7 @@ static JSValue js_std_file_putByte(JSContext *ctx, JSValueConst this_val,
 /* urlGet */
 #if !defined(__wasi__)
 
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
 /* AmigaOS: no curl; use an Amiga HTTP client.
  * The program must output raw HTTP response (headers + body) to stdout.
  * Common options: "curl -s -i --" (if Amiga curl port installed),
@@ -1816,7 +1817,7 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         dbuf_free(&cmd_buf);
         return JS_EXCEPTION;
     }
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
     /* AmigaOS: use native AmiSSL HTTP client instead of curl */
     {
         char *body = NULL;
@@ -2163,7 +2164,7 @@ static JSValue js_os_seek(JSContext *ctx, JSValueConst this_val,
         return JS_NewInt64(ctx, ret);
 }
 
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
 /* -----------------------------------------------------------------------
  * amiga_read_stdin() -- read fd 0 with AmigaOS CSI → VT100 translation
  *
@@ -2369,7 +2370,7 @@ static JSValue js_os_read_write(JSContext *ctx, JSValueConst this_val,
     if (magic) {
         ret = js_get_errno(write(fd, buf + pos, len));
     } else {
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
         /* For stdin in raw mode, translate AmigaOS CSI (0x9B) to VT100 ESC+[ */
         if (fd == 0)
             ret = amiga_read_stdin(buf + pos, (size_t)len);
@@ -2433,7 +2434,7 @@ static JSValue js_os_ttySetRaw(JSContext *ctx, JSValueConst this_val,
     }
     return JS_UNDEFINED;
 }
-#elif defined(__SASC)
+#elif defined(__SASC) || defined(__VBCC__)
 /* -----------------------------------------------------------------------
  * AmigaOS / SAS-C 6.58 tty implementation
  *
@@ -3284,7 +3285,7 @@ static int js_os_poll_internal(JSContext *ctx, int timeout_ms, int flags)
 
     if (nfds == 0) {
         if (min_delay > 0) {
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
             /* AmigaOS: Delay() is in 50Hz ticks; 1 tick = 20ms */
             /* Delay() declared at file scope via <proto/dos.h> */
             long sleep_ticks = (min_delay * 50L) / 1000;
@@ -3605,7 +3606,7 @@ static JSValue js_os_mkdstemp(JSContext *ctx, JSValueConst this_val,
 #undef PAT
 #endif /* !defined(_WIN32) && !defined(__wasi__) */
 
-#if !defined(_WIN32) && !defined(__SASC)
+#if !defined(_WIN32) && !defined(__SASC) || defined(__VBCC__)
 static int64_t timespec_to_ms(const struct timespec *tv)
 {
     return (int64_t)tv->tv_sec * 1000 + (tv->tv_nsec / 1000000);
@@ -3664,12 +3665,12 @@ static JSValue js_os_stat(JSContext *ctx, JSValueConst this_val,
         JS_DefinePropertyValueStr(ctx, obj, "size",
                                   JS_NewInt64(ctx, st.st_size),
                                   JS_PROP_C_W_E);
-#if !defined(_WIN32) && !defined(__SASC)
+#if !defined(_WIN32) && !defined(__SASC) || defined(__VBCC__)
         JS_DefinePropertyValueStr(ctx, obj, "blocks",
                                   JS_NewInt64(ctx, st.st_blocks),
                                   JS_PROP_C_W_E);
 #endif
-#if defined(_WIN32) || defined(__SASC)
+#if defined(_WIN32) || defined(__SASC) || defined(__VBCC__)
         /* Windows and AmigaOS: timestamps in seconds only */
         JS_DefinePropertyValueStr(ctx, obj, "atime",
                                   JS_NewInt64(ctx, (int64_t)st.st_atime * 1000),
@@ -3764,7 +3765,7 @@ static JSValue js_os_sleep(JSContext *ctx, JSValueConst this_val,
         Sleep(delay);
         ret = 0;
     }
-#elif defined(__SASC)
+#elif defined(__SASC) || defined(__VBCC__)
     {
         /* AmigaOS: Delay() in 50Hz ticks; declared at file scope via <proto/dos.h> */
         long sleep_ticks = ((long)delay * 50L) / 1000L;
@@ -3982,7 +3983,7 @@ static int my_execvpe(const char *filename, char **argv, char **envp)
 
 static void (*js_os_exec_closefrom)(int);
 
-#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC)
+#if !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__SASC) || defined(__VBCC__)
 
 static js_once_t js_os_exec_once = JS_ONCE_INIT;
 
@@ -4148,7 +4149,7 @@ static JSValue js_os_exec(JSContext *ctx, JSValueConst this_val,
 
     }
 
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
     /* AmigaOS: use SystemTagList() instead of fork/exec.
      * Build a command string from the argv array and run it
      * synchronously (block_flag) or asynchronously. */
@@ -4923,7 +4924,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     OS_FLAG(SIGILL),
     OS_FLAG(SIGSEGV),
     OS_FLAG(SIGTERM),
-#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC)
+#if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) || defined(__VBCC__)
     OS_FLAG(SIGQUIT),
     OS_FLAG(SIGPIPE),
     OS_FLAG(SIGALRM),
@@ -4986,7 +4987,7 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("dup", 1, js_os_dup ),
     JS_CFUNC_DEF("dup2", 2, js_os_dup2 ),
 #endif
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
     JS_CFUNC_DEF("getvar", 1, js_os_getvar ),
     JS_CFUNC_DEF("setvar", 2, js_os_setvar ),
 #endif

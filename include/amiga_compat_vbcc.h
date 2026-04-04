@@ -48,6 +48,14 @@
 #define __attribute(x)            /* empty */
 #define __extension__             /* empty */
 
+/* Pre-define JS_PRINTF_FORMAT macros before quickjs.h gets them.
+ * quickjs.h defines these using __attribute__ which we've stubbed,
+ * but the expansion timing differs for quickjs-libc.c. */
+#ifndef JS_PRINTF_FORMAT
+#define JS_PRINTF_FORMAT
+#define JS_PRINTF_FORMAT_ATTR(format_param, dots_param) /* empty */
+#endif
+
 /* -----------------------------------------------------------------------
  * GCC branch prediction hints
  * --------------------------------------------------------------------- */
