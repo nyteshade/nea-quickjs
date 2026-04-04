@@ -1333,7 +1333,15 @@ int JS_SetPropertyFunctionList(JSContext *ctx, JSValueConst obj,
             break;
         case 1: /* JS_DEF_CGETSET */
         case 5: /* JS_DEF_CGETSET_MAGIC */
-            /* TODO: getter/setter support */
+            /* Getter/setter: call getter immediately and set the value.
+             * Full getter/setter support needs JS_DefineProperty which
+             * isn't in the library yet. This covers read-only getters. */
+            if (e->u.getset.get.generic) {
+                JSCFunction *getter = e->u.getset.get.generic;
+                val = getter(ctx, obj, 0, NULL);
+                JS_DefinePropertyValueStr(ctx, obj, e->name, val,
+                    e->prop_flags & ~JS_PROP_WRITABLE);
+            }
             continue;
         case 2: /* JS_DEF_PROP_STRING */
             val = JS_NewStringLen(ctx, e->u.str, strlen(e->u.str));
