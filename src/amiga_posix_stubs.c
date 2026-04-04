@@ -190,4 +190,17 @@ int pclose(FILE *stream) {
     return -1;
 }
 
+FILE *fdopen(int fd, const char *mode) {
+    errno = ENOSYS;
+    return NULL;
+}
+
+int fileno(FILE *stream) {
+    /* stdin=0, stdout=1, stderr=2; else -1 */
+    if (stream == stdin) return 0;
+    if (stream == stdout) return 1;
+    if (stream == stderr) return 2;
+    return -1;
+}
+
 #endif /* __VBCC__ */

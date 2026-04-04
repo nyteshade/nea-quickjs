@@ -174,6 +174,16 @@ void *_vbcc_alloca(unsigned long size);
 #define alloca(size) _vbcc_alloca(size)
 
 /* -----------------------------------------------------------------------
+ * POSIX stdio extensions — not in VBCC's base stdio.h
+ * Stubs provided in amiga_posix_stubs.c
+ * --------------------------------------------------------------------- */
+#include <stdio.h>
+FILE *popen(const char *command, const char *mode);
+int   pclose(FILE *stream);
+FILE *fdopen(int fd, const char *mode);
+int   fileno(FILE *stream);
+
+/* -----------------------------------------------------------------------
  * POSIX time functions — provided by VBCC posixlib.
  * Compile with -I$VBCC/posixlib/include to get declarations.
  * Link with $VBCC/posixlib/AmigaOS3/posix.lib for implementations.

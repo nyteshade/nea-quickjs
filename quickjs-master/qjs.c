@@ -39,24 +39,18 @@
 #ifdef __VBCC__
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] = "$VER: qjs 0.55 (4.4.2026)";
-
-/* amiga_force_color is defined in amiga_posix_stubs.c */
 extern int amiga_force_color;
-
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
 
 #elif defined(__SASC)
-/* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] = "$VER: qjs 0.49 (27.3.2026)";
 #include "amiga_ssl.h"
-
-/* amiga_force_color is defined in amiga_compat.c so standalone
- * apps (qjsc output) can link without qjs.o */
 extern int amiga_force_color;
-
 #include <proto/dos.h>
+#endif
 
+#if defined(__SASC) || defined(__VBCC__)
 /* Read S:QJS-Config.txt and inject options into argc/argv.
  * Format: one option per line (e.g. "--std").  Blank lines and
  * lines starting with '#' are ignored.  CLI args override config. */
@@ -77,40 +71,32 @@ static void amiga_load_config(int *pargc, char ***pargv)
     config_buf[i] = '\0';
 
     orig_argc = *pargc;
-    /* argv[0] is the program name */
     new_argc = 0;
     new_argv[new_argc++] = (*pargv)[0];
 
-    /* parse config lines into argv entries */
     p = config_buf;
     end = config_buf + i;
     while (p < end && new_argc < 60) {
-        /* skip whitespace */
         while (p < end && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'))
             p++;
         if (p >= end) break;
-        /* skip comment lines */
         if (*p == '#') {
             while (p < end && *p != '\n') p++;
             continue;
         }
-        /* extract token */
         new_argv[new_argc++] = p;
         while (p < end && *p != '\n' && *p != '\r')
             p++;
         if (p < end) *p++ = '\0';
-        /* trim trailing whitespace */
         {
             char *t = new_argv[new_argc - 1] + strlen(new_argv[new_argc - 1]) - 1;
             while (t >= new_argv[new_argc - 1] && (*t == ' ' || *t == '\t'))
                 *t-- = '\0';
         }
-        /* skip empty after trim */
         if (new_argv[new_argc - 1][0] == '\0')
             new_argc--;
     }
 
-    /* append original argv[1..] (CLI overrides config) */
     for (i = 1; i < orig_argc && new_argc < 63; i++)
         new_argv[new_argc++] = (*pargv)[i];
 

@@ -40,9 +40,9 @@ BRIDGE_SRC = $(LIBVBCC)/quickjs_bridge.c
 STUBS_SRC  = $(SRC)/amiga_posix_stubs.c
 COMPAT_SRC = $(SRC)/amiga_compat_vbcc.c
 
-# Bytecode modules (compiled by qjsc on host)
-REPL_SRC   = $(QJS)/repl.c
-STAND_SRC  = $(QJS)/standalone.c
+# Bytecode modules (compiled by qjsc on host, in gen/)
+REPL_SRC   = $(QJS)/gen/repl.c
+STAND_SRC  = $(QJS)/gen/standalone.c
 
 # Object files
 OBJS = $(OBJDIR)/qjs.o \
@@ -60,7 +60,7 @@ TARGET = $(OUTDIR)/qjs
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(VC) $(LDFLAGS) $(OBJS) -lposix -o $@
+	$(VC) $(LDFLAGS) $(OBJS) -lposix -lamiga -lm881 -o $@
 	@ls -la $@
 
 $(OBJDIR)/qjs.o: $(CLI_SRC) | $(OBJDIR)

@@ -29,6 +29,7 @@
 extern int amiga_force_color;
 #elif defined(__VBCC__)
 #include "amiga_compat_vbcc.h"
+#include <proto/exec.h>
 extern int amiga_force_color;
 #endif
 #include "quickjs.h"
@@ -3608,7 +3609,7 @@ static JSValue js_os_mkdstemp(JSContext *ctx, JSValueConst this_val,
 #undef PAT
 #endif /* !defined(_WIN32) && !defined(__wasi__) */
 
-#if !defined(_WIN32) && !defined(__SASC) || defined(__VBCC__)
+#if !defined(_WIN32) && !defined(__SASC) && !defined(__VBCC__)
 static int64_t timespec_to_ms(const struct timespec *tv)
 {
     return (int64_t)tv->tv_sec * 1000 + (tv->tv_nsec / 1000000);

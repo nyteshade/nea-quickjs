@@ -540,17 +540,17 @@ JSValue JS_NewArray(JSContext *ctx) {
     return result;
 }
 
-int JS_IsArray(JSContext *ctx, JSValueConst val) {
+bool JS_IsArray(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,444,F)((void*)QJSBase, &val);
 }
 
-int JS_IsFunction(JSContext *ctx, JSValueConst val) {
+bool JS_IsFunction(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
     return LVO(QJSBase,450,F)((void*)QJSBase, ctx, &val);
 }
 
-int JS_IsConstructor(JSContext *ctx, JSValueConst val) {
+bool JS_IsConstructor(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
     return LVO(QJSBase,456,F)((void*)QJSBase, ctx, &val);
 }
@@ -596,7 +596,7 @@ int JS_HasException(JSContext *ctx) {
     return LVO(QJSBase,486,F)((void*)QJSBase, ctx);
 }
 
-int JS_IsError(JSContext *ctx, JSValueConst val) {
+bool JS_IsError(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,492,F)((void*)QJSBase, &val);
 }
@@ -942,9 +942,7 @@ const char *JS_AtomToCStringLen(JSContext *ctx, size_t *plen, JSAtom atom) {
     return LVO(QJSBase,750,F)((void*)QJSBase, ctx, plen, (ULONG)atom);
 }
 
-const char *JS_AtomToCString(JSContext *ctx, JSAtom atom) {
-    return JS_AtomToCStringLen(ctx, NULL, atom);
-}
+/* JS_AtomToCString is static inline in quickjs.h — calls JS_AtomToCStringLen */
 
 JSAtom JS_ValueToAtom(JSContext *ctx, JSValueConst val) {
     typedef ULONG (*F)(R6, RA0 JSContext *, RA1 JSValue *);
@@ -1240,7 +1238,7 @@ JSValue JS_PromiseResult(JSContext *ctx, JSValue promise) {
     return result;
 }
 
-int JS_IsPromise(JSContext *ctx, JSValueConst val) {
+bool JS_IsPromise(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,936,F)((void*)QJSBase, &val);
 }
@@ -1284,7 +1282,7 @@ uint8_t *JS_GetArrayBuffer(JSContext *ctx, size_t *psize, JSValueConst obj) {
     return LVO(QJSBase,966,F)((void*)QJSBase, ctx, psize, &obj);
 }
 
-int JS_IsArrayBuffer(JSValueConst val) {
+bool JS_IsArrayBuffer(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,972,F)((void*)QJSBase, &val);
 }
@@ -1310,22 +1308,22 @@ JSValue JS_NewUint8ArrayCopy(JSContext *ctx, const uint8_t *buf, size_t len) {
  * 27. Type checks (LVO -996 to -1014)
  * =================================================================== */
 
-int JS_IsDate(JSValueConst val) {
+bool JS_IsDate(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,996,F)((void*)QJSBase, &val);
 }
 
-int JS_IsRegExp(JSValueConst val) {
+bool JS_IsRegExp(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,1002,F)((void*)QJSBase, &val);
 }
 
-int JS_IsMap(JSValueConst val) {
+bool JS_IsMap(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,1008,F)((void*)QJSBase, &val);
 }
 
-int JS_IsSet(JSValueConst val) {
+bool JS_IsSet(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
     return LVO(QJSBase,1014,F)((void*)QJSBase, &val);
 }
@@ -1334,7 +1332,7 @@ int JS_IsSet(JSValueConst val) {
  * 28. Symbol / Date / misc (LVO -1020 to -1038)
  * =================================================================== */
 
-JSValue JS_NewSymbol(JSContext *ctx, const char *description, int is_global) {
+JSValue JS_NewSymbol(JSContext *ctx, const char *description, bool is_global) {
     JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *, RD0 int);
     LVO(QJSBase,1020,F)((void*)QJSBase, &result, ctx, description, is_global);
@@ -1346,7 +1344,7 @@ void JS_SetIsHTMLDDA(JSContext *ctx, JSValueConst obj) {
     LVO(QJSBase,1032,F)((void*)QJSBase, ctx, &obj);
 }
 
-void JS_SetConstructorBit(JSContext *ctx, JSValueConst func, int val) {
+bool JS_SetConstructorBit(JSContext *ctx, JSValueConst func, bool val) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 int);
     LVO(QJSBase,1038,F)((void*)QJSBase, ctx, &func, val);
 }
@@ -1356,11 +1354,11 @@ void JS_SetConstructorBit(JSContext *ctx, JSValueConst func, int val) {
  * =================================================================== */
 
 void JS_ResetUncatchableError(JSContext *ctx) { /* stub */ }
-void JS_SetUncatchableError(JSContext *ctx, JSValueConst val, int flag) { /* stub */ }
+void JS_SetUncatchableError(JSContext *ctx, JSValueConst val) { /* stub */ }
 
-int JS_SetSharedArrayBufferFunctions(JSRuntime *rt,
-                                      const JSSharedArrayBufferFunctions *sf) {
-    return 0;
+void JS_SetSharedArrayBufferFunctions(JSRuntime *rt,
+                                       const JSSharedArrayBufferFunctions *sf) {
+    /* stub */
 }
 
 void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
@@ -1368,42 +1366,73 @@ void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
     /* stub */
 }
 
-JSValue JS_PrintValue(JSContext *ctx, FILE *fp, JSValueConst val,
-                       const JSPrintValueOptions *options) {
-    return JS_UNDEFINED;
+void JS_PrintValue(JSContext *ctx, JSPrintValueWrite *write_func,
+                    void *opaque, JSValueConst val,
+                    const JSPrintValueOptions *options) {
+    /* stub */
 }
 
-void JS_PrintValueSetDefaultOptions(const JSPrintValueOptions *options) { }
+void JS_PrintValueSetDefaultOptions(JSPrintValueOptions *options) { }
 
-JSValue JS_PrintValueRT(JSRuntime *rt, FILE *fp, JSValueConst val,
-                          const JSPrintValueOptions *options) {
-    return JS_UNDEFINED;
+void JS_PrintValueRT(JSRuntime *rt, JSPrintValueWrite *write_func,
+                      void *opaque, JSValueConst val,
+                      const JSPrintValueOptions *options) {
+    /* stub */
 }
 
-/* js_load_file helper used by quickjs-libc.c */
-uint8_t *js_load_file(JSContext *ctx, size_t *pbuf_len, const char *filename) {
-    FILE *f;
-    uint8_t *buf;
-    long lret;
+/* --- Missing function stubs --- */
 
-    f = fopen(filename, "rb");
-    if (!f) return NULL;
-    fseek(f, 0, SEEK_END);
-    lret = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (lret < 0 || lret == LONG_MAX) { fclose(f); return NULL; }
-    *pbuf_len = (size_t)lret;
-    buf = js_malloc(ctx, *pbuf_len + 1);
-    if (!buf) { fclose(f); return NULL; }
-    if (fread(buf, 1, *pbuf_len, f) != *pbuf_len) {
-        js_free(ctx, buf);
-        fclose(f);
-        return NULL;
+JSValue JS_NewArrayFrom(JSContext *ctx, int64_t len, JSValue *values) {
+    int64_t i;
+    JSValue arr = JS_NewArray(ctx);
+    if (JS_IsException(arr)) return arr;
+    for (i = 0; i < len; i++) {
+        JS_SetPropertyUint32(ctx, arr, (uint32_t)i, values[i]);
     }
-    buf[*pbuf_len] = '\0';
-    fclose(f);
-    return buf;
+    return arr;
 }
+
+JSValue JS_NewUint8Array(JSContext *ctx, uint8_t *buf, size_t len,
+                          JSFreeArrayBufferDataFunc *free_func, void *opaque,
+                          int is_shared) {
+    /* Simplified: copy the buffer */
+    return JS_NewUint8ArrayCopy(ctx, buf, len);
+}
+
+/* js_std_cmd — internal quickjs-libc command dispatch */
+int js_std_cmd(int cmd, ...) {
+    return 0; /* stub */
+}
+
+/* RT variants of malloc — use context-based versions via GetRuntime hack */
+void *js_mallocz_rt(JSRuntime *rt, size_t size) {
+    void *p = malloc(size);
+    if (p) memset(p, 0, size);
+    return p;
+}
+
+void *js_malloc_rt(JSRuntime *rt, size_t size) {
+    return malloc(size);
+}
+
+void js_free_rt(JSRuntime *rt, void *ptr) {
+    free(ptr);
+}
+
+void *js_realloc_rt(JSRuntime *rt, void *ptr, size_t size) {
+    return realloc(ptr, size);
+}
+
+const char *JS_ToCStringLenUTF16(JSContext *ctx, size_t *plen,
+                                   JSValueConst val, int cesu8) {
+    return JS_ToCStringLen2(ctx, plen, val, cesu8);
+}
+
+void JS_FreeCStringRT(JSRuntime *rt, const char *ptr) {
+    /* Can't easily free via RT without context — leak acceptable for stubs */
+}
+
+/* js_load_file — already provided by quickjs-libc.c, not needed here */
 
 /* js__has_suffix helper */
 int js__has_suffix(const char *str, const char *suffix) {
