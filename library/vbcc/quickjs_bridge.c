@@ -1616,7 +1616,40 @@ JSValue JS_NewUint8Array(JSContext *ctx, uint8_t *buf, size_t len,
     return JS_NewUint8ArrayCopy(ctx, buf, len);
 }
 
-int js_std_cmd(int cmd, ...) { return 0; }
+/* js_std_cmd dispatches GetOpaque/SetOpaque/ErrorBackTrace for quickjs-libc.
+ * The real implementation is in quickjs.c (inside the library) and accesses
+ * rt->libc_opaque. We implement it using the bridge's JS_Get/SetRuntimeOpaque. */
+uintptr_t js_std_cmd(int cmd, ...) {
+    va_list ap;
+    uintptr_t rv = 0;
+    va_start(ap, cmd);
+    switch (cmd) {
+    case 0: /* GetOpaque */
+        {
+            JSRuntime *rt = va_arg(ap, JSRuntime *);
+            rv = (uintptr_t)JS_GetRuntimeOpaque(rt);
+        }
+        break;
+    case 1: /* SetOpaque */
+        {
+            JSRuntime *rt = va_arg(ap, JSRuntime *);
+            void *opaque = va_arg(ap, void *);
+            JS_SetRuntimeOpaque(rt, opaque);
+        }
+        break;
+    case 2: /* ErrorBackTrace — not easily implemented via bridge */
+        {
+            JSContext *ctx = va_arg(ap, JSContext *);
+            JSValue *pv = va_arg(ap, JSValue *);
+            *pv = JS_UNDEFINED;
+        }
+        break;
+    default:
+        break;
+    }
+    va_end(ap);
+    return rv;
+}
 
 void *js_mallocz_rt(JSRuntime *rt, size_t size) {
     void *p = malloc(size);

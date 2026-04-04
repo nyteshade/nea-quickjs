@@ -756,7 +756,9 @@ start:
     JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
 
     /* exit on unhandled promise rejections */
+#ifndef QJS_USE_LIBRARY
     JS_SetHostPromiseRejectionTracker(rt, js_std_promise_rejection_tracker, NULL);
+#endif
 #ifdef QJS_USE_LIBRARY
     fprintf(stderr, "[qjs] setup complete, running...\n");
 #endif
@@ -822,8 +824,12 @@ start:
             JS_FreeValue(ctx, call_args[2]);
         } else if (expr) {
             int flags = (module > 0) ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
-            if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags))
+            fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
+            if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
+                fprintf(stderr, "[eval] FAILED\n"); fflush(stderr);
                 goto fail;
+            }
+            fprintf(stderr, "[eval] OK\n"); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */
             interactive = 1;
