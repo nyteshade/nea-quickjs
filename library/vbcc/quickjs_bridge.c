@@ -1317,11 +1317,48 @@ void JS_SetConstructor(JSContext *ctx, JSValueConst func, JSValueConst proto) {
     SA6; LVO(QJSBase,894,F)((void*)QJSBase, _sp0, &_sv0, &_sv1); RA6;
 }
 
-void JS_SetPropertyFunctionList(JSContext *ctx, JSValueConst obj,
+/* NOTE: Library's JS_SetPropertyFunctionList hangs when called via LVO
+ * (works internally during NewContext but not from external code).
+ * Workaround: implement using working primitives. */
+int JS_SetPropertyFunctionList(JSContext *ctx, JSValueConst obj,
                                  const JSCFunctionListEntry *tab, int len) {
-    typedef void (*F)(R6, RA0 void *, RA1 JSValue *, RA2 void *, RD0 int);
-    _sp0 = (void *)ctx; _sv0 = obj; _sp1 = (void *)tab; _si0 = (ULONG)len;
-    SA6; LVO(QJSBase,900,F)((void*)QJSBase, _sp0, &_sv0, _sp1, (int)_si0); RA6;
+    int i;
+    for (i = 0; i < len; i++) {
+        const JSCFunctionListEntry *e = &tab[i];
+        JSValue val;
+        switch (e->def_type) {
+        case 0: /* JS_DEF_CFUNC */
+            val = JS_NewCFunction2(ctx, e->u.func.cfunc.generic, e->name,
+                                   e->u.func.length, e->u.func.cproto, e->magic);
+            break;
+        case 1: /* JS_DEF_CGETSET */
+        case 5: /* JS_DEF_CGETSET_MAGIC */
+            /* TODO: getter/setter support */
+            continue;
+        case 2: /* JS_DEF_PROP_STRING */
+            val = JS_NewStringLen(ctx, e->u.str, strlen(e->u.str));
+            break;
+        case 3: /* JS_DEF_PROP_INT32 */
+            val = JS_NewInt32(ctx, e->u.i32);
+            break;
+        case 4: /* JS_DEF_PROP_INT64 */
+            val = JS_NewInt64(ctx, e->u.i64);
+            break;
+        case 6: /* JS_DEF_PROP_DOUBLE */
+            val = JS_NewNumber(ctx, e->u.f64);
+            break;
+        case 8: /* JS_DEF_PROP_UNDEFINED */
+            val = JS_UNDEFINED;
+            break;
+        case 10: /* JS_DEF_PROP_BOOL */
+            val = JS_NewBool(ctx, e->u.i32);
+            break;
+        default:
+            continue;
+        }
+        JS_DefinePropertyValueStr(ctx, obj, e->name, val, e->prop_flags);
+    }
+    return 0;
 }
 
 /* Stubs for NewCFunctionData, NewCClosure, etc. */
