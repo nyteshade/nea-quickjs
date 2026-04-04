@@ -1,0 +1,21 @@
+==id $VER: quickjs_lib.sfd 0.50 (03.4.2026)
+* "quickjs.library"
+==base _QJSBase
+==basetype struct QJSLibBase *
+==libname quickjs.library
+==bias 30
+==public
+struct JSRuntime *QJS_NewRuntime() ()
+void QJS_FreeRuntime(struct JSRuntime *rt) (a0)
+struct JSContext *QJS_NewContext(struct JSRuntime *rt) (a0)
+struct JSContext *QJS_NewContextRaw(struct JSRuntime *rt) (a0)
+void QJS_FreeContext(struct JSContext *ctx) (a0)
+const char *QJS_GetVersion() ()
+void QJS_SetMemoryLimit(struct JSRuntime *rt, ULONG limit) (a0,d0)
+void QJS_SetMaxStackSize(struct JSRuntime *rt, ULONG stack_size) (a0,d0)
+void QJS_RunGC(struct JSRuntime *rt) (a0)
+int QJS_AddBaseObjects(struct JSContext *ctx) (a0)
+int QJS_AddEval(struct JSContext *ctx) (a0)
+long QJS_EvalSimple(struct JSContext *ctx, const char *input, ULONG input_len) (a0,a1,d0)
+void QJS_Eval(JSValue *result, struct JSContext *ctx, const char *input, ULONG input_len, const char *filename, int eval_flags) (a0,a1,a2,d0,a3,d1)
+==end
