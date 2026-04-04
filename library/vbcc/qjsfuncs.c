@@ -200,6 +200,60 @@ extern int JS_NewClass(JSRuntime *rt, unsigned long class_id,
 extern int JS_IsRegisteredClass(JSRuntime *rt, unsigned long class_id);
 extern unsigned long JS_GetClassID(JSValue v);
 
+/* --- Batch 5 engine externs and types --- */
+typedef struct JSModuleDef JSModuleDef;
+typedef char *JSModuleNormalizeFunc(JSContext *ctx,
+    const char *module_base_name, const char *module_name, void *opaque);
+typedef JSModuleDef *JSModuleLoaderFunc(JSContext *ctx,
+    const char *module_name, void *opaque);
+typedef int JSModuleInitFunc(JSContext *ctx, JSModuleDef *m);
+typedef JSValue JSCFunction(JSContext *ctx, JSValue this_val,
+    int argc, JSValue *argv);
+typedef int JSInterruptHandler(JSRuntime *rt, void *opaque);
+typedef void JSHostPromiseRejectionTracker(JSContext *ctx, JSValue promise,
+    JSValue reason, int is_handled, void *opaque);
+extern void JS_SetModuleLoaderFunc(JSRuntime *rt,
+    JSModuleNormalizeFunc *module_normalize,
+    JSModuleLoaderFunc *module_loader, void *opaque);
+extern void JS_SetInterruptHandler(JSRuntime *rt, JSInterruptHandler *cb, void *opaque);
+extern void JS_SetHostPromiseRejectionTracker(JSRuntime *rt,
+    JSHostPromiseRejectionTracker *cb, void *opaque);
+extern void JS_SetCanBlock(JSRuntime *rt, int can_block);
+extern JSValue JS_GetImportMeta(JSContext *ctx, JSModuleDef *m);
+extern JSAtom JS_GetModuleName(JSContext *ctx, JSModuleDef *m);
+extern JSValue JS_GetModuleNamespace(JSContext *ctx, JSModuleDef *m);
+extern JSModuleDef *JS_NewCModule(JSContext *ctx, const char *name_str,
+    JSModuleInitFunc *func);
+extern int JS_AddModuleExport(JSContext *ctx, JSModuleDef *m, const char *name_str);
+extern int JS_SetModuleExport(JSContext *ctx, JSModuleDef *m,
+    const char *export_name, JSValue val);
+extern int JS_ResolveModule(JSContext *ctx, JSValue obj);
+extern JSAtom JS_GetScriptOrModuleName(JSContext *ctx, int n_stack_levels);
+extern JSValue JS_LoadModule(JSContext *ctx, const char *basename, const char *filename);
+extern JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func,
+    const char *name, int length, int cproto, int magic);
+extern int JS_SetConstructor(JSContext *ctx, JSValue func_obj, JSValue proto);
+extern int JS_SetPropertyFunctionList(JSContext *ctx, JSValue obj, const void *tab, int len);
+extern int JS_IsJobPending(JSRuntime *rt);
+extern int JS_ExecutePendingJob(JSRuntime *rt, JSContext **pctx);
+extern JSValue JS_NewPromiseCapability(JSContext *ctx, JSValue *resolving_funcs);
+extern int JS_PromiseState(JSContext *ctx, JSValue promise);
+extern JSValue JS_PromiseResult(JSContext *ctx, JSValue promise);
+extern int JS_IsPromise(JSValue val);
+extern JSValue JS_NewArrayBufferCopy(JSContext *ctx, const unsigned char *buf, size_t len);
+extern unsigned char *JS_GetArrayBuffer(JSContext *ctx, size_t *psize, JSValue obj);
+extern int JS_IsArrayBuffer(JSValue obj);
+extern void JS_DetachArrayBuffer(JSContext *ctx, JSValue obj);
+extern unsigned char *JS_GetUint8Array(JSContext *ctx, size_t *psize, JSValue obj);
+extern JSValue JS_NewUint8ArrayCopy(JSContext *ctx, const unsigned char *buf, size_t len);
+extern int JS_IsDate(JSValue val);
+extern int JS_IsRegExp(JSValue val);
+extern int JS_IsMap(JSValue val);
+extern int JS_IsSet(JSValue val);
+extern JSValue JS_NewSymbol(JSContext *ctx, const char *description, int is_global);
+extern void JS_SetIsHTMLDDA(JSContext *ctx, JSValue obj);
+extern int JS_SetConstructorBit(JSContext *ctx, JSValue func_obj, int val);
+
 /* ---- Serial debug output via RawPutChar (exec LVO -516) ---- */
 #define LVO_CALL(base, offset, type) ((type)((char *)(base) - (offset)))
 
@@ -1620,4 +1674,360 @@ ULONG QJS_GetClassID(
     __reg("a0") JSValue *val_ptr)
 {
     return (ULONG)JS_GetClassID(*val_ptr);
+}
+/* ---- Batch 5: Module wrapper implementations ---- */
+
+void QJS_SetModuleLoaderFunc(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *normalize_func,
+    __reg("a2") void *loader_func,
+    __reg("a3") void *opaque)
+{
+    JS_SetModuleLoaderFunc(rt,
+        (JSModuleNormalizeFunc *)normalize_func,
+        (JSModuleLoaderFunc *)loader_func,
+        opaque);
+}
+
+void QJS_GetImportMeta(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") void *m)
+{
+    *result = JS_GetImportMeta(ctx, (JSModuleDef *)m);
+}
+
+ULONG QJS_GetModuleName(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *m)
+{
+    return (ULONG)JS_GetModuleName(ctx, (JSModuleDef *)m);
+}
+
+void QJS_GetModuleNamespace(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") void *m)
+{
+    *result = JS_GetModuleNamespace(ctx, (JSModuleDef *)m);
+}
+
+void *QJS_NewCModule(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *name_str,
+    __reg("a2") void *func)
+{
+    return (void *)JS_NewCModule(ctx, name_str, (JSModuleInitFunc *)func);
+}
+
+int QJS_AddModuleExport(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *m,
+    __reg("a2") const char *name_str)
+{
+    return JS_AddModuleExport(ctx, (JSModuleDef *)m, name_str);
+}
+
+int QJS_SetModuleExport(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *m,
+    __reg("a2") const char *export_name,
+    __reg("a3") JSValue *val_ptr)
+{
+    return JS_SetModuleExport(ctx, (JSModuleDef *)m, export_name, *val_ptr);
+}
+
+int QJS_ResolveModule(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    return JS_ResolveModule(ctx, *obj_ptr);
+}
+
+ULONG QJS_GetScriptOrModuleName(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") int n_stack_levels)
+{
+    return (ULONG)JS_GetScriptOrModuleName(ctx, n_stack_levels);
+}
+
+/* ---- Batch 5: C Function wrapper implementations ---- */
+
+void QJS_NewCFunction2(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") void *func,
+    __reg("a3") const char *name,
+    __reg("d0") int length,
+    __reg("d1") int cproto,
+    __reg("d2") int magic)
+{
+    *result = JS_NewCFunction2(ctx, (JSCFunction *)func, name,
+                               length, cproto, magic);
+}
+
+int QJS_SetConstructor(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *func_ptr,
+    __reg("a2") JSValue *proto_ptr)
+{
+    return JS_SetConstructor(ctx, *func_ptr, *proto_ptr);
+}
+
+int QJS_SetPropertyFunctionList(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr,
+    __reg("a2") void *tab,
+    __reg("d0") int len)
+{
+    return JS_SetPropertyFunctionList(ctx, *obj_ptr, tab, len);
+}
+
+/* ---- Batch 5: Jobs/Pending wrapper implementations ---- */
+
+int QJS_IsJobPending(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt)
+{
+    return (int)JS_IsJobPending(rt);
+}
+
+int QJS_ExecutePendingJob(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *pctx)
+{
+    return JS_ExecutePendingJob(rt, (JSContext **)pctx);
+}
+
+/* ---- Batch 5: Promise wrapper implementations ---- */
+
+void QJS_NewPromiseCapability(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *resolving_funcs)
+{
+    *result = JS_NewPromiseCapability(ctx, resolving_funcs);
+}
+
+int QJS_PromiseState(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *promise_ptr)
+{
+    return (int)JS_PromiseState(ctx, *promise_ptr);
+}
+
+void QJS_PromiseResult(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *promise_ptr)
+{
+    *result = JS_PromiseResult(ctx, *promise_ptr);
+}
+
+int QJS_IsPromise(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsPromise(*val_ptr);
+}
+
+/* ---- Batch 5: Callback wrapper implementations ---- */
+
+void QJS_SetInterruptHandler(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *cb,
+    __reg("a2") void *opaque)
+{
+    JS_SetInterruptHandler(rt, (JSInterruptHandler *)cb, opaque);
+}
+
+void QJS_SetHostPromiseRejectionTracker(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *cb,
+    __reg("a2") void *opaque)
+{
+    JS_SetHostPromiseRejectionTracker(rt,
+        (JSHostPromiseRejectionTracker *)cb, opaque);
+}
+
+void QJS_SetCanBlock(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("d0") int can_block)
+{
+    JS_SetCanBlock(rt, can_block);
+}
+
+/* ---- Batch 5: ArrayBuffer wrapper implementations ---- */
+
+void QJS_NewArrayBufferCopy(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const unsigned char *buf,
+    __reg("d0") ULONG len)
+{
+    *result = JS_NewArrayBufferCopy(ctx, buf, (size_t)len);
+}
+
+unsigned char *QJS_GetArrayBuffer(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") ULONG *psize,
+    __reg("a2") JSValue *obj_ptr)
+{
+    size_t sz = 0;
+    unsigned char *r = JS_GetArrayBuffer(ctx, &sz, *obj_ptr);
+    if (psize) *psize = (ULONG)sz;
+    return r;
+}
+
+int QJS_IsArrayBuffer(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsArrayBuffer(*val_ptr);
+}
+
+void QJS_DetachArrayBuffer(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    JS_DetachArrayBuffer(ctx, *obj_ptr);
+}
+
+unsigned char *QJS_GetUint8Array(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") ULONG *psize,
+    __reg("a2") JSValue *obj_ptr)
+{
+    size_t sz = 0;
+    unsigned char *r = JS_GetUint8Array(ctx, &sz, *obj_ptr);
+    if (psize) *psize = (ULONG)sz;
+    return r;
+}
+
+void QJS_NewUint8ArrayCopy(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const unsigned char *buf,
+    __reg("d0") ULONG len)
+{
+    *result = JS_NewUint8ArrayCopy(ctx, buf, (size_t)len);
+}
+
+/* ---- Batch 5: Type check wrapper implementations ---- */
+
+int QJS_IsDate(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsDate(*val_ptr);
+}
+
+int QJS_IsRegExp(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsRegExp(*val_ptr);
+}
+
+int QJS_IsMap(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsMap(*val_ptr);
+}
+
+int QJS_IsSet(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr)
+{
+    return (int)JS_IsSet(*val_ptr);
+}
+
+/* ---- Batch 5: Symbol wrapper implementation ---- */
+
+void QJS_NewSymbol(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *description,
+    __reg("d0") int is_global)
+{
+    *result = JS_NewSymbol(ctx, description, is_global);
+}
+
+/* ---- Batch 5: NewDate wrapper implementation ---- */
+/*
+ * QuickJS-ng has no JS_NewDate() in its C API. We construct a Date object
+ * by calling `new Date(epoch_ms)` through the engine's JS_CallConstructor.
+ * The epoch_ms is passed as a double* because VBCC 68k can't pass doubles
+ * in registers.
+ */
+
+void QJS_NewDate(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") double *epoch_ms_ptr)
+{
+    JSValue global, date_ctor, arg;
+    global = JS_GetGlobalObject(ctx);
+    date_ctor = JS_GetPropertyStr(ctx, global, "Date");
+    arg = JS_NewNumber(ctx, *epoch_ms_ptr);
+    *result = JS_CallConstructor(ctx, date_ctor, 1, &arg);
+    JS_FreeValue(ctx, arg);
+    JS_FreeValue(ctx, date_ctor);
+    JS_FreeValue(ctx, global);
+}
+
+/* ---- Batch 5: Misc wrapper implementations ---- */
+
+void QJS_SetIsHTMLDDA(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *obj_ptr)
+{
+    JS_SetIsHTMLDDA(ctx, *obj_ptr);
+}
+
+int QJS_SetConstructorBit(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *func_ptr,
+    __reg("d0") int val)
+{
+    return JS_SetConstructorBit(ctx, *func_ptr, val);
+}
+
+void QJS_LoadModule(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *basename,
+    __reg("a3") const char *filename)
+{
+    *result = JS_LoadModule(ctx, basename, filename);
 }

@@ -820,6 +820,50 @@ ULONG QJS_GetClassID(
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr);
 
+/* --- Batch 5: Modules --- */
+void QJS_SetModuleLoaderFunc(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("a1") void *normalize_func, __reg("a2") void *loader_func, __reg("a3") void *opaque);
+void QJS_GetImportMeta(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") void *m);
+ULONG QJS_GetModuleName(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m);
+void QJS_GetModuleNamespace(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") void *m);
+void *QJS_NewCModule(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const char *name_str, __reg("a2") void *func);
+int QJS_AddModuleExport(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") const char *name_str);
+int QJS_SetModuleExport(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") const char *export_name, __reg("a3") JSValue *val_ptr);
+int QJS_ResolveModule(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *obj_ptr);
+ULONG QJS_GetScriptOrModuleName(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("d0") int n_stack_levels);
+/* --- Batch 5: C Functions --- */
+void QJS_NewCFunction2(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") void *func, __reg("a3") const char *name, __reg("d0") int length, __reg("d1") int cproto, __reg("d2") int magic);
+int QJS_SetConstructor(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *func_ptr, __reg("a2") JSValue *proto_ptr);
+int QJS_SetPropertyFunctionList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *obj_ptr, __reg("a2") void *tab, __reg("d0") int len);
+/* --- Batch 5: Jobs --- */
+int QJS_IsJobPending(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt);
+int QJS_ExecutePendingJob(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("a1") void *pctx);
+/* --- Batch 5: Promise --- */
+void QJS_NewPromiseCapability(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") JSValue *resolving_funcs);
+int QJS_PromiseState(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *promise_ptr);
+void QJS_PromiseResult(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") JSValue *promise_ptr);
+int QJS_IsPromise(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *val_ptr);
+/* --- Batch 5: Callbacks --- */
+void QJS_SetInterruptHandler(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("a1") void *cb, __reg("a2") void *opaque);
+void QJS_SetHostPromiseRejectionTracker(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("a1") void *cb, __reg("a2") void *opaque);
+void QJS_SetCanBlock(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("d0") int can_block);
+/* --- Batch 5: ArrayBuffer --- */
+void QJS_NewArrayBufferCopy(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") const unsigned char *buf, __reg("d0") ULONG len);
+unsigned char *QJS_GetArrayBuffer(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") ULONG *psize, __reg("a2") JSValue *obj_ptr);
+int QJS_IsArrayBuffer(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *val_ptr);
+void QJS_DetachArrayBuffer(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *obj_ptr);
+unsigned char *QJS_GetUint8Array(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") ULONG *psize, __reg("a2") JSValue *obj_ptr);
+void QJS_NewUint8ArrayCopy(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") const unsigned char *buf, __reg("d0") ULONG len);
+/* --- Batch 5: Type checks, Symbol, Date, Misc --- */
+int QJS_IsDate(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *val_ptr);
+int QJS_IsRegExp(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *val_ptr);
+int QJS_IsMap(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *val_ptr);
+int QJS_IsSet(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *val_ptr);
+void QJS_NewSymbol(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") const char *description, __reg("d0") int is_global);
+void QJS_NewDate(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") double *epoch_ms_ptr);
+void QJS_SetIsHTMLDDA(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *obj_ptr);
+int QJS_SetConstructorBit(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *func_ptr, __reg("d0") int val);
+void QJS_LoadModule(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") const char *basename, __reg("a3") const char *filename);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -973,6 +1017,42 @@ void QJS_Eval(
     (APTR) QJS_NewClassID, \
     (APTR) QJS_NewClass, \
     (APTR) QJS_IsRegisteredClass, \
-    (APTR) QJS_GetClassID
+    (APTR) QJS_GetClassID, \
+    (APTR) QJS_SetModuleLoaderFunc, \
+    (APTR) QJS_GetImportMeta, \
+    (APTR) QJS_GetModuleName, \
+    (APTR) QJS_GetModuleNamespace, \
+    (APTR) QJS_NewCModule, \
+    (APTR) QJS_AddModuleExport, \
+    (APTR) QJS_SetModuleExport, \
+    (APTR) QJS_ResolveModule, \
+    (APTR) QJS_GetScriptOrModuleName, \
+    (APTR) QJS_NewCFunction2, \
+    (APTR) QJS_SetConstructor, \
+    (APTR) QJS_SetPropertyFunctionList, \
+    (APTR) QJS_IsJobPending, \
+    (APTR) QJS_ExecutePendingJob, \
+    (APTR) QJS_NewPromiseCapability, \
+    (APTR) QJS_PromiseState, \
+    (APTR) QJS_PromiseResult, \
+    (APTR) QJS_IsPromise, \
+    (APTR) QJS_SetInterruptHandler, \
+    (APTR) QJS_SetHostPromiseRejectionTracker, \
+    (APTR) QJS_SetCanBlock, \
+    (APTR) QJS_NewArrayBufferCopy, \
+    (APTR) QJS_GetArrayBuffer, \
+    (APTR) QJS_IsArrayBuffer, \
+    (APTR) QJS_DetachArrayBuffer, \
+    (APTR) QJS_GetUint8Array, \
+    (APTR) QJS_NewUint8ArrayCopy, \
+    (APTR) QJS_IsDate, \
+    (APTR) QJS_IsRegExp, \
+    (APTR) QJS_IsMap, \
+    (APTR) QJS_IsSet, \
+    (APTR) QJS_NewSymbol, \
+    (APTR) QJS_NewDate, \
+    (APTR) QJS_SetIsHTMLDDA, \
+    (APTR) QJS_SetConstructorBit, \
+    (APTR) QJS_LoadModule
 
 #endif /* LIBRARYCONFIG_H */
