@@ -1,8 +1,12 @@
 /*
- * try_medium.c — Incremental test for qjs_medium.library
+ * try_medium.c — Incremental test for quickjs.library (VBCC build)
  *
  * Tests each step individually so the last printed line
  * tells us exactly where it crashed.
+ *
+ * Compile with SAS/C:
+ *   sc try_medium.c NOSTACKCHECK NOCHKABORT
+ *   slink lib:c.o try_medium.o TO try_medium LIB lib:scnb.lib lib:amiga.lib
  */
 #include <stdio.h>
 #include <string.h>
@@ -16,45 +20,84 @@ typedef struct { JSValueUnion u; long tag; } JSValue;
 typedef struct JSRuntime JSRuntime;
 typedef struct JSContext JSContext;
 
-/* Prototypes */
-JSRuntime *NewRuntime(void);
-void FreeRuntime(JSRuntime *rt);
-JSContext *NewContext(JSRuntime *rt);
-JSContext *NewContextRaw(JSRuntime *rt);
-void FreeContext(JSContext *ctx);
-const char *GetVersion(void);
-void InitDebugLog(void);
-unsigned long GetRuntimeFromCtx(JSContext *ctx);
-long GetFuncProtoTag(JSContext *ctx);
-int AddBaseObjects(JSContext *ctx);
-int AddEval(JSContext *ctx);
-void RunGC(JSRuntime *rt);
-void SetMemoryLimit(JSRuntime *rt, ULONG limit);
-void SetMaxStackSize(JSRuntime *rt, ULONG stack_size);
-void Eval(JSValue *result, JSContext *ctx, const char *input,
-          ULONG input_len, const char *filename, int eval_flags);
-long EvalSimple(JSContext *ctx, const char *input, ULONG input_len);
+/* Prototypes — match quickjs_lib.sfd */
+JSRuntime *QJS_NewRuntime(void);
+void QJS_FreeRuntime(JSRuntime *rt);
+JSContext *QJS_NewContext(JSRuntime *rt);
+JSContext *QJS_NewContextRaw(JSRuntime *rt);
+void QJS_FreeContext(JSContext *ctx);
+const char *QJS_GetVersion(void);
+void QJS_SetMemoryLimit(JSRuntime *rt, ULONG limit);
+void QJS_SetMaxStackSize(JSRuntime *rt, ULONG stack_size);
+void QJS_RunGC(JSRuntime *rt);
+int QJS_AddBaseObjects(JSContext *ctx);
+int QJS_AddEval(JSContext *ctx);
+int QJS_AddDate(JSContext *ctx);
+int QJS_AddRegExp(JSContext *ctx);
+int QJS_AddJSON(JSContext *ctx);
+int QJS_AddProxy(JSContext *ctx);
+int QJS_AddMapSet(JSContext *ctx);
+int QJS_AddTypedArrays(JSContext *ctx);
+int QJS_AddPromise(JSContext *ctx);
+int QJS_AddWeakRef(JSContext *ctx);
+int QJS_AddDOMException(JSContext *ctx);
+int QJS_AddPerformance(JSContext *ctx);
+long QJS_EvalSimple(JSContext *ctx, const char *input, ULONG input_len);
+void QJS_Eval(JSValue *result, JSContext *ctx, const char *input,
+              ULONG input_len, const char *filename, int eval_flags);
 
-struct Library *QJSMediumBase;
+struct Library *QJSBase;
 
-#pragma libcall QJSMediumBase NewRuntime        1e 0
-#pragma libcall QJSMediumBase FreeRuntime       24 801
-#pragma libcall QJSMediumBase NewContext        2a 801
-#pragma libcall QJSMediumBase NewContextRaw     30 801
-#pragma libcall QJSMediumBase FreeContext       36 801
-#pragma libcall QJSMediumBase GetVersion        3c 0
-#pragma libcall QJSMediumBase InitDebugLog      42 0
-#pragma libcall QJSMediumBase GetRuntimeFromCtx 48 801
-#pragma libcall QJSMediumBase GetFuncProtoTag   4e 801
-#pragma libcall QJSMediumBase AddBaseObjects    54 801
-#pragma libcall QJSMediumBase AddEval           5a 801
-#pragma libcall QJSMediumBase RunGC             60 801
-#pragma libcall QJSMediumBase SetMemoryLimit    66 0802
-#pragma libcall QJSMediumBase SetMaxStackSize   6c 0802
-#pragma libcall QJSMediumBase Eval              72 1B0A9806
-#pragma libcall QJSMediumBase EvalSimple        78 09803
+/* Pragma offsets from SFD (bias 30, 6 bytes per entry):
+ * QJS_NewRuntime      =  30 = 0x1e
+ * QJS_FreeRuntime     =  36 = 0x24
+ * QJS_NewContext      =  42 = 0x2a
+ * QJS_NewContextRaw   =  48 = 0x30
+ * QJS_FreeContext     =  54 = 0x36
+ * QJS_GetVersion      =  60 = 0x3c
+ * QJS_SetMemoryLimit  =  66 = 0x42
+ * QJS_SetMaxStackSize =  72 = 0x48
+ * QJS_RunGC           =  78 = 0x4e
+ * QJS_AddBaseObjects  =  84 = 0x54
+ * QJS_AddEval         =  90 = 0x5a
+ * QJS_AddDate         =  96 = 0x60
+ * QJS_AddRegExp       = 102 = 0x66
+ * QJS_AddJSON         = 108 = 0x6c
+ * QJS_AddProxy        = 114 = 0x72
+ * QJS_AddMapSet       = 120 = 0x78
+ * QJS_AddTypedArrays  = 126 = 0x7e
+ * QJS_AddPromise      = 132 = 0x84
+ * QJS_AddWeakRef      = 138 = 0x8a
+ * QJS_AddDOMException = 144 = 0x90
+ * QJS_AddPerformance  = 150 = 0x96
+ * QJS_EvalSimple      = 156 = 0x9c
+ * QJS_Eval            = 162 = 0xa2
+ */
+#pragma libcall QJSBase QJS_NewRuntime      1e 0
+#pragma libcall QJSBase QJS_FreeRuntime     24 801
+#pragma libcall QJSBase QJS_NewContext      2a 801
+#pragma libcall QJSBase QJS_NewContextRaw   30 801
+#pragma libcall QJSBase QJS_FreeContext     36 801
+#pragma libcall QJSBase QJS_GetVersion      3c 0
+#pragma libcall QJSBase QJS_SetMemoryLimit  42 0802
+#pragma libcall QJSBase QJS_SetMaxStackSize 48 0802
+#pragma libcall QJSBase QJS_RunGC           4e 801
+#pragma libcall QJSBase QJS_AddBaseObjects  54 801
+#pragma libcall QJSBase QJS_AddEval         5a 801
+#pragma libcall QJSBase QJS_AddDate         60 801
+#pragma libcall QJSBase QJS_AddRegExp       66 801
+#pragma libcall QJSBase QJS_AddJSON         6c 801
+#pragma libcall QJSBase QJS_AddProxy        72 801
+#pragma libcall QJSBase QJS_AddMapSet       78 801
+#pragma libcall QJSBase QJS_AddTypedArrays  7e 801
+#pragma libcall QJSBase QJS_AddPromise      84 801
+#pragma libcall QJSBase QJS_AddWeakRef      8a 801
+#pragma libcall QJSBase QJS_AddDOMException 90 801
+#pragma libcall QJSBase QJS_AddPerformance  96 801
+#pragma libcall QJSBase QJS_EvalSimple      9c 09803
+#pragma libcall QJSBase QJS_Eval            a2 1B0A9806
 
-static const char ver[] = "$VER: try_medium 3.2 (02.4.2026)";
+static const char ver[] = "$VER: try_medium 0.53 (04.4.2026)";
 
 /* Request 256KB stack */
 long __stack = 262144;
@@ -66,136 +109,149 @@ int main(int argc, char **argv)
     const char *v;
     int ret;
 
-    printf("qjs_medium.library v3.2 test\n");
-    printf("============================\n");
+    printf("quickjs.library v0.50 test\n");
+    printf("==========================\n");
 
-    QJSMediumBase = OpenLibrary("qjs_medium.library", 2);
-    if (!QJSMediumBase) {
-        printf("FATAL: Could not open qjs_medium.library v2+\n");
+    QJSBase = OpenLibrary("quickjs.library", 0);
+    if (!QJSBase) {
+        printf("FATAL: Could not open quickjs.library\n");
         return 20;
     }
-    printf("1. OpenLibrary OK (base=0x%lx, ver=%ld)\n",
-           (unsigned long)QJSMediumBase,
-           (long)QJSMediumBase->lib_Version);
-
-    /* Init debug log — writes to RAM:qjs_debug.log */
-    InitDebugLog();
-    printf("   debug log -> RAM:qjs_debug.log\n");
+    printf("1. OpenLibrary OK (base=0x%lx, ver=%ld.%ld)\n",
+           (unsigned long)QJSBase,
+           (long)QJSBase->lib_Version,
+           (long)QJSBase->lib_Revision);
 
     /* Step 2: GetVersion */
-    v = GetVersion();
+    v = QJS_GetVersion();
     printf("2. GetVersion = '%s'\n", v ? v : "(null)");
 
     /* Step 3: NewRuntime */
-    rt = NewRuntime();
+    rt = QJS_NewRuntime();
     printf("3. NewRuntime = 0x%lx\n", (unsigned long)rt);
     if (!rt) {
         printf("FATAL: NewRuntime returned NULL\n");
-        CloseLibrary(QJSMediumBase);
+        CloseLibrary(QJSBase);
         return 20;
     }
 
     /* Step 4-6: Simple operations */
-    SetMemoryLimit(rt, 8 * 1024 * 1024);
+    QJS_SetMemoryLimit(rt, 8 * 1024 * 1024);
     printf("4. SetMemoryLimit OK\n");
-    SetMaxStackSize(rt, 256 * 1024);
+    QJS_SetMaxStackSize(rt, 256 * 1024);
     printf("5. SetMaxStackSize OK\n");
-    RunGC(rt);
+    QJS_RunGC(rt);
     printf("6. RunGC OK\n");
 
     /* Step 7: NewContextRaw */
     printf("7. NewContextRaw...\n");
-    ctx = NewContextRaw(rt);
+    ctx = QJS_NewContextRaw(rt);
     printf("   = 0x%lx\n", (unsigned long)ctx);
     if (!ctx) {
         printf("FATAL: NewContextRaw returned NULL\n");
-        FreeRuntime(rt);
-        CloseLibrary(QJSMediumBase);
+        QJS_FreeRuntime(rt);
+        CloseLibrary(QJSBase);
         return 20;
     }
 
     /* Step 8: Free it */
-    FreeContext(ctx);
+    QJS_FreeContext(ctx);
     printf("8. FreeContext OK\n");
     ctx = NULL;
 
-    /* Step 9: Verify ctx, then try AddBaseObjects */
-    printf("9. NewContextRaw + verify + AddBaseObjects...\n");
-    ctx = NewContextRaw(rt);
+    /* Step 9: Build context with intrinsics one at a time */
+    printf("9. NewContextRaw...\n");
+    ctx = QJS_NewContextRaw(rt);
     printf("   ctx = 0x%lx\n", (unsigned long)ctx);
     if (!ctx) {
         printf("FATAL: NewContextRaw returned NULL\n");
-        FreeRuntime(rt);
-        CloseLibrary(QJSMediumBase);
-        return 20;
-    }
-    {
-        unsigned long rt_from_ctx = GetRuntimeFromCtx(ctx);
-        printf("   GetRuntime(ctx) = 0x%lx (rt was 0x%lx) %s\n",
-               rt_from_ctx, (unsigned long)rt,
-               rt_from_ctx == (unsigned long)rt ? "MATCH" : "MISMATCH!");
-    }
-    {
-        long fptag = GetFuncProtoTag(ctx);
-        printf("   function_proto tag = %ld (%s)\n", fptag,
-               fptag == -1 ? "JS_TAG_OBJECT OK" : "WRONG!");
-    }
-    printf("   calling AddBaseObjects...\n");
-    ret = AddBaseObjects(ctx);
-    printf("   AddBaseObjects = %d\n", ret);
-
-    /* Step 10: AddEval */
-    printf("10. AddEval...\n");
-    ret = AddEval(ctx);
-    printf("    AddEval = %d\n", ret);
-
-    /* Step 11: Full NewContext */
-    FreeContext(ctx);
-    ctx = NULL;
-    printf("11. Full NewContext...\n");
-    ctx = NewContext(rt);
-    printf("    = 0x%lx\n", (unsigned long)ctx);
-    if (!ctx) {
-        printf("FATAL: NewContext returned NULL\n");
-        FreeRuntime(rt);
-        CloseLibrary(QJSMediumBase);
+        QJS_FreeRuntime(rt);
+        CloseLibrary(QJSBase);
         return 20;
     }
 
-    /* Step 12: Eval — skip with NOEVAL argument */
+    printf("9a. AddBaseObjects...\n");
+    ret = QJS_AddBaseObjects(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9b. AddDate...\n");
+    ret = QJS_AddDate(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9c. AddEval...\n");
+    ret = QJS_AddEval(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9d. AddRegExp...\n");
+    ret = QJS_AddRegExp(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9e. AddJSON...\n");
+    ret = QJS_AddJSON(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9f. AddProxy...\n");
+    ret = QJS_AddProxy(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9g. AddMapSet...\n");
+    ret = QJS_AddMapSet(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9h. AddTypedArrays...\n");
+    ret = QJS_AddTypedArrays(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9i. AddPromise...\n");
+    ret = QJS_AddPromise(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9j. AddWeakRef...\n");
+    ret = QJS_AddWeakRef(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9k. AddDOMException...\n");
+    ret = QJS_AddDOMException(ctx);
+    printf("    = %d\n", ret);
+
+    printf("9l. AddPerformance...\n");
+    ret = QJS_AddPerformance(ctx);
+    printf("    = %d\n", ret);
+
+    printf("10. All intrinsics added!\n");
+
+    /* Step 11: Eval tests */
     if (argc > 1) {
-        printf("12. SKIPPED (argument provided)\n");
+        printf("11. Eval SKIPPED (argument provided)\n");
     } else {
         long sval;
 
-        /* 12a: EvalSimple — all inside library, no JSValue crossing boundary */
-        printf("12a. EvalSimple('42')...\n");
-        sval = EvalSimple(ctx, "42", 2);
+        printf("11a. EvalSimple('42')...\n");
+        sval = QJS_EvalSimple(ctx, "42", 2);
         printf("     = %ld (expect 42)\n", sval);
 
-        printf("12b. EvalSimple('1+1')...\n");
-        sval = EvalSimple(ctx, "1+1", 3);
+        printf("11b. EvalSimple('1+1')...\n");
+        sval = QJS_EvalSimple(ctx, "1+1", 3);
         printf("     = %ld (expect 2)\n", sval);
 
-        printf("12c. EvalSimple('2*21')...\n");
-        sval = EvalSimple(ctx, "2*21", 4);
+        printf("11c. EvalSimple('2*21')...\n");
+        sval = QJS_EvalSimple(ctx, "2*21", 4);
         printf("     = %ld (expect 42)\n", sval);
 
-        /* 12d: Full Eval with JSValue return */
-        printf("12d. Eval('1+1') with JSValue...\n");
+        printf("11d. Eval('1+1') with JSValue...\n");
         {
             JSValue result;
-            Eval(&result, ctx, "1+1", 3, "<test>", 0);
+            QJS_Eval(&result, ctx, "1+1", 3, "<test>", 0);
             printf("     tag=%ld val=%ld\n", result.tag, result.u.int32);
         }
 
-        printf("12. All eval tests passed\n");
+        printf("11. All eval tests passed\n");
     }
 
     /* Cleanup */
-    FreeContext(ctx);
-    FreeRuntime(rt);
-    CloseLibrary(QJSMediumBase);
+    QJS_FreeContext(ctx);
+    QJS_FreeRuntime(rt);
+    CloseLibrary(QJSBase);
     printf("Done! All steps passed.\n");
     return 0;
 }

@@ -57,7 +57,7 @@
 #define FLEX_ARRAY /* empty -- C99 flexible array */
 #endif
 
-#if defined(EMSCRIPTEN) || defined(_MSC_VER) || defined(__SASC)
+#if defined(EMSCRIPTEN) || defined(_MSC_VER) || defined(__SASC) || defined(__VBCC__)
 #define DIRECT_DISPATCH  0
 #else
 #define DIRECT_DISPATCH  1
@@ -75,6 +75,10 @@
 
 #if defined(__sun)
 #include <alloca.h>
+#define NO_TM_GMTOFF
+#endif
+
+#if defined(__VBCC__)
 #define NO_TM_GMTOFF
 #endif
 
@@ -419,7 +423,7 @@ typedef struct JSVarRef {
             uint8_t is_lexical; /* only used with global variables */
             uint8_t is_const; /* only used with global variables */
         } vflags; /* SAS/C C89: named struct */
-    };
+    } hdr;
     JSValue *pvalue; /* pointer to the value, either on the stack or
                         to 'value' */
     union {
@@ -428,7 +432,7 @@ typedef struct JSVarRef {
             uint16_t var_ref_idx; /* index in JSStackFrame.var_refs[] */
             JSStackFrame *stack_frame;
         } vstk; /* SAS/C C89: named struct */
-    };
+    } val;
 } JSVarRef;
 
 typedef struct JSRefCountHeader {
@@ -1038,7 +1042,11 @@ struct JSShape {
 };
 
 struct JSObject {
-    union {
+    /* header + hflags overlay the same memory. On compilers with
+       anonymous union support (C11+) they share an anonymous union.
+       For VBCC/SAS/C (no anonymous unions), we use a named union
+       and access macros JSO_HEADER/JSO_HFLAGS defined below. */
+    union JSObjectHdrUnion {
         JSGCObjectHeader header;
         struct {
             int __gc_ref_count; /* corresponds to header.ref_count */
@@ -1054,8 +1062,8 @@ struct JSObject {
             uint8_t tmp_mark : 1; /* used in JS_WriteObjectRec() */
             uint8_t is_HTMLDDA : 1; /* specific annex B IsHtmlDDA behavior */
             uint16_t class_id; /* see JS_CLASS_x */
-        } hflags; /* SAS/C C89: named struct -- anonymous structs not supported */
-    };
+        } hflags;
+    } ob1;
     /* byte offsets: 16/24 */
     JSShape *shape; /* prototype and property names + flag */
     JSProperty *prop; /* array of properties */
@@ -3769,7 +3777,7 @@ JSClassID JS_GetClassID(JSValueConst v)
   if (JS_VALUE_GET_TAG(v) != JS_TAG_OBJECT)
     return JS_INVALID_CLASS_ID;
   p = JS_VALUE_GET_OBJ(v);
-  return p->hflags.class_id;
+  return p->ob1.hflags.class_id;
 }
 
 bool JS_IsRegisteredClass(JSRuntime *rt, JSClassID class_id)
@@ -4450,7 +4458,7 @@ static JSValue js_force_tostring(JSContext *ctx, JSValueConst val1)
     if (JS_VALUE_GET_TAG(val1) != JS_TAG_OBJECT)
         return JS_EXCEPTION;
     p = JS_VALUE_GET_OBJ(val1);
-    if (p->hflags.class_id != JS_CLASS_ERROR)
+    if (p->ob1.hflags.class_id != JS_CLASS_ERROR)
         return JS_EXCEPTION;
     val = JS_GetProperty(ctx, val1, JS_ATOM_message);
     if (JS_VALUE_GET_TAG(val) != JS_TAG_STRING) {
@@ -5714,16 +5722,16 @@ static JSValue JS_NewObjectFromShape(JSContext *ctx, JSShape *sh, JSClassID clas
     p = js_malloc(ctx, sizeof(JSObject));
     if (unlikely(!p))
         goto fail;
-    p->hflags.class_id = class_id;
-    p->hflags.extensible = true;
-    p->hflags.free_mark = 0;
-    p->hflags.is_exotic = 0;
-    p->hflags.fast_array = 0;
-    p->hflags.is_constructor = 0;
-    p->hflags.is_uncatchable_error = 0;
-    p->hflags.tmp_mark = 0;
-    p->hflags.is_HTMLDDA = 0;
-    p->hflags.is_prototype = 0;
+    p->ob1.hflags.class_id = class_id;
+    p->ob1.hflags.extensible = true;
+    p->ob1.hflags.free_mark = 0;
+    p->ob1.hflags.is_exotic = 0;
+    p->ob1.hflags.fast_array = 0;
+    p->ob1.hflags.is_constructor = 0;
+    p->ob1.hflags.is_uncatchable_error = 0;
+    p->ob1.hflags.tmp_mark = 0;
+    p->ob1.hflags.is_HTMLDDA = 0;
+    p->ob1.hflags.is_prototype = 0;
     p->first_weak_ref = NULL;
     p->u.opaque = NULL;
     p->shape = sh;
@@ -5748,8 +5756,8 @@ static JSValue JS_NewObjectFromShape(JSContext *ctx, JSShape *sh, JSClassID clas
     case JS_CLASS_ARRAY:
         {
             JSProperty *pr;
-            p->hflags.is_exotic = 1;
-            p->hflags.fast_array = 1;
+            p->ob1.hflags.is_exotic = 1;
+            p->ob1.hflags.fast_array = 1;
             p->u.array.u.values = NULL;
             p->u.array.count = 0;
             p->u.array.u1.size = 0;
@@ -5785,8 +5793,8 @@ static JSValue JS_NewObjectFromShape(JSContext *ctx, JSShape *sh, JSClassID clas
     case JS_CLASS_FLOAT16_ARRAY:
     case JS_CLASS_FLOAT32_ARRAY:
     case JS_CLASS_FLOAT64_ARRAY:
-        p->hflags.is_exotic = 1;
-        p->hflags.fast_array = 1;
+        p->ob1.hflags.is_exotic = 1;
+        p->ob1.hflags.fast_array = 1;
         p->u.array.u.ptr = NULL;
         p->u.array.count = 0;
         break;
@@ -5809,12 +5817,12 @@ static JSValue JS_NewObjectFromShape(JSContext *ctx, JSShape *sh, JSClassID clas
     default:
     set_exotic:
         if (ctx->rt->class_array[class_id].exotic) {
-            p->hflags.is_exotic = 1;
+            p->ob1.hflags.is_exotic = 1;
         }
         break;
     }
-    p->header.ref_count = 1;
-    add_gc_object(ctx->rt, &p->header, JS_GC_OBJ_TYPE_JS_OBJECT);
+    p->ob1.header.ref_count = 1;
+    add_gc_object(ctx->rt, &p->ob1.header, JS_GC_OBJ_TYPE_JS_OBJECT);
     if (props) {
         for(i = 0; i < sh->prop_count; i++)
             p->prop[i] = props[i];
@@ -5870,7 +5878,7 @@ static int JS_SetObjectData(JSContext *ctx, JSValueConst obj, JSValue val)
 
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         p = JS_VALUE_GET_OBJ(obj);
-        switch(p->hflags.class_id) {
+        switch(p->ob1.hflags.class_id) {
         case JS_CLASS_NUMBER:
         case JS_CLASS_STRING:
         case JS_CLASS_BOOLEAN:
@@ -6040,7 +6048,7 @@ static JSFunctionBytecode *JS_GetFunctionBytecode(JSValueConst val)
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return NULL;
     p = JS_VALUE_GET_OBJ(val);
-    if (!js_class_has_bytecode(p->hflags.class_id))
+    if (!js_class_has_bytecode(p->ob1.hflags.class_id))
         return NULL;
     return p->u.func.function_bytecode;
 }
@@ -6054,7 +6062,7 @@ static void js_method_set_home_object(JSContext *ctx, JSValue func_obj,
     if (JS_VALUE_GET_TAG(func_obj) != JS_TAG_OBJECT)
         return;
     p = JS_VALUE_GET_OBJ(func_obj);
-    if (!js_class_has_bytecode(p->hflags.class_id))
+    if (!js_class_has_bytecode(p->ob1.hflags.class_id))
         return;
     b = p->u.func.function_bytecode;
     if (b->need_home_object) {
@@ -6129,7 +6137,7 @@ JSValue JS_NewCFunction3(JSContext *ctx, JSCFunction *func,
     p->u.cfunc.length = length;
     p->u.cfunc.cproto = cproto;
     p->u.cfunc.magic = magic;
-    p->hflags.is_constructor = (cproto == JS_CFUNC_constructor ||
+    p->ob1.hflags.is_constructor = (cproto == JS_CFUNC_constructor ||
                          cproto == JS_CFUNC_constructor_magic ||
                          cproto == JS_CFUNC_constructor_or_func ||
                          cproto == JS_CFUNC_constructor_or_func_magic);
@@ -6455,15 +6463,15 @@ static inline JSShapeProperty *find_own_property(JSProperty **ppr,
 static void free_var_ref(JSRuntime *rt, JSVarRef *var_ref)
 {
     if (var_ref) {
-        assert(var_ref->header.ref_count > 0);
-        if (--var_ref->header.ref_count == 0) {
-            if (var_ref->vflags.is_detached) {
-                JS_FreeValueRT(rt, var_ref->value);
-                remove_gc_object(&var_ref->header);
+        assert(var_ref->hdr.header.ref_count > 0);
+        if (--var_ref->hdr.header.ref_count == 0) {
+            if (var_ref->hdr.vflags.is_detached) {
+                JS_FreeValueRT(rt, var_ref->val.value);
+                remove_gc_object(&var_ref->hdr.header);
             } else {
-                JSStackFrame *sf = var_ref->vstk.stack_frame;
-                assert(sf->var_refs[var_ref->vstk.var_ref_idx] == var_ref);
-                sf->var_refs[var_ref->vstk.var_ref_idx] = NULL;
+                JSStackFrame *sf = var_ref->val.vstk.stack_frame;
+                assert(sf->var_refs[var_ref->val.vstk.var_ref_idx] == var_ref);
+                sf->var_refs[var_ref->val.vstk.var_ref_idx] = NULL;
             }
             js_free_rt(rt, var_ref);
         }
@@ -6562,8 +6570,8 @@ static void js_bytecode_function_mark(JSRuntime *rt, JSValueConst val,
         if (var_refs) {
             for(i = 0; i < b->closure_var_count; i++) {
                 JSVarRef *var_ref = var_refs[i];
-                if (var_ref && var_ref->vflags.is_detached) {
-                    mark_func(rt, &var_ref->header);
+                if (var_ref && var_ref->hdr.vflags.is_detached) {
+                    mark_func(rt, &var_ref->hdr.header);
                 }
             }
         }
@@ -6623,7 +6631,7 @@ static void free_object(JSRuntime *rt, JSObject *p)
     JSShape *sh;
     JSShapeProperty *pr;
 
-    p->hflags.free_mark = 1; /* used to tell the object is invalid when
+    p->ob1.hflags.free_mark = 1; /* used to tell the object is invalid when
                          freeing cycles */
     /* free all the fields */
     sh = p->shape;
@@ -6645,19 +6653,19 @@ static void free_object(JSRuntime *rt, JSObject *p)
         reset_weak_ref(rt, &p->first_weak_ref);
     }
 
-    finalizer = rt->class_array[p->hflags.class_id].finalizer;
+    finalizer = rt->class_array[p->ob1.hflags.class_id].finalizer;
     if (finalizer)
         (*finalizer)(rt, JS_MKPTR(JS_TAG_OBJECT, p));
 
     /* fail safe */
-    p->hflags.class_id = 0;
+    p->ob1.hflags.class_id = 0;
     p->u.opaque = NULL;
     p->u.func.var_refs = NULL;
     p->u.func.home_object = NULL;
 
-    remove_gc_object(&p->header);
-    if (rt->gc_phase == JS_GC_PHASE_REMOVE_CYCLES && p->header.ref_count != 0) {
-        list_add_tail(&p->header.link, &rt->gc_zero_ref_count_list);
+    remove_gc_object(&p->ob1.header);
+    if (rt->gc_phase == JS_GC_PHASE_REMOVE_CYCLES && p->ob1.header.ref_count != 0) {
+        list_add_tail(&p->ob1.header.link, &rt->gc_zero_ref_count_list);
     } else {
         js_free_rt(rt, p);
     }
@@ -6841,14 +6849,14 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
                     if (prs->flags & JS_PROP_TMASK) {
                         if ((prs->flags & JS_PROP_TMASK) == JS_PROP_GETSET) {
                             if (pr->u.getset.getter)
-                                mark_func(rt, &pr->u.getset.getter->header);
+                                mark_func(rt, &pr->u.getset.getter->ob1.header);
                             if (pr->u.getset.setter)
-                                mark_func(rt, &pr->u.getset.setter->header);
+                                mark_func(rt, &pr->u.getset.setter->ob1.header);
                         } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_VARREF) {
-                            if (pr->u.var_ref->vflags.is_detached) {
+                            if (pr->u.var_ref->hdr.vflags.is_detached) {
                                 /* Note: the tag does not matter
                                    provided it is a GC object */
-                                mark_func(rt, &pr->u.var_ref->header);
+                                mark_func(rt, &pr->u.var_ref->hdr.header);
                             }
                         } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_AUTOINIT) {
                             js_autoinit_mark(rt, pr, mark_func);
@@ -6864,9 +6872,9 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
                 mark_weak_map_value(rt, p->first_weak_ref, mark_func);
             }
 
-            if (p->hflags.class_id != JS_CLASS_OBJECT) {
+            if (p->ob1.hflags.class_id != JS_CLASS_OBJECT) {
                 JSClassGCMark *gc_mark;
-                gc_mark = rt->class_array[p->hflags.class_id].gc_mark;
+                gc_mark = rt->class_array[p->ob1.hflags.class_id].gc_mark;
                 if (gc_mark)
                     gc_mark(rt, JS_MKPTR(JS_TAG_OBJECT, p), mark_func);
             }
@@ -6888,7 +6896,7 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
         {
             JSVarRef *var_ref = (JSVarRef *)gp;
             /* only detached variable referenced are taken into account */
-            assert(var_ref->vflags.is_detached);
+            assert(var_ref->hdr.vflags.is_detached);
             JS_MarkValue(rt, *var_ref->pvalue, mark_func);
         }
         break;
@@ -6905,7 +6913,7 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
         {
             JSShape *sh = (JSShape *)gp;
             if (sh->proto != NULL) {
-                mark_func(rt, &sh->proto->header);
+                mark_func(rt, &sh->proto->ob1.header);
             }
         }
         break;
@@ -7062,7 +7070,7 @@ bool JS_IsLiveObject(JSRuntime *rt, JSValueConst obj)
     if (!JS_IsObject(obj))
         return false;
     p = JS_VALUE_GET_OBJ(obj);
-    return !p->hflags.free_mark;
+    return !p->ob1.hflags.free_mark;
 }
 
 /* Compute memory used by various object types */
@@ -7181,7 +7189,7 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
                     if (me->export_type == JS_EXPORT_TYPE_LOCAL && me->u.local.var_ref) {
                         /* potential multiple count */
                         s->memory_used_count += 1;
-                        compute_value_size(me->u.local.var_ref->value, hp);
+                        compute_value_size(me->u.local.var_ref->val.value, hp);
                     }
                 }
             }
@@ -7234,11 +7242,11 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
             s->shape_size += get_shape_size(hash_size, sh->prop_size);
         }
 
-        switch(p->hflags.class_id) {
+        switch(p->ob1.hflags.class_id) {
         case JS_CLASS_ARRAY:             /* u.array | length */
         case JS_CLASS_ARGUMENTS:         /* u.array | length */
             s->array_count++;
-            if (p->hflags.fast_array) {
+            if (p->ob1.hflags.fast_array) {
                 s->fast_array_count++;
                 if (p->u.array.u.values) {
                     s->memory_used_count++;
@@ -7272,13 +7280,13 @@ void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s)
                     s->js_func_size += b->closure_var_count * sizeof(*var_refs);
                     for (i = 0; i < b->closure_var_count; i++) {
                         if (var_refs[i]) {
-                            double ref_count = var_refs[i]->header.ref_count;
+                            double ref_count = var_refs[i]->hdr.header.ref_count;
                             s->memory_used_count += 1 / ref_count;
                             s->js_func_size += sizeof(*var_refs[i]) / ref_count;
                             /* handle non object closed values */
-                            if (var_refs[i]->pvalue == &var_refs[i]->value) {
+                            if (var_refs[i]->pvalue == &var_refs[i]->val.value) {
                                 /* potential multiple count */
-                                compute_value_size(var_refs[i]->value, hp);
+                                compute_value_size(var_refs[i]->val.value, hp);
                             }
                         }
                     }
@@ -7468,7 +7476,7 @@ void JS_DumpMemoryUsage(FILE *fp, const JSMemoryUsage *s, JSRuntime *rt)
                 JSObject *p;
                 if (gp->gc_obj_type == JS_GC_OBJ_TYPE_JS_OBJECT) {
                     p = (JSObject *)gp;
-                    obj_classes[min_uint32(p->hflags.class_id, JS_CLASS_INIT_COUNT)]++;
+                    obj_classes[min_uint32(p->ob1.hflags.class_id, JS_CLASS_INIT_COUNT)]++;
                 }
             }
             fprintf(fp, "\n" "JSObject classes\n");
@@ -7714,7 +7722,7 @@ static bool can_add_backtrace(JSValueConst obj)
     if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(obj);
-    if (p->hflags.class_id != JS_CLASS_ERROR && p->hflags.class_id != JS_CLASS_DOM_EXCEPTION)
+    if (p->ob1.hflags.class_id != JS_CLASS_ERROR && p->ob1.hflags.class_id != JS_CLASS_DOM_EXCEPTION)
         return false;
     if (find_own_property1(p, JS_ATOM_stack))
         return false;
@@ -7825,7 +7833,7 @@ static void build_backtrace(JSContext *ctx, JSValueConst error_val,
         b = NULL;
         backtrace_barrier = false;
 
-        if (js_class_has_bytecode(p->hflags.class_id)) {
+        if (js_class_has_bytecode(p->ob1.hflags.class_id)) {
             b = p->u.func.function_bytecode;
             backtrace_barrier = b->backtrace_barrier;
         }
@@ -8113,7 +8121,7 @@ static JSValue JS_ThrowTypeErrorNotAConstructor(JSContext *ctx,
     if (JS_TAG_OBJECT != JS_VALUE_GET_TAG(func_obj))
         goto fini;
     p = JS_VALUE_GET_OBJ(func_obj);
-    if (!js_class_has_bytecode(p->hflags.class_id))
+    if (!js_class_has_bytecode(p->ob1.hflags.class_id))
         goto fini;
     name = p->u.func.function_bytecode->func_name;
     if (name == JS_ATOM_NULL)
@@ -8234,7 +8242,7 @@ static int JS_SetPrototypeInternal(JSContext *ctx, JSValueConst obj,
     if (throw_flag && JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
         return true;
 
-    if (unlikely(p->hflags.class_id == JS_CLASS_PROXY))
+    if (unlikely(p->ob1.hflags.class_id == JS_CLASS_PROXY))
         return js_proxy_setPrototypeOf(ctx, obj, proto_val, throw_flag);
     sh = p->shape;
     if (sh->proto == proto)
@@ -8246,7 +8254,7 @@ static int JS_SetPrototypeInternal(JSContext *ctx, JSValueConst obj,
         }
         return false;
     }
-    if (!p->hflags.extensible) {
+    if (!p->ob1.hflags.extensible) {
         if (throw_flag) {
             JS_ThrowTypeError(ctx, "object is not extensible");
             return -1;
@@ -8279,8 +8287,8 @@ static int JS_SetPrototypeInternal(JSContext *ctx, JSValueConst obj,
         JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, sh->proto));
     sh->proto = proto;
     if (proto)
-        proto->hflags.is_prototype = true;
-    if (p->hflags.is_prototype) {
+        proto->ob1.hflags.is_prototype = true;
+    if (p->ob1.hflags.is_prototype) {
         /* track modification of Array.prototype */
         if (unlikely(p == JS_VALUE_GET_OBJ(ctx->class_proto[JS_CLASS_ARRAY]))) {
             ctx->std_array_prototype = false;
@@ -8335,7 +8343,7 @@ JSValue JS_GetPrototype(JSContext *ctx, JSValueConst obj)
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         JSObject *p;
         p = JS_VALUE_GET_OBJ(obj);
-        if (unlikely(p->hflags.class_id == JS_CLASS_PROXY)) {
+        if (unlikely(p->ob1.hflags.class_id == JS_CLASS_PROXY)) {
             val = js_proxy_getPrototypeOf(ctx, obj);
         } else {
             p = p->shape->proto;
@@ -8378,7 +8386,7 @@ static int JS_OrdinaryIsInstanceOf(JSContext *ctx, JSValueConst val,
     if (!JS_IsFunction(ctx, obj))
         return false;
     p = JS_VALUE_GET_OBJ(obj);
-    if (p->hflags.class_id == JS_CLASS_BOUND_FUNCTION) {
+    if (p->ob1.hflags.class_id == JS_CLASS_BOUND_FUNCTION) {
         JSBoundFunction *s = p->u.bound_function;
         return JS_IsInstanceOf(ctx, val, s->func_obj);
     }
@@ -8399,7 +8407,7 @@ static int JS_OrdinaryIsInstanceOf(JSContext *ctx, JSValueConst val,
         proto1 = p->shape->proto;
         if (!proto1) {
             /* slow case if proxy in the prototype chain */
-            if (unlikely(p->hflags.class_id == JS_CLASS_PROXY)) {
+            if (unlikely(p->ob1.hflags.class_id == JS_CLASS_PROXY)) {
                 JSValue obj1;
                 obj1 = js_dup(JS_MKPTR(JS_TAG_OBJECT, (JSObject *)p));
                 for(;;) {
@@ -8728,18 +8736,18 @@ static JSValue JS_GetPropertyInternal(JSContext *ctx, JSValueConst obj,
                 return js_dup(pr->u.value);
             }
         }
-        if (unlikely(p->hflags.is_exotic)) {
+        if (unlikely(p->ob1.hflags.is_exotic)) {
             /* exotic behaviors */
-            if (p->hflags.fast_array) {
+            if (p->ob1.hflags.fast_array) {
                 if (__JS_AtomIsTaggedInt(prop)) {
                     uint32_t idx = __JS_AtomToUInt32(prop);
                     if (idx < p->u.array.count) {
                         /* we avoid duplicating the code */
                         return JS_GetPropertyUint32(ctx, JS_MKPTR(JS_TAG_OBJECT, p), idx);
-                    } else if (is_typed_array(p->hflags.class_id)) {
+                    } else if (is_typed_array(p->ob1.hflags.class_id)) {
                         return JS_UNDEFINED;
                     }
-                } else if (is_typed_array(p->hflags.class_id)) {
+                } else if (is_typed_array(p->ob1.hflags.class_id)) {
                     int ret;
                     ret = JS_AtomIsNumericIndex(ctx, prop);
                     if (ret != 0) {
@@ -8749,7 +8757,7 @@ static JSValue JS_GetPropertyInternal(JSContext *ctx, JSValueConst obj,
                     }
                 }
             } else {
-                const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+                const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
                 if (em) {
                     if (em->get_property) {
                         JSValue obj1, retval;
@@ -8962,7 +8970,7 @@ static int JS_CheckBrand(JSContext *ctx, JSValue obj, JSValue func)
     if (unlikely(JS_VALUE_GET_TAG(func) != JS_TAG_OBJECT))
         goto not_obj;
     p1 = JS_VALUE_GET_OBJ(func);
-    if (!js_class_has_bytecode(p1->hflags.class_id))
+    if (!js_class_has_bytecode(p1->ob1.hflags.class_id))
         goto not_obj;
     home_obj = p1->u.func.home_object;
     if (!home_obj)
@@ -9090,17 +9098,17 @@ static int __exception JS_GetOwnPropertyNamesInternal(JSContext *ctx,
         }
     }
 
-    if (p->hflags.is_exotic) {
-        if (p->hflags.fast_array) {
+    if (p->ob1.hflags.is_exotic) {
+        if (p->ob1.hflags.fast_array) {
             if (flags & JS_GPN_STRING_MASK) {
                 num_keys_count += p->u.array.count;
             }
-        } else if (p->hflags.class_id == JS_CLASS_STRING) {
+        } else if (p->ob1.hflags.class_id == JS_CLASS_STRING) {
             if (flags & JS_GPN_STRING_MASK) {
                 num_keys_count += js_string_obj_get_length(ctx, JS_MKPTR(JS_TAG_OBJECT, p));
             }
         } else {
-            const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+            const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
             if (em && em->get_own_property_names) {
                 if (em->get_own_property_names(ctx, &tab_exotic, &exotic_count,
                                                JS_MKPTR(JS_TAG_OBJECT, p)))
@@ -9172,14 +9180,14 @@ static int __exception JS_GetOwnPropertyNamesInternal(JSContext *ctx,
         }
     }
 
-    if (p->hflags.is_exotic) {
+    if (p->ob1.hflags.is_exotic) {
         int len;
-        if (p->hflags.fast_array) {
+        if (p->ob1.hflags.fast_array) {
             if (flags & JS_GPN_STRING_MASK) {
                 len = p->u.array.count;
                 goto add_array_keys;
             }
-        } else if (p->hflags.class_id == JS_CLASS_STRING) {
+        } else if (p->ob1.hflags.class_id == JS_CLASS_STRING) {
             if (flags & JS_GPN_STRING_MASK) {
                 len = js_string_obj_get_length(ctx, JS_MKPTR(JS_TAG_OBJECT, p));
             add_array_keys:
@@ -9289,8 +9297,8 @@ retry:
         }
         return true;
     }
-    if (p->hflags.is_exotic) {
-        if (p->hflags.fast_array) {
+    if (p->ob1.hflags.is_exotic) {
+        if (p->ob1.hflags.fast_array) {
             /* specific case for fast arrays */
             if (__JS_AtomIsTaggedInt(prop)) {
                 uint32_t idx;
@@ -9299,7 +9307,7 @@ retry:
                     if (desc) {
                         desc->flags = JS_PROP_WRITABLE | JS_PROP_ENUMERABLE |
                             JS_PROP_CONFIGURABLE;
-                        if (is_typed_array(p->hflags.class_id) && typed_array_is_immutable(p)) {
+                        if (is_typed_array(p->ob1.hflags.class_id) && typed_array_is_immutable(p)) {
                             desc->flags &= ~JS_PROP_WRITABLE;
                             desc->flags &= ~JS_PROP_CONFIGURABLE;
                         }
@@ -9311,7 +9319,7 @@ retry:
                 }
             }
         } else {
-            const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+            const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
             if (em && em->get_own_property) {
                 return em->get_own_property(ctx, desc,
                                             JS_MKPTR(JS_TAG_OBJECT, p), prop);
@@ -9345,10 +9353,10 @@ int JS_IsExtensible(JSContext *ctx, JSValueConst obj)
     if (unlikely(JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT))
         return false;
     p = JS_VALUE_GET_OBJ(obj);
-    if (unlikely(p->hflags.class_id == JS_CLASS_PROXY))
+    if (unlikely(p->ob1.hflags.class_id == JS_CLASS_PROXY))
         return js_proxy_isExtensible(ctx, obj);
     else
-        return p->hflags.extensible;
+        return p->ob1.hflags.extensible;
 }
 
 /* return -1 if exception (Proxy object only) or true/false */
@@ -9359,9 +9367,9 @@ int JS_PreventExtensions(JSContext *ctx, JSValueConst obj)
     if (unlikely(JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT))
         return false;
     p = JS_VALUE_GET_OBJ(obj);
-    if (unlikely(p->hflags.class_id == JS_CLASS_PROXY))
+    if (unlikely(p->ob1.hflags.class_id == JS_CLASS_PROXY))
         return js_proxy_preventExtensions(ctx, obj);
-    p->hflags.extensible = false;
+    p->ob1.hflags.extensible = false;
     return true;
 }
 
@@ -9376,8 +9384,8 @@ int JS_HasProperty(JSContext *ctx, JSValueConst obj, JSAtom prop)
         return false;
     p = JS_VALUE_GET_OBJ(obj);
     for(;;) {
-        if (p->hflags.is_exotic) {
-            const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+        if (p->ob1.hflags.is_exotic) {
+            const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
             if (em && em->has_property) {
                 /* has_property can free the prototype */
                 obj1 = js_dup(JS_MKPTR(JS_TAG_OBJECT, p));
@@ -9392,7 +9400,7 @@ int JS_HasProperty(JSContext *ctx, JSValueConst obj, JSAtom prop)
         JS_FreeValue(ctx, JS_MKPTR(JS_TAG_OBJECT, p));
         if (ret != 0)
             return ret;
-        if (is_typed_array(p->hflags.class_id)) {
+        if (is_typed_array(p->ob1.hflags.class_id)) {
             ret = JS_AtomIsNumericIndex(ctx, prop);
             if (ret != 0) {
                 if (ret < 0)
@@ -9450,7 +9458,7 @@ JSAtom JS_ValueToAtom(JSContext *ctx, JSValueConst val)
 static bool js_get_fast_array_element(JSContext *ctx, JSObject *p,
                                       uint32_t idx, JSValue *pval)
 {
-    switch(p->hflags.class_id) {
+    switch(p->ob1.hflags.class_id) {
     case JS_CLASS_ARRAY:
     case JS_CLASS_ARGUMENTS:
         if (unlikely(idx >= p->u.array.count)) return false;
@@ -9636,7 +9644,7 @@ static JSProperty *add_property(JSContext *ctx,
 {
     JSShape *sh, *new_sh;
 
-    if (unlikely(p->hflags.is_prototype)) {
+    if (unlikely(p->ob1.hflags.is_prototype)) {
         /* track addition of small integer properties to
            Array.prototype and Object.prototype */
         if (unlikely((p == JS_VALUE_GET_OBJ(ctx->class_proto[JS_CLASS_ARRAY]) ||
@@ -9706,7 +9714,7 @@ static no_inline __exception int convert_fast_array_to_array(JSContext *ctx,
             return -1;
     }
 
-    if (p->hflags.class_id == JS_CLASS_MAPPED_ARGUMENTS) {
+    if (p->ob1.hflags.class_id == JS_CLASS_MAPPED_ARGUMENTS) {
         JSVarRef **tab = p->u.array.u.var_refs;
         for(i = 0; i < len; i++) {
             /* add_property cannot fail here but
@@ -9727,7 +9735,7 @@ static no_inline __exception int convert_fast_array_to_array(JSContext *ctx,
     p->u.array.count = 0;
     p->u.array.u.values = NULL; /* fail safe */
     p->u.array.u1.size = 0;
-    p->hflags.fast_array = 0;
+    p->ob1.hflags.fast_array = 0;
     return 0;
 }
 
@@ -9786,17 +9794,17 @@ static int delete_property(JSContext *ctx, JSObject *p, JSAtom atom)
         h = pr->hash_next;
     }
 
-    if (p->hflags.is_exotic) {
-        if (p->hflags.fast_array) {
+    if (p->ob1.hflags.is_exotic) {
+        if (p->ob1.hflags.fast_array) {
             uint32_t idx;
             if (JS_AtomIsArrayIndex(ctx, &idx, atom) &&
                 idx < p->u.array.count) {
-                if (p->hflags.class_id == JS_CLASS_ARRAY ||
-                    p->hflags.class_id == JS_CLASS_ARGUMENTS ||
-                    p->hflags.class_id == JS_CLASS_MAPPED_ARGUMENTS) {
+                if (p->ob1.hflags.class_id == JS_CLASS_ARRAY ||
+                    p->ob1.hflags.class_id == JS_CLASS_ARGUMENTS ||
+                    p->ob1.hflags.class_id == JS_CLASS_MAPPED_ARGUMENTS) {
                     /* Special case deleting the last element of a fast Array */
                     if (idx == p->u.array.count - 1) {
-                        if (p->hflags.class_id == JS_CLASS_MAPPED_ARGUMENTS) {
+                        if (p->ob1.hflags.class_id == JS_CLASS_MAPPED_ARGUMENTS) {
                             free_var_ref(ctx->rt, p->u.array.u.var_refs[idx]);
                         } else {
                             JS_FreeValue(ctx, p->u.array.u.values[idx]);
@@ -9812,7 +9820,7 @@ static int delete_property(JSContext *ctx, JSObject *p, JSAtom atom)
                 }
             }
         } else {
-            const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+            const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
             if (em && em->delete_property) {
                 return em->delete_property(ctx, JS_MKPTR(JS_TAG_OBJECT, p), atom);
             }
@@ -9862,7 +9870,7 @@ static int set_array_length(JSContext *ctx, JSObject *p, JSValue val,
     if (unlikely(!(p->shape->prop[0].flags & JS_PROP_WRITABLE)))
         return JS_ThrowTypeErrorReadOnly(ctx, flags, JS_ATOM_length);
 
-    if (likely(p->hflags.fast_array)) {
+    if (likely(p->ob1.hflags.fast_array)) {
         uint32_t old_len = p->u.array.count;
         if (len < old_len) {
             for(i = len; i < old_len; i++) {
@@ -9955,8 +9963,8 @@ static int expand_fast_array(JSContext *ctx, JSObject *p, uint32_t new_len)
     return 0;
 }
 
-/* Preconditions: 'p' must be of class JS_CLASS_ARRAY, p->hflags.fast_array =
-   true and p->hflags.extensible = true */
+/* Preconditions: 'p' must be of class JS_CLASS_ARRAY, p->ob1.hflags.fast_array =
+   true and p->ob1.hflags.extensible = true */
 static int add_fast_array_element(JSContext *ctx, JSObject *p,
                                   JSValue val, int flags)
 {
@@ -10039,7 +10047,7 @@ retry:
             set_value(ctx, &pr->u.value, val);
             return true;
         } else if (prs->flags & JS_PROP_LENGTH) {
-            assert(p->hflags.class_id == JS_CLASS_ARRAY);
+            assert(p->ob1.hflags.class_id == JS_CLASS_ARRAY);
             assert(prop == JS_ATOM_length);
             return set_array_length(ctx, p, val, flags);
         } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_GETSET) {
@@ -10048,7 +10056,7 @@ retry:
             /* JS_PROP_WRITABLE is always true for variable
                references, but they are write protected in module name
                spaces. */
-            if (p->hflags.class_id == JS_CLASS_MODULE_NS)
+            if (p->ob1.hflags.class_id == JS_CLASS_MODULE_NS)
                 goto read_only_prop;
             set_value(ctx, pr->u.var_ref->pvalue, val);
             return true;
@@ -10063,8 +10071,8 @@ retry:
     }
 
     for(;;) {
-        if (p1->hflags.is_exotic) {
-            if (p1->hflags.fast_array) {
+        if (p1->ob1.hflags.is_exotic) {
+            if (p1->ob1.hflags.fast_array) {
                 if (__JS_AtomIsTaggedInt(prop)) {
                     uint32_t idx = __JS_AtomToUInt32(prop);
                     if (idx < p1->u.array.count) {
@@ -10072,18 +10080,18 @@ retry:
                             return JS_SetPropertyValue(ctx, this_obj, js_int32(idx), val, flags);
                         else
                             break;
-                    } else if (is_typed_array(p1->hflags.class_id)) {
+                    } else if (is_typed_array(p1->ob1.hflags.class_id)) {
                         goto typed_array_oob;
                     }
-                } else if (is_typed_array(p1->hflags.class_id)) {
+                } else if (is_typed_array(p1->ob1.hflags.class_id)) {
                     ret = JS_AtomIsNumericIndex(ctx, prop);
                     if (ret != 0) {
                         if (ret < 0)
                             goto fail;
                     typed_array_oob:
                         /* per spec: evaluate value for side effects */
-                        if (p1->hflags.class_id == JS_CLASS_BIG_INT64_ARRAY ||
-                            p1->hflags.class_id == JS_CLASS_BIG_UINT64_ARRAY) {
+                        if (p1->ob1.hflags.class_id == JS_CLASS_BIG_INT64_ARRAY ||
+                            p1->ob1.hflags.class_id == JS_CLASS_BIG_UINT64_ARRAY) {
                             int64_t v;
                             if (JS_ToBigInt64Free(ctx, &v, val))
                                 return -1;
@@ -10097,7 +10105,7 @@ retry:
                     }
                 }
             } else {
-                const JSClassExoticMethods *em = ctx->rt->class_array[p1->hflags.class_id].exotic;
+                const JSClassExoticMethods *em = ctx->rt->class_array[p1->ob1.hflags.class_id].exotic;
                 if (em) {
                     JSValue obj1;
                     if (em->set_property) {
@@ -10180,14 +10188,14 @@ retry:
         goto done;
     }
 
-    if (unlikely(!p->hflags.extensible)) {
+    if (unlikely(!p->ob1.hflags.extensible)) {
         ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "object is not extensible");
         goto done;
     }
 
     if (p == JS_VALUE_GET_OBJ(obj)) {
-        if (p->hflags.is_exotic) {
-            if (p->hflags.class_id == JS_CLASS_ARRAY && p->hflags.fast_array &&
+        if (p->ob1.hflags.is_exotic) {
+            if (p->ob1.hflags.class_id == JS_CLASS_ARRAY && p->ob1.hflags.fast_array &&
                 __JS_AtomIsTaggedInt(prop)) {
                 uint32_t idx = __JS_AtomToUInt32(prop);
                 if (idx == p->u.array.count) {
@@ -10220,7 +10228,7 @@ retry:
             ret = JS_ThrowTypeErrorOrFalse(ctx, flags, "setter is forbidden");
             goto done;
         } else if (!(desc.flags & JS_PROP_WRITABLE) ||
-                   p->hflags.class_id == JS_CLASS_MODULE_NS) {
+                   p->ob1.hflags.class_id == JS_CLASS_MODULE_NS) {
         read_only_prop:
             ret = JS_ThrowTypeErrorReadOnly(ctx, flags, prop);
             goto done;
@@ -10272,13 +10280,13 @@ static int JS_SetPropertyValue(JSContext *ctx, JSValueConst this_obj,
         /* fast path for array access */
         p = JS_VALUE_GET_OBJ(this_obj);
         idx = JS_VALUE_GET_INT(prop);
-        switch(p->hflags.class_id) {
+        switch(p->ob1.hflags.class_id) {
         case JS_CLASS_ARRAY:
             if (unlikely(idx >= (uint32_t)p->u.array.count)) {
                 /* fast path to add an element to the array */
                 if (unlikely(idx != (uint32_t)p->u.array.count ||
-                             !p->hflags.fast_array ||
-                             !p->hflags.extensible ||
+                             !p->ob1.hflags.fast_array ||
+                             !p->ob1.hflags.extensible ||
                              p->shape->proto != JS_VALUE_GET_OBJ(ctx->class_proto[JS_CLASS_ARRAY]) ||
                              !ctx->std_array_prototype)) {
                     goto slow_path;
@@ -10477,15 +10485,15 @@ static int JS_CreateProperty(JSContext *ctx, JSObject *p,
     int ret, prop_flags;
 
     /* add a new property or modify an existing exotic one */
-    if (p->hflags.is_exotic) {
-        if (p->hflags.class_id == JS_CLASS_ARRAY) {
+    if (p->ob1.hflags.is_exotic) {
+        if (p->ob1.hflags.class_id == JS_CLASS_ARRAY) {
             uint32_t idx, len;
 
-            if (p->hflags.fast_array) {
+            if (p->ob1.hflags.fast_array) {
                 if (__JS_AtomIsTaggedInt(prop)) {
                     idx = __JS_AtomToUInt32(prop);
                     if (idx == p->u.array.count) {
-                        if (!p->hflags.extensible)
+                        if (!p->ob1.hflags.extensible)
                             goto not_extensible;
                         if (flags & (JS_PROP_HAS_GET | JS_PROP_HAS_SET))
                             goto convert_to_array;
@@ -10521,7 +10529,7 @@ static int JS_CreateProperty(JSContext *ctx, JSObject *p,
                     set_value(ctx, &plen->u.value, js_uint32(len));
                 }
             }
-        } else if (is_typed_array(p->hflags.class_id)) {
+        } else if (is_typed_array(p->ob1.hflags.class_id)) {
             ret = JS_AtomIsNumericIndex(ctx, prop);
             if (ret != 0) {
                 if (ret < 0)
@@ -10529,7 +10537,7 @@ static int JS_CreateProperty(JSContext *ctx, JSObject *p,
                 return JS_ThrowTypeErrorOrFalse(ctx, flags, "cannot create numeric index in typed array");
             }
         } else if (!(flags & JS_PROP_NO_EXOTIC)) {
-            const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+            const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
             if (em) {
                 if (em->define_own_property) {
                     return em->define_own_property(ctx, JS_MKPTR(JS_TAG_OBJECT, p),
@@ -10544,7 +10552,7 @@ static int JS_CreateProperty(JSContext *ctx, JSObject *p,
         }
     }
 
-    if (!p->hflags.extensible) {
+    if (!p->ob1.hflags.extensible) {
     not_extensible:
         return JS_ThrowTypeErrorOrFalse(ctx, flags, "object is not extensible");
     }
@@ -10785,7 +10793,7 @@ int JS_DefineProperty(JSContext *ctx, JSValueConst this_obj,
                 }
                 if ((prs->flags & JS_PROP_TMASK) == JS_PROP_VARREF) {
                     if (flags & JS_PROP_HAS_VALUE) {
-                        if (p->hflags.class_id == JS_CLASS_MODULE_NS) {
+                        if (p->ob1.hflags.class_id == JS_CLASS_MODULE_NS) {
                             /* JS_PROP_WRITABLE is always true for variable
                                references, but they are write protected in module name
                                spaces. */
@@ -10852,10 +10860,10 @@ int JS_DefineProperty(JSContext *ctx, JSValueConst this_obj,
     }
 
     /* handle modification of fast array elements */
-    if (p->hflags.fast_array) {
+    if (p->ob1.hflags.fast_array) {
         uint32_t idx;
         uint32_t prop_flags;
-        if (p->hflags.class_id == JS_CLASS_ARRAY) {
+        if (p->ob1.hflags.class_id == JS_CLASS_ARRAY) {
             if (__JS_AtomIsTaggedInt(prop)) {
                 idx = __JS_AtomToUInt32(prop);
                 if (idx < p->u.array.count) {
@@ -10875,7 +10883,7 @@ int JS_DefineProperty(JSContext *ctx, JSValueConst this_obj,
                     return true;
                 }
             }
-        } else if (is_typed_array(p->hflags.class_id)) {
+        } else if (is_typed_array(p->ob1.hflags.class_id)) {
             JSValue num;
             int ret;
 
@@ -11109,7 +11117,7 @@ static int JS_CheckDefineGlobalVar(JSContext *ctx, JSAtom prop, int flags)
         if (prs && !(prs->flags & JS_PROP_CONFIGURABLE))
             goto fail_redeclaration;
     } else {
-        if (!prs && !p->hflags.extensible)
+        if (!prs && !p->ob1.hflags.extensible)
             goto define_error;
         if (flags & DEFINE_GLOBAL_FUNC_VAR) {
             if (prs) {
@@ -11161,7 +11169,7 @@ static int JS_DefineGlobalVar(JSContext *ctx, JSAtom prop, int def_flags)
     prs = find_own_property1(p, prop);
     if (prs)
         return 0;
-    if (!p->hflags.extensible)
+    if (!p->ob1.hflags.extensible)
         return 0;
     pr = add_property(ctx, p, prop, flags);
     if (unlikely(!pr))
@@ -11385,13 +11393,13 @@ bool JS_IsFunction(JSContext *ctx, JSValueConst val)
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(val);
-    switch(p->hflags.class_id) {
+    switch(p->ob1.hflags.class_id) {
     case JS_CLASS_BYTECODE_FUNCTION:
         return true;
     case JS_CLASS_PROXY:
         return p->u.proxy_data->is_func;
     default:
-        return (ctx->rt->class_array[p->hflags.class_id].call != NULL);
+        return (ctx->rt->class_array[p->ob1.hflags.class_id].call != NULL);
     }
 }
 
@@ -11402,7 +11410,7 @@ static bool JS_IsCFunction(JSContext *ctx, JSValueConst val, JSCFunction *func,
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(val);
-    if (p->hflags.class_id == JS_CLASS_C_FUNCTION)
+    if (p->ob1.hflags.class_id == JS_CLASS_C_FUNCTION)
         return (p->u.cfunc.c_function.generic == func && p->u.cfunc.magic == magic);
     else
         return false;
@@ -11414,7 +11422,7 @@ bool JS_IsConstructor(JSContext *ctx, JSValueConst val)
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(val);
-    return p->hflags.is_constructor;
+    return p->ob1.hflags.is_constructor;
 }
 
 bool JS_SetConstructorBit(JSContext *ctx, JSValueConst func_obj, bool val)
@@ -11423,7 +11431,7 @@ bool JS_SetConstructorBit(JSContext *ctx, JSValueConst func_obj, bool val)
     if (JS_VALUE_GET_TAG(func_obj) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(func_obj);
-    p->hflags.is_constructor = val;
+    p->ob1.hflags.is_constructor = val;
     return true;
 }
 
@@ -11474,7 +11482,7 @@ bool JS_IsUncatchableError(JSValueConst val)
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(val);
-    return p->hflags.class_id == JS_CLASS_ERROR && p->hflags.is_uncatchable_error;
+    return p->ob1.hflags.class_id == JS_CLASS_ERROR && p->ob1.hflags.is_uncatchable_error;
 }
 
 static void js_set_uncatchable_error(JSContext *ctx, JSValueConst val, bool flag)
@@ -11483,8 +11491,8 @@ static void js_set_uncatchable_error(JSContext *ctx, JSValueConst val, bool flag
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return;
     p = JS_VALUE_GET_OBJ(val);
-    if (p->hflags.class_id == JS_CLASS_ERROR)
-        p->hflags.is_uncatchable_error = flag;
+    if (p->ob1.hflags.class_id == JS_CLASS_ERROR)
+        p->ob1.hflags.is_uncatchable_error = flag;
 }
 
 void JS_SetUncatchableError(JSContext *ctx, JSValueConst val)
@@ -11508,7 +11516,7 @@ int JS_SetOpaque(JSValueConst obj, void *opaque)
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         p = JS_VALUE_GET_OBJ(obj);
         /* User code can't set the opaque of internal objects. */
-        if (p->hflags.class_id >= JS_CLASS_INIT_COUNT) {
+        if (p->ob1.hflags.class_id >= JS_CLASS_INIT_COUNT) {
             p->u.opaque = opaque;
             return 0;
         }
@@ -11523,7 +11531,7 @@ static void JS_SetOpaqueInternal(JSValueConst obj, void *opaque)
     JSObject *p;
     assert(JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT);
     p = JS_VALUE_GET_OBJ(obj);
-    assert(p->hflags.class_id < JS_CLASS_INIT_COUNT);
+    assert(p->ob1.hflags.class_id < JS_CLASS_INIT_COUNT);
     p->u.opaque = opaque;
 }
 
@@ -11534,7 +11542,7 @@ void *JS_GetOpaque(JSValueConst obj, JSClassID class_id)
     if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
         return NULL;
     p = JS_VALUE_GET_OBJ(obj);
-    if (p->hflags.class_id != class_id)
+    if (p->ob1.hflags.class_id != class_id)
         return NULL;
     return p->u.opaque;
 }
@@ -11556,7 +11564,7 @@ void *JS_GetAnyOpaque(JSValueConst obj, JSClassID *class_id)
         return NULL;
     }
     p = JS_VALUE_GET_OBJ(obj);
-    *class_id = p->hflags.class_id;
+    *class_id = p->ob1.hflags.class_id;
     return p->u.opaque;
 }
 
@@ -11645,7 +11653,7 @@ void JS_SetIsHTMLDDA(JSContext *ctx, JSValueConst obj)
     if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
         return;
     p = JS_VALUE_GET_OBJ(obj);
-    p->hflags.is_HTMLDDA = true;
+    p->ob1.hflags.is_HTMLDDA = true;
 }
 
 static inline bool JS_IsHTMLDDA(JSContext *ctx, JSValueConst obj)
@@ -11654,7 +11662,7 @@ static inline bool JS_IsHTMLDDA(JSContext *ctx, JSValueConst obj)
     if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(obj);
-    return p->hflags.is_HTMLDDA;
+    return p->ob1.hflags.is_HTMLDDA;
 }
 
 static int JS_ToBoolFree(JSContext *ctx, JSValue val)
@@ -11705,7 +11713,7 @@ static int JS_ToBoolFree(JSContext *ctx, JSValue val)
     case JS_TAG_OBJECT:
         {
             JSObject *p = JS_VALUE_GET_OBJ(val);
-            bool ret = !p->hflags.is_HTMLDDA;
+            bool ret = !p->ob1.hflags.is_HTMLDDA;
             JS_FreeValue(ctx, val);
             return ret;
         }
@@ -14210,7 +14218,7 @@ static __maybe_unused void JS_DumpObject(JSRuntime *rt, JSObject *p)
     sh = p->shape; /* the shape can be NULL while freeing an object */
     printf("%14p %4d ",
            (void *)p,
-           p->header.ref_count);
+           p->ob1.header.ref_count);
     if (sh) {
         printf("%3d%c %14p ",
                sh->header.ref_count,
@@ -14220,13 +14228,13 @@ static __maybe_unused void JS_DumpObject(JSRuntime *rt, JSObject *p)
         printf("%3s  %14s ", "-", "-");
     }
     printf("%10s ",
-           JS_AtomGetStrRT(rt, atom_buf, sizeof(atom_buf), rt->class_array[p->hflags.class_id].class_name));
-    if (p->hflags.is_exotic && p->hflags.fast_array) {
+           JS_AtomGetStrRT(rt, atom_buf, sizeof(atom_buf), rt->class_array[p->ob1.hflags.class_id].class_name));
+    if (p->ob1.hflags.is_exotic && p->ob1.hflags.fast_array) {
         printf("[ ");
         for(i = 0; i < p->u.array.count; i++) {
             if (i != 0)
                 printf(", ");
-            switch (p->hflags.class_id) {
+            switch (p->ob1.hflags.class_id) {
             case JS_CLASS_ARRAY:
             case JS_CLASS_ARGUMENTS:
                 JS_DumpValue(rt, p->u.array.u.values[i]);
@@ -14244,7 +14252,7 @@ static __maybe_unused void JS_DumpObject(JSRuntime *rt, JSObject *p)
             case JS_CLASS_FLOAT32_ARRAY:
             case JS_CLASS_FLOAT64_ARRAY:
                 {
-                    int size = 1 << typed_array_size_log2(p->hflags.class_id);
+                    int size = 1 << typed_array_size_log2(p->ob1.hflags.class_id);
                     const uint8_t *b = p->u.array.u.uint8_ptr + i * size;
                     while (size-- > 0)
                         printf("%02X", *b++);
@@ -14283,7 +14291,7 @@ static __maybe_unused void JS_DumpObject(JSRuntime *rt, JSObject *p)
         printf(" }");
     }
 
-    if (js_class_has_bytecode(p->hflags.class_id)) {
+    if (js_class_has_bytecode(p->ob1.hflags.class_id)) {
         JSFunctionBytecode *b = p->u.func.function_bytecode;
         JSVarRef **var_refs;
         if (b->closure_var_count) {
@@ -14291,7 +14299,7 @@ static __maybe_unused void JS_DumpObject(JSRuntime *rt, JSObject *p)
             printf(" Closure:");
             for(i = 0; i < b->closure_var_count; i++) {
                 printf(" ");
-                JS_DumpValue(rt, var_refs[i]->value);
+                JS_DumpValue(rt, var_refs[i]->val.value);
             }
             if (p->u.func.home_object) {
                 printf(" HomeObject: ");
@@ -14415,7 +14423,7 @@ static __maybe_unused void JS_DumpValue(JSRuntime *rt, JSValueConst val)
     case JS_TAG_OBJECT:
         {
             JSObject *p = JS_VALUE_GET_OBJ(val);
-            JSAtom atom = rt->class_array[p->hflags.class_id].class_name;
+            JSAtom atom = rt->class_array[p->ob1.hflags.class_id].class_name;
             char atom_buf[ATOM_GET_STR_BUF_SIZE];
             printf("[%s %p]",
                    JS_AtomGetStrRT(rt, atom_buf, sizeof(atom_buf), atom), (void *)p);
@@ -14442,7 +14450,7 @@ bool JS_IsArray(JSValueConst val)
 {
     if (JS_VALUE_GET_TAG(val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(val);
-        return p->hflags.class_id == JS_CLASS_ARRAY;
+        return p->ob1.hflags.class_id == JS_CLASS_ARRAY;
     }
     return false;
 }
@@ -14453,10 +14461,10 @@ static int js_is_array(JSContext *ctx, JSValueConst val)
     JSObject *p;
     if (JS_VALUE_GET_TAG(val) == JS_TAG_OBJECT) {
         p = JS_VALUE_GET_OBJ(val);
-        if (unlikely(p->hflags.class_id == JS_CLASS_PROXY))
+        if (unlikely(p->ob1.hflags.class_id == JS_CLASS_PROXY))
             return js_proxy_isArray(ctx, val);
         else
-            return p->hflags.class_id == JS_CLASS_ARRAY;
+            return p->ob1.hflags.class_id == JS_CLASS_ARRAY;
     } else {
         return false;
     }
@@ -15944,7 +15952,7 @@ static __exception int js_operator_typeof(JSContext *ctx, JSValue op1)
         {
             JSObject *p;
             p = JS_VALUE_GET_OBJ(op1);
-            if (unlikely(p->hflags.is_HTMLDDA))
+            if (unlikely(p->ob1.hflags.is_HTMLDDA))
                 atom = JS_ATOM_undefined;
             else if (JS_IsFunction(ctx, op1))
                 atom = JS_ATOM_function;
@@ -16029,7 +16037,7 @@ static int js_arguments_define_own_property(JSContext *ctx,
     uint32_t idx;
     p = JS_VALUE_GET_OBJ(this_obj);
     /* convert to normal array when redefining an existing numeric field */
-    if (p->hflags.fast_array && JS_AtomIsArrayIndex(ctx, &idx, prop) &&
+    if (p->ob1.hflags.fast_array && JS_AtomIsArrayIndex(ctx, &idx, prop) &&
         idx < p->u.array.count) {
         if (convert_fast_array_to_array(ctx, p))
             return -1;
@@ -16092,7 +16100,7 @@ static JSValue js_build_arguments(JSContext *ctx, int argc, JSValueConst *argv)
 static void js_mapped_arguments_finalizer(JSRuntime *rt, JSValueConst val)
 {
     JSObject *p = JS_VALUE_GET_OBJ(val);
-    if (p->hflags.fast_array) {
+    if (p->ob1.hflags.fast_array) {
         JSVarRef **var_refs = p->u.array.u.var_refs;
         int i;
         if (var_refs) {
@@ -16109,13 +16117,13 @@ static void js_mapped_arguments_mark(JSRuntime *rt, JSValueConst val,
                                      JS_MarkFunc *mark_func)
 {
     JSObject *p = JS_VALUE_GET_OBJ(val);
-    if (p->hflags.fast_array) {
+    if (p->ob1.hflags.fast_array) {
         JSVarRef **var_refs = p->u.array.u.var_refs;
         int i;
         if (var_refs) {
             for(i = 0; i < p->u.array.count; i++) {
-                if (var_refs[i] && var_refs[i]->vflags.is_detached)
-                    mark_func(rt, &var_refs[i]->header);
+                if (var_refs[i] && var_refs[i]->hdr.vflags.is_detached)
+                    mark_func(rt, &var_refs[i]->hdr.header);
             }
         }
     }
@@ -16163,7 +16171,7 @@ static JSValue js_build_mapped_arguments(JSContext *ctx, int argc,
                 js_free(ctx, tab);
                 goto fail;
             }
-            var_ref->value = js_dup(argv[i]);
+            var_ref->val.value = js_dup(argv[i]);
             tab[i] = var_ref;
         }
     }
@@ -16237,7 +16245,7 @@ static JSValue build_for_in_iterator(JSContext *ctx, JSValue obj)
 
     p = JS_VALUE_GET_OBJ(obj);
 
-    if (p->hflags.fast_array) {
+    if (p->ob1.hflags.fast_array) {
         JSShape *sh;
         JSShapeProperty *prs;
         /* check that there are no enumerable normal fields */
@@ -16321,7 +16329,7 @@ static __exception int js_for_in_next(JSContext *ctx, JSValue *sp)
     if (JS_VALUE_GET_TAG(enum_obj) != JS_TAG_OBJECT)
         goto done;
     p = JS_VALUE_GET_OBJ(enum_obj);
-    if (p->hflags.class_id != JS_CLASS_FOR_IN_ITERATOR)
+    if (p->ob1.hflags.class_id != JS_CLASS_FOR_IN_ITERATOR)
         goto done;
     it = p->u.for_in_iterator;
 
@@ -16346,7 +16354,7 @@ static __exception int js_for_in_next(JSContext *ctx, JSValue *sp)
         obj = it->obj;
         if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
             pobj = JS_VALUE_GET_OBJ(obj);
-            if (pobj->hflags.class_id == JS_CLASS_PROXY)
+            if (pobj->ob1.hflags.class_id == JS_CLASS_PROXY)
                 break;
         }
         ret = JS_HasProperty(ctx, obj, prop);
@@ -16426,7 +16434,7 @@ static JSValue JS_IteratorNext2(JSContext *ctx, JSValueConst enum_obj,
        intermediate result object) */
     if (JS_IsObject(method)) {
         JSObject *p = JS_VALUE_GET_OBJ(method);
-        if (p->hflags.class_id == JS_CLASS_C_FUNCTION &&
+        if (p->ob1.hflags.class_id == JS_CLASS_C_FUNCTION &&
             p->u.cfunc.cproto == JS_CFUNC_iterator_next) {
             JSCFunctionType func;
             JSValueConst args[1];
@@ -16652,7 +16660,7 @@ static bool js_is_fast_array(JSContext *ctx, JSValue obj)
     /* Try and handle fast arrays explicitly */
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(obj);
-        if (p->hflags.class_id == JS_CLASS_ARRAY && p->hflags.fast_array) {
+        if (p->ob1.hflags.class_id == JS_CLASS_ARRAY && p->ob1.hflags.fast_array) {
             return true;
         }
     }
@@ -16666,7 +16674,7 @@ static bool js_get_fast_array(JSContext *ctx, JSValue obj,
     /* Try and handle fast arrays explicitly */
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(obj);
-        if (p->hflags.class_id == JS_CLASS_ARRAY && p->hflags.fast_array) {
+        if (p->ob1.hflags.class_id == JS_CLASS_ARRAY && p->ob1.hflags.fast_array) {
             *countp = p->u.array.count;
             *arrpp = p->u.array.u.values;
             return true;
@@ -16785,8 +16793,8 @@ static __exception int JS_CopyDataProperties(JSContext *ctx,
     p = JS_VALUE_GET_OBJ(source);
 
     gpn_flags = JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK | JS_GPN_ENUM_ONLY;
-    if (p->hflags.is_exotic) {
-        const JSClassExoticMethods *em = ctx->rt->class_array[p->hflags.class_id].exotic;
+    if (p->ob1.hflags.is_exotic) {
+        const JSClassExoticMethods *em = ctx->rt->class_array[p->ob1.hflags.class_id].exotic;
         /* cannot use JS_GPN_ENUM_ONLY with e.g. proxies because it
            introduces a visible change */
         if (em && em->get_own_property_names) {
@@ -16849,12 +16857,12 @@ static JSVarRef *js_create_var_ref(JSContext *ctx, bool is_gc_object)
     var_ref = js_malloc(ctx, sizeof(JSVarRef));
     if (!var_ref)
         return NULL;
-    var_ref->header.ref_count = 1;
-    var_ref->vflags.is_detached = true;
-    var_ref->value = JS_UNDEFINED;
-    var_ref->pvalue = &var_ref->value;
+    var_ref->hdr.header.ref_count = 1;
+    var_ref->hdr.vflags.is_detached = true;
+    var_ref->val.value = JS_UNDEFINED;
+    var_ref->pvalue = &var_ref->val.value;
     if (is_gc_object)
-        add_gc_object(ctx->rt, &var_ref->header, JS_GC_OBJ_TYPE_VAR_REF);
+        add_gc_object(ctx->rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
     return var_ref;
 }
 
@@ -16885,7 +16893,7 @@ static JSVarRef *get_var_ref(JSContext *ctx, JSStackFrame *sf, int var_idx,
         var_ref = sf->var_refs[var_ref_idx];
         if (var_ref) {
             /* reference to the already created local variable */
-            var_ref->header.ref_count++;
+            var_ref->hdr.header.ref_count++;
             return var_ref;
         }
 
@@ -16893,12 +16901,12 @@ static JSVarRef *get_var_ref(JSContext *ctx, JSStackFrame *sf, int var_idx,
         var_ref = js_malloc(ctx, sizeof(JSVarRef));
         if (!var_ref)
             return NULL;
-        var_ref->header.ref_count = 1;
-        var_ref->vflags.is_detached = false;
-        var_ref->vflags.is_lexical = false;
-        var_ref->vflags.is_const = false;
-        var_ref->vstk.var_ref_idx = var_ref_idx;
-        var_ref->vstk.stack_frame = sf;
+        var_ref->hdr.header.ref_count = 1;
+        var_ref->hdr.vflags.is_detached = false;
+        var_ref->hdr.vflags.is_lexical = false;
+        var_ref->hdr.vflags.is_const = false;
+        var_ref->val.vstk.var_ref_idx = var_ref_idx;
+        var_ref->val.vstk.stack_frame = sf;
         sf->var_refs[var_ref_idx] = var_ref;
         var_ref->pvalue = pvalue;
         return var_ref;
@@ -16908,11 +16916,11 @@ static JSVarRef *get_var_ref(JSContext *ctx, JSStackFrame *sf, int var_idx,
         var_ref = js_malloc(ctx, sizeof(JSVarRef));
         if (!var_ref)
             return NULL;
-        var_ref->header.ref_count = 1;
-        var_ref->vflags.is_detached = true;
-        var_ref->value = js_dup(*pvalue);
-        var_ref->pvalue = &var_ref->value;
-        add_gc_object(ctx->rt, &var_ref->header, JS_GC_OBJ_TYPE_VAR_REF);
+        var_ref->hdr.header.ref_count = 1;
+        var_ref->hdr.vflags.is_detached = true;
+        var_ref->val.value = js_dup(*pvalue);
+        var_ref->pvalue = &var_ref->val.value;
+        add_gc_object(ctx->rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
         return var_ref;
     }
 }
@@ -16950,7 +16958,7 @@ static JSValue js_closure2(JSContext *ctx, JSValue func_obj,
             case JS_CLOSURE_REF:
             case JS_CLOSURE_GLOBAL_REF:
                 var_ref = cur_var_refs[cv->var_idx];
-                var_ref->header.ref_count++;
+                var_ref->hdr.header.ref_count++;
                 break;
             default:
                 abort();
@@ -17146,11 +17154,11 @@ static int js_op_define_class(JSContext *ctx, JSValue *sp,
 
 static void close_var_ref(JSRuntime *rt, JSVarRef *var_ref)
 {
-    var_ref->value = js_dup(*var_ref->pvalue);
-    var_ref->pvalue = &var_ref->value;
+    var_ref->val.value = js_dup(*var_ref->pvalue);
+    var_ref->pvalue = &var_ref->val.value;
     /* the reference is no longer to a local variable */
-    var_ref->vflags.is_detached = true;
-    add_gc_object(rt, &var_ref->header, JS_GC_OBJ_TYPE_VAR_REF);
+    var_ref->hdr.vflags.is_detached = true;
+    add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
 }
 
 static void close_var_refs(JSRuntime *rt, JSStackFrame *sf)
@@ -17374,7 +17382,7 @@ static bool needs_backtrace(JSValue exc)
     if (JS_VALUE_GET_TAG(exc) != JS_TAG_OBJECT)
         return false;
     p = JS_VALUE_GET_OBJ(exc);
-    if (p->hflags.class_id != JS_CLASS_ERROR)
+    if (p->ob1.hflags.class_id != JS_CLASS_ERROR)
         return false;
     return !find_own_property1(p, JS_ATOM_stack);
 }
@@ -17449,9 +17457,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
         }
     }
     p = JS_VALUE_GET_OBJ(func_obj);
-    if (unlikely(p->hflags.class_id != JS_CLASS_BYTECODE_FUNCTION)) {
+    if (unlikely(p->ob1.hflags.class_id != JS_CLASS_BYTECODE_FUNCTION)) {
         JSClassCall *call_func;
-        call_func = rt->class_array[p->hflags.class_id].call;
+        call_func = rt->class_array[p->ob1.hflags.class_id].call;
         if (!call_func) {
         not_a_function:
             return JS_ThrowTypeErrorNotAFunction(caller_ctx);
@@ -17584,7 +17592,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                             val = js_dup(pr->u.value);
                             break;
                         }
-                        if (unlikely(p->hflags.is_exotic)) {
+                        if (unlikely(p->ob1.hflags.is_exotic)) {
                             obj = JS_MKPTR(JS_TAG_OBJECT, p);
                             goto get_length_slow_path;
                         }
@@ -18466,7 +18474,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                     goto exception;
                 if (opcode == OP_make_var_ref_ref) {
                     var_ref = var_refs[idx];
-                    var_ref->header.ref_count++;
+                    var_ref->hdr.header.ref_count++;
                 } else {
                     var_ref = get_var_ref(ctx, sf, idx, opcode == OP_make_arg_ref);
                     if (!var_ref)
@@ -18790,7 +18798,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                             val = js_dup(pr->u.value);
                             break;
                         }
-                        if (unlikely(p->hflags.is_exotic)) {
+                        if (unlikely(p->ob1.hflags.is_exotic)) {
                             /* XXX: should avoid the slow path for arrays
                                and typed arrays by ensuring that 'prop' is
                                not numeric */
@@ -18838,7 +18846,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                             val = js_dup(pr->u.value);
                             break;
                         }
-                        if (unlikely(p->hflags.is_exotic)) {
+                        if (unlikely(p->ob1.hflags.is_exotic)) {
                             /* XXX: should avoid the slow path for arrays
                                and typed arrays by ensuring that 'prop' is
                                not numeric */
@@ -19159,17 +19167,17 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                     idx = JS_VALUE_GET_INT(sp[-2]);
                     if (likely(JS_VALUE_GET_TAG(sp[-3]) == JS_TAG_OBJECT)) {
                         p = JS_VALUE_GET_OBJ(sp[-3]);
-                        if (likely(p->hflags.class_id == JS_CLASS_ARRAY &&
+                        if (likely(p->ob1.hflags.class_id == JS_CLASS_ARRAY &&
                                    idx < (uint32_t)p->u.array.count)) {
                             set_value(ctx, &p->u.array.u.values[idx], val);
                             JS_FreeValue(ctx, sp[-3]);
                             sp -= 3;
                             BREAK;
                         }
-                        if (likely(p->hflags.class_id == JS_CLASS_ARRAY &&
+                        if (likely(p->ob1.hflags.class_id == JS_CLASS_ARRAY &&
                                    idx == (uint32_t)p->u.array.count &&
-                                   p->hflags.fast_array &&
-                                   p->hflags.extensible &&
+                                   p->ob1.hflags.fast_array &&
+                                   p->ob1.hflags.extensible &&
                                    p->shape->proto == JS_VALUE_GET_OBJ(ctx->class_proto[JS_CLASS_ARRAY]) &&
                                    ctx->std_array_prototype)) {
                             /* fast path to add an element */
@@ -20125,7 +20133,7 @@ static JSContext *JS_GetFunctionRealm(JSContext *ctx, JSValueConst func_obj)
     if (JS_VALUE_GET_TAG(func_obj) != JS_TAG_OBJECT)
         return ctx;
     p = JS_VALUE_GET_OBJ(func_obj);
-    switch(p->hflags.class_id) {
+    switch(p->ob1.hflags.class_id) {
     case JS_CLASS_C_FUNCTION:
         realm = p->u.cfunc.realm;
         break;
@@ -20206,11 +20214,11 @@ static JSValue JS_CallConstructorInternal(JSContext *ctx,
     if (unlikely(JS_VALUE_GET_TAG(func_obj) != JS_TAG_OBJECT))
         goto not_a_function;
     p = JS_VALUE_GET_OBJ(func_obj);
-    if (unlikely(!p->hflags.is_constructor))
+    if (unlikely(!p->ob1.hflags.is_constructor))
         return JS_ThrowTypeErrorNotAConstructor(ctx, func_obj);
-    if (unlikely(p->hflags.class_id != JS_CLASS_BYTECODE_FUNCTION)) {
+    if (unlikely(p->ob1.hflags.class_id != JS_CLASS_BYTECODE_FUNCTION)) {
         JSClassCall *call_func;
-        call_func = ctx->rt->class_array[p->hflags.class_id].call;
+        call_func = ctx->rt->class_array[p->ob1.hflags.class_id].call;
         if (!call_func) {
         not_a_function:
             return JS_ThrowTypeErrorNotAFunction(ctx);
@@ -20695,7 +20703,7 @@ static JSValue js_async_function_resolve_call(JSContext *ctx,
 {
     JSObject *p = JS_VALUE_GET_OBJ(func_obj);
     JSAsyncFunctionData *s = p->u.async_function_data;
-    bool is_reject = p->hflags.class_id - JS_CLASS_ASYNC_FUNCTION_RESOLVE;
+    bool is_reject = p->ob1.hflags.class_id - JS_CLASS_ASYNC_FUNCTION_RESOLVE;
     JSValueConst arg;
 
     if (argc > 0)
@@ -23827,7 +23835,7 @@ static int seal_template_obj(JSContext *ctx, JSValue obj)
                                      prs->flags & ~(JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE)))
             return -1;
     }
-    p->hflags.extensible = false;
+    p->ob1.hflags.extensible = false;
     return 0;
 }
 
@@ -28969,7 +28977,7 @@ static void js_mark_module_def(JSRuntime *rt, JSModuleDef *m,
         JSExportEntry *me = &m->export_entries[i];
         if (me->export_type == JS_EXPORT_TYPE_LOCAL &&
             me->u.local.var_ref) {
-            mark_func(rt, &me->u.local.var_ref->header);
+            mark_func(rt, &me->u.local.var_ref->hdr.header);
         }
     }
 
@@ -29769,7 +29777,7 @@ static JSValue js_build_module_ns(JSContext *ctx, JSModuleDef *m)
                                   JS_PROP_VARREF);
                 if (!pr)
                     goto fail;
-                var_ref->header.ref_count++;
+                var_ref->hdr.header.ref_count++;
                 pr->u.var_ref = var_ref;
             }
             break;
@@ -29792,7 +29800,7 @@ static JSValue js_build_module_ns(JSContext *ctx, JSModuleDef *m)
                            JS_AtomToString(ctx, JS_ATOM_Module),
                            0);
 
-    p->hflags.extensible = false;
+    p->ob1.hflags.extensible = false;
     return obj;
  fail:
     js_free(ctx, s->exported_names);
@@ -29868,14 +29876,14 @@ static JSVarRef *js_create_module_var(JSContext *ctx, bool is_lexical)
     var_ref = js_malloc(ctx, sizeof(JSVarRef));
     if (!var_ref)
         return NULL;
-    var_ref->header.ref_count = 1;
+    var_ref->hdr.header.ref_count = 1;
     if (is_lexical)
-        var_ref->value = JS_UNINITIALIZED;
+        var_ref->val.value = JS_UNINITIALIZED;
     else
-        var_ref->value = JS_UNDEFINED;
-    var_ref->pvalue = &var_ref->value;
-    var_ref->vflags.is_detached = true;
-    add_gc_object(ctx->rt, &var_ref->header, JS_GC_OBJ_TYPE_VAR_REF);
+        var_ref->val.value = JS_UNDEFINED;
+    var_ref->pvalue = &var_ref->val.value;
+    var_ref->hdr.vflags.is_detached = true;
+    add_gc_object(ctx->rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
     return var_ref;
 }
 
@@ -30087,7 +30095,7 @@ static int js_inner_module_linking(JSContext *ctx, JSModuleDef *m,
                 val = JS_GetModuleNamespace(ctx, m1);
                 if (JS_IsException(val))
                     goto fail;
-                set_value(ctx, &var_refs[mi->var_idx]->value, val);
+                set_value(ctx, &var_refs[mi->var_idx]->val.value, val);
 
 #ifndef __SASC
                 module_trace(ctx, "namespace\n");
@@ -30118,7 +30126,7 @@ static int js_inner_module_linking(JSContext *ctx, JSModuleDef *m,
                         JS_FreeValue(ctx, val);
                         goto fail;
                     }
-                    set_value(ctx, &var_ref->value, val);
+                    set_value(ctx, &var_ref->val.value, val);
                     var_refs[mi->var_idx] = var_ref;
 
 #ifndef __SASC
@@ -30131,7 +30139,7 @@ static int js_inner_module_linking(JSContext *ctx, JSModuleDef *m,
                         p1 = JS_VALUE_GET_OBJ(res_m->func_obj);
                         var_ref = p1->u.func.var_refs[res_me->u.local.var_idx];
                     }
-                    var_ref->header.ref_count++;
+                    var_ref->hdr.header.ref_count++;
                     var_refs[mi->var_idx] = var_ref;
 
 #ifndef __SASC
@@ -30148,7 +30156,7 @@ static int js_inner_module_linking(JSContext *ctx, JSModuleDef *m,
             JSExportEntry *me = &m->export_entries[i];
             if (me->export_type == JS_EXPORT_TYPE_LOCAL) {
                 var_ref = var_refs[me->u.local.var_idx];
-                var_ref->header.ref_count++;
+                var_ref->hdr.header.ref_count++;
                 me->u.local.var_ref = var_ref;
             }
         }
@@ -30236,7 +30244,7 @@ JSAtom JS_GetScriptOrModuleName(JSContext *ctx, int n_stack_levels)
     if (JS_VALUE_GET_TAG(sf->cur_func) != JS_TAG_OBJECT)
         return JS_ATOM_NULL;
     p = JS_VALUE_GET_OBJ(sf->cur_func);
-    if (!js_class_has_bytecode(p->hflags.class_id))
+    if (!js_class_has_bytecode(p->ob1.hflags.class_id))
         return JS_ATOM_NULL;
     b = p->u.func.function_bytecode;
     return JS_DupAtom(ctx, b->filename);
@@ -36524,7 +36532,7 @@ static JSValue __JS_EvalInternal(JSContext *ctx, JSValueConst this_obj,
         assert(sf != NULL);
         assert(JS_VALUE_GET_TAG(sf->cur_func) == JS_TAG_OBJECT);
         p = JS_VALUE_GET_OBJ(sf->cur_func);
-        assert(js_class_has_bytecode(p->hflags.class_id));
+        assert(js_class_has_bytecode(p->ob1.hflags.class_id));
         b = p->u.func.function_bytecode;
         var_refs = p->u.func.var_refs;
         is_strict_mode = b->is_strict_mode;
@@ -37350,7 +37358,7 @@ static int JS_WriteArray(BCWriterState *s, JSValueConst obj)
     int ret;
     bool is_template;
 
-    if (s->allow_bytecode && !p->hflags.extensible) {
+    if (s->allow_bytecode && !p->ob1.hflags.extensible) {
         /* not extensible array: we consider it is a
            template when we are saving bytecode */
         bc_put_u8(s, BC_TAG_TEMPLATE_OBJECT);
@@ -37428,7 +37436,7 @@ static int JS_WriteTypedArray(BCWriterState *s, JSValueConst obj)
     JSTypedArray *ta = p->u.typed_array;
 
     bc_put_u8(s, BC_TAG_TYPED_ARRAY);
-    bc_put_u8(s, p->hflags.class_id - JS_CLASS_UINT8C_ARRAY);
+    bc_put_u8(s, p->ob1.hflags.class_id - JS_CLASS_UINT8C_ARRAY);
     bc_put_leb128(s, p->u.array.count);
     bc_put_leb128(s, ta->offset);
     if (JS_WriteObjectRec(s, JS_MKPTR(JS_TAG_OBJECT, ta->buffer)))
@@ -37574,13 +37582,13 @@ static int JS_WriteObjectRec(BCWriterState *s, JSValueConst obj)
                         goto fail;
                 }
             } else {
-                if (p->hflags.tmp_mark) {
+                if (p->ob1.hflags.tmp_mark) {
                     JS_ThrowTypeError(s->ctx, "circular reference");
                     goto fail;
                 }
-                p->hflags.tmp_mark = 1;
+                p->ob1.hflags.tmp_mark = 1;
             }
-            switch(p->hflags.class_id) {
+            switch(p->ob1.hflags.class_id) {
             case JS_CLASS_ARRAY:
                 ret = JS_WriteArray(s, obj);
                 break;
@@ -37619,7 +37627,7 @@ static int JS_WriteObjectRec(BCWriterState *s, JSValueConst obj)
                 ret = JS_WriteSet(s, p->u.map_state);
                 break;
             default:
-                if (is_typed_array(p->hflags.class_id)) {
+                if (is_typed_array(p->ob1.hflags.class_id)) {
                     ret = JS_WriteTypedArray(s, obj);
                 } else {
                     JS_ThrowTypeError(s->ctx, "unsupported object class");
@@ -37627,7 +37635,7 @@ static int JS_WriteObjectRec(BCWriterState *s, JSValueConst obj)
                 }
                 break;
             }
-            p->hflags.tmp_mark = 0;
+            p->ob1.hflags.tmp_mark = 0;
             if (ret)
                 goto fail;
         }
@@ -40312,7 +40320,7 @@ static JSValue js_object_toString(JSContext *ctx, JSValueConst this_val,
             atom = JS_ATOM_Function;
         } else {
             p = JS_VALUE_GET_OBJ(obj);
-            switch(p->hflags.class_id) {
+            switch(p->ob1.hflags.class_id) {
             case JS_CLASS_STRING:
             case JS_CLASS_ARGUMENTS:
             case JS_CLASS_MAPPED_ARGUMENTS:
@@ -40321,7 +40329,7 @@ static JSValue js_object_toString(JSContext *ctx, JSValueConst this_val,
             case JS_CLASS_NUMBER:
             case JS_CLASS_DATE:
             case JS_CLASS_REGEXP:
-                atom = ctx->rt->class_array[p->hflags.class_id].class_name;
+                atom = ctx->rt->class_array[p->ob1.hflags.class_id].class_name;
                 break;
             default:
                 atom = JS_ATOM_Object;
@@ -40394,7 +40402,7 @@ static JSValue js_object_seal(JSContext *ctx, JSValueConst this_val,
         return js_dup(obj);
 
     p = JS_VALUE_GET_OBJ(obj);
-    if (p->hflags.class_id == JS_CLASS_MODULE_NS) {
+    if (p->ob1.hflags.class_id == JS_CLASS_MODULE_NS) {
         return JS_ThrowTypeError(ctx, "cannot %s module namespace",
                                  freeze_flag ? "freeze" : "seal");
     }
@@ -40406,7 +40414,7 @@ static JSValue js_object_seal(JSContext *ctx, JSValueConst this_val,
         return JS_ThrowTypeError(ctx, "proxy preventExtensions handler returned false");
     }
 
-    if (freeze_flag && is_typed_array(p->hflags.class_id)) {
+    if (freeze_flag && is_typed_array(p->ob1.hflags.class_id)) {
         ta = p->u.typed_array;
         abuf = ta->buffer->u.array_buffer;
         if (array_buffer_is_resizable(abuf) || typed_array_is_oob(p))
@@ -40932,8 +40940,8 @@ static JSValue *build_arg_list(JSContext *ctx, uint32_t *plen,
     if (!tab)
         return NULL;
     p = JS_VALUE_GET_OBJ(array_arg);
-    if ((p->hflags.class_id == JS_CLASS_ARRAY || p->hflags.class_id == JS_CLASS_ARGUMENTS) &&
-        p->hflags.fast_array &&
+    if ((p->ob1.hflags.class_id == JS_CLASS_ARRAY || p->ob1.hflags.class_id == JS_CLASS_ARGUMENTS) &&
+        p->ob1.hflags.fast_array &&
         len == p->u.array.count) {
         for(i = 0; i < len; i++) {
             tab[i] = js_dup(p->u.array.u.values[i]);
@@ -41007,7 +41015,7 @@ static JSValue js_function_bind(JSContext *ctx, JSValueConst this_val,
     if (JS_IsException(func_obj))
         return JS_EXCEPTION;
     p = JS_VALUE_GET_OBJ(func_obj);
-    p->hflags.is_constructor = JS_IsConstructor(ctx, this_val);
+    p->ob1.hflags.is_constructor = JS_IsConstructor(ctx, this_val);
     arg_count = max_int(0, argc - 1);
     bf = js_malloc(ctx, sizeof(*bf) + arg_count * sizeof(JSValue));
     if (!bf)
@@ -41086,7 +41094,7 @@ static JSValue js_function_toString(JSContext *ctx, JSValueConst this_val,
         return JS_EXCEPTION;
 
     p = JS_VALUE_GET_OBJ(this_val);
-    if (js_class_has_bytecode(p->hflags.class_id)) {
+    if (js_class_has_bytecode(p->ob1.hflags.class_id)) {
         JSFunctionBytecode *b = p->u.func.function_bytecode;
         /* `b->source` must be pure ASCII or UTF-8 encoded */
         if (b->source)
@@ -41388,7 +41396,7 @@ static int JS_CopySubArray(JSContext *ctx,
     p = NULL;
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         p = JS_VALUE_GET_OBJ(obj);
-        if (p->hflags.class_id != JS_CLASS_ARRAY || !p->hflags.fast_array) {
+        if (p->ob1.hflags.class_id != JS_CLASS_ARRAY || !p->ob1.hflags.fast_array) {
             p = NULL;
         }
     }
@@ -41401,7 +41409,7 @@ static int JS_CopySubArray(JSContext *ctx,
             from = from_pos + i;
             to = to_pos + i;
         }
-        if (p && p->hflags.fast_array &&
+        if (p && p->ob1.hflags.fast_array &&
             from >= 0 && from < (len = p->u.array.count)  &&
             to >= 0 && to < len) {
             int64_t l, j;
@@ -41878,7 +41886,7 @@ static JSObject *get_typed_array(JSContext *ctx, JSValueConst this_val)
     if (JS_VALUE_GET_TAG(this_val) != JS_TAG_OBJECT)
         goto fail;
     p = JS_VALUE_GET_OBJ(this_val);
-    if (!is_typed_array(p->hflags.class_id)) {
+    if (!is_typed_array(p->ob1.hflags.class_id)) {
     fail:
         JS_ThrowTypeError(ctx, "not a TypedArray");
         return NULL;
@@ -42553,9 +42561,9 @@ static JSValue js_array_push(JSContext *ctx, JSValueConst this_val,
     /* fast path for push on fast arrays */
     if (likely(JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT && !unshift)) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (likely(p->hflags.class_id == JS_CLASS_ARRAY &&
-                   p->hflags.fast_array &&
-                   p->hflags.extensible &&
+        if (likely(p->ob1.hflags.class_id == JS_CLASS_ARRAY &&
+                   p->ob1.hflags.fast_array &&
+                   p->ob1.hflags.extensible &&
                    p->shape->proto == JS_VALUE_GET_OBJ(ctx->class_proto[JS_CLASS_ARRAY]) &&
                    ctx->std_array_prototype)) {
             uint32_t array_len, new_len;
@@ -43422,7 +43430,7 @@ static JSValue js_array_iterator_next(JSContext *ctx, JSValueConst this_val,
     if (JS_IsUndefined(it->obj))
         goto done;
     p = JS_VALUE_GET_OBJ(it->obj);
-    if (is_typed_array(p->hflags.class_id)) {
+    if (is_typed_array(p->ob1.hflags.class_id)) {
         if (typed_array_is_oob(p)) {
             JS_ThrowTypeErrorArrayBufferOOB(ctx);
             goto fail1;
@@ -43550,7 +43558,7 @@ static JSValue js_iterator_constructor(JSContext *ctx, JSValueConst new_target,
     if (JS_TAG_OBJECT != JS_VALUE_GET_TAG(new_target))
         return JS_ThrowTypeError(ctx, "constructor requires 'new'");
     p = JS_VALUE_GET_OBJ(new_target);
-    if (p->hflags.class_id == JS_CLASS_C_FUNCTION)
+    if (p->ob1.hflags.class_id == JS_CLASS_C_FUNCTION)
         if (p->u.cfunc.c_function.generic == js_iterator_constructor)
             return JS_ThrowTypeError(ctx, "abstract class not constructable");
     return js_create_from_ctor(ctx, new_target, JS_CLASS_ITERATOR);
@@ -44683,7 +44691,7 @@ static JSValue js_thisNumberValue(JSContext *ctx, JSValueConst this_val)
 
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_NUMBER) {
+        if (p->ob1.hflags.class_id == JS_CLASS_NUMBER) {
             if (JS_IsNumber(p->u.object_data))
                 return js_dup(p->u.object_data);
         }
@@ -44894,7 +44902,7 @@ static JSValue js_thisBooleanValue(JSContext *ctx, JSValueConst this_val)
 
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_BOOLEAN) {
+        if (p->ob1.hflags.class_id == JS_CLASS_BOOLEAN) {
             if (JS_VALUE_GET_TAG(p->u.object_data) == JS_TAG_BOOL)
                 return p->u.object_data;
         }
@@ -45055,7 +45063,7 @@ static JSValue js_thisStringValue(JSContext *ctx, JSValueConst this_val)
 
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_STRING) {
+        if (p->ob1.hflags.class_id == JS_CLASS_STRING) {
             if (JS_VALUE_GET_TAG(p->u.object_data) == JS_TAG_STRING)
                 return js_dup(p->u.object_data);
         }
@@ -47454,7 +47462,7 @@ static JSRegExp *js_get_regexp(JSContext *ctx, JSValueConst obj,
 {
     if (JS_VALUE_GET_TAG(obj) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(obj);
-        if (p->hflags.class_id == JS_CLASS_REGEXP)
+        if (p->ob1.hflags.class_id == JS_CLASS_REGEXP)
             return &p->u.regexp;
     }
     if (throw_error) {
@@ -49324,7 +49332,7 @@ static int js_json_to_str(JSContext *ctx, JSONStringifyContext *jsc,
 
     if (JS_IsObject(val)) {
         p = JS_VALUE_GET_OBJ(val);
-        cl = p->hflags.class_id;
+        cl = p->ob1.hflags.class_id;
         if (cl == JS_CLASS_STRING) {
             val = JS_ToStringFree(ctx, val);
             if (JS_IsException(val))
@@ -49531,8 +49539,8 @@ JSValue JS_JSONStringify(JSContext *ctx, JSValueConst obj,
                     goto exception;
                 if (JS_IsObject(v)) {
                     JSObject *p = JS_VALUE_GET_OBJ(v);
-                    if (p->hflags.class_id == JS_CLASS_STRING ||
-                        p->hflags.class_id == JS_CLASS_NUMBER) {
+                    if (p->ob1.hflags.class_id == JS_CLASS_STRING ||
+                        p->ob1.hflags.class_id == JS_CLASS_NUMBER) {
                         v = JS_ToStringFree(ctx, v);
                         if (JS_IsException(v))
                             goto exception;
@@ -49565,9 +49573,9 @@ JSValue JS_JSONStringify(JSContext *ctx, JSValueConst obj,
     space = js_dup(space0);
     if (JS_IsObject(space)) {
         JSObject *p = JS_VALUE_GET_OBJ(space);
-        if (p->hflags.class_id == JS_CLASS_NUMBER) {
+        if (p->ob1.hflags.class_id == JS_CLASS_NUMBER) {
             space = JS_ToNumberFree(ctx, space);
-        } else if (p->hflags.class_id == JS_CLASS_STRING) {
+        } else if (p->ob1.hflags.class_id == JS_CLASS_STRING) {
             space = JS_ToStringFree(ctx, space);
         }
         if (JS_IsException(space)) {
@@ -50041,7 +50049,7 @@ static int js_proxy_has(JSContext *ctx, JSValueConst obj, JSAtom atom)
         if (res) {
             res2 = !(desc.flags & JS_PROP_CONFIGURABLE);
             js_free_desc(ctx, &desc);
-            if (res2 || !p->hflags.extensible) {
+            if (res2 || !p->ob1.hflags.extensible) {
                 JS_ThrowTypeError(ctx, "proxy: inconsistent has");
                 return -1;
             }
@@ -50237,7 +50245,7 @@ static int js_proxy_get_own_property(JSContext *ctx, JSPropertyDescriptor *pdesc
         js_free_desc(ctx, &target_desc);
     if (JS_IsUndefined(trap_result_obj)) {
         if (target_desc_ret) {
-            if (!(target_desc.flags & JS_PROP_CONFIGURABLE) || !p->hflags.extensible)
+            if (!(target_desc.flags & JS_PROP_CONFIGURABLE) || !p->ob1.hflags.extensible)
                 goto fail;
         }
         ret = false;
@@ -50348,7 +50356,7 @@ static int js_proxy_define_own_property(JSContext *ctx, JSValueConst obj,
                                           JS_PROP_CONFIGURABLE)) ==
                                 JS_PROP_HAS_CONFIGURABLE);
     if (!res) {
-        if (!p->hflags.extensible || setting_not_configurable)
+        if (!p->ob1.hflags.extensible || setting_not_configurable)
             goto fail;
     } else {
         if (!check_define_prop_flags(desc.flags, flags) ||
@@ -50792,7 +50800,7 @@ bool JS_IsProxy(JSValueConst val)
 {
     if (JS_VALUE_GET_TAG(val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(val);
-        return p->hflags.class_id == JS_CLASS_PROXY;
+        return p->ob1.hflags.class_id == JS_CLASS_PROXY;
     }
     return false;
 }
@@ -50802,7 +50810,7 @@ static JSValue js_get_proxy_field(JSContext *ctx, JSValueConst proxy,
 {
     if (JS_VALUE_GET_TAG(proxy) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(proxy);
-        if (p->hflags.class_id == JS_CLASS_PROXY) {
+        if (p->ob1.hflags.class_id == JS_CLASS_PROXY) {
             JSProxyData *s = JS_GetOpaque(proxy, JS_CLASS_PROXY);
             if (s->is_revoked)
                 return JS_ThrowTypeErrorRevokedProxy(ctx);
@@ -50850,7 +50858,7 @@ static JSValue js_thisSymbolValue(JSContext *ctx, JSValueConst this_val)
 
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_SYMBOL) {
+        if (p->ob1.hflags.class_id == JS_CLASS_SYMBOL) {
             if (JS_VALUE_GET_TAG(p->u.object_data) == JS_TAG_SYMBOL)
                 return js_dup(p->u.object_data);
         }
@@ -52583,7 +52591,7 @@ bool JS_IsPromise(JSValueConst val)
 {
     if (JS_VALUE_GET_TAG(val) != JS_TAG_OBJECT)
         return false;
-    return JS_VALUE_GET_OBJ(val)->hflags.class_id == JS_CLASS_PROMISE;
+    return JS_VALUE_GET_OBJ(val)->ob1.hflags.class_id == JS_CLASS_PROMISE;
 }
 
 JSValue JS_NewSettledPromise(JSContext *ctx, bool is_reject, JSValueConst value)
@@ -52844,7 +52852,7 @@ static JSValue js_promise_resolve_function_call(JSContext *ctx,
     if (!s || s->presolved->already_resolved)
         return JS_UNDEFINED;
     s->presolved->already_resolved = true;
-    is_reject = p->hflags.class_id - JS_CLASS_PROMISE_RESOLVE_FUNCTION;
+    is_reject = p->ob1.hflags.class_id - JS_CLASS_PROMISE_RESOLVE_FUNCTION;
     if (argc > 0)
         resolution = argv[0];
     else
@@ -54293,7 +54301,7 @@ static __exception int JS_ThisTimeValue(JSContext *ctx, double *valp,
 {
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_DATE && JS_IsNumber(p->u.object_data))
+        if (p->ob1.hflags.class_id == JS_CLASS_DATE && JS_IsNumber(p->u.object_data))
             return JS_ToFloat64(ctx, valp, p->u.object_data);
     }
     JS_ThrowTypeError(ctx, "not a Date object");
@@ -54304,7 +54312,7 @@ static JSValue JS_SetThisTimeValue(JSContext *ctx, JSValueConst this_val, double
 {
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_DATE) {
+        if (p->ob1.hflags.class_id == JS_CLASS_DATE) {
             JS_FreeValue(ctx, p->u.object_data);
             p->u.object_data = js_float64(v);
             return js_dup(p->u.object_data);
@@ -54673,7 +54681,7 @@ static JSValue js_date_constructor(JSContext *ctx, JSValueConst new_target,
         JSValue v, dv;
         if (JS_VALUE_GET_TAG(argv[0]) == JS_TAG_OBJECT) {
             JSObject *p = JS_VALUE_GET_OBJ(argv[0]);
-            if (p->hflags.class_id == JS_CLASS_DATE && JS_IsNumber(p->u.object_data)) {
+            if (p->ob1.hflags.class_id == JS_CLASS_DATE && JS_IsNumber(p->u.object_data)) {
                 if (JS_ToFloat64(ctx, &val, p->u.object_data))
                     return JS_EXCEPTION;
                 val = time_clip(val);
@@ -55414,7 +55422,7 @@ bool JS_IsDate(JSValueConst v)
 {
     if (JS_VALUE_GET_TAG(v) != JS_TAG_OBJECT)
         return false;
-    return JS_VALUE_GET_OBJ(v)->hflags.class_id == JS_CLASS_DATE;
+    return JS_VALUE_GET_OBJ(v)->ob1.hflags.class_id == JS_CLASS_DATE;
 }
 
 int JS_AddIntrinsicDate(JSContext *ctx)
@@ -55511,7 +55519,7 @@ static JSValue js_thisBigIntValue(JSContext *ctx, JSValueConst this_val)
 
     if (JS_VALUE_GET_TAG(this_val) == JS_TAG_OBJECT) {
         JSObject *p = JS_VALUE_GET_OBJ(this_val);
-        if (p->hflags.class_id == JS_CLASS_BIG_INT) {
+        if (p->ob1.hflags.class_id == JS_CLASS_BIG_INT) {
             if (JS_IsBigInt(p->u.object_data))
                 return js_dup(p->u.object_data);
         }
@@ -56213,7 +56221,7 @@ static void js_array_buffer_finalizer(JSRuntime *rt, JSValueConst val)
             ta->link.next = NULL;
             p1 = ta->obj;
             /* Note: the typed array length and offset fields are not modified */
-            if (p1->hflags.class_id != JS_CLASS_DATAVIEW) {
+            if (p1->ob1.hflags.class_id != JS_CLASS_DATAVIEW) {
                 p1->u.array.count = 0;
                 p1->u.array.u.ptr = NULL;
             }
@@ -56236,8 +56244,8 @@ static JSValue js_array_buffer_isView(JSContext *ctx,
 
     if (JS_VALUE_GET_TAG(argv[0]) == JS_TAG_OBJECT) {
         p = JS_VALUE_GET_OBJ(argv[0]);
-        return js_bool(is_typed_array(p->hflags.class_id) ||
-                       p->hflags.class_id == JS_CLASS_DATAVIEW);
+        return js_bool(is_typed_array(p->ob1.hflags.class_id) ||
+                       p->ob1.hflags.class_id == JS_CLASS_DATAVIEW);
     }
     return JS_FALSE;
 }
@@ -56336,7 +56344,7 @@ void JS_DetachArrayBuffer(JSContext *ctx, JSValueConst obj)
         ta = list_entry(el, JSTypedArray, link);
         p = ta->obj;
         /* Note: the typed array length and offset fields are not modified */
-        if (p->hflags.class_id != JS_CLASS_DATAVIEW) {
+        if (p->ob1.hflags.class_id != JS_CLASS_DATAVIEW) {
             p->u.array.count = 0;
             p->u.array.u.ptr = NULL;
         }
@@ -56367,8 +56375,8 @@ static JSArrayBuffer *js_get_array_buffer(JSContext *ctx, JSValueConst obj)
     if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
         goto fail;
     p = JS_VALUE_GET_OBJ(obj);
-    if (p->hflags.class_id != JS_CLASS_ARRAY_BUFFER &&
-        p->hflags.class_id != JS_CLASS_SHARED_ARRAY_BUFFER) {
+    if (p->ob1.hflags.class_id != JS_CLASS_ARRAY_BUFFER &&
+        p->ob1.hflags.class_id != JS_CLASS_SHARED_ARRAY_BUFFER) {
     fail:
         JS_ThrowTypeErrorInvalidClass(ctx, JS_CLASS_ARRAY_BUFFER);
         return NULL;
@@ -56413,14 +56421,14 @@ static void js_array_buffer_update_typed_arrays(JSArrayBuffer *abuf)
     list_for_each(el, &abuf->array_list) {
         ta = list_entry(el, JSTypedArray, link);
         p = ta->obj;
-        if (p->hflags.class_id == JS_CLASS_DATAVIEW) {
+        if (p->ob1.hflags.class_id == JS_CLASS_DATAVIEW) {
             if (ta->track_rab && ta->offset < len)
                 ta->length = len - ta->offset;
             continue;
         }
         p->u.array.count = 0;
         p->u.array.u.ptr = NULL;
-        size_log2 = typed_array_size_log2(p->hflags.class_id);
+        size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
         size_elem = 1 << size_log2;
         if (ta->track_rab) {
             if (len >= (int64_t)ta->offset + size_elem) {
@@ -56692,7 +56700,7 @@ static bool typed_array_is_immutable(JSObject *p)
     JSArrayBuffer *abuf;
     JSTypedArray *ta;
 
-    assert(is_typed_array(p->hflags.class_id));
+    assert(is_typed_array(p->ob1.hflags.class_id));
     ta = p->u.typed_array;
     abuf = ta->buffer->u.array_buffer;
     return abuf->immutable;
@@ -56707,7 +56715,7 @@ static bool typed_array_is_oob(JSObject *p)
     int len, size_elem;
     int64_t end;
 
-    assert(is_typed_array(p->hflags.class_id));
+    assert(is_typed_array(p->ob1.hflags.class_id));
 
     ta = p->u.typed_array;
     abuf = ta->buffer->u.array_buffer;
@@ -56720,7 +56728,7 @@ static bool typed_array_is_oob(JSObject *p)
         return false;
     if (len < (int64_t)ta->offset + ta->length)
         return true;
-    size_elem = 1 << typed_array_size_log2(p->hflags.class_id);
+    size_elem = 1 << typed_array_size_log2(p->ob1.hflags.class_id);
     end = (int64_t)ta->offset + (int64_t)p->u.array.count * size_elem;
     return end > len;
 }
@@ -56730,7 +56738,7 @@ static bool typed_array_is_oob(JSObject *p)
 static uint32_t typed_array_length(JSObject *p)
 {
     JSTypedArray *ta = p->u.typed_array;
-    int size_log2 = typed_array_size_log2(p->hflags.class_id);
+    int size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
     return ta->length >> size_log2;
 }
 
@@ -56781,7 +56789,7 @@ static JSValue js_typed_array_get_byteLength(JSContext *ctx, JSValueConst this_v
     ta = p->u.typed_array;
     if (!ta->track_rab)
         return js_uint32(ta->length);
-    size_log2 = typed_array_size_log2(p->hflags.class_id);
+    size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
     return js_int64((int64_t)p->u.array.count << size_log2);
 }
 
@@ -56829,7 +56837,7 @@ JSValue JS_GetTypedArrayBuffer(JSContext *ctx, JSValueConst obj,
     if (pbyte_length)
         *pbyte_length = ta->length;
     if (pbytes_per_element) {
-        *pbytes_per_element = 1 << typed_array_size_log2(p->hflags.class_id);
+        *pbytes_per_element = 1 << typed_array_size_log2(p->ob1.hflags.class_id);
     }
     return js_dup(JS_MKPTR(JS_TAG_OBJECT, ta->buffer));
 }
@@ -56848,7 +56856,7 @@ uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *psize, JSValueConst obj)
         JS_ThrowTypeErrorArrayBufferOOB(ctx);
         goto fail;
     }
-    if (p->hflags.class_id != JS_CLASS_UINT8_ARRAY && p->hflags.class_id != JS_CLASS_UINT8C_ARRAY) {
+    if (p->ob1.hflags.class_id != JS_CLASS_UINT8_ARRAY && p->ob1.hflags.class_id != JS_CLASS_UINT8C_ARRAY) {
         JS_ThrowTypeError(ctx, "not a Uint8Array");
         goto fail;
     }
@@ -56869,9 +56877,9 @@ static JSValue js_typed_array_get_toStringTag(JSContext *ctx,
     if (JS_VALUE_GET_TAG(this_val) != JS_TAG_OBJECT)
         return JS_UNDEFINED;
     p = JS_VALUE_GET_OBJ(this_val);
-    if (!is_typed_array(p->hflags.class_id))
+    if (!is_typed_array(p->ob1.hflags.class_id))
         return JS_UNDEFINED;
-    return JS_AtomToString(ctx, ctx->rt->class_array[p->hflags.class_id].class_name);
+    return JS_AtomToString(ctx, ctx->rt->class_array[p->ob1.hflags.class_id].class_name);
 }
 
 static JSValue js_typed_array_set_internal(JSContext *ctx,
@@ -56906,12 +56914,12 @@ static JSValue js_typed_array_set_internal(JSContext *ctx,
     if (JS_IsException(src_obj))
         goto fail;
     src_p = JS_VALUE_GET_OBJ(src_obj);
-    if (is_typed_array(src_p->hflags.class_id)) {
+    if (is_typed_array(src_p->ob1.hflags.class_id)) {
         JSTypedArray *dest_ta = p->u.typed_array;
         JSArrayBuffer *dest_abuf = dest_ta->buffer->u.array_buffer;
         JSTypedArray *src_ta = src_p->u.typed_array;
         JSArrayBuffer *src_abuf = src_ta->buffer->u.array_buffer;
-        int shift = typed_array_size_log2(p->hflags.class_id);
+        int shift = typed_array_size_log2(p->ob1.hflags.class_id);
 
         if (typed_array_is_oob(src_p))
             goto detached;
@@ -56921,7 +56929,7 @@ static JSValue js_typed_array_set_internal(JSContext *ctx,
             goto range_error;
 
         /* copying between typed objects */
-        if (src_p->hflags.class_id == p->hflags.class_id) {
+        if (src_p->ob1.hflags.class_id == p->ob1.hflags.class_id) {
             /* same type, use memmove */
             memmove(dest_abuf->data + dest_ta->offset + (offset << shift),
                     src_abuf->data + src_ta->offset, src_len << shift);
@@ -56987,7 +56995,7 @@ static JSValue js_typed_array_at(JSContext *ctx, JSValueConst this_val,
     if (idx < 0 || idx >= p->u.array.count)
         return JS_UNDEFINED;
 
-    switch (p->hflags.class_id) {
+    switch (p->ob1.hflags.class_id) {
     case JS_CLASS_INT8_ARRAY:
         return js_int32(p->u.array.u.int8_ptr[idx]);
     case JS_CLASS_UINT8C_ARRAY:
@@ -57047,7 +57055,7 @@ static JSValue js_typed_array_with(JSContext *ctx, JSValueConst this_val,
 
     len = min_uint32(oldlen, newlen);
     arr = js_typed_array_constructor_ta(ctx, JS_UNDEFINED, this_val,
-                                        p->hflags.class_id, len);
+                                        p->ob1.hflags.class_id, len);
     if (JS_IsException(arr)) {
         JS_FreeValue(ctx, val);
         return JS_EXCEPTION;
@@ -57125,7 +57133,7 @@ static JSValue js_typed_array___speciesCreate(JSContext *ctx,
     argc1 = max_int(argc - 1, 0);
     if (JS_IsUndefined(ctor)) {
         ret = js_typed_array_constructor(ctx, JS_UNDEFINED, argc1, argv + 1,
-                                         p->hflags.class_id);
+                                         p->ob1.hflags.class_id);
     } else {
         ret = js_typed_array_create(ctx, ctor, argc1, argv + 1);
         JS_FreeValue(ctx, ctor);
@@ -57280,7 +57288,7 @@ static JSValue js_typed_array_copyWithin(JSContext *ctx, JSValueConst this_val,
     count = min_int(final - from, len - to);
     count = min_int(count, space);
     if (count > 0) {
-        shift = typed_array_size_log2(p->hflags.class_id);
+        shift = typed_array_size_log2(p->ob1.hflags.class_id);
         memmove(p->u.array.u.uint8_ptr + (to << shift),
                 p->u.array.u.uint8_ptr + (from << shift),
                 count << shift);
@@ -57304,27 +57312,27 @@ static JSValue js_typed_array_fill(JSContext *ctx, JSValueConst this_val,
         return JS_ThrowTypeErrorArrayBufferOOB(ctx);
     len = p->u.array.count;
 
-    if (p->hflags.class_id == JS_CLASS_UINT8C_ARRAY) {
+    if (p->ob1.hflags.class_id == JS_CLASS_UINT8C_ARRAY) {
         int32_t v;
         if (JS_ToUint8ClampFree(ctx, &v, js_dup(argv[0])))
             return JS_EXCEPTION;
         v64 = v;
-    } else if (p->hflags.class_id <= JS_CLASS_UINT32_ARRAY) {
+    } else if (p->ob1.hflags.class_id <= JS_CLASS_UINT32_ARRAY) {
         uint32_t v;
         if (JS_ToUint32(ctx, &v, argv[0]))
             return JS_EXCEPTION;
         v64 = v;
     } else
-    if (p->hflags.class_id <= JS_CLASS_BIG_UINT64_ARRAY) {
+    if (p->ob1.hflags.class_id <= JS_CLASS_BIG_UINT64_ARRAY) {
         if (JS_ToBigInt64(ctx, (int64_t *)&v64, argv[0]))
             return JS_EXCEPTION;
     } else {
         double d;
         if (JS_ToFloat64(ctx, &d, argv[0]))
             return JS_EXCEPTION;
-        if (p->hflags.class_id == JS_CLASS_FLOAT16_ARRAY) {
+        if (p->ob1.hflags.class_id == JS_CLASS_FLOAT16_ARRAY) {
             v64 = tofp16(d);
-        } else if (p->hflags.class_id == JS_CLASS_FLOAT32_ARRAY) {
+        } else if (p->ob1.hflags.class_id == JS_CLASS_FLOAT32_ARRAY) {
             union {
                 float f;
                 uint32_t u32;
@@ -57355,7 +57363,7 @@ static JSValue js_typed_array_fill(JSContext *ctx, JSValueConst this_val,
 
     /* RAB may have been resized by evil .valueOf method */
     final = min_int(final, p->u.array.count);
-    shift = typed_array_size_log2(p->hflags.class_id);
+    shift = typed_array_size_log2(p->ob1.hflags.class_id);
     switch(shift) {
     case 0:
         if (k < final) {
@@ -57539,10 +57547,10 @@ static JSValue js_typed_array_indexOf(JSContext *ctx, JSValueConst this_val,
         else
             p1 = JS_VALUE_GET_PTR(argv[0]);
 
-        if (p->hflags.class_id == JS_CLASS_BIG_INT64_ARRAY) {
+        if (p->ob1.hflags.class_id == JS_CLASS_BIG_INT64_ARRAY) {
             if (p1->len > sz)
                 goto done; /* does not fit an int64 : cannot be found */
-        } else if (p->hflags.class_id == JS_CLASS_BIG_UINT64_ARRAY) {
+        } else if (p->ob1.hflags.class_id == JS_CLASS_BIG_UINT64_ARRAY) {
             if (js_bigint_sign(p1))
                 goto done; /* v < 0 */
             if (p1->len <= sz) {
@@ -57563,7 +57571,7 @@ static JSValue js_typed_array_indexOf(JSContext *ctx, JSValueConst this_val,
         goto done;
     }
 
-    switch (p->hflags.class_id) {
+    switch (p->ob1.hflags.class_id) {
     case JS_CLASS_INT8_ARRAY:
         if (is_int && (int8_t)v64 == v64)
             goto scan8;
@@ -57833,7 +57841,7 @@ static JSValue js_typed_array_reverse(JSContext *ctx, JSValueConst this_val,
         return JS_EXCEPTION;
     if (len > 0) {
         p = JS_VALUE_GET_OBJ(this_val);
-        switch (typed_array_size_log2(p->hflags.class_id)) {
+        switch (typed_array_size_log2(p->ob1.hflags.class_id)) {
         case 0:
             {
                 uint8_t *p1 = p->u.array.u.uint8_ptr;
@@ -57895,7 +57903,7 @@ static JSValue js_typed_array_toReversed(JSContext *ctx, JSValueConst this_val,
     if (!p)
         return JS_EXCEPTION;
     arr = js_typed_array_constructor_ta(ctx, JS_UNDEFINED, this_val,
-                                        p->hflags.class_id, p->u.array.count);
+                                        p->ob1.hflags.class_id, p->u.array.count);
     if (JS_IsException(arr))
         return JS_EXCEPTION;
     ret = js_typed_array_reverse(ctx, arr, argc, argv);
@@ -57943,10 +57951,10 @@ static JSValue js_typed_array_slice(JSContext *ctx, JSValueConst this_val,
             goto slow_path;
 
         p1 = get_typed_array(ctx, arr);
-        if (p1 != NULL && p->hflags.class_id == p1->hflags.class_id &&
+        if (p1 != NULL && p->ob1.hflags.class_id == p1->ob1.hflags.class_id &&
             typed_array_length(p1) >= count &&
             typed_array_length(p) >= start + count) {
-            shift = typed_array_size_log2(p->hflags.class_id);
+            shift = typed_array_size_log2(p->ob1.hflags.class_id);
             memmove(p1->u.array.u.uint8_ptr,
                     p->u.array.u.uint8_ptr + (start << shift),
                     count << shift);
@@ -58005,7 +58013,7 @@ static JSValue js_typed_array_subarray(JSContext *ctx, JSValueConst this_val,
         JS_ThrowRangeError(ctx, "invalid offset");
         goto exception;
     }
-    shift = typed_array_size_log2(p->hflags.class_id);
+    shift = typed_array_size_log2(p->ob1.hflags.class_id);
     offset = JS_VALUE_GET_INT(byteOffset) + (start << shift);
     JS_FreeValue(ctx, byteOffset);
     ta_buffer = js_typed_array_get_buffer(ctx, this_val);
@@ -58222,7 +58230,7 @@ static JSValue js_typed_array_sort(JSContext *ctx, JSValueConst this_val,
 
     len = p->u.array.count;
     if (len > 1) {
-        switch (p->hflags.class_id) {
+        switch (p->ob1.hflags.class_id) {
         case JS_CLASS_INT8_ARRAY:
             tsc.getfun = js_TA_get_int8;
             cmpfun = js_TA_cmp_int8;
@@ -58271,7 +58279,7 @@ static JSValue js_typed_array_sort(JSContext *ctx, JSValueConst this_val,
         default:
             abort();
         }
-        elt_size = 1 << typed_array_size_log2(p->hflags.class_id);
+        elt_size = 1 << typed_array_size_log2(p->ob1.hflags.class_id);
         if (!JS_IsUndefined(tsc.cmp)) {
             uint32_t *array_idx;
             void *array_tmp;
@@ -58355,7 +58363,7 @@ static JSValue js_typed_array_toSorted(JSContext *ctx, JSValueConst this_val,
     if (!p)
         return JS_EXCEPTION;
     arr = js_typed_array_constructor_ta(ctx, JS_UNDEFINED, this_val,
-                                        p->hflags.class_id, p->u.array.count);
+                                        p->ob1.hflags.class_id, p->u.array.count);
     if (JS_IsException(arr))
         return JS_EXCEPTION;
     ret = js_typed_array_sort(ctx, arr, argc, argv);
@@ -58433,7 +58441,7 @@ static int typed_array_init(JSContext *ctx, JSValue obj, JSValue buffer,
     int size_log2;
 
     p = JS_VALUE_GET_OBJ(obj);
-    size_log2 = typed_array_size_log2(p->hflags.class_id);
+    size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
     ta = js_malloc(ctx, sizeof(*ta));
     if (!ta) {
         JS_FreeValue(ctx, buffer);
@@ -58589,7 +58597,7 @@ static JSValue js_typed_array_constructor_ta(JSContext *ctx,
     abuf = JS_GetOpaque(buffer, JS_CLASS_ARRAY_BUFFER);
     if (typed_array_init(ctx, obj, buffer, 0, len, /*track_rab*/false))
         goto fail;
-    if (p->hflags.class_id == classid) {
+    if (p->ob1.hflags.class_id == classid) {
         /* same type: copy the content */
         memcpy(abuf->data, src_abuf->data + ta->offset, abuf->byte_length);
     } else {
@@ -58631,8 +58639,8 @@ static JSValue js_typed_array_constructor(JSContext *ctx,
         offset = 0;
     } else {
         JSObject *p = JS_VALUE_GET_OBJ(argv[0]);
-        if (p->hflags.class_id == JS_CLASS_ARRAY_BUFFER ||
-            p->hflags.class_id == JS_CLASS_SHARED_ARRAY_BUFFER) {
+        if (p->ob1.hflags.class_id == JS_CLASS_ARRAY_BUFFER ||
+            p->ob1.hflags.class_id == JS_CLASS_SHARED_ARRAY_BUFFER) {
             abuf = p->u.array_buffer;
             if (JS_ToIndex(ctx, &offset, argv[1]))
                 return JS_EXCEPTION;
@@ -58659,7 +58667,7 @@ static JSValue js_typed_array_constructor(JSContext *ctx,
             }
             buffer = js_dup(argv[0]);
         } else {
-            if (is_typed_array(p->hflags.class_id)) {
+            if (is_typed_array(p->ob1.hflags.class_id)) {
                 return js_typed_array_constructor_ta(ctx, new_target, argv[0],
                                                      classid, p->u.array.count);
             } else {
@@ -58807,7 +58815,7 @@ static bool dataview_is_oob(JSObject *p)
     JSArrayBuffer *abuf;
     JSTypedArray *ta;
 
-    assert(p->hflags.class_id == JS_CLASS_DATAVIEW);
+    assert(p->ob1.hflags.class_id == JS_CLASS_DATAVIEW);
     ta = p->u.typed_array;
     abuf = ta->buffer->u.array_buffer;
     if (abuf->detached)
@@ -58825,7 +58833,7 @@ static JSObject *get_dataview(JSContext *ctx, JSValueConst this_val)
     if (JS_VALUE_GET_TAG(this_val) != JS_TAG_OBJECT)
         goto fail;
     p = JS_VALUE_GET_OBJ(this_val);
-    if (p->hflags.class_id != JS_CLASS_DATAVIEW) {
+    if (p->ob1.hflags.class_id != JS_CLASS_DATAVIEW) {
     fail:
         JS_ThrowTypeError(ctx, "not a DataView");
         return NULL;
@@ -59197,11 +59205,11 @@ static JSObject *js_atomics_get_buf(JSContext *ctx,
         goto fail;
     p = JS_VALUE_GET_OBJ(obj);
     if (is_waitable)
-        err = (p->hflags.class_id != JS_CLASS_INT32_ARRAY &&
-               p->hflags.class_id != JS_CLASS_BIG_INT64_ARRAY);
+        err = (p->ob1.hflags.class_id != JS_CLASS_INT32_ARRAY &&
+               p->ob1.hflags.class_id != JS_CLASS_BIG_INT64_ARRAY);
     else
-        err = !(p->hflags.class_id >= JS_CLASS_INT8_ARRAY &&
-                p->hflags.class_id <= JS_CLASS_BIG_UINT64_ARRAY);
+        err = !(p->ob1.hflags.class_id >= JS_CLASS_INT8_ARRAY &&
+                p->ob1.hflags.class_id <= JS_CLASS_BIG_UINT64_ARRAY);
     if (err) {
     fail:
         JS_ThrowTypeError(ctx, "integer TypedArray expected");
@@ -59246,7 +59254,7 @@ static JSValue js_atomics_op(JSContext *ctx,
     p = js_atomics_get_buf(ctx, argv[0], argv[1], NULL, &idx, 0);
     if (!p)
         return JS_EXCEPTION;
-    size_log2 = typed_array_size_log2(p->hflags.class_id);
+    size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
     rep_val = 0;
     if (op == ATOMICS_OP_LOAD) {
         v = 0;
@@ -59347,7 +59355,7 @@ static JSValue js_atomics_op(JSContext *ctx,
         abort();
     }
 
-    switch(p->hflags.class_id) {
+    switch(p->ob1.hflags.class_id) {
     case JS_CLASS_INT8_ARRAY:
         a = (int8_t)a;
         goto done;
@@ -59392,7 +59400,7 @@ static JSValue js_atomics_store(JSContext *ctx,
     p = js_atomics_get_buf(ctx, argv[0], argv[1], NULL, &idx, 0);
     if (!p)
         return JS_EXCEPTION;
-    size_log2 = typed_array_size_log2(p->hflags.class_id);
+    size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
     if (size_log2 == 3) {
         int64_t v64;
         ret = JS_ToBigIntFree(ctx, js_dup(argv[2]));
@@ -59506,7 +59514,7 @@ static JSValue js_atomics_wait(JSContext *ctx,
     p = js_atomics_get_buf(ctx, argv[0], argv[1], NULL, &idx, 2);
     if (!p)
         return JS_EXCEPTION;
-    size_log2 = typed_array_size_log2(p->hflags.class_id);
+    size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
     if (size_log2 == 3) {
         if (JS_ToBigInt64(ctx, &v, argv[2]))
             return JS_EXCEPTION;
@@ -59584,7 +59592,7 @@ static JSValue js_atomics_notify(JSContext *ctx,
     p = js_atomics_get_buf(ctx, argv[0], argv[1], &abuf, &idx, 1);
     if (!p)
         return JS_EXCEPTION;
-    size_log2 = typed_array_size_log2(p->hflags.class_id);
+    size_log2 = typed_array_size_log2(p->ob1.hflags.class_id);
 
     if (JS_IsUndefined(argv[2])) {
         count = INT32_MAX;
@@ -60200,12 +60208,12 @@ static void reset_weak_ref(JSRuntime *rt, JSWeakRefRecord **first_weak_ref)
             enqueue = !rt->in_free;
             if (enqueue && JS_IsObject(fre->held_val)) {
                 JSObject *p = JS_VALUE_GET_OBJ(fre->held_val);
-                if (p->hflags.free_mark || p->header.mark)
+                if (p->ob1.hflags.free_mark || p->ob1.header.mark)
                     enqueue = false;
             }
             if (enqueue && JS_IsObject(fre->cb)) {
                 JSObject *p = JS_VALUE_GET_OBJ(fre->cb);
-                if (p->hflags.free_mark || p->header.mark)
+                if (p->ob1.hflags.free_mark || p->ob1.header.mark)
                     enqueue = false;
             }
             if (enqueue) {
@@ -60315,7 +60323,7 @@ static void js_new_callsite_data(JSContext *ctx, JSCallSiteData *csd, JSStackFra
         csd->func_name = JS_NULL;
 
     p = JS_VALUE_GET_OBJ(sf->cur_func);
-    if (js_class_has_bytecode(p->hflags.class_id)) {
+    if (js_class_has_bytecode(p->ob1.hflags.class_id)) {
         JSFunctionBytecode *b = p->u.func.function_bytecode;
         int line_num1, col_num1;
         line_num1 = find_line_num(ctx, b,
@@ -60912,12 +60920,12 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
      * investigation into atom refcount handling with 32-bit int64_t. */
 
     comma_state = 0;
-    is_array = FALSE;
+    is_array = false;
 
-    if (p->class_id == JS_CLASS_ARRAY) {
-        is_array = TRUE;
+    if (p->ob1.hflags.class_id == JS_CLASS_ARRAY) {
+        is_array = true;
         js_pv_puts(s, "[ ");
-        if (p->fast_array) {
+        if (p->ob1.hflags.fast_array) {
             uint32_t len, len1, n;
             len = js_pv_array_get_length(p);
             len1 = min_uint32(p->u.array.count, s->options.max_item_count);
@@ -60933,9 +60941,9 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
                 js_pv_printf(s, "<%u empty item%s>", n, n > 1 ? "s" : "");
             }
         }
-    } else if (p->class_id == JS_CLASS_BYTECODE_FUNCTION ||
-               (rt->class_array[p->class_id].call != NULL &&
-                p->class_id != JS_CLASS_PROXY)) {
+    } else if (p->ob1.hflags.class_id == JS_CLASS_BYTECODE_FUNCTION ||
+               (rt->class_array[p->ob1.hflags.class_id].call != NULL &&
+                p->ob1.hflags.class_id != JS_CLASS_PROXY)) {
         js_pv_puts(s, "[Function");
         if (s->ctx) {
             const char *func_name_str;
@@ -60950,11 +60958,11 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
         }
         js_pv_puts(s, "]");
         comma_state = 2;
-    } else if (p->class_id == JS_CLASS_MAP || p->class_id == JS_CLASS_SET) {
+    } else if (p->ob1.hflags.class_id == JS_CLASS_MAP || p->ob1.hflags.class_id == JS_CLASS_SET) {
         JSMapState *ms = p->u.opaque;
         struct list_head *el;
         if (!ms) goto pv_default_obj;
-        js_pv_print_atom(s, rt->class_array[p->class_id].class_name);
+        js_pv_print_atom(s, rt->class_array[p->ob1.hflags.class_id].class_name);
         js_pv_printf(s, "(%u) { ", ms->record_count);
         i = 0;
         list_for_each(el, &ms->records) {
@@ -60962,7 +60970,7 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
             js_pv_comma(s, &comma_state);
             if (mr->empty) continue;
             js_print_value(s, mr->key);
-            if (p->class_id == JS_CLASS_MAP) {
+            if (p->ob1.hflags.class_id == JS_CLASS_MAP) {
                 js_pv_puts(s, " => ");
                 js_print_value(s, mr->value);
             }
@@ -60971,7 +60979,7 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
         }
         if (i < ms->record_count)
             js_pv_more(s, &comma_state, ms->record_count - i);
-    } else if (p->class_id == JS_CLASS_REGEXP && s->ctx) {
+    } else if (p->ob1.hflags.class_id == JS_CLASS_REGEXP && s->ctx) {
         /* simple regexp display */
         JSRegExp *re = &p->u.regexp;
         if (re->pattern && re->bytecode) {
@@ -60982,7 +60990,7 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
             js_pv_puts(s, "/[regexp]/");
         }
         comma_state = 2;
-    } else if (p->class_id == JS_CLASS_DATE && s->ctx) {
+    } else if (p->ob1.hflags.class_id == JS_CLASS_DATE && s->ctx) {
         JSValue str = get_date_string(s->ctx, JS_MKPTR(JS_TAG_OBJECT, p),
                                       0, NULL, 0x23);
         if (!JS_IsException(str)) {
@@ -60999,7 +61007,7 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
             JS_FreeValue(s->ctx, JS_GetException(s->ctx));
             goto pv_default_obj;
         }
-    } else if (p->class_id == JS_CLASS_ERROR && s->ctx) {
+    } else if (p->ob1.hflags.class_id == JS_CLASS_ERROR && s->ctx) {
         const char *str;
         str = js_pv_get_prop_string(s->ctx, JS_MKPTR(JS_TAG_OBJECT, p), JS_ATOM_name);
         if (!str) js_pv_puts(s, "Error");
@@ -61010,8 +61018,8 @@ static void js_pv_print_object(JSPrintValueState *s, JSObject *p)
         comma_state = 2;
     } else {
     pv_default_obj:
-        if (p->class_id != JS_CLASS_OBJECT) {
-            js_pv_print_atom(s, rt->class_array[p->class_id].class_name);
+        if (p->ob1.hflags.class_id != JS_CLASS_OBJECT) {
+            js_pv_print_atom(s, rt->class_array[p->ob1.hflags.class_id].class_name);
             js_pv_puts(s, " ");
         }
         js_pv_puts(s, "{ ");
@@ -61130,7 +61138,7 @@ static void js_print_value(JSPrintValueState *s, JSValueConst val)
                 js_pv_print_object(s, p);
                 s->level--;
             } else {
-                JSAtom atom = s->rt->class_array[p->class_id].class_name;
+                JSAtom atom = s->rt->class_array[p->ob1.hflags.class_id].class_name;
                 js_pv_putc(s, '[');
                 js_pv_print_atom(s, atom);
                 js_pv_putc(s, ']');

@@ -1,72 +1,39 @@
 /*
- * try_tiny.c — Test app for tiny.library
+ * try_tiny.c — Test app for tiny_test.library (VBCC template test)
+ *
+ * Compile with SAS/C:
+ *   sc try_tiny.c NOSTACKCHECK NOCHKABORT ABSFP IDIR=sc:include NOICONS
+ *   slink lib:c.o try_tiny.o TO try_tiny LIB lib:scnb.lib lib:amiga.lib
  */
 #include <stdio.h>
 #include <exec/types.h>
+#include <exec/libraries.h>
 #include <proto/exec.h>
 
-/* Prototypes */
-const char *GetMessage(void);
-int GetCounter(void);
-void SetCounter(int val);
-int Add(int a, int b);
-void *AllocTest(ULONG size);
-void FreeTest(void *ptr, ULONG size);
-
-/* Pragmas */
 struct Library *TinyBase;
 
-#pragma libcall TinyBase GetMessage 1e 0
-#pragma libcall TinyBase GetCounter 24 0
-#pragma libcall TinyBase SetCounter 2a 001
-#pragma libcall TinyBase Add 30 1002
-#pragma libcall TinyBase AllocTest 36 001
-#pragma libcall TinyBase FreeTest 3c 0802
+LONG TT_GetAnswer(void);
+#pragma libcall TinyBase TT_GetAnswer 1e 0
 
-static const char ver[] = "$VER: try_tiny 1.0 (27.3.2026)";
+static const char ver[] = "$VER: try_tiny 1.0 (03.4.2026)";
 
 int main(void)
 {
-    printf("tiny.library test\n");
+    LONG answer;
 
-    TinyBase = OpenLibrary("tiny.library", 0);
+    printf("Opening tiny_test.library...\n");
+    TinyBase = OpenLibrary("tiny_test.library", 0);
     if (!TinyBase) {
-        printf("FATAL: Could not open tiny.library\n");
+        printf("FATAL: Could not open tiny_test.library\n");
         return 20;
     }
-    printf("tiny.library opened at 0x%lx\n", (unsigned long)TinyBase);
+    printf("OK! base=0x%lx ver=%ld.%ld\n",
+           (unsigned long)TinyBase,
+           (long)TinyBase->lib_Version,
+           (long)TinyBase->lib_Revision);
 
-    /* Test 1: string from const data */
-    {
-        const char *msg = GetMessage();
-        printf("GetMessage() = '%s'\n", msg ? msg : "(null)");
-    }
-
-    /* Test 2: global variable read */
-    {
-        int c = GetCounter();
-        printf("GetCounter() = %d (expect 42)\n", c);
-    }
-
-    /* Test 3: global variable write */
-    SetCounter(100);
-    {
-        int c = GetCounter();
-        printf("GetCounter() = %d (expect 100)\n", c);
-    }
-
-    /* Test 4: arithmetic (pure register, no data) */
-    {
-        int r = Add(17, 25);
-        printf("Add(17,25) = %d (expect 42)\n", r);
-    }
-
-    /* Test 5: memory allocation (AllocMem) */
-    {
-        void *p = AllocTest(256);
-        printf("AllocTest(256) = 0x%lx\n", (unsigned long)p);
-        if (p) FreeTest(p, 256);
-    }
+    answer = TT_GetAnswer();
+    printf("TT_GetAnswer = %ld (expect 42)\n", (long)answer);
 
     CloseLibrary(TinyBase);
     printf("Done.\n");

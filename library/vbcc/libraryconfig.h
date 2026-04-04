@@ -26,17 +26,20 @@ struct QJSLibBase {
     UWORD iPadding;
     BPTR iSegmentList;
     struct ExecBase *iSysBase;
-    /* Custom fields */
+    /* Custom fields — all opened/created in CustomLibInit */
     struct Library *iDOSBase;
+    struct Library *iMathDoubBasBase;
+    struct Library *iMathDoubTransBase;
+    APTR iMemPool;              /* exec memory pool for allocations */
 };
 
 /* ---- Steering defines ---- */
 
 #define LIBRARY_NAME "quickjs.library"
-#define LIBRARY_VERSION_STRING "\0$VER: quickjs.library 0.50 (03.4.2026)\r\n"
+#define LIBRARY_VERSION_STRING "\0$VER: quickjs.library 0.54 (04.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
 #define LIBRARY_VERSION 0
-#define LIBRARY_REVISION 50
+#define LIBRARY_REVISION 54
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
 /* ---- Function declarations ---- */
@@ -87,6 +90,46 @@ int QJS_AddEval(
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx);
 
+int QJS_AddDate(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddRegExp(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddJSON(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddProxy(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddMapSet(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddTypedArrays(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddPromise(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddWeakRef(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddDOMException(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+int QJS_AddPerformance(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -118,6 +161,16 @@ void QJS_Eval(
     (APTR) QJS_RunGC, \
     (APTR) QJS_AddBaseObjects, \
     (APTR) QJS_AddEval, \
+    (APTR) QJS_AddDate, \
+    (APTR) QJS_AddRegExp, \
+    (APTR) QJS_AddJSON, \
+    (APTR) QJS_AddProxy, \
+    (APTR) QJS_AddMapSet, \
+    (APTR) QJS_AddTypedArrays, \
+    (APTR) QJS_AddPromise, \
+    (APTR) QJS_AddWeakRef, \
+    (APTR) QJS_AddDOMException, \
+    (APTR) QJS_AddPerformance, \
     (APTR) QJS_EvalSimple, \
     (APTR) QJS_Eval
 

@@ -11,7 +11,6 @@
 /* No proto/exec.h — use explicit SysBase from library base instead */
 
 #include <stddef.h>  /* size_t */
-#include <string.h>  /* memcpy */
 
 #include "libraryconfig.h"
 
@@ -36,7 +35,7 @@ typedef struct JSMallocFunctions {
     size_t (*js_malloc_usable_size)(const void *ptr);
 } JSMallocFunctions;
 
-/* ---- Extern engine functions (from SAS/C-compiled .o files) ---- */
+/* ---- Extern engine functions (from VBCC-compiled .o files) ---- */
 
 extern JSRuntime *JS_NewRuntime2(const JSMallocFunctions *mf, void *opaque);
 extern void JS_FreeRuntime(JSRuntime *rt);
@@ -48,75 +47,87 @@ extern void JS_SetMemoryLimit(JSRuntime *rt, size_t limit);
 extern void JS_SetMaxStackSize(JSRuntime *rt, size_t stack_size);
 extern void JS_RunGC(JSRuntime *rt);
 extern int JS_AddIntrinsicBaseObjects(JSContext *ctx);
+extern int JS_AddIntrinsicDate(JSContext *ctx);
 extern int JS_AddIntrinsicEval(JSContext *ctx);
+extern int JS_AddIntrinsicRegExp(JSContext *ctx);
+extern int JS_AddIntrinsicJSON(JSContext *ctx);
+extern int JS_AddIntrinsicProxy(JSContext *ctx);
+extern int JS_AddIntrinsicMapSet(JSContext *ctx);
+extern int JS_AddIntrinsicTypedArrays(JSContext *ctx);
+extern int JS_AddIntrinsicPromise(JSContext *ctx);
+extern int JS_AddIntrinsicWeakRef(JSContext *ctx);
+extern int JS_AddIntrinsicDOMException(JSContext *ctx);
+extern int JS_AddPerformance(JSContext *ctx);
 extern JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
                         const char *filename, int eval_flags);
 extern void JS_FreeValue(JSContext *ctx, JSValue v);
 extern JSValue JS_GetException(JSContext *ctx);
 extern int JS_ToInt32(JSContext *ctx, long *pres, JSValue val);
 
+/* ---- Serial debug output via RawPutChar (exec LVO -516) ---- */
+#define LVO_CALL(base, offset, type) ((type)((char *)(base) - (offset)))
+
+static void dbg_char(struct ExecBase *sys, char c)
+{
+    LVO_CALL(sys, 516,
+        void (*)(__reg("a6") struct ExecBase *,
+                 __reg("d0") UBYTE))(sys, (UBYTE)c);
+}
+
+static void dbg_str(struct ExecBase *sys, const char *s)
+{
+    while (*s)
+        dbg_char(sys, *s++);
+}
+
+/* Global SysBase pointer for debug — set during CustomLibInit.
+ * Only used by dbg functions, not by engine code. */
+static struct ExecBase *g_dbg_sys;
+
 /* Inline checks */
 #define JS_IsException(v) (((long)(v).tag) == JS_TAG_EXCEPTION)
 
-/* ---- AllocMem-based allocator ---- */
+/* ---- AmigaAlloc-based allocator ---- */
 
-typedef struct { ULONG size; ULONG magic; } AllocHeader;
-#define ALLOC_MAGIC 0x514A5321UL
-#define HDR_SIZE ((sizeof(AllocHeader) + 7) & ~7)
+#include "sharedlib_mem.h"
+
+/* From sharedlib_time.c — must be called during init so gettimeofday works */
+extern void sharedlib_time_init(struct Library *dosBase);
+extern void sharedlib_time_cleanup(void);
+
+/* The JSMallocFunctions callbacks receive 'opaque' which we set to
+ * the library base pointer in QJS_NewRuntime. This gives every
+ * allocation call access to SysBase and the memory pool. */
 
 static void *a_calloc(void *op, size_t count, size_t sz)
 {
-    ULONG total = (ULONG)(count * sz + HDR_SIZE);
-    AllocHeader *h = (AllocHeader *)AllocMem(total, MEMF_PUBLIC|MEMF_CLEAR);
-    if (!h) return NULL;
-    h->size = total; h->magic = ALLOC_MAGIC;
-    return (char *)h + HDR_SIZE;
+    return AmigaAlloc((struct QJSLibBase *)op,
+                      (ULONG)(count * sz), AA_CALLOC, NULL);
 }
 
 static void *a_malloc(void *op, size_t sz)
 {
-    ULONG total = (ULONG)(sz + HDR_SIZE);
-    AllocHeader *h = (AllocHeader *)AllocMem(total, MEMF_PUBLIC);
-    if (!h) return NULL;
-    h->size = total; h->magic = ALLOC_MAGIC;
-    return (char *)h + HDR_SIZE;
+    return AmigaAlloc((struct QJSLibBase *)op,
+                      (ULONG)sz, AA_MALLOC, NULL);
 }
 
 static void a_free(void *op, void *ptr)
 {
-    AllocHeader *h;
-    if (!ptr) return;
-    h = (AllocHeader *)((char *)ptr - HDR_SIZE);
-    if (h->magic != ALLOC_MAGIC) return;
-    h->magic = 0;
-    FreeMem(h, h->size);
+    AmigaFree((struct QJSLibBase *)op, ptr, AA_MALLOC);
 }
 
 static void *a_realloc(void *op, void *ptr, size_t ns)
 {
-    AllocHeader *oh;
-    void *np;
-    ULONG os, cs;
-    if (!ptr) return a_malloc(op, ns);
-    if (!ns) { a_free(op, ptr); return NULL; }
-    oh = (AllocHeader *)((char *)ptr - HDR_SIZE);
-    if (oh->magic != ALLOC_MAGIC) return NULL;
-    os = oh->size - HDR_SIZE;
-    if (ns <= os) return ptr;
-    np = a_malloc(op, ns);
-    if (!np) return NULL;
-    cs = os < (ULONG)ns ? os : (ULONG)ns;
-    memcpy(np, ptr, cs);
-    a_free(op, ptr);
-    return np;
+    return AmigaAlloc((struct QJSLibBase *)op,
+                      (ULONG)ns, AA_REALLOC, ptr);
 }
 
 static size_t a_usable(const void *ptr)
 {
-    const AllocHeader *h;
-    if (!ptr) return 0;
-    h = (const AllocHeader *)((const char *)ptr - HDR_SIZE);
-    return (h->magic == ALLOC_MAGIC) ? (size_t)(h->size - HDR_SIZE) : 0;
+    /* AmigaAllocUsable doesn't need the base — it reads the header.
+     * But the JSMallocFunctions signature has no opaque here.
+     * Cast away the base requirement. */
+    return (size_t)AmigaAllocUsable(NULL, ptr);
 }
 
 static const JSMallocFunctions amiga_mf = {
@@ -125,26 +136,59 @@ static const JSMallocFunctions amiga_mf = {
 
 /* ---- CustomLibInit / CustomLibCleanup ---- */
 
-/* Global DOSBase for dos.library calls within the engine */
-struct Library *DOSBase = NULL;
-
 BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
 {
-    aBase->iDOSBase = __OpenLibrary(aBase->iSysBase,
-                                     "dos.library", 36);
+    struct ExecBase *sys = aBase->iSysBase;
+
+    aBase->iDOSBase = __OpenLibrary(sys, "dos.library", 36);
     if (!aBase->iDOSBase)
         return TRUE;
-    DOSBase = aBase->iDOSBase;
+
+    /* Init time subsystem with DOSBase for gettimeofday/DateStamp */
+    sharedlib_time_init(aBase->iDOSBase);
+
+    aBase->iMathDoubBasBase = __OpenLibrary(sys,
+        "mathieeedoubbas.library", 34);
+    if (!aBase->iMathDoubBasBase)
+        return TRUE;
+
+    aBase->iMathDoubTransBase = __OpenLibrary(sys,
+        "mathieeedoubtrans.library", 34);
+    if (!aBase->iMathDoubTransBase)
+        return TRUE;
+
+    /* Create memory pool for all engine allocations */
+    if (AmigaPoolInit(aBase))
+        return TRUE;
+
+    /* Save SysBase for debug output */
+    g_dbg_sys = sys;
+
     return FALSE;
 }
 
 VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
 {
+    struct ExecBase *sys = aBase->iSysBase;
+
+    /* Destroy pool first — frees all engine allocations */
+    AmigaPoolCleanup(aBase);
+
+    /* Tear down time subsystem */
+    sharedlib_time_cleanup();
+
+    if (aBase->iMathDoubTransBase) {
+        __CloseLibrary(sys, aBase->iMathDoubTransBase);
+        aBase->iMathDoubTransBase = NULL;
+    }
+    if (aBase->iMathDoubBasBase) {
+        __CloseLibrary(sys, aBase->iMathDoubBasBase);
+        aBase->iMathDoubBasBase = NULL;
+    }
     if (aBase->iDOSBase) {
-        __CloseLibrary(aBase->iSysBase, aBase->iDOSBase);
+        __CloseLibrary(sys, aBase->iDOSBase);
         aBase->iDOSBase = NULL;
     }
-    DOSBase = NULL;
 }
 
 /* ---- Library functions ---- */
@@ -152,7 +196,9 @@ VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
 struct JSRuntime *QJS_NewRuntime(
     __reg("a6") LIBRARY_BASE_TYPE *base)
 {
-    return JS_NewRuntime2(&amiga_mf, NULL);
+    /* Pass library base as opaque — allocator callbacks use it
+     * to reach SysBase and the memory pool. */
+    return JS_NewRuntime2(&amiga_mf, (void *)base);
 }
 
 void QJS_FreeRuntime(
@@ -166,7 +212,56 @@ struct JSContext *QJS_NewContext(
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSRuntime *rt)
 {
-    return JS_NewContext(rt);
+    JSContext *ctx;
+    struct ExecBase *sys = g_dbg_sys;
+
+    dbg_str(sys, "NC:Raw\n");
+    ctx = JS_NewContextRaw(rt);
+    if (!ctx) { dbg_str(sys, "NC:Raw FAIL\n"); return NULL; }
+
+    dbg_str(sys, "NC:Base\n");
+    if (JS_AddIntrinsicBaseObjects(ctx)) goto fail;
+
+    dbg_str(sys, "NC:Date\n");
+    if (JS_AddIntrinsicDate(ctx)) goto fail;
+
+    dbg_str(sys, "NC:Eval\n");
+    if (JS_AddIntrinsicEval(ctx)) goto fail;
+
+    dbg_str(sys, "NC:RegExp\n");
+    if (JS_AddIntrinsicRegExp(ctx)) goto fail;
+
+    dbg_str(sys, "NC:JSON\n");
+    if (JS_AddIntrinsicJSON(ctx)) goto fail;
+
+    dbg_str(sys, "NC:Proxy\n");
+    if (JS_AddIntrinsicProxy(ctx)) goto fail;
+
+    dbg_str(sys, "NC:MapSet\n");
+    if (JS_AddIntrinsicMapSet(ctx)) goto fail;
+
+    dbg_str(sys, "NC:TypedArr\n");
+    if (JS_AddIntrinsicTypedArrays(ctx)) goto fail;
+
+    dbg_str(sys, "NC:Promise\n");
+    if (JS_AddIntrinsicPromise(ctx)) goto fail;
+
+    dbg_str(sys, "NC:WeakRef\n");
+    if (JS_AddIntrinsicWeakRef(ctx)) goto fail;
+
+    dbg_str(sys, "NC:DOMExc\n");
+    if (JS_AddIntrinsicDOMException(ctx)) goto fail;
+
+    dbg_str(sys, "NC:Perf\n");
+    if (JS_AddPerformance(ctx)) goto fail;
+
+    dbg_str(sys, "NC:DONE\n");
+    return ctx;
+
+fail:
+    dbg_str(sys, "NC:FAIL\n");
+    JS_FreeContext(ctx);
+    return NULL;
 }
 
 struct JSContext *QJS_NewContextRaw(
@@ -224,6 +319,76 @@ int QJS_AddEval(
     __reg("a0") struct JSContext *ctx)
 {
     return JS_AddIntrinsicEval(ctx);
+}
+
+int QJS_AddDate(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicDate(ctx);
+}
+
+int QJS_AddRegExp(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicRegExp(ctx);
+}
+
+int QJS_AddJSON(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicJSON(ctx);
+}
+
+int QJS_AddProxy(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicProxy(ctx);
+}
+
+int QJS_AddMapSet(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicMapSet(ctx);
+}
+
+int QJS_AddTypedArrays(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicTypedArrays(ctx);
+}
+
+int QJS_AddPromise(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicPromise(ctx);
+}
+
+int QJS_AddWeakRef(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicWeakRef(ctx);
+}
+
+int QJS_AddDOMException(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicDOMException(ctx);
+}
+
+int QJS_AddPerformance(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddPerformance(ctx);
 }
 
 long QJS_EvalSimple(

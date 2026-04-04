@@ -25,9 +25,11 @@
 #ifndef CUTILS_H
 #define CUTILS_H
 
-/* AmigaOS / SAS-C 6.58 compatibility -- must come first */
+/* AmigaOS compatibility -- must come first */
 #ifdef __SASC
 #include "amiga_compat.h"
+#elif defined(__VBCC__)
+#include "amiga_compat_vbcc.h"
 #endif
 
 #include <assert.h>
@@ -66,15 +68,15 @@ extern "C" {
 #include <windows.h>
 #include <process.h> /* _beginthread */
 #endif
-#if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP) && !defined(__SASC)
+#if !defined(_WIN32) && !defined(EMSCRIPTEN) && !defined(__wasi__) && !defined(__DJGPP) && !defined(__SASC) && !defined(__VBCC__)
 #include <errno.h>
 #include <pthread.h>
 #endif
-#if !defined(_WIN32) && !defined(__SASC)
+#if !defined(_WIN32) && !defined(__SASC) && !defined(__VBCC__)
 #include <limits.h>
 #include <unistd.h>
 #endif
-#if defined(__SASC)
+#if defined(__SASC) || defined(__VBCC__)
 #include <errno.h>
 #include <limits.h>
 #endif
@@ -90,8 +92,8 @@ extern "C" {
 #  define __maybe_unused
 #  define __attribute__(x)
 #  define __attribute(x)
-#elif defined(__SASC)
-/* amiga_compat.h already defined these; guard against redefinition */
+#elif defined(__SASC) || defined(__VBCC__)
+/* amiga_compat*.h already defined these; guard against redefinition */
 #  ifndef likely
 #    define likely(x)    (x)
 #    define unlikely(x)  (x)
@@ -124,7 +126,7 @@ extern "C" {
 #endif
 
 /* static array parameter syntax [static n] is C99; SAS/C C89 doesn't support it */
-#if defined(_MSC_VER) || defined(__cplusplus) || defined(__SASC)
+#if defined(_MSC_VER) || defined(__cplusplus) || defined(__SASC) || defined(__VBCC__)
 #define minimum_length(n) n
 #else
 #define minimum_length(n) static n
@@ -669,7 +671,7 @@ static inline int js_exepath(char* buffer, size_t* size);
 /* Cross-platform threading APIs. */
 
 /* AmigaOS: single-threaded for now; workers not supported */
-#if defined(EMSCRIPTEN) || defined(__wasi__) || defined(__DJGPP) || defined(__SASC)
+#if defined(EMSCRIPTEN) || defined(__wasi__) || defined(__DJGPP) || defined(__SASC) || defined(__VBCC__)
 
 #define JS_HAVE_THREADS 0
 
@@ -1637,7 +1639,7 @@ static inline uint64_t js__hrtime_ns(void) {
 }
 #else
 static inline uint64_t js__hrtime_ns(void) {
-#if defined(__DJGPP) || defined(__SASC)
+#if defined(__DJGPP) || defined(__SASC) || defined(__VBCC__)
   struct timeval tv;
   if (gettimeofday(&tv, NULL))
     abort();
