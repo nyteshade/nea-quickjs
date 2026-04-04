@@ -34,7 +34,10 @@ extern void bridge_restore_a6(void);
 #define SA6 bridge_save_a6()
 #define RA6 bridge_restore_a6()
 
-static JSValue _br; /* shared JSValue result - must be static, not stack-local */
+/* Static JSValue slots -- addresses must NOT be stack-relative because
+ * VBCC computes &stack_var via A6, clobbered by __reg("a6")=QJSBase. */
+static JSValue _br;           /* result slot */
+static JSValue _p0, _p1, _p2; /* parameter slots */
 
 /* LVO call macro */
 #define LVO(base, off, type) ((type)((char *)(base) - (off)))
@@ -223,7 +226,8 @@ JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
 
 JSValue JS_EvalFunction(JSContext *ctx, JSValue fun_obj) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,762,F)((void*)QJSBase, &_br, ctx, &fun_obj); RA6;
+    _p0 = fun_obj;
+    SA6; LVO(QJSBase,762,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -253,7 +257,8 @@ void JS_UpdateStackTop(JSRuntime *rt) {
 
 void JS_SetDumpFlags(JSRuntime *rt, uint64_t flags) {
     typedef void (*F)(R6, RA0 JSRuntime *, RA1 uint64_t *);
-    SA6; LVO(QJSBase,192,F)((void*)QJSBase, rt, &flags); RA6;
+    _p0 = flags;
+    SA6; LVO(QJSBase,192,F)((void*)QJSBase, rt, &_p0); RA6;
 }
 
 uint64_t JS_GetDumpFlags(JSRuntime *rt) {
@@ -275,7 +280,8 @@ void JS_SetGCThreshold(JSRuntime *rt, size_t threshold) {
 
 int JS_IsLiveObject(JSRuntime *rt, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSRuntime *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,216,F)((void*)QJSBase, rt, &obj); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,216,F)((void*)QJSBase, rt, &_p0); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -308,7 +314,8 @@ JSRuntime *JS_GetRuntime(JSContext *ctx) {
 
 void JS_SetClassProto(JSContext *ctx, JSClassID class_id, JSValue obj) {
     typedef void (*F)(R6, RA0 JSContext *, RD0 ULONG, RA2 JSValue *);
-    SA6; LVO(QJSBase,246,F)((void*)QJSBase, ctx, (ULONG)class_id, &obj); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,246,F)((void*)QJSBase, ctx, (ULONG)class_id, &_p0); RA6;
 }
 
 JSValue JS_GetClassProto(JSContext *ctx, JSClassID class_id) {
@@ -329,22 +336,26 @@ JSValue JS_GetFunctionProto(JSContext *ctx) {
 
 int JS_IsEqual(JSContext *ctx, JSValueConst op1, JSValueConst op2) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,276,F)((void*)QJSBase, ctx, &op1, &op2); RA6; return _r; }
+    _p0 = op1; _p1 = op2;
+    { int _r; SA6; _r = (int)LVO(QJSBase,276,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6; return _r; }
 }
 
 int JS_IsStrictEqual(JSContext *ctx, JSValueConst op1, JSValueConst op2) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,282,F)((void*)QJSBase, ctx, &op1, &op2); RA6; return _r; }
+    _p0 = op1; _p1 = op2;
+    { int _r; SA6; _r = (int)LVO(QJSBase,282,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6; return _r; }
 }
 
 int JS_IsSameValue(JSContext *ctx, JSValueConst op1, JSValueConst op2) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,288,F)((void*)QJSBase, ctx, &op1, &op2); RA6; return _r; }
+    _p0 = op1; _p1 = op2;
+    { int _r; SA6; _r = (int)LVO(QJSBase,288,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6; return _r; }
 }
 
 int JS_IsSameValueZero(JSContext *ctx, JSValueConst op1, JSValueConst op2) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,294,F)((void*)QJSBase, ctx, &op1, &op2); RA6; return _r; }
+    _p0 = op1; _p1 = op2;
+    { int _r; SA6; _r = (int)LVO(QJSBase,294,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -373,23 +384,27 @@ void JS_DumpMemoryUsage(FILE *fp, const JSMemoryUsage *s, JSRuntime *rt) {
 
 void JS_FreeValue(JSContext *ctx, JSValue val) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    SA6; LVO(QJSBase,312,F)((void*)QJSBase, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,312,F)((void*)QJSBase, ctx, &_p0); RA6;
 }
 
 void JS_FreeValueRT(JSRuntime *rt, JSValue val) {
     typedef void (*F)(R6, RA0 JSRuntime *, RA1 JSValue *);
-    SA6; LVO(QJSBase,318,F)((void*)QJSBase, rt, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,318,F)((void*)QJSBase, rt, &_p0); RA6;
 }
 
 JSValue JS_DupValue(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,324,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,324,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
 JSValue JS_DupValueRT(JSRuntime *rt, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSRuntime *, RA2 JSValue *);
-    SA6; LVO(QJSBase,330,F)((void*)QJSBase, &_br, rt, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,330,F)((void*)QJSBase, &_br, rt, &_p0); RA6;
     return _br;
 }
 
@@ -399,19 +414,22 @@ JSValue JS_DupValueRT(JSRuntime *rt, JSValueConst val) {
 
 JSValue JS_NewNumber(JSContext *ctx, double d) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 double *);
-    SA6; LVO(QJSBase,336,F)((void*)QJSBase, &_br, ctx, &d); RA6;
+    _p0 = d;
+    SA6; LVO(QJSBase,336,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
 JSValue JS_NewBigInt64(JSContext *ctx, int64_t v) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 int64_t *);
-    SA6; LVO(QJSBase,342,F)((void*)QJSBase, &_br, ctx, &v); RA6;
+    _p0 = v;
+    SA6; LVO(QJSBase,342,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
 JSValue JS_NewBigUint64(JSContext *ctx, uint64_t v) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 uint64_t *);
-    SA6; LVO(QJSBase,348,F)((void*)QJSBase, &_br, ctx, &v); RA6;
+    _p0 = v;
+    SA6; LVO(QJSBase,348,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -433,13 +451,15 @@ JSValue JS_NewAtomString(JSContext *ctx, const char *str) {
 
 JSValue JS_ToString(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,366,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,366,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
 JSValue JS_ToPropertyKey(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,372,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,372,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -448,7 +468,8 @@ const char *JS_ToCStringLen2(JSContext *ctx, size_t *plen,
                               JSValueConst val, int cesu8) {
     typedef const char *(*F)(R6, RA0 JSContext *, RA2 size_t *,
                              RA1 JSValue *, RD0 int);
-    { void *_r; SA6; _r = (void *)LVO(QJSBase,378,F)((void*)QJSBase, ctx, plen, &val, cesu8); RA6; return _r; }
+    _p0 = val;
+    { void *_r; SA6; _r = (void *)LVO(QJSBase,378,F)((void*)QJSBase, ctx, plen, &_p0, cesu8); RA6; return _r; }
 }
 
 void JS_FreeCString(JSContext *ctx, const char *ptr) {
@@ -458,28 +479,33 @@ void JS_FreeCString(JSContext *ctx, const char *ptr) {
 
 int JS_ToBool(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,390,F)((void*)QJSBase, ctx, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,390,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 /* SFD: ToInt32(ctx,pres,val_ptr)(a0/a2/a1) — note swapped regs */
 int JS_ToInt32(JSContext *ctx, int32_t *pres, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA2 int32_t *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,396,F)((void*)QJSBase, ctx, pres, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,396,F)((void*)QJSBase, ctx, pres, &_p0); RA6; return _r; }
 }
 
 int JS_ToInt64(JSContext *ctx, int64_t *pres, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA2 int64_t *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,402,F)((void*)QJSBase, ctx, pres, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,402,F)((void*)QJSBase, ctx, pres, &_p0); RA6; return _r; }
 }
 
 int JS_ToFloat64(JSContext *ctx, double *pres, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA2 double *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,408,F)((void*)QJSBase, ctx, pres, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,408,F)((void*)QJSBase, ctx, pres, &_p0); RA6; return _r; }
 }
 
 JSValue JS_ToNumber(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,414,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,414,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -514,7 +540,8 @@ JSValue JS_NewObjectClass(JSContext *ctx, int class_id) {
 
 JSValue JS_NewObjectProto(JSContext *ctx, JSValueConst proto) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,432,F)((void*)QJSBase, &_br, ctx, &proto); RA6;
+    _p0 = proto;
+    SA6; LVO(QJSBase,432,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -532,17 +559,20 @@ JSValue JS_NewArray(JSContext *ctx) {
 
 int JS_IsArray(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,444,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,444,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 int JS_IsFunction(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,450,F)((void*)QJSBase, ctx, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,450,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 int JS_IsConstructor(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,456,F)((void*)QJSBase, ctx, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,456,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -557,7 +587,8 @@ JSValue JS_GetGlobalObject(JSContext *ctx) {
 
 JSValue JS_ToObject(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,468,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,468,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -567,7 +598,8 @@ JSValue JS_ToObject(JSContext *ctx, JSValueConst val) {
 
 JSValue JS_Throw(JSContext *ctx, JSValue obj) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,474,F)((void*)QJSBase, &_br, ctx, &obj); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,474,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -584,7 +616,8 @@ int JS_HasException(JSContext *ctx) {
 
 int JS_IsError(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,492,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,492,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 JSValue JS_NewError(JSContext *ctx) {
@@ -728,104 +761,123 @@ char *js_strndup(JSContext *ctx, const char *s, size_t n) {
 
 JSValue JS_GetProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RD0 ULONG);
-    SA6; LVO(QJSBase,552,F)((void*)QJSBase, &_br, ctx, &this_obj, (ULONG)prop); RA6;
+    _p0 = this_obj;
+    SA6; LVO(QJSBase,552,F)((void*)QJSBase, &_br, ctx, &_p0, (ULONG)prop); RA6;
     return _br;
 }
 
 JSValue JS_GetPropertyUint32(JSContext *ctx, JSValueConst this_obj, uint32_t idx) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RD0 ULONG);
-    SA6; LVO(QJSBase,558,F)((void*)QJSBase, &_br, ctx, &this_obj, idx); RA6;
+    _p0 = this_obj;
+    SA6; LVO(QJSBase,558,F)((void*)QJSBase, &_br, ctx, &_p0, idx); RA6;
     return _br;
 }
 
 JSValue JS_GetPropertyStr(JSContext *ctx, JSValueConst this_obj, const char *prop) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RA3 const char *);
-    SA6; LVO(QJSBase,564,F)((void*)QJSBase, &_br, ctx, &this_obj, prop); RA6;
+    _p0 = this_obj;
+    SA6; LVO(QJSBase,564,F)((void*)QJSBase, &_br, ctx, &_p0, prop); RA6;
     return _br;
 }
 
 JSValue JS_GetPropertyInt64(JSContext *ctx, JSValueConst this_obj, int64_t idx) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RD0 LONG);
-    SA6; LVO(QJSBase,570,F)((void*)QJSBase, &_br, ctx, &this_obj, (LONG)idx); RA6;
+    _p0 = this_obj;
+    SA6; LVO(QJSBase,570,F)((void*)QJSBase, &_br, ctx, &_p0, (LONG)idx); RA6;
     return _br;
 }
 
 int JS_SetProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop, JSValue val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,576,F)((void*)QJSBase, ctx, &this_obj, (ULONG)prop, &val); RA6; return _r; }
+    _p0 = this_obj; _p1 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,576,F)((void*)QJSBase, ctx, &_p0, (ULONG)prop, &_p1); RA6; return _r; }
 }
 
 int JS_SetPropertyUint32(JSContext *ctx, JSValueConst this_obj, uint32_t idx, JSValue val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,582,F)((void*)QJSBase, ctx, &this_obj, idx, &val); RA6; return _r; }
+    _p0 = this_obj; _p1 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,582,F)((void*)QJSBase, ctx, &_p0, idx, &_p1); RA6; return _r; }
 }
 
 int JS_SetPropertyStr(JSContext *ctx, JSValueConst this_obj, const char *prop, JSValue val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 const char *, RA3 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,588,F)((void*)QJSBase, ctx, &this_obj, prop, &val); RA6; return _r; }
+    _p0 = this_obj; _p1 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,588,F)((void*)QJSBase, ctx, &_p0, prop, &_p1); RA6; return _r; }
 }
 
 int JS_HasProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG);
-    { int _r; SA6; _r = (int)LVO(QJSBase,594,F)((void*)QJSBase, ctx, &this_obj, (ULONG)prop); RA6; return _r; }
+    _p0 = this_obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,594,F)((void*)QJSBase, ctx, &_p0, (ULONG)prop); RA6; return _r; }
 }
 
 int JS_DeleteProperty(JSContext *ctx, JSValueConst obj, JSAtom prop, int flags) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG, RD1 int);
-    { int _r; SA6; _r = (int)LVO(QJSBase,600,F)((void*)QJSBase, ctx, &obj, (ULONG)prop, flags); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,600,F)((void*)QJSBase, ctx, &_p0, (ULONG)prop, flags); RA6; return _r; }
 }
 
 int JS_SetPrototype(JSContext *ctx, JSValueConst obj, JSValueConst proto) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,606,F)((void*)QJSBase, ctx, &obj, &proto); RA6; return _r; }
+    _p0 = obj; _p1 = proto;
+    { int _r; SA6; _r = (int)LVO(QJSBase,606,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6; return _r; }
 }
 
 JSValue JS_GetPrototype(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,612,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    _p0 = val;
+    SA6; LVO(QJSBase,612,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
 int JS_GetLength(JSContext *ctx, JSValueConst obj, int64_t *pres) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 int64_t *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,618,F)((void*)QJSBase, ctx, &obj, pres); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,618,F)((void*)QJSBase, ctx, &_p0, pres); RA6; return _r; }
 }
 
 int JS_SetLength(JSContext *ctx, JSValueConst obj, int64_t len) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 LONG);
-    { int _r; SA6; _r = (int)LVO(QJSBase,624,F)((void*)QJSBase, ctx, &obj, (LONG)len); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,624,F)((void*)QJSBase, ctx, &_p0, (LONG)len); RA6; return _r; }
 }
 
 int JS_IsExtensible(JSContext *ctx, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,630,F)((void*)QJSBase, ctx, &obj); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,630,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 int JS_PreventExtensions(JSContext *ctx, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,636,F)((void*)QJSBase, ctx, &obj); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,636,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 int JS_SealObject(JSContext *ctx, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,642,F)((void*)QJSBase, ctx, &obj); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,642,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 int JS_FreezeObject(JSContext *ctx, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,648,F)((void*)QJSBase, ctx, &obj); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,648,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 int JS_DefinePropertyValue(JSContext *ctx, JSValueConst this_obj,
                             JSAtom prop, JSValue val, int flags) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG, RA2 JSValue *, RD1 int);
-    { int _r; SA6; _r = (int)LVO(QJSBase,654,F)((void*)QJSBase, ctx, &this_obj, (ULONG)prop, &val, flags); RA6; return _r; }
+    _p0 = this_obj; _p1 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,654,F)((void*)QJSBase, ctx, &_p0, (ULONG)prop, &_p1, flags); RA6; return _r; }
 }
 
 int JS_DefinePropertyValueUint32(JSContext *ctx, JSValueConst this_obj,
                                   uint32_t idx, JSValue val, int flags) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG, RA2 JSValue *, RD1 int);
-    { int _r; SA6; _r = (int)LVO(QJSBase,660,F)((void*)QJSBase, ctx, &this_obj, idx, &val, flags); RA6; return _r; }
+    _p0 = this_obj; _p1 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,660,F)((void*)QJSBase, ctx, &_p0, idx, &_p1, flags); RA6; return _r; }
 }
 
 int JS_DefinePropertyValueStr(JSContext *ctx, JSValueConst this_obj,
@@ -833,7 +885,8 @@ int JS_DefinePropertyValueStr(JSContext *ctx, JSValueConst this_obj,
     /* SFD: (ctx,this_ptr,val_ptr,prop_str,flags)(a0/a1/a2/a3/d0) */
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *,
                      RA3 const char *, RD0 int);
-    { int _r; SA6; _r = (int)LVO(QJSBase,666,F)((void*)QJSBase, ctx, &this_obj, &val, prop, flags); RA6; return _r; }
+    _p0 = this_obj; _p1 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,666,F)((void*)QJSBase, ctx, &_p0, &_p1, prop, flags); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -843,24 +896,28 @@ int JS_DefinePropertyValueStr(JSContext *ctx, JSValueConst this_obj,
 /* SFD: SetOpaque(obj_ptr,opaque)(a1/a0) — note a1 first! */
 void JS_SetOpaque(JSValue obj, void *opaque) {
     typedef void (*F)(R6, RA1 JSValue *, RA0 void *);
-    SA6; LVO(QJSBase,672,F)((void*)QJSBase, &obj, opaque); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,672,F)((void*)QJSBase, &_p0, opaque); RA6;
 }
 
 void *JS_GetOpaque(JSValueConst obj, JSClassID class_id) {
     typedef void *(*F)(R6, RA0 JSValue *, RD0 ULONG);
-    { void *_r; SA6; _r = (void *)LVO(QJSBase,678,F)((void*)QJSBase, &obj, (ULONG)class_id); RA6; return _r; }
+    _p0 = obj;
+    { void *_r; SA6; _r = (void *)LVO(QJSBase,678,F)((void*)QJSBase, &_p0, (ULONG)class_id); RA6; return _r; }
 }
 
 void *JS_GetOpaque2(JSContext *ctx, JSValueConst obj, JSClassID class_id) {
     typedef void *(*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 ULONG);
-    { void *_r; SA6; _r = (void *)LVO(QJSBase,684,F)((void*)QJSBase, ctx, &obj, (ULONG)class_id); RA6; return _r; }
+    _p0 = obj;
+    { void *_r; SA6; _r = (void *)LVO(QJSBase,684,F)((void*)QJSBase, ctx, &_p0, (ULONG)class_id); RA6; return _r; }
 }
 
 int JS_GetOwnPropertyNames(JSContext *ctx, JSPropertyEnum **ptab,
                              uint32_t *plen, JSValueConst obj, int flags) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSPropertyEnum **, RA2 uint32_t *,
                      RA3 JSValue *, RD0 int);
-    { int _r; SA6; _r = (int)LVO(QJSBase,690,F)((void*)QJSBase, ctx, ptab, plen, &obj, flags); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,690,F)((void*)QJSBase, ctx, ptab, plen, &_p0, flags); RA6; return _r; }
 }
 
 void JS_FreePropertyEnum(JSContext *ctx, JSPropertyEnum *tab, uint32_t len) {
@@ -870,7 +927,8 @@ void JS_FreePropertyEnum(JSContext *ctx, JSPropertyEnum *tab, uint32_t len) {
 
 int JS_IsInstanceOf(JSContext *ctx, JSValueConst val, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,702,F)((void*)QJSBase, ctx, &val, &obj); RA6; return _r; }
+    _p0 = val; _p1 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,702,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -923,7 +981,8 @@ const char *JS_AtomToCStringLen(JSContext *ctx, size_t *plen, JSAtom atom) {
 
 JSAtom JS_ValueToAtom(JSContext *ctx, JSValueConst val) {
     typedef ULONG (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)(JSAtom)LVO(QJSBase,756,F)((void*)QJSBase, ctx, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)(JSAtom)LVO(QJSBase,756,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -935,7 +994,8 @@ JSValue JS_Call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_obj,
     /* SFD: Call(result,ctx,func_ptr,this_ptr,argc,argv_addr)(a0/a1/a2/a3/d0/d1) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *,
                       RA3 JSValue *, RD0 int, RD1 ULONG);
-    LVO(QJSBase,768,F)((void*)QJSBase, &_br, ctx, &func_obj, &this_obj,
+    _p0 = func_obj; _p1 = this_obj;
+    LVO(QJSBase,768,F)((void*)QJSBase, &_br, ctx, &_p0, &_p1,
                         argc, (ULONG)argv);
     return _br;
 }
@@ -945,7 +1005,8 @@ JSValue JS_Invoke(JSContext *ctx, JSValueConst this_val, JSAtom atom,
     /* SFD: Invoke(result,ctx,this_ptr,argv,atom,argc)(a0/a1/a2/a3/d0/d1) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *,
                       RA3 JSValue *, RD0 ULONG, RD1 int);
-    LVO(QJSBase,774,F)((void*)QJSBase, &_br, ctx, &this_val,
+    _p0 = this_val;
+    LVO(QJSBase,774,F)((void*)QJSBase, &_br, ctx, &_p0,
                         (JSValue *)argv, (ULONG)atom, argc);
     return _br;
 }
@@ -955,7 +1016,8 @@ JSValue JS_CallConstructor(JSContext *ctx, JSValueConst func_obj,
     /* SFD: CallConstructor(result,ctx,func_ptr,argv,argc)(a0/a1/a2/a3/d0) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *,
                       RA3 JSValue *, RD0 int);
-    LVO(QJSBase,780,F)((void*)QJSBase, &_br, ctx, &func_obj,
+    _p0 = func_obj;
+    LVO(QJSBase,780,F)((void*)QJSBase, &_br, ctx, &_p0,
                         (JSValue *)argv, argc);
     return _br;
 }
@@ -984,7 +1046,8 @@ JSValue JS_JSONStringify(JSContext *ctx, JSValueConst obj,
                           JSValueConst replacer, JSValueConst space) {
     /* SFD simplified: JSONStringify(result,ctx,obj_ptr)(a0/a1/a2) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,792,F)((void*)QJSBase, &_br, ctx, &obj); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,792,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
@@ -994,7 +1057,8 @@ JSValue JS_JSONStringify(JSContext *ctx, JSValueConst obj,
 
 uint8_t *JS_WriteObject(JSContext *ctx, size_t *psize, JSValueConst obj, int flags) {
     typedef uint8_t *(*F)(R6, RA0 JSContext *, RA1 size_t *, RA2 JSValue *, RD0 int);
-    { void *_r; SA6; _r = (void *)LVO(QJSBase,798,F)((void*)QJSBase, ctx, psize, &obj, flags); RA6; return _r; }
+    _p0 = obj;
+    { void *_r; SA6; _r = (void *)LVO(QJSBase,798,F)((void*)QJSBase, ctx, psize, &_p0, flags); RA6; return _r; }
 }
 
 uint8_t *JS_WriteObject2(JSContext *ctx, size_t *psize, JSValueConst obj,
@@ -1031,7 +1095,8 @@ int JS_IsRegisteredClass(JSRuntime *rt, JSClassID class_id) {
 
 JSClassID JS_GetClassID(JSValueConst val) {
     typedef ULONG (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)(JSClassID)LVO(QJSBase,828,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)(JSClassID)LVO(QJSBase,828,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -1088,12 +1153,14 @@ int JS_SetModuleExport(JSContext *ctx, JSModuleDef *m,
                         const char *export_name, JSValue val) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSModuleDef *, RA2 const char *,
                      RA3 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,870,F)((void*)QJSBase, ctx, m, export_name, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,870,F)((void*)QJSBase, ctx, m, export_name, &_p0); RA6; return _r; }
 }
 
 int JS_ResolveModule(JSContext *ctx, JSValueConst obj) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,876,F)((void*)QJSBase, ctx, &obj); RA6; return _r; }
+    _p0 = obj;
+    { int _r; SA6; _r = (int)LVO(QJSBase,876,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 const char *JS_GetScriptOrModuleName(JSContext *ctx, int n_stack_levels) {
@@ -1155,14 +1222,16 @@ JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func, const char *name,
 
 void JS_SetConstructor(JSContext *ctx, JSValueConst func, JSValueConst proto) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 JSValue *);
-    SA6; LVO(QJSBase,894,F)((void*)QJSBase, ctx, &func, &proto); RA6;
+    _p0 = func; _p1 = proto;
+    SA6; LVO(QJSBase,894,F)((void*)QJSBase, ctx, &_p0, &_p1); RA6;
 }
 
 void JS_SetPropertyFunctionList(JSContext *ctx, JSValueConst obj,
                                  const JSCFunctionListEntry *tab, int len) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *, RA2 const JSCFunctionListEntry *,
                       RD0 int);
-    SA6; LVO(QJSBase,900,F)((void*)QJSBase, ctx, &obj, tab, len); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,900,F)((void*)QJSBase, ctx, &_p0, tab, len); RA6;
 }
 
 /* Stubs for NewCFunctionData, NewCClosure, etc. */
@@ -1194,18 +1263,21 @@ JSValue JS_NewPromiseCapability(JSContext *ctx, JSValue *resolving_funcs) {
 
 JSPromiseStateEnum JS_PromiseState(JSContext *ctx, JSValue promise) {
     typedef int (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    { int _r; SA6; _r = (int)(JSPromiseStateEnum)LVO(QJSBase,924,F)((void*)QJSBase, ctx, &promise); RA6; return _r; }
+    _p0 = promise;
+    { int _r; SA6; _r = (int)(JSPromiseStateEnum)LVO(QJSBase,924,F)((void*)QJSBase, ctx, &_p0); RA6; return _r; }
 }
 
 JSValue JS_PromiseResult(JSContext *ctx, JSValue promise) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,930,F)((void*)QJSBase, &_br, ctx, &promise); RA6;
+    _p0 = promise;
+    SA6; LVO(QJSBase,930,F)((void*)QJSBase, &_br, ctx, &_p0); RA6;
     return _br;
 }
 
 int JS_IsPromise(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,936,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,936,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 void JS_SetInterruptHandler(JSRuntime *rt, JSInterruptHandler *cb, void *opaque) {
@@ -1243,22 +1315,26 @@ JSValue JS_NewArrayBufferCopy(JSContext *ctx, const uint8_t *buf, size_t len) {
 
 uint8_t *JS_GetArrayBuffer(JSContext *ctx, size_t *psize, JSValueConst obj) {
     typedef uint8_t *(*F)(R6, RA0 JSContext *, RA1 size_t *, RA2 JSValue *);
-    { void *_r; SA6; _r = (void *)LVO(QJSBase,966,F)((void*)QJSBase, ctx, psize, &obj); RA6; return _r; }
+    _p0 = obj;
+    { void *_r; SA6; _r = (void *)LVO(QJSBase,966,F)((void*)QJSBase, ctx, psize, &_p0); RA6; return _r; }
 }
 
 int JS_IsArrayBuffer(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,972,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,972,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 void JS_DetachArrayBuffer(JSContext *ctx, JSValueConst obj) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    SA6; LVO(QJSBase,978,F)((void*)QJSBase, ctx, &obj); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,978,F)((void*)QJSBase, ctx, &_p0); RA6;
 }
 
 uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *psize, JSValueConst obj) {
     typedef uint8_t *(*F)(R6, RA0 JSContext *, RA1 size_t *, RA2 JSValue *);
-    { void *_r; SA6; _r = (void *)LVO(QJSBase,984,F)((void*)QJSBase, ctx, psize, &obj); RA6; return _r; }
+    _p0 = obj;
+    { void *_r; SA6; _r = (void *)LVO(QJSBase,984,F)((void*)QJSBase, ctx, psize, &_p0); RA6; return _r; }
 }
 
 JSValue JS_NewUint8ArrayCopy(JSContext *ctx, const uint8_t *buf, size_t len) {
@@ -1273,22 +1349,26 @@ JSValue JS_NewUint8ArrayCopy(JSContext *ctx, const uint8_t *buf, size_t len) {
 
 int JS_IsDate(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,996,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,996,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 int JS_IsRegExp(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,1002,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,1002,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 int JS_IsMap(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,1008,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,1008,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 int JS_IsSet(JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
-    { int _r; SA6; _r = (int)LVO(QJSBase,1014,F)((void*)QJSBase, &val); RA6; return _r; }
+    _p0 = val;
+    { int _r; SA6; _r = (int)LVO(QJSBase,1014,F)((void*)QJSBase, &_p0); RA6; return _r; }
 }
 
 /* ===================================================================
@@ -1303,12 +1383,14 @@ JSValue JS_NewSymbol(JSContext *ctx, const char *description, int is_global) {
 
 void JS_SetIsHTMLDDA(JSContext *ctx, JSValueConst obj) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *);
-    SA6; LVO(QJSBase,1032,F)((void*)QJSBase, ctx, &obj); RA6;
+    _p0 = obj;
+    SA6; LVO(QJSBase,1032,F)((void*)QJSBase, ctx, &_p0); RA6;
 }
 
 void JS_SetConstructorBit(JSContext *ctx, JSValueConst func, int val) {
     typedef void (*F)(R6, RA0 JSContext *, RA1 JSValue *, RD0 int);
-    SA6; LVO(QJSBase,1038,F)((void*)QJSBase, ctx, &func, val); RA6;
+    _p0 = func;
+    SA6; LVO(QJSBase,1038,F)((void*)QJSBase, ctx, &_p0, val); RA6;
 }
 
 /* ===================================================================
