@@ -64,6 +64,35 @@ extern void JS_FreeValue(JSContext *ctx, JSValue v);
 extern JSValue JS_GetException(JSContext *ctx);
 extern int JS_ToInt32(JSContext *ctx, long *pres, JSValue val);
 
+/* --- Batch 1 engine externs --- */
+extern void JS_SetRuntimeInfo(JSRuntime *rt, const char *info);
+extern void *JS_GetRuntimeOpaque(JSRuntime *rt);
+extern void JS_SetRuntimeOpaque(JSRuntime *rt, void *opaque);
+extern void JS_UpdateStackTop(JSRuntime *rt);
+extern void JS_SetDumpFlags(JSRuntime *rt, unsigned long long flags);
+extern unsigned long long JS_GetDumpFlags(JSRuntime *rt);
+extern size_t JS_GetGCThreshold(JSRuntime *rt);
+extern void JS_SetGCThreshold(JSRuntime *rt, size_t gc_threshold);
+extern int JS_IsLiveObject(JSRuntime *rt, JSValue obj);
+extern JSContext *JS_DupContext(JSContext *ctx);
+extern void *JS_GetContextOpaque(JSContext *ctx);
+extern void JS_SetContextOpaque(JSContext *ctx, void *opaque);
+extern JSRuntime *JS_GetRuntime(JSContext *ctx);
+extern void JS_SetClassProto(JSContext *ctx, unsigned long class_id, JSValue obj);
+extern JSValue JS_GetClassProto(JSContext *ctx, unsigned long class_id);
+extern JSValue JS_GetFunctionProto(JSContext *ctx);
+extern int JS_AddIntrinsicBigInt(JSContext *ctx);
+extern void JS_AddIntrinsicRegExpCompiler(JSContext *ctx);
+extern int JS_IsEqual(JSContext *ctx, JSValue op1, JSValue op2);
+extern int JS_IsStrictEqual(JSContext *ctx, JSValue op1, JSValue op2);
+extern int JS_IsSameValue(JSContext *ctx, JSValue op1, JSValue op2);
+extern int JS_IsSameValueZero(JSContext *ctx, JSValue op1, JSValue op2);
+typedef struct JSMemoryUsage JSMemoryUsage;
+extern void JS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s);
+typedef void JSRuntimeFinalizer(JSRuntime *rt, void *arg);
+extern int JS_AddRuntimeFinalizer(JSRuntime *rt,
+                                  JSRuntimeFinalizer *finalizer, void *arg);
+
 /* ---- Serial debug output via RawPutChar (exec LVO -516) ---- */
 #define LVO_CALL(base, offset, type) ((type)((char *)(base) - (offset)))
 
@@ -438,4 +467,203 @@ void QJS_Eval(
     __reg("d1") int eval_flags)
 {
     *result = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
+}
+
+/* ---- Batch 1: Runtime functions ---- */
+
+void QJS_SetRuntimeInfo(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") const char *info)
+{
+    JS_SetRuntimeInfo(rt, info);
+}
+
+void *QJS_GetRuntimeOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt)
+{
+    return JS_GetRuntimeOpaque(rt);
+}
+
+void QJS_SetRuntimeOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *opaque)
+{
+    JS_SetRuntimeOpaque(rt, opaque);
+}
+
+void QJS_UpdateStackTop(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt)
+{
+    JS_UpdateStackTop(rt);
+}
+
+void QJS_SetDumpFlags(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") unsigned long long *flags_ptr)
+{
+    JS_SetDumpFlags(rt, *flags_ptr);
+}
+
+void QJS_GetDumpFlags(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") unsigned long long *result_ptr)
+{
+    *result_ptr = JS_GetDumpFlags(rt);
+}
+
+ULONG QJS_GetGCThreshold(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt)
+{
+    return (ULONG)JS_GetGCThreshold(rt);
+}
+
+void QJS_SetGCThreshold(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("d0") ULONG threshold)
+{
+    JS_SetGCThreshold(rt, (size_t)threshold);
+}
+
+int QJS_IsLiveObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") JSValue *obj_ptr)
+{
+    return (int)JS_IsLiveObject(rt, *obj_ptr);
+}
+
+/* ---- Batch 1: Context functions ---- */
+
+struct JSContext *QJS_DupContext(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_DupContext(ctx);
+}
+
+void *QJS_GetContextOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_GetContextOpaque(ctx);
+}
+
+void QJS_SetContextOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *opaque)
+{
+    JS_SetContextOpaque(ctx, opaque);
+}
+
+struct JSRuntime *QJS_GetRuntime(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_GetRuntime(ctx);
+}
+
+void QJS_SetClassProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG class_id,
+    __reg("a2") JSValue *obj_ptr)
+{
+    JS_SetClassProto(ctx, (unsigned long)class_id, *obj_ptr);
+}
+
+void QJS_GetClassProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("d0") ULONG class_id)
+{
+    *result = JS_GetClassProto(ctx, (unsigned long)class_id);
+}
+
+void QJS_GetFunctionProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx)
+{
+    *result = JS_GetFunctionProto(ctx);
+}
+
+int QJS_AddBigInt(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    return JS_AddIntrinsicBigInt(ctx);
+}
+
+void QJS_AddRegExpCompiler(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx)
+{
+    JS_AddIntrinsicRegExpCompiler(ctx);
+}
+
+/* ---- Batch 1: Comparison functions ---- */
+
+int QJS_IsEqual(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr)
+{
+    return JS_IsEqual(ctx, *op1_ptr, *op2_ptr);
+}
+
+int QJS_IsStrictEqual(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr)
+{
+    return (int)JS_IsStrictEqual(ctx, *op1_ptr, *op2_ptr);
+}
+
+int QJS_IsSameValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr)
+{
+    return (int)JS_IsSameValue(ctx, *op1_ptr, *op2_ptr);
+}
+
+int QJS_IsSameValueZero(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr)
+{
+    return (int)JS_IsSameValueZero(ctx, *op1_ptr, *op2_ptr);
+}
+
+/* ---- Batch 1: Memory/Finalizer functions ---- */
+
+void QJS_ComputeMemoryUsage(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *s)
+{
+    JS_ComputeMemoryUsage(rt, (JSMemoryUsage *)s);
+}
+
+int QJS_AddRuntimeFinalizer(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *finalizer,
+    __reg("a2") void *arg)
+{
+    return JS_AddRuntimeFinalizer(rt, (JSRuntimeFinalizer *)finalizer, arg);
 }

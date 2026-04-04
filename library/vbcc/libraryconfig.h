@@ -130,6 +130,133 @@ int QJS_AddPerformance(
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx);
 
+/* --- Batch 1: Runtime --- */
+
+void QJS_SetRuntimeInfo(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") const char *info);
+
+void *QJS_GetRuntimeOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt);
+
+void QJS_SetRuntimeOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *opaque);
+
+void QJS_UpdateStackTop(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt);
+
+void QJS_SetDumpFlags(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") unsigned long long *flags_ptr);
+
+void QJS_GetDumpFlags(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") unsigned long long *result_ptr);
+
+ULONG QJS_GetGCThreshold(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt);
+
+void QJS_SetGCThreshold(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("d0") ULONG threshold);
+
+int QJS_IsLiveObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") JSValue *obj_ptr);
+
+/* --- Batch 1: Context --- */
+
+struct JSContext *QJS_DupContext(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+void *QJS_GetContextOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+void QJS_SetContextOpaque(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") void *opaque);
+
+struct JSRuntime *QJS_GetRuntime(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+void QJS_SetClassProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG class_id,
+    __reg("a2") JSValue *obj_ptr);
+
+void QJS_GetClassProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("d0") ULONG class_id);
+
+void QJS_GetFunctionProto(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx);
+
+int QJS_AddBigInt(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+void QJS_AddRegExpCompiler(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx);
+
+/* --- Batch 1: Comparison --- */
+
+int QJS_IsEqual(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr);
+
+int QJS_IsStrictEqual(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr);
+
+int QJS_IsSameValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr);
+
+int QJS_IsSameValueZero(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *op1_ptr,
+    __reg("a2") JSValue *op2_ptr);
+
+/* --- Batch 1: Memory/Finalizer --- */
+
+void QJS_ComputeMemoryUsage(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *s);
+
+int QJS_AddRuntimeFinalizer(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *finalizer,
+    __reg("a2") void *arg);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -172,6 +299,30 @@ void QJS_Eval(
     (APTR) QJS_AddDOMException, \
     (APTR) QJS_AddPerformance, \
     (APTR) QJS_EvalSimple, \
-    (APTR) QJS_Eval
+    (APTR) QJS_Eval, \
+    (APTR) QJS_SetRuntimeInfo, \
+    (APTR) QJS_GetRuntimeOpaque, \
+    (APTR) QJS_SetRuntimeOpaque, \
+    (APTR) QJS_UpdateStackTop, \
+    (APTR) QJS_SetDumpFlags, \
+    (APTR) QJS_GetDumpFlags, \
+    (APTR) QJS_GetGCThreshold, \
+    (APTR) QJS_SetGCThreshold, \
+    (APTR) QJS_IsLiveObject, \
+    (APTR) QJS_DupContext, \
+    (APTR) QJS_GetContextOpaque, \
+    (APTR) QJS_SetContextOpaque, \
+    (APTR) QJS_GetRuntime, \
+    (APTR) QJS_SetClassProto, \
+    (APTR) QJS_GetClassProto, \
+    (APTR) QJS_GetFunctionProto, \
+    (APTR) QJS_AddBigInt, \
+    (APTR) QJS_AddRegExpCompiler, \
+    (APTR) QJS_IsEqual, \
+    (APTR) QJS_IsStrictEqual, \
+    (APTR) QJS_IsSameValue, \
+    (APTR) QJS_IsSameValueZero, \
+    (APTR) QJS_ComputeMemoryUsage, \
+    (APTR) QJS_AddRuntimeFinalizer
 
 #endif /* LIBRARYCONFIG_H */
