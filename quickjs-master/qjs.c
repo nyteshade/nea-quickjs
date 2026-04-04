@@ -36,7 +36,17 @@
 #include "quickjs.h"
 #include "quickjs-libc.h"
 
-#ifdef __SASC
+#ifdef __VBCC__
+/* AmigaOS version string — queryable via the "version" CLI command */
+static const char amiga_ver[] = "$VER: qjs 0.55 (4.4.2026)";
+
+/* amiga_force_color is defined in amiga_posix_stubs.c */
+extern int amiga_force_color;
+
+#include <proto/dos.h>
+#include "amiga_compat_vbcc.h"
+
+#elif defined(__SASC)
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] = "$VER: qjs 0.49 (27.3.2026)";
 #include "amiga_ssl.h"
@@ -108,7 +118,7 @@ static void amiga_load_config(int *pargc, char ***pargv)
     *pargc = new_argc;
     *pargv = new_argv;
 }
-#endif /* __SASC */
+#endif /* __SASC || __VBCC__ */
 
 #ifdef QJS_USE_MIMALLOC
 #include <mimalloc.h>
@@ -503,7 +513,7 @@ int main(int argc, char **argv)
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
 
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
     /* Load S:QJS-Config.txt — injects default flags before CLI args */
     amiga_load_config(&argc, &argv);
 #endif
@@ -604,7 +614,7 @@ int main(int argc, char **argv)
                 load_std = 1;
                 continue;
             }
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
             if (!strcmp(longopt, "color")) {
                 /* Override NO_COLOR default — enable REPL colors */
                 amiga_force_color = 1;
@@ -738,7 +748,7 @@ start:
                 goto fail;
         }
 
-#ifdef __SASC
+#if defined(__SASC) || defined(__VBCC__)
         /* Load S:QJS-Startup.js if it exists — runs before user code.
          * Uses Lock()/UnLock() to check existence without error messages. */
         {
