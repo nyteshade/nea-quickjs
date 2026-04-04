@@ -678,6 +678,148 @@ int QJS_IsInstanceOf(
     __reg("a1") JSValue *val_ptr,
     __reg("a2") JSValue *obj_ptr);
 
+/* --- Batch 4: Atoms --- */
+
+ULONG QJS_NewAtomLen(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *str,
+    __reg("d0") ULONG len);
+
+ULONG QJS_NewAtom(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *str);
+
+ULONG QJS_NewAtomUInt32(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG n);
+
+ULONG QJS_DupAtom(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG v);
+
+void QJS_FreeAtom(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("d0") ULONG v);
+
+void QJS_AtomToValue(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("d0") ULONG atom);
+
+void QJS_AtomToString(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("d0") ULONG atom);
+
+const char *QJS_AtomToCStringLen(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") ULONG *plen,
+    __reg("d0") ULONG atom);
+
+ULONG QJS_ValueToAtom(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") JSValue *val_ptr);
+
+/* --- Batch 4: Eval --- */
+
+void QJS_EvalFunction(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *fun_ptr);
+
+/* --- Batch 4: Call (argv via d1 as ULONG for >4 addr params) --- */
+
+void QJS_Call(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *func_ptr,
+    __reg("a3") JSValue *this_ptr,
+    __reg("d0") int argc,
+    __reg("d1") ULONG argv_addr);
+
+void QJS_Invoke(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *this_ptr,
+    __reg("a3") JSValue *argv,
+    __reg("d0") ULONG atom,
+    __reg("d1") int argc);
+
+void QJS_CallConstructor(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *func_ptr,
+    __reg("a3") JSValue *argv,
+    __reg("d0") int argc);
+
+/* --- Batch 4: JSON --- */
+
+void QJS_ParseJSON(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const char *buf,
+    __reg("a3") const char *filename,
+    __reg("d0") ULONG buf_len);
+
+void QJS_JSONStringify(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") JSValue *obj_ptr);
+
+/* --- Batch 4: Serialization --- */
+
+unsigned char *QJS_WriteObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") ULONG *psize,
+    __reg("a2") JSValue *obj_ptr,
+    __reg("d0") int flags);
+
+void QJS_ReadObject(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *result,
+    __reg("a1") struct JSContext *ctx,
+    __reg("a2") const unsigned char *buf,
+    __reg("d0") ULONG buf_len,
+    __reg("d1") int flags);
+
+/* --- Batch 4: Class --- */
+
+ULONG QJS_NewClassID(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") ULONG *pclass_id);
+
+int QJS_NewClass(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("a1") void *class_def,
+    __reg("d0") ULONG class_id);
+
+int QJS_IsRegisteredClass(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSRuntime *rt,
+    __reg("d0") ULONG class_id);
+
+ULONG QJS_GetClassID(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") JSValue *val_ptr);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -810,6 +952,27 @@ void QJS_Eval(
     (APTR) QJS_GetOpaque2, \
     (APTR) QJS_GetOwnPropertyNames, \
     (APTR) QJS_FreePropertyEnum, \
-    (APTR) QJS_IsInstanceOf
+    (APTR) QJS_IsInstanceOf, \
+    (APTR) QJS_NewAtomLen, \
+    (APTR) QJS_NewAtom, \
+    (APTR) QJS_NewAtomUInt32, \
+    (APTR) QJS_DupAtom, \
+    (APTR) QJS_FreeAtom, \
+    (APTR) QJS_AtomToValue, \
+    (APTR) QJS_AtomToString, \
+    (APTR) QJS_AtomToCStringLen, \
+    (APTR) QJS_ValueToAtom, \
+    (APTR) QJS_EvalFunction, \
+    (APTR) QJS_Call, \
+    (APTR) QJS_Invoke, \
+    (APTR) QJS_CallConstructor, \
+    (APTR) QJS_ParseJSON, \
+    (APTR) QJS_JSONStringify, \
+    (APTR) QJS_WriteObject, \
+    (APTR) QJS_ReadObject, \
+    (APTR) QJS_NewClassID, \
+    (APTR) QJS_NewClass, \
+    (APTR) QJS_IsRegisteredClass, \
+    (APTR) QJS_GetClassID
 
 #endif /* LIBRARYCONFIG_H */
