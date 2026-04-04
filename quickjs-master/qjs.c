@@ -322,9 +322,11 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     fprintf(stderr, "[ctx] get global...\n"); fflush(stderr);
 
     global = JS_GetGlobalObject(ctx);
-    fprintf(stderr, "[ctx] set func list...\n");
+    fprintf(stderr, "[ctx] set func list...\n"); fflush(stderr);
     JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj));
+    fprintf(stderr, "[ctx] done, NewArray...\n"); fflush(stderr);
     args = JS_NewArray(ctx);
+    fprintf(stderr, "[ctx] setting args...\n"); fflush(stderr);
     for(i = 0; i < qjs__argc; i++) {
         JS_SetPropertyUint32(ctx, args, i, JS_NewString(ctx, qjs__argv[i]));
     }
@@ -819,7 +821,7 @@ start:
             JS_FreeValue(ctx, call_args[1]);
             JS_FreeValue(ctx, call_args[2]);
         } else if (expr) {
-            int flags = module ? JS_EVAL_TYPE_MODULE : 0;
+            int flags = (module > 0) ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags))
                 goto fail;
         } else if (optind >= argc) {
