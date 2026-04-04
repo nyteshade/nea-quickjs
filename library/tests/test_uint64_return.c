@@ -56,17 +56,31 @@ static uint64 wrapped_NewObject_static(JSContext *ctx)
     return _static_result;
 }
 
-/* Test 6: Save/restore A6 by calling through a helper */
-static void _lvo_NewObject(uint64 *out, JSContext *ctx)
-{
-    typedef void (*F)(R6, RA0 uint64 *, RA1 JSContext *);
-    LVO(QJSBase, 420, F)((void *)QJSBase, out, ctx);
-}
-static uint64 wrapped_NewObject_helper(JSContext *ctx)
+/* Test 6: SA6/RA6 with uint64 return */
+extern void bridge_save_a6(void);
+extern void bridge_restore_a6(void);
+#define SA6 bridge_save_a6()
+#define RA6 bridge_restore_a6()
+
+static uint64 wrapped_NewObject_sa6(JSContext *ctx)
 {
     uint64 result;
-    _lvo_NewObject(&result, ctx);
+    typedef void (*F)(R6, RA0 uint64 *, RA1 JSContext *);
+    SA6;
+    LVO(QJSBase, 420, F)((void *)QJSBase, &result, ctx);
+    RA6;
     return result;
+}
+
+/* Test 7: SA6/RA6 with STATIC result */
+static uint64 _sa6_static_result;
+static uint64 wrapped_NewObject_sa6_static(JSContext *ctx)
+{
+    typedef void (*F)(R6, RA0 uint64 *, RA1 JSContext *);
+    SA6;
+    LVO(QJSBase, 420, F)((void *)QJSBase, &_sa6_static_result, ctx);
+    RA6;
+    return _sa6_static_result;
 }
 
 int main(void)
@@ -124,9 +138,9 @@ int main(void)
     }
     printf("  freed OK\n");
 
-    /* Test 6: save/restore A6 */
-    printf("Test 6: wrapped LVO, save/restore A6...\n");
-    val = wrapped_NewObject_helper(ctx);
+    /* Test 6: SA6/RA6 + stack-local uint64 return */
+    printf("Test 6: SA6/RA6 + stack-local return...\n");
+    val = wrapped_NewObject_sa6(ctx);
     printf("  result = %08lx_%08lx\n",
            (unsigned long)(val >> 32), (unsigned long)(val & 0xFFFFFFFFUL));
     {
@@ -135,11 +149,16 @@ int main(void)
     }
     printf("  freed OK\n");
 
-    /* Test 4: stack-local return (known to crash — run last) */
-    printf("Test 4: wrapped LVO, returning uint64 (EXPECT CRASH)...\n");
-    val = wrapped_NewObject_ret(ctx);
+    /* Test 7: SA6/RA6 + static result */
+    printf("Test 7: SA6/RA6 + static result...\n");
+    val = wrapped_NewObject_sa6_static(ctx);
     printf("  result = %08lx_%08lx\n",
            (unsigned long)(val >> 32), (unsigned long)(val & 0xFFFFFFFFUL));
+    {
+        typedef void (*F)(R6, RA0 JSContext *, RA1 uint64 *);
+        LVO(QJSBase, 312, F)((void *)QJSBase, ctx, &val);
+    }
+    printf("  freed OK\n");
 
     printf("ALL TESTS PASSED\n");
 

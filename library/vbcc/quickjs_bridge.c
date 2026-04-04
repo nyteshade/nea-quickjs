@@ -34,6 +34,8 @@ extern void bridge_restore_a6(void);
 #define SA6 bridge_save_a6()
 #define RA6 bridge_restore_a6()
 
+static JSValue _br; /* shared JSValue result - must be static, not stack-local */
+
 /* LVO call macro */
 #define LVO(base, off, type) ((type)((char *)(base) - (off)))
 
@@ -212,19 +214,17 @@ void JS_AddIntrinsicRegExpCompiler(JSContext *ctx) {
 
 JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
                 const char *filename, int eval_flags) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *,
                       RD0 ULONG, RA3 const char *, RD1 int);
-    LVO(QJSBase,162,F)((void*)QJSBase, &result, ctx, input,
+    LVO(QJSBase,162,F)((void*)QJSBase, &_br, ctx, input,
                         (ULONG)input_len, filename, eval_flags);
-    return result;
+    return _br;
 }
 
 JSValue JS_EvalFunction(JSContext *ctx, JSValue fun_obj) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,762,F)((void*)QJSBase, &result, ctx, &fun_obj); RA6;
-    return result;
+    SA6; LVO(QJSBase,762,F)((void*)QJSBase, &_br, ctx, &fun_obj); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -312,17 +312,15 @@ void JS_SetClassProto(JSContext *ctx, JSClassID class_id, JSValue obj) {
 }
 
 JSValue JS_GetClassProto(JSContext *ctx, JSClassID class_id) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RD0 ULONG);
-    SA6; LVO(QJSBase,252,F)((void*)QJSBase, &result, ctx, (ULONG)class_id); RA6;
-    return result;
+    SA6; LVO(QJSBase,252,F)((void*)QJSBase, &_br, ctx, (ULONG)class_id); RA6;
+    return _br;
 }
 
 JSValue JS_GetFunctionProto(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,258,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,258,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -384,17 +382,15 @@ void JS_FreeValueRT(JSRuntime *rt, JSValue val) {
 }
 
 JSValue JS_DupValue(JSContext *ctx, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,324,F)((void*)QJSBase, &result, ctx, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,324,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    return _br;
 }
 
 JSValue JS_DupValueRT(JSRuntime *rt, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSRuntime *, RA2 JSValue *);
-    SA6; LVO(QJSBase,330,F)((void*)QJSBase, &result, rt, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,330,F)((void*)QJSBase, &_br, rt, &val); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -402,38 +398,33 @@ JSValue JS_DupValueRT(JSRuntime *rt, JSValueConst val) {
  * =================================================================== */
 
 JSValue JS_NewNumber(JSContext *ctx, double d) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 double *);
-    SA6; LVO(QJSBase,336,F)((void*)QJSBase, &result, ctx, &d); RA6;
-    return result;
+    SA6; LVO(QJSBase,336,F)((void*)QJSBase, &_br, ctx, &d); RA6;
+    return _br;
 }
 
 JSValue JS_NewBigInt64(JSContext *ctx, int64_t v) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 int64_t *);
-    SA6; LVO(QJSBase,342,F)((void*)QJSBase, &result, ctx, &v); RA6;
-    return result;
+    SA6; LVO(QJSBase,342,F)((void*)QJSBase, &_br, ctx, &v); RA6;
+    return _br;
 }
 
 JSValue JS_NewBigUint64(JSContext *ctx, uint64_t v) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 uint64_t *);
-    SA6; LVO(QJSBase,348,F)((void*)QJSBase, &result, ctx, &v); RA6;
-    return result;
+    SA6; LVO(QJSBase,348,F)((void*)QJSBase, &_br, ctx, &v); RA6;
+    return _br;
 }
 
 JSValue JS_NewStringLen(JSContext *ctx, const char *str, size_t len) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *, RD0 ULONG);
-    SA6; LVO(QJSBase,354,F)((void*)QJSBase, &result, ctx, str, (ULONG)len); RA6;
-    return result;
+    SA6; LVO(QJSBase,354,F)((void*)QJSBase, &_br, ctx, str, (ULONG)len); RA6;
+    return _br;
 }
 
 JSValue JS_NewAtomString(JSContext *ctx, const char *str) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *);
-    SA6; LVO(QJSBase,360,F)((void*)QJSBase, &result, ctx, str); RA6;
-    return result;
+    SA6; LVO(QJSBase,360,F)((void*)QJSBase, &_br, ctx, str); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -441,17 +432,15 @@ JSValue JS_NewAtomString(JSContext *ctx, const char *str) {
  * =================================================================== */
 
 JSValue JS_ToString(JSContext *ctx, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,366,F)((void*)QJSBase, &result, ctx, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,366,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    return _br;
 }
 
 JSValue JS_ToPropertyKey(JSContext *ctx, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,372,F)((void*)QJSBase, &result, ctx, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,372,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    return _br;
 }
 
 /* SFD: ToCStringLen2(ctx,plen,val_ptr,cesu8)(a0/a2/a1/d0) — note swapped regs */
@@ -489,10 +478,9 @@ int JS_ToFloat64(JSContext *ctx, double *pres, JSValueConst val) {
 }
 
 JSValue JS_ToNumber(JSContext *ctx, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,414,F)((void*)QJSBase, &result, ctx, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,414,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    return _br;
 }
 
 /* Stubs for extended conversions */
@@ -513,24 +501,21 @@ int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValueConst val) {
  * =================================================================== */
 
 JSValue JS_NewObject(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,420,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,420,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 JSValue JS_NewObjectClass(JSContext *ctx, int class_id) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RD0 int);
-    SA6; LVO(QJSBase,426,F)((void*)QJSBase, &result, ctx, class_id); RA6;
-    return result;
+    SA6; LVO(QJSBase,426,F)((void*)QJSBase, &_br, ctx, class_id); RA6;
+    return _br;
 }
 
 JSValue JS_NewObjectProto(JSContext *ctx, JSValueConst proto) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,432,F)((void*)QJSBase, &result, ctx, &proto); RA6;
-    return result;
+    SA6; LVO(QJSBase,432,F)((void*)QJSBase, &_br, ctx, &proto); RA6;
+    return _br;
 }
 
 JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValueConst proto, JSClassID class_id) {
@@ -540,10 +525,9 @@ JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValueConst proto, JSClassID cla
 }
 
 JSValue JS_NewArray(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,438,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,438,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 int JS_IsArray(JSContext *ctx, JSValueConst val) {
@@ -566,17 +550,15 @@ int JS_IsConstructor(JSContext *ctx, JSValueConst val) {
  * =================================================================== */
 
 JSValue JS_GetGlobalObject(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,462,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,462,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 JSValue JS_ToObject(JSContext *ctx, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,468,F)((void*)QJSBase, &result, ctx, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,468,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -584,17 +566,15 @@ JSValue JS_ToObject(JSContext *ctx, JSValueConst val) {
  * =================================================================== */
 
 JSValue JS_Throw(JSContext *ctx, JSValue obj) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,474,F)((void*)QJSBase, &result, ctx, &obj); RA6;
-    return result;
+    SA6; LVO(QJSBase,474,F)((void*)QJSBase, &_br, ctx, &obj); RA6;
+    return _br;
 }
 
 JSValue JS_GetException(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,480,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,480,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 int JS_HasException(JSContext *ctx) {
@@ -608,17 +588,15 @@ int JS_IsError(JSContext *ctx, JSValueConst val) {
 }
 
 JSValue JS_NewError(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,498,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,498,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 JSValue JS_ThrowOutOfMemory(JSContext *ctx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *);
-    SA6; LVO(QJSBase,504,F)((void*)QJSBase, &result, ctx); RA6;
-    return result;
+    SA6; LVO(QJSBase,504,F)((void*)QJSBase, &_br, ctx); RA6;
+    return _br;
 }
 
 /* --- Variadic throw functions (not in library) --- */
@@ -749,31 +727,27 @@ char *js_strndup(JSContext *ctx, const char *s, size_t n) {
  * =================================================================== */
 
 JSValue JS_GetProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RD0 ULONG);
-    SA6; LVO(QJSBase,552,F)((void*)QJSBase, &result, ctx, &this_obj, (ULONG)prop); RA6;
-    return result;
+    SA6; LVO(QJSBase,552,F)((void*)QJSBase, &_br, ctx, &this_obj, (ULONG)prop); RA6;
+    return _br;
 }
 
 JSValue JS_GetPropertyUint32(JSContext *ctx, JSValueConst this_obj, uint32_t idx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RD0 ULONG);
-    SA6; LVO(QJSBase,558,F)((void*)QJSBase, &result, ctx, &this_obj, idx); RA6;
-    return result;
+    SA6; LVO(QJSBase,558,F)((void*)QJSBase, &_br, ctx, &this_obj, idx); RA6;
+    return _br;
 }
 
 JSValue JS_GetPropertyStr(JSContext *ctx, JSValueConst this_obj, const char *prop) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RA3 const char *);
-    SA6; LVO(QJSBase,564,F)((void*)QJSBase, &result, ctx, &this_obj, prop); RA6;
-    return result;
+    SA6; LVO(QJSBase,564,F)((void*)QJSBase, &_br, ctx, &this_obj, prop); RA6;
+    return _br;
 }
 
 JSValue JS_GetPropertyInt64(JSContext *ctx, JSValueConst this_obj, int64_t idx) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *, RD0 LONG);
-    SA6; LVO(QJSBase,570,F)((void*)QJSBase, &result, ctx, &this_obj, (LONG)idx); RA6;
-    return result;
+    SA6; LVO(QJSBase,570,F)((void*)QJSBase, &_br, ctx, &this_obj, (LONG)idx); RA6;
+    return _br;
 }
 
 int JS_SetProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop, JSValue val) {
@@ -807,10 +781,9 @@ int JS_SetPrototype(JSContext *ctx, JSValueConst obj, JSValueConst proto) {
 }
 
 JSValue JS_GetPrototype(JSContext *ctx, JSValueConst val) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,612,F)((void*)QJSBase, &result, ctx, &val); RA6;
-    return result;
+    SA6; LVO(QJSBase,612,F)((void*)QJSBase, &_br, ctx, &val); RA6;
+    return _br;
 }
 
 int JS_GetLength(JSContext *ctx, JSValueConst obj, int64_t *pres) {
@@ -930,17 +903,15 @@ void JS_FreeAtom(JSContext *ctx, JSAtom v) {
 }
 
 JSValue JS_AtomToValue(JSContext *ctx, JSAtom atom) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RD0 ULONG);
-    SA6; LVO(QJSBase,738,F)((void*)QJSBase, &result, ctx, (ULONG)atom); RA6;
-    return result;
+    SA6; LVO(QJSBase,738,F)((void*)QJSBase, &_br, ctx, (ULONG)atom); RA6;
+    return _br;
 }
 
 JSValue JS_AtomToString(JSContext *ctx, JSAtom atom) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RD0 ULONG);
-    SA6; LVO(QJSBase,744,F)((void*)QJSBase, &result, ctx, (ULONG)atom); RA6;
-    return result;
+    SA6; LVO(QJSBase,744,F)((void*)QJSBase, &_br, ctx, (ULONG)atom); RA6;
+    return _br;
 }
 
 const char *JS_AtomToCStringLen(JSContext *ctx, size_t *plen, JSAtom atom) {
@@ -961,35 +932,32 @@ JSAtom JS_ValueToAtom(JSContext *ctx, JSValueConst val) {
 
 JSValue JS_Call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_obj,
                 int argc, JSValueConst *argv) {
-    JSValue result;
     /* SFD: Call(result,ctx,func_ptr,this_ptr,argc,argv_addr)(a0/a1/a2/a3/d0/d1) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *,
                       RA3 JSValue *, RD0 int, RD1 ULONG);
-    LVO(QJSBase,768,F)((void*)QJSBase, &result, ctx, &func_obj, &this_obj,
+    LVO(QJSBase,768,F)((void*)QJSBase, &_br, ctx, &func_obj, &this_obj,
                         argc, (ULONG)argv);
-    return result;
+    return _br;
 }
 
 JSValue JS_Invoke(JSContext *ctx, JSValueConst this_val, JSAtom atom,
                    int argc, JSValueConst *argv) {
-    JSValue result;
     /* SFD: Invoke(result,ctx,this_ptr,argv,atom,argc)(a0/a1/a2/a3/d0/d1) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *,
                       RA3 JSValue *, RD0 ULONG, RD1 int);
-    LVO(QJSBase,774,F)((void*)QJSBase, &result, ctx, &this_val,
+    LVO(QJSBase,774,F)((void*)QJSBase, &_br, ctx, &this_val,
                         (JSValue *)argv, (ULONG)atom, argc);
-    return result;
+    return _br;
 }
 
 JSValue JS_CallConstructor(JSContext *ctx, JSValueConst func_obj,
                             int argc, JSValueConst *argv) {
-    JSValue result;
     /* SFD: CallConstructor(result,ctx,func_ptr,argv,argc)(a0/a1/a2/a3/d0) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *,
                       RA3 JSValue *, RD0 int);
-    LVO(QJSBase,780,F)((void*)QJSBase, &result, ctx, &func_obj,
+    LVO(QJSBase,780,F)((void*)QJSBase, &_br, ctx, &func_obj,
                         (JSValue *)argv, argc);
-    return result;
+    return _br;
 }
 
 /* Stub */
@@ -1005,21 +973,19 @@ JSValue JS_CallConstructor2(JSContext *ctx, JSValueConst func_obj,
 
 JSValue JS_ParseJSON(JSContext *ctx, const char *buf, size_t buf_len,
                       const char *filename) {
-    JSValue result;
     /* SFD: ParseJSON(result,ctx,buf,filename,buf_len)(a0/a1/a2/a3/d0) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *,
                       RA3 const char *, RD0 ULONG);
-    SA6; LVO(QJSBase,786,F)((void*)QJSBase, &result, ctx, buf, filename, (ULONG)buf_len); RA6;
-    return result;
+    SA6; LVO(QJSBase,786,F)((void*)QJSBase, &_br, ctx, buf, filename, (ULONG)buf_len); RA6;
+    return _br;
 }
 
 JSValue JS_JSONStringify(JSContext *ctx, JSValueConst obj,
                           JSValueConst replacer, JSValueConst space) {
-    JSValue result;
     /* SFD simplified: JSONStringify(result,ctx,obj_ptr)(a0/a1/a2) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,792,F)((void*)QJSBase, &result, ctx, &obj); RA6;
-    return result;
+    SA6; LVO(QJSBase,792,F)((void*)QJSBase, &_br, ctx, &obj); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -1037,12 +1003,11 @@ uint8_t *JS_WriteObject2(JSContext *ctx, size_t *psize, JSValueConst obj,
 }
 
 JSValue JS_ReadObject(JSContext *ctx, const uint8_t *buf, size_t buf_len, int flags) {
-    JSValue result;
     /* SFD: ReadObject(result,ctx,buf,buf_len,flags)(a0/a1/a2/d0/d1) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const uint8_t *,
                       RD0 ULONG, RD1 int);
-    SA6; LVO(QJSBase,804,F)((void*)QJSBase, &result, ctx, buf, (ULONG)buf_len, flags); RA6;
-    return result;
+    SA6; LVO(QJSBase,804,F)((void*)QJSBase, &_br, ctx, buf, (ULONG)buf_len, flags); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -1091,10 +1056,9 @@ void JS_SetModuleLoaderFunc2(JSRuntime *rt,
 }
 
 JSValue JS_GetImportMeta(JSContext *ctx, JSModuleDef *m) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSModuleDef *);
-    SA6; LVO(QJSBase,840,F)((void*)QJSBase, &result, ctx, m); RA6;
-    return result;
+    SA6; LVO(QJSBase,840,F)((void*)QJSBase, &_br, ctx, m); RA6;
+    return _br;
 }
 
 JSAtom JS_GetModuleName(JSContext *ctx, JSModuleDef *m) {
@@ -1103,10 +1067,9 @@ JSAtom JS_GetModuleName(JSContext *ctx, JSModuleDef *m) {
 }
 
 JSValue JS_GetModuleNamespace(JSContext *ctx, JSModuleDef *m) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSModuleDef *);
-    SA6; LVO(QJSBase,852,F)((void*)QJSBase, &result, ctx, m); RA6;
-    return result;
+    SA6; LVO(QJSBase,852,F)((void*)QJSBase, &_br, ctx, m); RA6;
+    return _br;
 }
 
 JSModuleDef *JS_NewCModule(JSContext *ctx, const char *name_str,
@@ -1139,11 +1102,10 @@ const char *JS_GetScriptOrModuleName(JSContext *ctx, int n_stack_levels) {
 }
 
 JSValue JS_LoadModule(JSContext *ctx, const char *basename, const char *filename) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *,
                       RA3 const char *);
-    SA6; LVO(QJSBase,1044,F)((void*)QJSBase, &result, ctx, basename, filename); RA6;
-    return result;
+    SA6; LVO(QJSBase,1044,F)((void*)QJSBase, &_br, ctx, basename, filename); RA6;
+    return _br;
 }
 
 /* Stub: AddModuleExportList — loop over entries */
@@ -1183,13 +1145,12 @@ int JS_SetModulePrivateValue(JSContext *ctx, JSModuleDef *m, JSValue val) {
 
 JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func, const char *name,
                           int length, JSCFunctionEnum cproto, int magic) {
-    JSValue result;
     /* SFD: NewCFunction2(result,ctx,func,name,length,cproto,magic)(a0/a1/a2/a3/d0/d1/d2) */
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSCFunction *,
                       RA3 const char *, RD0 int, RD1 int, RD2 int);
-    LVO(QJSBase,888,F)((void*)QJSBase, &result, ctx, func, name,
+    LVO(QJSBase,888,F)((void*)QJSBase, &_br, ctx, func, name,
                         length, (int)cproto, magic);
-    return result;
+    return _br;
 }
 
 void JS_SetConstructor(JSContext *ctx, JSValueConst func, JSValueConst proto) {
@@ -1226,10 +1187,9 @@ int JS_ExecutePendingJob(JSRuntime *rt, JSContext **pctx) {
 }
 
 JSValue JS_NewPromiseCapability(JSContext *ctx, JSValue *resolving_funcs) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,918,F)((void*)QJSBase, &result, ctx, resolving_funcs); RA6;
-    return result;
+    SA6; LVO(QJSBase,918,F)((void*)QJSBase, &_br, ctx, resolving_funcs); RA6;
+    return _br;
 }
 
 JSPromiseStateEnum JS_PromiseState(JSContext *ctx, JSValue promise) {
@@ -1238,10 +1198,9 @@ JSPromiseStateEnum JS_PromiseState(JSContext *ctx, JSValue promise) {
 }
 
 JSValue JS_PromiseResult(JSContext *ctx, JSValue promise) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 JSValue *);
-    SA6; LVO(QJSBase,930,F)((void*)QJSBase, &result, ctx, &promise); RA6;
-    return result;
+    SA6; LVO(QJSBase,930,F)((void*)QJSBase, &_br, ctx, &promise); RA6;
+    return _br;
 }
 
 int JS_IsPromise(JSContext *ctx, JSValueConst val) {
@@ -1277,10 +1236,9 @@ int JS_EnqueueJob(JSContext *ctx, JSJobFunc *job_func,
  * =================================================================== */
 
 JSValue JS_NewArrayBufferCopy(JSContext *ctx, const uint8_t *buf, size_t len) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const uint8_t *, RD0 ULONG);
-    SA6; LVO(QJSBase,960,F)((void*)QJSBase, &result, ctx, buf, (ULONG)len); RA6;
-    return result;
+    SA6; LVO(QJSBase,960,F)((void*)QJSBase, &_br, ctx, buf, (ULONG)len); RA6;
+    return _br;
 }
 
 uint8_t *JS_GetArrayBuffer(JSContext *ctx, size_t *psize, JSValueConst obj) {
@@ -1304,10 +1262,9 @@ uint8_t *JS_GetUint8Array(JSContext *ctx, size_t *psize, JSValueConst obj) {
 }
 
 JSValue JS_NewUint8ArrayCopy(JSContext *ctx, const uint8_t *buf, size_t len) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const uint8_t *, RD0 ULONG);
-    SA6; LVO(QJSBase,990,F)((void*)QJSBase, &result, ctx, buf, (ULONG)len); RA6;
-    return result;
+    SA6; LVO(QJSBase,990,F)((void*)QJSBase, &_br, ctx, buf, (ULONG)len); RA6;
+    return _br;
 }
 
 /* ===================================================================
@@ -1339,10 +1296,9 @@ int JS_IsSet(JSValueConst val) {
  * =================================================================== */
 
 JSValue JS_NewSymbol(JSContext *ctx, const char *description, int is_global) {
-    JSValue result;
     typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *, RD0 int);
-    SA6; LVO(QJSBase,1020,F)((void*)QJSBase, &result, ctx, description, is_global); RA6;
-    return result;
+    SA6; LVO(QJSBase,1020,F)((void*)QJSBase, &_br, ctx, description, is_global); RA6;
+    return _br;
 }
 
 void JS_SetIsHTMLDDA(JSContext *ctx, JSValueConst obj) {
