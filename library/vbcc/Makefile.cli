@@ -45,9 +45,12 @@ REPL_SRC   = $(QJS)/gen/repl.c
 STAND_SRC  = $(QJS)/gen/standalone.c
 
 # Object files
+VASM = $(VBCC)/vasmm68k_mot
+
 OBJS = $(OBJDIR)/qjs.o \
        $(OBJDIR)/quickjs-libc.o \
        $(OBJDIR)/quickjs_bridge.o \
+       $(OBJDIR)/bridge_a6.o \
        $(OBJDIR)/amiga_posix_stubs.o \
        $(OBJDIR)/amiga_compat_vbcc.o \
        $(OBJDIR)/repl.o \
@@ -83,6 +86,9 @@ $(OBJDIR)/repl.o: $(REPL_SRC) | $(OBJDIR)
 
 $(OBJDIR)/standalone.o: $(STAND_SRC) | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
+
+$(OBJDIR)/bridge_a6.o: $(LIBVBCC)/bridge_a6.s | $(OBJDIR)
+	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
 
 $(OBJDIR):
 	@mkdir -p $@
