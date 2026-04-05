@@ -246,16 +246,7 @@ void JS_AddIntrinsicRegExpCompiler(JSContext *ctx) {
 
 /* QJS_EvalSimple not mapped to a JS_* function */
 
-JSValue JS_Eval(JSContext *ctx, const char *input, size_t input_len,
-                const char *filename, int eval_flags) {
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 void *,
-                      RD0 ULONG, RA3 void *, RD1 int);
-    _sp0 = (void *)ctx; _sp1 = (void *)input; _si0 = (ULONG)input_len;
-    _sp2 = (void *)filename; _si1 = (ULONG)eval_flags;
-    SA6; LVO(QJSBase,162,F)((void*)QJSBase, &_br, _sp0, _sp1,
-                        _si0, _sp2, (int)_si1); RA6;
-    return _br;
-}
+/* JS_Eval: implemented in bridge_asm.s */
 
 JSValue JS_EvalFunction(JSContext *ctx, JSValue fun_obj) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 JSValue *);
@@ -429,11 +420,7 @@ void JS_DumpMemoryUsage(FILE *fp, const JSMemoryUsage *s, JSRuntime *rt) {
  * 9. Value lifecycle (LVO -312 to -330)
  * =================================================================== */
 
-void JS_FreeValue(JSContext *ctx, JSValue val) {
-    typedef void (*F)(R6, RA0 void *, RA1 JSValue *);
-    _sp0 = (void *)ctx; _sv0 = val;
-    SA6; LVO(QJSBase,312,F)((void*)QJSBase, _sp0, &_sv0); RA6;
-}
+/* JS_FreeValue: implemented in bridge_asm.s */
 
 void JS_FreeValueRT(JSRuntime *rt, JSValue val) {
     typedef void (*F)(R6, RA0 void *, RA1 JSValue *);
@@ -480,12 +467,7 @@ JSValue JS_NewBigUint64(JSContext *ctx, uint64_t v) {
     return _br;
 }
 
-JSValue JS_NewStringLen(JSContext *ctx, const char *str, size_t len) {
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 void *, RD0 ULONG);
-    _sp0 = (void *)ctx; _sp1 = (void *)str; _si0 = (ULONG)len;
-    SA6; LVO(QJSBase,354,F)((void*)QJSBase, &_br, _sp0, _sp1, _si0); RA6;
-    return _br;
-}
+/* JS_NewStringLen: implemented in bridge_asm.s */
 
 JSValue JS_NewAtomString(JSContext *ctx, const char *str) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 void *);
@@ -576,12 +558,7 @@ int JS_ToIndex(JSContext *ctx, uint64_t *plen, JSValueConst val) {
  * 12. Object creation (LVO -420 to -456)
  * =================================================================== */
 
-JSValue JS_NewObject(JSContext *ctx) {
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *);
-    _sp0 = (void *)ctx;
-    SA6; LVO(QJSBase,420,F)((void*)QJSBase, &_br, _sp0); RA6;
-    return _br;
-}
+/* JS_NewObject: implemented in bridge_asm.s */
 
 JSValue JS_NewObjectClass(JSContext *ctx, int class_id) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RD0 int);
@@ -603,12 +580,7 @@ JSValue JS_NewObjectProtoClass(JSContext *ctx, JSValueConst proto, JSClassID cla
     return obj;
 }
 
-JSValue JS_NewArray(JSContext *ctx) {
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *);
-    _sp0 = (void *)ctx;
-    SA6; LVO(QJSBase,438,F)((void*)QJSBase, &_br, _sp0); RA6;
-    return _br;
-}
+/* JS_NewArray: implemented in bridge_asm.s */
 
 int JS_IsArray(JSContext *ctx, JSValueConst val) {
     typedef int (*F)(R6, RA0 JSValue *);
@@ -632,12 +604,7 @@ int JS_IsConstructor(JSContext *ctx, JSValueConst val) {
  * 13. Global object / conversion (LVO -462 to -468)
  * =================================================================== */
 
-JSValue JS_GetGlobalObject(JSContext *ctx) {
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *);
-    _sp0 = (void *)ctx;
-    SA6; LVO(QJSBase,462,F)((void*)QJSBase, &_br, _sp0); RA6;
-    return _br;
-}
+/* JS_GetGlobalObject: implemented in bridge_asm.s */
 
 JSValue JS_ToObject(JSContext *ctx, JSValueConst val) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 JSValue *);
@@ -838,12 +805,7 @@ JSValue JS_GetPropertyUint32(JSContext *ctx, JSValueConst this_obj, uint32_t idx
     return _br;
 }
 
-JSValue JS_GetPropertyStr(JSContext *ctx, JSValueConst this_obj, const char *prop) {
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 JSValue *, RA3 void *);
-    _sp0 = (void *)ctx; _sv0 = this_obj; _sp1 = (void *)prop;
-    SA6; LVO(QJSBase,564,F)((void*)QJSBase, &_br, _sp0, &_sv0, _sp1); RA6;
-    return _br;
-}
+/* JS_GetPropertyStr: implemented in bridge_asm.s */
 
 JSValue JS_GetPropertyInt64(JSContext *ctx, JSValueConst this_obj, int64_t idx) {
     typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 JSValue *, RD0 LONG);
@@ -858,21 +820,10 @@ int JS_SetProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop, JSValue v
     { int _r; SA6; _r = (int)LVO(QJSBase,576,F)((void*)QJSBase, _sp0, &_sv0, _si0, &_sv1); RA6; return _r; }
 }
 
-int JS_SetPropertyUint32(JSContext *ctx, JSValueConst this_obj, uint32_t idx, JSValue val) {
-    typedef int (*F)(R6, RA0 void *, RA1 JSValue *, RD0 ULONG, RA2 JSValue *);
-    _sp0 = (void *)ctx; _sv0 = this_obj; _si0 = (ULONG)idx; _sv1 = val;
-    { int _r; SA6; _r = (int)LVO(QJSBase,582,F)((void*)QJSBase, _sp0, &_sv0, _si0, &_sv1); RA6; return _r; }
+/* JS_SetPropertyUint32: implemented in bridge_asm.s */
 }
 
-int JS_SetPropertyStr(JSContext *ctx, JSValueConst this_obj, const char *prop, JSValue val) {
-    /* LVO -588 fails through bridge (returns -1 "no setter") but
-     * DefinePropertyValueStr at LVO -666 works. Use it as workaround.
-     * TODO: investigate why LVO -588 fails with static params. */
-    return JS_DefinePropertyValueStr(ctx, this_obj, prop, val,
-                                     JS_PROP_HAS_VALUE | JS_PROP_HAS_CONFIGURABLE |
-                                     JS_PROP_HAS_WRITABLE | JS_PROP_HAS_ENUMERABLE |
-                                     JS_PROP_C_W_E);
-}
+/* JS_SetPropertyStr: implemented in bridge_asm.s */
 
 int JS_HasProperty(JSContext *ctx, JSValueConst this_obj, JSAtom prop) {
     typedef int (*F)(R6, RA0 void *, RA1 JSValue *, RD0 ULONG);
@@ -949,14 +900,8 @@ int JS_DefinePropertyValueUint32(JSContext *ctx, JSValueConst this_obj,
     { int _r; SA6; _r = (int)LVO(QJSBase,660,F)((void*)QJSBase, _sp0, &_sv0, _si0, &_sv1, (int)_si1); RA6; return _r; }
 }
 
-int JS_DefinePropertyValueStr(JSContext *ctx, JSValueConst this_obj,
-                               const char *prop, JSValue val, int flags) {
-    /* SFD: (ctx,this_ptr,val_ptr,prop_str,flags)(a0/a1/a2/a3/d0) */
-    typedef int (*F)(R6, RA0 void *, RA1 JSValue *, RA2 JSValue *,
-                     RA3 void *, RD0 int);
-    _sp0 = (void *)ctx; _sv0 = this_obj; _sv1 = val; _sp1 = (void *)prop; _si0 = (ULONG)flags;
-    { int _r; SA6; _r = (int)LVO(QJSBase,666,F)((void*)QJSBase, _sp0, &_sv0, &_sv1, _sp1, (int)_si0); RA6; return _r; }
-}
+/* JS_DefinePropertyValueStr is implemented in bridge_dpvs.s (assembly)
+ * to avoid A6/static variable issues in the C bridge. */
 
 /* ===================================================================
  * 17. Opaque (LVO -672 to -696)
@@ -1303,17 +1248,7 @@ int JS_SetModulePrivateValue(JSContext *ctx, JSModuleDef *m, JSValue val) {
  * 24. C Functions (LVO -888 to -900)
  * =================================================================== */
 
-JSValue JS_NewCFunction2(JSContext *ctx, JSCFunction *func, const char *name,
-                          int length, JSCFunctionEnum cproto, int magic) {
-    /* SFD: NewCFunction2(result,ctx,func,name,length,cproto,magic)(a0/a1/a2/a3/d0/d1/d2) */
-    typedef void (*F)(R6, RA0 JSValue *, RA1 void *, RA2 void *,
-                      RA3 void *, RD0 int, RD1 int, RD2 int);
-    _sp0 = (void *)ctx; _sp1 = (void *)func; _sp2 = (void *)name;
-    _si0 = (ULONG)length; _si1 = (ULONG)(int)cproto; _si2 = (ULONG)magic;
-    SA6; LVO(QJSBase,888,F)((void*)QJSBase, &_br, _sp0, _sp1, _sp2,
-                        (int)_si0, (int)_si1, (int)_si2); RA6;
-    return _br;
-}
+/* JS_NewCFunction2: implemented in bridge_asm.s */
 
 void JS_SetConstructor(JSContext *ctx, JSValueConst func, JSValueConst proto) {
     typedef void (*F)(R6, RA0 void *, RA1 JSValue *, RA2 JSValue *);

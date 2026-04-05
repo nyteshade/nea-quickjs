@@ -337,10 +337,13 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
             (unsigned long)(global >> 32), (unsigned long)(global & 0xFFFFFFFFUL),
             (unsigned long)(args >> 32), (unsigned long)(args & 0xFFFFFFFFUL));
     fflush(stderr);
-    JS_DefinePropertyValueStr(ctx, global, "execArgv", args, JS_PROP_C_W_E);
-    JS_DefinePropertyValueStr(ctx, global, "argv0",
-                              JS_NewString(ctx, qjs__argv[0]), JS_PROP_C_W_E);
-    fprintf(stderr, "[ctx] HasExc=%d after argv0\n", JS_HasException(ctx)); fflush(stderr);
+    { int r1 = JS_DefinePropertyValueStr(ctx, global, "execArgv", args, JS_PROP_C_W_E);
+      fprintf(stderr, "[ctx] execArgv=%d HasExc=%d\n", r1, JS_HasException(ctx)); fflush(stderr); }
+    { JSValue s = JS_NewString(ctx, qjs__argv[0]);
+      fprintf(stderr, "[ctx] NewString=%08lx%08lx HasExc=%d\n",
+              (unsigned long)(s>>32), (unsigned long)s, JS_HasException(ctx)); fflush(stderr);
+      { int r2 = JS_DefinePropertyValueStr(ctx, global, "argv0", s, JS_PROP_C_W_E);
+        fprintf(stderr, "[ctx] argv0=%d HasExc=%d\n", r2, JS_HasException(ctx)); fflush(stderr); } }
     /* Navigator: simplified for library bridge — set userAgent as plain string */
     navigator_proto = JS_NewObject(ctx);
     {
@@ -781,7 +784,10 @@ start:
 #endif
 
     if (!empty_run) {
+        fprintf(stderr, "[qjs] add_helpers HasExc=%d\n", JS_HasException(ctx)); fflush(stderr);
         js_std_add_helpers(ctx, argc - optind, argv + optind);
+        fprintf(stderr, "[qjs] after helpers HasExc=%d\n", JS_HasException(ctx)); fflush(stderr);
+        /* print verification removed — C bridge GetPropertyStr is unreliable */
 
         /* make 'std' and 'os' visible to non module code */
         if (load_std) {
@@ -849,11 +855,26 @@ start:
                 JS_FreeValue(ctx, exc);
             }
             fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
+#ifdef QJS_USE_LIBRARY
+            /* Test: use library's EvalSimple (LVO -156) which is proven to work */
+            {
+                extern struct Library *QJSBase;
+                typedef long (*EvalSimpleF)(__reg("a6") void *,
+                    __reg("a0") JSContext *, __reg("a1") const char *,
+                    __reg("d0") unsigned long);
+                long esr;
+                fprintf(stderr, "[eval] using EvalSimple...\n"); fflush(stderr);
+                esr = ((EvalSimpleF)((char *)QJSBase - 156))
+                    ((void *)QJSBase, ctx, expr, (unsigned long)strlen(expr));
+                fprintf(stderr, "[eval] EvalSimple returned %ld\n", esr); fflush(stderr);
+            }
+#else
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
                 fprintf(stderr, "[eval] FAILED\n"); fflush(stderr);
                 goto fail;
             }
             fprintf(stderr, "[eval] OK\n"); fflush(stderr);
+#endif
             fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */

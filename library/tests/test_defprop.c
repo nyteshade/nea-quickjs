@@ -94,12 +94,46 @@ int main(void)
     }
 
     /* Test 4: EvalSimple to call the function */
-    printf("Test 4: EvalSimple...\n"); fflush(stdout);
+    printf("Test 4: EvalSimple myfunc()...\n"); fflush(stdout);
     {
         const char *code = "myfunc()";
         typedef long (*F)(R6, RA0 JSContext *, RA1 const char *, RD0 unsigned long);
         long r = LVO(QJSBase,156,F)((void*)QJSBase, ctx, code, 8);
         printf("  eval returned %ld\n", r);
+    }
+
+    /* Test 5: EvalSimple typeof */
+    printf("Test 5: EvalSimple typeof myfunc...\n"); fflush(stdout);
+    {
+        const char *code = "typeof myfunc";
+        typedef long (*F)(R6, RA0 JSContext *, RA1 const char *, RD0 unsigned long);
+        long r = LVO(QJSBase,156,F)((void*)QJSBase, ctx, code, 13);
+        printf("  eval returned %ld\n", r);
+    }
+
+    /* Test 6: Full JS_Eval (not EvalSimple) to call myfunc */
+    printf("Test 6: JS_Eval myfunc()...\n"); fflush(stdout);
+    {
+        JSValue result;
+        const char *code = "myfunc()";
+        /* QJS_Eval(result,ctx,input,input_len,filename,eval_flags)(a0/a1/a2/d0/a3/d1) */
+        typedef void (*F)(R6, RA0 JSValue *, RA1 JSContext *, RA2 const char *,
+                          RD0 unsigned long, RA3 const char *, RD1 int);
+        LVO(QJSBase,162,F)((void*)QJSBase, &result, ctx, code, 8, "<test>", 0);
+        printf("  result = %08lx_%08lx\n",
+               (unsigned long)(result >> 32),
+               (unsigned long)(result & 0xFFFFFFFFUL));
+        /* Check if exception */
+        {
+            typedef int (*F2)(R6, RA0 JSContext *);
+            int exc = LVO(QJSBase,486,F2)((void*)QJSBase, ctx);
+            printf("  HasException = %d\n", exc);
+        }
+        /* Free result */
+        {
+            typedef void (*F3)(R6, RA0 JSContext *, RA1 JSValue *);
+            LVO(QJSBase,312,F3)((void*)QJSBase, ctx, &result);
+        }
     }
 
     /* Cleanup */

@@ -5128,8 +5128,18 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
         JS_SetPropertyStr(ctx, global_obj, "scriptArgs", args);
     }
 
-    JS_SetPropertyStr(ctx, global_obj, "print",
-                      JS_NewCFunction(ctx, js_print, "print", 1));
+    {
+        JSValue pfunc = JS_NewCFunction(ctx, js_print, "print", 1);
+        int pr;
+        fprintf(stderr, "[helpers] pfunc=%08lx%08lx global=%08lx%08lx\n",
+                (unsigned long)(pfunc>>32), (unsigned long)pfunc,
+                (unsigned long)(global_obj>>32), (unsigned long)global_obj);
+        fflush(stderr);
+        pr = JS_SetPropertyStr(ctx, global_obj, "print", pfunc);
+        fprintf(stderr, "[helpers] SetProp(print)=%d HasExc=%d\n",
+                pr, JS_HasException(ctx));
+        fflush(stderr);
+    }
 
     JS_FreeValue(ctx, global_obj);
 }
