@@ -25,9 +25,13 @@
 	xdef	_QJS_NewCFunction2
 	xdef	_QJS_SetPropertyStr
 	xdef	_QJS_Eval
+	xdef	_QJS_ToCStringLen2
+	xdef	_QJS_FreeValue
 	xref	_JS_NewCFunction2
 	xref	_JS_SetPropertyStr
 	xref	_JS_Eval
+	xref	_JS_ToCStringLen2
+	xref	_JS_FreeValue
 
 _QJS_NewCFunction2:
 	; Save callee-saved regs + a0 (result pointer)
@@ -126,5 +130,48 @@ _QJS_SetPropertyStr:
 	jsr	_JS_SetPropertyStr	; returns int in d0
 	lea	24(sp),sp		; clean 24 bytes (4+8+4+8)
 
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_ToCStringLen2 — LVO entry
+; SFD: (ctx,plen,val_ptr,cesu8)(a0/a2/a1/d0) — note swapped a1/a2!
+;
+; Calls: const char *JS_ToCStringLen2(ctx, plen, val, cesu8)
+;   val passed by VALUE (8 bytes)
+; Returns: pointer in d0
+; ===================================================================
+
+_QJS_ToCStringLen2:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	(a1),d4			; val high from *a1
+	move.l	4(a1),d5		; val low
+	move.l	d0,-(sp)		; cesu8
+	move.l	d5,-(sp)		; val low
+	move.l	d4,-(sp)		; val high
+	move.l	a2,-(sp)		; plen
+	move.l	a0,-(sp)		; ctx
+	jsr	_JS_ToCStringLen2
+	lea	20(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_FreeValue — LVO entry
+; SFD: (ctx,val_ptr)(a0/a1)
+;
+; Calls: void JS_FreeValue(ctx, val)
+;   val passed by VALUE (8 bytes)
+; ===================================================================
+
+_QJS_FreeValue:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	(a1),d4			; val high from *a1
+	move.l	4(a1),d5		; val low
+	move.l	d5,-(sp)		; val low
+	move.l	d4,-(sp)		; val high
+	move.l	a0,-(sp)		; ctx
+	jsr	_JS_FreeValue
+	lea	12(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts

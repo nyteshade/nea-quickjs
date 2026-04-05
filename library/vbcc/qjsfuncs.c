@@ -652,7 +652,7 @@ void QJS_UpdateStackTop(
     JS_UpdateStackTop(rt);
 }
 
-void QJS_SetDumpFlags(
+/* QJS_SetDumpFlags: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSRuntime *rt,
     __reg("a1") unsigned long long *flags_ptr)
@@ -660,7 +660,7 @@ void QJS_SetDumpFlags(
     JS_SetDumpFlags(rt, *flags_ptr);
 }
 
-void QJS_GetDumpFlags(
+/* QJS_GetDumpFlags: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSRuntime *rt,
     __reg("a1") unsigned long long *result_ptr)
@@ -683,7 +683,7 @@ void QJS_SetGCThreshold(
     JS_SetGCThreshold(rt, (size_t)threshold);
 }
 
-int QJS_IsLiveObject(
+/* QJS_IsLiveObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSRuntime *rt,
     __reg("a1") JSValue *obj_ptr)
@@ -722,7 +722,7 @@ struct JSRuntime *QJS_GetRuntime(
     return JS_GetRuntime(ctx);
 }
 
-void QJS_SetClassProto(
+/* QJS_SetClassProto: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("d0") ULONG class_id,
@@ -731,7 +731,7 @@ void QJS_SetClassProto(
     JS_SetClassProto(ctx, (unsigned long)class_id, *obj_ptr);
 }
 
-void QJS_GetClassProto(
+/* QJS_GetClassProto: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -740,7 +740,7 @@ void QJS_GetClassProto(
     *result = JS_GetClassProto(ctx, (unsigned long)class_id);
 }
 
-void QJS_GetFunctionProto(
+/* QJS_GetFunctionProto: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -764,7 +764,7 @@ void QJS_AddRegExpCompiler(
 
 /* ---- Batch 1: Comparison functions ---- */
 
-int QJS_IsEqual(
+/* QJS_IsEqual: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *op1_ptr,
@@ -773,7 +773,7 @@ int QJS_IsEqual(
     return JS_IsEqual(ctx, *op1_ptr, *op2_ptr);
 }
 
-int QJS_IsStrictEqual(
+/* QJS_IsStrictEqual: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *op1_ptr,
@@ -782,7 +782,7 @@ int QJS_IsStrictEqual(
     return (int)JS_IsStrictEqual(ctx, *op1_ptr, *op2_ptr);
 }
 
-int QJS_IsSameValue(
+/* QJS_IsSameValue: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *op1_ptr,
@@ -791,7 +791,7 @@ int QJS_IsSameValue(
     return (int)JS_IsSameValue(ctx, *op1_ptr, *op2_ptr);
 }
 
-int QJS_IsSameValueZero(
+/* QJS_IsSameValueZero: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *op1_ptr,
@@ -821,15 +821,9 @@ int QJS_AddRuntimeFinalizer(
 
 /* ---- Batch 2: Value Management ---- */
 
-void QJS_FreeValue(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") JSValue *val_ptr)
-{
-    JS_FreeValue(ctx, *val_ptr);
-}
+/* QJS_FreeValue: implemented in qjsfuncs_asm.s */
 
-void QJS_FreeValueRT(
+/* QJS_FreeValueRT: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSRuntime *rt,
     __reg("a1") JSValue *val_ptr)
@@ -837,7 +831,7 @@ void QJS_FreeValueRT(
     JS_FreeValueRT(rt, *val_ptr);
 }
 
-void QJS_DupValue(
+/* QJS_DupValue: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -846,7 +840,7 @@ void QJS_DupValue(
     *result = JS_DupValue(ctx, *val_ptr);
 }
 
-void QJS_DupValueRT(
+/* QJS_DupValueRT: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSRuntime *rt,
@@ -857,7 +851,7 @@ void QJS_DupValueRT(
 
 /* ---- Batch 2: Value Creation ---- */
 
-void QJS_NewNumber(
+/* QJS_NewNumber: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -866,7 +860,7 @@ void QJS_NewNumber(
     *result = JS_NewNumber(ctx, *d_ptr);
 }
 
-void QJS_NewBigInt64(
+/* QJS_NewBigInt64: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -875,7 +869,7 @@ void QJS_NewBigInt64(
     *result = JS_NewBigInt64(ctx, *v_ptr);
 }
 
-void QJS_NewBigUint64(
+/* QJS_NewBigUint64: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -886,7 +880,7 @@ void QJS_NewBigUint64(
 
 /* ---- Batch 2: Strings ---- */
 
-void QJS_NewStringLen(
+/* QJS_NewStringLen: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -896,7 +890,7 @@ void QJS_NewStringLen(
     *result = JS_NewStringLen(ctx, str, (size_t)len);
 }
 
-void QJS_NewAtomString(
+/* QJS_NewAtomString: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -905,7 +899,7 @@ void QJS_NewAtomString(
     *result = JS_NewAtomString(ctx, str);
 }
 
-void QJS_ToString(
+/* QJS_ToString: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -914,7 +908,7 @@ void QJS_ToString(
     *result = JS_ToString(ctx, *val_ptr);
 }
 
-void QJS_ToPropertyKey(
+/* QJS_ToPropertyKey: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -923,20 +917,7 @@ void QJS_ToPropertyKey(
     *result = JS_ToPropertyKey(ctx, *val_ptr);
 }
 
-const char *QJS_ToCStringLen2(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a2") ULONG *plen,
-    __reg("a1") JSValue *val_ptr,
-    __reg("d0") int cesu8)
-{
-    size_t slen;
-    const char *r;
-    r = JS_ToCStringLen2(ctx, plen ? &slen : NULL, *val_ptr, cesu8);
-    if (plen && r)
-        *plen = (ULONG)slen;
-    return r;
-}
+/* QJS_ToCStringLen2: implemented in qjsfuncs_asm.s */
 
 void QJS_FreeCString(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -948,7 +929,7 @@ void QJS_FreeCString(
 
 /* ---- Batch 2: Conversion ---- */
 
-int QJS_ToBool(
+/* QJS_ToBool: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *val_ptr)
@@ -956,7 +937,7 @@ int QJS_ToBool(
     return JS_ToBool(ctx, *val_ptr);
 }
 
-int QJS_ToInt32(
+/* QJS_ToInt32: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a2") long *pres,
@@ -965,7 +946,7 @@ int QJS_ToInt32(
     return JS_ToInt32(ctx, pres, *val_ptr);
 }
 
-int QJS_ToInt64(
+/* QJS_ToInt64: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a2") long long *pres,
@@ -974,7 +955,7 @@ int QJS_ToInt64(
     return JS_ToInt64(ctx, pres, *val_ptr);
 }
 
-int QJS_ToFloat64(
+/* QJS_ToFloat64: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a2") double *pres,
@@ -983,7 +964,7 @@ int QJS_ToFloat64(
     return JS_ToFloat64(ctx, pres, *val_ptr);
 }
 
-void QJS_ToNumber(
+/* QJS_ToNumber: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -994,7 +975,7 @@ void QJS_ToNumber(
 
 /* ---- Batch 2: Objects ---- */
 
-void QJS_NewObject(
+/* QJS_NewObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -1002,7 +983,7 @@ void QJS_NewObject(
     *result = JS_NewObject(ctx);
 }
 
-void QJS_NewObjectClass(
+/* QJS_NewObjectClass: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1011,7 +992,7 @@ void QJS_NewObjectClass(
     *result = JS_NewObjectClass(ctx, (unsigned long)class_id);
 }
 
-void QJS_NewObjectProto(
+/* QJS_NewObjectProto: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1020,7 +1001,7 @@ void QJS_NewObjectProto(
     *result = JS_NewObjectProto(ctx, *proto_ptr);
 }
 
-void QJS_NewArray(
+/* QJS_NewArray: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -1028,14 +1009,14 @@ void QJS_NewArray(
     *result = JS_NewArray(ctx);
 }
 
-int QJS_IsArray(
+/* QJS_IsArray: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
     return (int)JS_IsArray(*val_ptr);
 }
 
-int QJS_IsFunction(
+/* QJS_IsFunction: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *val_ptr)
@@ -1043,7 +1024,7 @@ int QJS_IsFunction(
     return (int)JS_IsFunction(ctx, *val_ptr);
 }
 
-int QJS_IsConstructor(
+/* QJS_IsConstructor: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *val_ptr)
@@ -1051,7 +1032,7 @@ int QJS_IsConstructor(
     return (int)JS_IsConstructor(ctx, *val_ptr);
 }
 
-void QJS_GetGlobalObject(
+/* QJS_GetGlobalObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -1059,7 +1040,7 @@ void QJS_GetGlobalObject(
     *result = JS_GetGlobalObject(ctx);
 }
 
-void QJS_ToObject(
+/* QJS_ToObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1070,7 +1051,7 @@ void QJS_ToObject(
 
 /* ---- Batch 2: Exceptions ---- */
 
-void QJS_Throw(
+/* QJS_Throw: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1079,7 +1060,7 @@ void QJS_Throw(
     *result = JS_Throw(ctx, *obj_ptr);
 }
 
-void QJS_GetException(
+/* QJS_GetException: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -1094,14 +1075,14 @@ int QJS_HasException(
     return (int)JS_HasException(ctx);
 }
 
-int QJS_IsError(
+/* QJS_IsError: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
     return (int)JS_IsError(*val_ptr);
 }
 
-void QJS_NewError(
+/* QJS_NewError: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -1109,7 +1090,7 @@ void QJS_NewError(
     *result = JS_NewError(ctx);
 }
 
-void QJS_ThrowOutOfMemory(
+/* QJS_ThrowOutOfMemory: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx)
@@ -1181,7 +1162,7 @@ char *QJS_Strdup(
 
 /* ---- Batch 3: Property Get ---- */
 
-void QJS_GetProperty(
+/* QJS_GetProperty: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1191,7 +1172,7 @@ void QJS_GetProperty(
     *result = JS_GetProperty(ctx, *this_ptr, (unsigned long)prop);
 }
 
-void QJS_GetPropertyUint32(
+/* QJS_GetPropertyUint32: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1201,7 +1182,7 @@ void QJS_GetPropertyUint32(
     *result = JS_GetPropertyUint32(ctx, *this_ptr, (unsigned long)idx);
 }
 
-void QJS_GetPropertyStr(
+/* QJS_GetPropertyStr: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1211,7 +1192,7 @@ void QJS_GetPropertyStr(
     *result = JS_GetPropertyStr(ctx, *this_ptr, prop_str);
 }
 
-void QJS_GetPropertyInt64(
+/* QJS_GetPropertyInt64: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1223,7 +1204,7 @@ void QJS_GetPropertyInt64(
 
 /* ---- Batch 3: Property Set (engine CONSUMES val) ---- */
 
-int QJS_SetProperty(
+/* QJS_SetProperty: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *this_ptr,
@@ -1233,7 +1214,7 @@ int QJS_SetProperty(
     return JS_SetProperty(ctx, *this_ptr, (unsigned long)prop, *val_ptr);
 }
 
-int QJS_SetPropertyUint32(
+/* QJS_SetPropertyUint32: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *this_ptr,
@@ -1247,7 +1228,7 @@ int QJS_SetPropertyUint32(
 
 /* ---- Batch 3: Property Query/Delete ---- */
 
-int QJS_HasProperty(
+/* QJS_HasProperty: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *this_ptr,
@@ -1256,7 +1237,7 @@ int QJS_HasProperty(
     return JS_HasProperty(ctx, *this_ptr, (unsigned long)prop);
 }
 
-int QJS_DeleteProperty(
+/* QJS_DeleteProperty: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr,
@@ -1268,7 +1249,7 @@ int QJS_DeleteProperty(
 
 /* ---- Batch 3: Prototype ---- */
 
-int QJS_SetPrototype(
+/* QJS_SetPrototype: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr,
@@ -1277,7 +1258,7 @@ int QJS_SetPrototype(
     return JS_SetPrototype(ctx, *obj_ptr, *proto_ptr);
 }
 
-void QJS_GetPrototype(
+/* QJS_GetPrototype: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1288,7 +1269,7 @@ void QJS_GetPrototype(
 
 /* ---- Batch 3: Length ---- */
 
-int QJS_GetLength(
+/* QJS_GetLength: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr,
@@ -1297,7 +1278,7 @@ int QJS_GetLength(
     return JS_GetLength(ctx, *obj_ptr, pres);
 }
 
-int QJS_SetLength(
+/* QJS_SetLength: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr,
@@ -1308,7 +1289,7 @@ int QJS_SetLength(
 
 /* ---- Batch 3: Extensibility/Seal/Freeze ---- */
 
-int QJS_IsExtensible(
+/* QJS_IsExtensible: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1316,7 +1297,7 @@ int QJS_IsExtensible(
     return JS_IsExtensible(ctx, *obj_ptr);
 }
 
-int QJS_PreventExtensions(
+/* QJS_PreventExtensions: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1324,7 +1305,7 @@ int QJS_PreventExtensions(
     return JS_PreventExtensions(ctx, *obj_ptr);
 }
 
-int QJS_SealObject(
+/* QJS_SealObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1332,7 +1313,7 @@ int QJS_SealObject(
     return JS_SealObject(ctx, *obj_ptr);
 }
 
-int QJS_FreezeObject(
+/* QJS_FreezeObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1342,7 +1323,7 @@ int QJS_FreezeObject(
 
 /* ---- Batch 3: Define Property (engine CONSUMES val) ---- */
 
-int QJS_DefinePropertyValue(
+/* QJS_DefinePropertyValue: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *this_ptr,
@@ -1354,7 +1335,7 @@ int QJS_DefinePropertyValue(
                                   *val_ptr, flags);
 }
 
-int QJS_DefinePropertyValueUint32(
+/* QJS_DefinePropertyValueUint32: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *this_ptr,
@@ -1366,7 +1347,7 @@ int QJS_DefinePropertyValueUint32(
                                         *val_ptr, flags);
 }
 
-int QJS_DefinePropertyValueStr(
+/* QJS_DefinePropertyValueStr: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *this_ptr,
@@ -1380,7 +1361,7 @@ int QJS_DefinePropertyValueStr(
 
 /* ---- Batch 3: Opaque ---- */
 
-int QJS_SetOpaque(
+/* QJS_SetOpaque: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a1") JSValue *obj_ptr,
     __reg("a0") void *opaque)
@@ -1388,7 +1369,7 @@ int QJS_SetOpaque(
     return JS_SetOpaque(*obj_ptr, opaque);
 }
 
-void *QJS_GetOpaque(
+/* QJS_GetOpaque: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *obj_ptr,
     __reg("d0") ULONG class_id)
@@ -1396,7 +1377,7 @@ void *QJS_GetOpaque(
     return JS_GetOpaque(*obj_ptr, (unsigned long)class_id);
 }
 
-void *QJS_GetOpaque2(
+/* QJS_GetOpaque2: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr,
@@ -1407,7 +1388,7 @@ void *QJS_GetOpaque2(
 
 /* ---- Batch 3: Own Property Names ---- */
 
-int QJS_GetOwnPropertyNames(
+/* QJS_GetOwnPropertyNames: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") void **ptab,
@@ -1430,7 +1411,7 @@ void QJS_FreePropertyEnum(
 
 /* ---- Batch 3: InstanceOf ---- */
 
-int QJS_IsInstanceOf(
+/* QJS_IsInstanceOf: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *val_ptr,
@@ -1482,7 +1463,7 @@ void QJS_FreeAtom(
     JS_FreeAtom(ctx, (JSAtom)v);
 }
 
-void QJS_AtomToValue(
+/* QJS_AtomToValue: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1491,7 +1472,7 @@ void QJS_AtomToValue(
     *result = JS_AtomToValue(ctx, (JSAtom)atom);
 }
 
-void QJS_AtomToString(
+/* QJS_AtomToString: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1514,7 +1495,7 @@ const char *QJS_AtomToCStringLen(
     return r;
 }
 
-ULONG QJS_ValueToAtom(
+/* QJS_ValueToAtom: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *val_ptr)
@@ -1524,7 +1505,7 @@ ULONG QJS_ValueToAtom(
 
 /* ---- Batch 4: Eval ---- */
 
-void QJS_EvalFunction(
+/* QJS_EvalFunction: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1535,7 +1516,7 @@ void QJS_EvalFunction(
 
 /* ---- Batch 4: Call ---- */
 
-void QJS_Call(
+/* QJS_Call: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1548,7 +1529,7 @@ void QJS_Call(
     *result = JS_Call(ctx, *func_ptr, *this_ptr, argc, argv);
 }
 
-void QJS_Invoke(
+/* QJS_Invoke: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1560,7 +1541,7 @@ void QJS_Invoke(
     *result = JS_Invoke(ctx, *this_ptr, (JSAtom)atom, argc, argv);
 }
 
-void QJS_CallConstructor(
+/* QJS_CallConstructor: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1573,7 +1554,7 @@ void QJS_CallConstructor(
 
 /* ---- Batch 4: JSON ---- */
 
-void QJS_ParseJSON(
+/* QJS_ParseJSON: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1584,7 +1565,7 @@ void QJS_ParseJSON(
     *result = JS_ParseJSON(ctx, buf, (size_t)buf_len, filename);
 }
 
-void QJS_JSONStringify(
+/* QJS_JSONStringify: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1598,7 +1579,7 @@ void QJS_JSONStringify(
 
 /* ---- Batch 4: Serialization ---- */
 
-unsigned char *QJS_WriteObject(
+/* QJS_WriteObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") ULONG *psize,
@@ -1613,7 +1594,7 @@ unsigned char *QJS_WriteObject(
     return r;
 }
 
-void QJS_ReadObject(
+/* QJS_ReadObject: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1651,7 +1632,7 @@ int QJS_IsRegisteredClass(
     return (int)JS_IsRegisteredClass(rt, (unsigned long)class_id);
 }
 
-ULONG QJS_GetClassID(
+/* QJS_GetClassID: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
@@ -1672,7 +1653,7 @@ void QJS_SetModuleLoaderFunc(
         opaque);
 }
 
-void QJS_GetImportMeta(
+/* QJS_GetImportMeta: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1689,7 +1670,7 @@ ULONG QJS_GetModuleName(
     return (ULONG)JS_GetModuleName(ctx, (JSModuleDef *)m);
 }
 
-void QJS_GetModuleNamespace(
+/* QJS_GetModuleNamespace: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1716,7 +1697,7 @@ int QJS_AddModuleExport(
     return JS_AddModuleExport(ctx, (JSModuleDef *)m, name_str);
 }
 
-int QJS_SetModuleExport(
+/* QJS_SetModuleExport: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") void *m,
@@ -1726,7 +1707,7 @@ int QJS_SetModuleExport(
     return JS_SetModuleExport(ctx, (JSModuleDef *)m, export_name, *val_ptr);
 }
 
-int QJS_ResolveModule(
+/* QJS_ResolveModule: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1744,7 +1725,7 @@ ULONG QJS_GetScriptOrModuleName(
 
 /* ---- Batch 5: C Function wrapper implementations ---- */
 
-void QJS_NewCFunction2(
+/* QJS_NewCFunction2: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1755,7 +1736,7 @@ void QJS_NewCFunction2(
     __reg("d2") int magic);
 /* QJS_NewCFunction2: implemented in qjsfuncs_asm.s */
 
-int QJS_SetConstructor(
+/* QJS_SetConstructor: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *func_ptr,
@@ -1764,7 +1745,7 @@ int QJS_SetConstructor(
     return JS_SetConstructor(ctx, *func_ptr, *proto_ptr);
 }
 
-int QJS_SetPropertyFunctionList(
+/* QJS_SetPropertyFunctionList: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr,
@@ -1793,7 +1774,7 @@ int QJS_ExecutePendingJob(
 
 /* ---- Batch 5: Promise wrapper implementations ---- */
 
-void QJS_NewPromiseCapability(
+/* QJS_NewPromiseCapability: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1802,7 +1783,7 @@ void QJS_NewPromiseCapability(
     *result = JS_NewPromiseCapability(ctx, resolving_funcs);
 }
 
-int QJS_PromiseState(
+/* QJS_PromiseState: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *promise_ptr)
@@ -1810,7 +1791,7 @@ int QJS_PromiseState(
     return (int)JS_PromiseState(ctx, *promise_ptr);
 }
 
-void QJS_PromiseResult(
+/* QJS_PromiseResult: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1819,7 +1800,7 @@ void QJS_PromiseResult(
     *result = JS_PromiseResult(ctx, *promise_ptr);
 }
 
-int QJS_IsPromise(
+/* QJS_IsPromise: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
@@ -1857,7 +1838,7 @@ void QJS_SetCanBlock(
 
 /* ---- Batch 5: ArrayBuffer wrapper implementations ---- */
 
-void QJS_NewArrayBufferCopy(
+/* QJS_NewArrayBufferCopy: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1867,7 +1848,7 @@ void QJS_NewArrayBufferCopy(
     *result = JS_NewArrayBufferCopy(ctx, buf, (size_t)len);
 }
 
-unsigned char *QJS_GetArrayBuffer(
+/* QJS_GetArrayBuffer: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") ULONG *psize,
@@ -1879,14 +1860,14 @@ unsigned char *QJS_GetArrayBuffer(
     return r;
 }
 
-int QJS_IsArrayBuffer(
+/* QJS_IsArrayBuffer: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
     return (int)JS_IsArrayBuffer(*val_ptr);
 }
 
-void QJS_DetachArrayBuffer(
+/* QJS_DetachArrayBuffer: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1894,7 +1875,7 @@ void QJS_DetachArrayBuffer(
     JS_DetachArrayBuffer(ctx, *obj_ptr);
 }
 
-unsigned char *QJS_GetUint8Array(
+/* QJS_GetUint8Array: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") ULONG *psize,
@@ -1906,7 +1887,7 @@ unsigned char *QJS_GetUint8Array(
     return r;
 }
 
-void QJS_NewUint8ArrayCopy(
+/* QJS_NewUint8ArrayCopy: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1918,28 +1899,28 @@ void QJS_NewUint8ArrayCopy(
 
 /* ---- Batch 5: Type check wrapper implementations ---- */
 
-int QJS_IsDate(
+/* QJS_IsDate: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
     return (int)JS_IsDate(*val_ptr);
 }
 
-int QJS_IsRegExp(
+/* QJS_IsRegExp: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
     return (int)JS_IsRegExp(*val_ptr);
 }
 
-int QJS_IsMap(
+/* QJS_IsMap: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
     return (int)JS_IsMap(*val_ptr);
 }
 
-int QJS_IsSet(
+/* QJS_IsSet: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *val_ptr)
 {
@@ -1948,7 +1929,7 @@ int QJS_IsSet(
 
 /* ---- Batch 5: Symbol wrapper implementation ---- */
 
-void QJS_NewSymbol(
+/* QJS_NewSymbol: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,
@@ -1984,7 +1965,7 @@ void QJS_NewDate(
 
 /* ---- Batch 5: Misc wrapper implementations ---- */
 
-void QJS_SetIsHTMLDDA(
+/* QJS_SetIsHTMLDDA: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *obj_ptr)
@@ -1992,7 +1973,7 @@ void QJS_SetIsHTMLDDA(
     JS_SetIsHTMLDDA(ctx, *obj_ptr);
 }
 
-int QJS_SetConstructorBit(
+/* QJS_SetConstructorBit: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") struct JSContext *ctx,
     __reg("a1") JSValue *func_ptr,
@@ -2001,7 +1982,7 @@ int QJS_SetConstructorBit(
     return JS_SetConstructorBit(ctx, *func_ptr, val);
 }
 
-void QJS_LoadModule(
+/* QJS_LoadModule: implemented in qjsfuncs_asm_all.s */
     __reg("a6") LIBRARY_BASE_TYPE *base,
     __reg("a0") JSValue *result,
     __reg("a1") struct JSContext *ctx,

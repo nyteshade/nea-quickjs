@@ -860,45 +860,10 @@ start:
                 JS_FreeValue(ctx, exc);
             }
             fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
-            /* Clear pending exceptions before eval */
-            if (JS_HasException(ctx)) {
-                JSValue exc = JS_GetException(ctx);
-                JS_FreeValue(ctx, exc);
-            }
-            /* Direct JS_Eval test — bypass eval_buf */
-            {
-                JSValue tval;
-                fprintf(stderr, "[test] direct JS_Eval('%s') tval@%p...\n",
-                        expr, (void*)&tval); fflush(stderr);
-                tval = JS_Eval(ctx, expr, strlen(expr), "<test>", 0);
-                fprintf(stderr, "[test] result=%08lx%08lx exc=%d\n",
-                        (unsigned long)(tval>>32), (unsigned long)tval,
-                        JS_HasException(ctx)); fflush(stderr);
-                fflush(stdout);
-                JS_FreeValue(ctx, tval);
-            }
-            fflush(stdout);
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
-                fprintf(stderr, "[eval] FAILED\n"); fflush(stderr);
-                /* Also try EvalSimple as fallback test */
-                if (JS_HasException(ctx)) {
-                    JSValue exc2 = JS_GetException(ctx);
-                    JS_FreeValue(ctx, exc2);
-                }
-                {
-                    extern struct Library *QJSBase;
-                    typedef long (*ESF)(__reg("a6") void *,
-                        __reg("a0") JSContext *, __reg("a1") const char *,
-                        __reg("d0") unsigned long);
-                    long esr = ((ESF)((char *)QJSBase - 156))
-                        ((void *)QJSBase, ctx, expr, (unsigned long)strlen(expr));
-                    fflush(stdout);
-                    fprintf(stderr, "[eval] EvalSimple fallback=%ld\n", esr); fflush(stderr);
-                }
                 goto fail;
             }
             fflush(stdout);
-            fprintf(stderr, "[eval] OK\n"); fflush(stderr);
             fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */
