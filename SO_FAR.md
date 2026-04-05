@@ -1040,3 +1040,61 @@ library/
 │   └── qjs_interface.h            Interface struct definition (Option C)
 └── README.md
 ```
+
+---
+
+## VBCC quickjs.library + CLI Bridge (April 2026)
+
+### Milestone: `EvalSimple("1+1")` returns 2
+
+The quickjs.library shared library is functional. The qjs CLI tool (151KB)
+opens quickjs.library at runtime and evaluates JavaScript through LVO calls.
+
+### Architecture
+
+**Library** (quickjs.library, 918KB): Contains the full QuickJS-ng engine.
+170 QJS_* wrapper functions exposed via AmigaOS LVO jump table. JSValue
+params passed as pointers, results via out-parameter.
+
+**Bridge** (in qjs binary): Translates between quickjs.h C calling convention
+(JSValue by value, stack params) and the library's LVO convention (JSValue
+by pointer, register params, A6=library base).
+
+**CRITICAL**: VBCC's `__reg("a6")` clobbers the frame pointer before loading
+other register params. C bridge functions are fundamentally unreliable.
+**Assembly trampolines** are the proven solution — read params from stack via
+SP-relative offsets, set registers explicitly, save/restore with `movem.l`.
+
+### Key Files
+- `library/vbcc/bridge_asm.s` — Assembly trampolines (working, 10 functions)
+- `library/vbcc/bridge_dpvs.s` — DefinePropertyValueStr trampoline
+- `library/vbcc/quickjs_bridge.c` — C bridge (~160 functions, BROKEN, need asm conversion)
+- `library/vbcc/qjsfuncs.c` — Library-side wrappers
+- `library/vbcc/Makefile` — Library build (fpu/soft targets)
+- `library/vbcc/Makefile.cli` — CLI tool build
+
+### Next Steps
+1. Convert ALL ~160 remaining C bridge functions to assembly trampolines
+2. Audit missing functions (JS_DefinePropertyGetSet, JS_DefineProperty, etc.)
+3. Build comprehensive test suite to prevent regressions
+4. Get `print(1+1)` → `2` working (needs ToCStringLen2 in assembly)
+5. Get REPL working
+6. Build 6 CPU/FPU library variants (020/040/060 × FPU/soft)
+7. Investigate SPFL hang (LVO -900 from external callers)
+8. Remove debug prints, clean up
+9. Write AmigaOS autodocs for QJS_* functions
+
+### VBCC A6 Clobber — Root Cause
+VBCC treats `__reg("a6")` as another register parameter and may set A6=QJSBase
+BEFORE loading other params from the stack. Since A6 is the frame pointer:
+- `&stack_local` computed after A6 clobber → garbage address
+- Static variables: also unreliable (non-deterministic failures)
+- Only fix: pure assembly with explicit SP-relative parameter access
+
+### d0/d1 Convention for uint64_t
+VBCC m68k returns 64-bit values as d0=HIGH 32 bits, d1=LOW 32 bits.
+Assembly trampolines must match this when reading result buffers:
+```asm
+move.l (sp)+,d0   ; high 32 bits (tag for NAN-boxed JSValue)
+move.l (sp)+,d1   ; low 32 bits (pointer/value)
+```
