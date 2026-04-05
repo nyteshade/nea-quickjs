@@ -24,8 +24,10 @@
 
 	xdef	_QJS_NewCFunction2
 	xdef	_QJS_SetPropertyStr
+	xdef	_QJS_Eval
 	xref	_JS_NewCFunction2
 	xref	_JS_SetPropertyStr
+	xref	_JS_Eval
 
 _QJS_NewCFunction2:
 	; Save callee-saved regs + a0 (result pointer)
@@ -65,6 +67,43 @@ _QJS_NewCFunction2:
 ;   where this_obj and val are passed by VALUE (8 bytes each on stack)
 ; ===================================================================
 
+; ===================================================================
+; QJS_Eval — LVO entry for JS_Eval
+;
+; Register params:
+;   a6 = library base (ignored)
+;   a0 = JSValue *result (out-parameter, 8 bytes)
+;   a1 = JSContext *ctx
+;   a2 = const char *input
+;   d0 = ULONG input_len
+;   a3 = const char *filename
+;   d1 = int eval_flags
+;
+; Calls: JSValue JS_Eval(ctx, input, input_len, filename, eval_flags)
+; Returns 8 bytes through *result
+; ===================================================================
+
+_QJS_Eval:
+	movem.l	d2-d7/a2-a6,-(sp)	; 11 regs = 44 bytes
+	move.l	a0,a4			; save result pointer
+
+	; Push params right-to-left for JS_Eval(ctx, input, input_len, filename, eval_flags)
+	move.l	d1,-(sp)		; eval_flags
+	move.l	a3,-(sp)		; filename
+	move.l	d0,-(sp)		; input_len
+	move.l	a2,-(sp)		; input
+	move.l	a1,-(sp)		; ctx
+	jsr	_JS_Eval		; returns uint64_t in d0/d1
+	lea	20(sp),sp		; clean 5 params (20 bytes)
+
+	; Store result through saved pointer
+	move.l	d0,(a4)			; high word
+	move.l	d1,4(a4)		; low word
+
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
 _QJS_SetPropertyStr:
 	movem.l	d2-d7/a2-a6,-(sp)	; 11 regs = 44 bytes
 

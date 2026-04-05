@@ -1,6 +1,5 @@
 /*
- * test_eval.c — Minimal cross-eval persistence test
- * ALL LVO calls via assembly helpers.
+ * test_eval.c — Full C callback test with assembly helpers
  */
 #include <stdio.h>
 #include <string.h>
@@ -16,46 +15,68 @@ struct Library *QJSBase = NULL;
 
 extern JSRuntime *call_NewRuntime(void);
 extern JSContext *call_NewContext(JSRuntime *rt);
+extern void call_GetGlobalObject(JSValue *result, JSContext *ctx);
+extern void call_NewCFunction2(JSValue *result, JSContext *ctx,
+                                void *func, const char *name,
+                                int length, int cproto, int magic);
+extern int call_SetPropertyStr(JSContext *ctx, JSValue *this_ptr,
+                                const char *prop, JSValue *val_ptr);
+extern void call_FreeValue(JSContext *ctx, JSValue *val_ptr);
 extern void call_FreeContext(JSContext *ctx);
 extern void call_FreeRuntime(JSRuntime *rt);
 extern long call_EvalSimple(JSContext *ctx, const char *input, unsigned long len);
+
+static volatile int callback_called = 0;
+static volatile int callback_argc = -1;
+
+static JSValue my_print(JSContext *ctx, JSValue this_val,
+                         int argc, JSValue *argv) {
+    callback_called = 42;
+    callback_argc = argc;
+    return 0x0000000600000000ULL; /* JS_UNDEFINED */
+}
 
 int main(void)
 {
     JSRuntime *rt;
     JSContext *ctx;
+    JSValue global, func;
     long r;
+    const char *c;
 
     QJSBase = OpenLibrary("quickjs.library", 0);
-    if (!QJSBase) { printf("FAIL: no library\n"); return 1; }
+    if (!QJSBase) { printf("FAIL\n"); return 1; }
 
     rt = call_NewRuntime();
     ctx = call_NewContext(rt);
-    printf("ctx=%p\n", (void*)ctx);
+    call_GetGlobalObject(&global, ctx);
 
-    /* Test 1: single-eval expression */
-    r = call_EvalSimple(ctx, "1+1", 3);
-    printf("Test 1 (1+1): %ld\n", r);
+    /* Create C function and set on global */
+    call_NewCFunction2(&func, ctx, (void*)my_print, "myprint", 0, 0, 0);
+    printf("func=%08lx_%08lx\n",
+           (unsigned long)(func>>32), (unsigned long)(func & 0xFFFFFFFFUL));
 
-    /* Test 2: single-eval function */
-    r = call_EvalSimple(ctx, "function f(){return 42;} f()", 30);
-    printf("Test 2 (inline func): %ld\n", r);
+    { int sr = call_SetPropertyStr(ctx, &global, "myprint", &func);
+      printf("SetProp=%d\n", sr); }
 
-    /* Test 3: cross-eval variable */
-    call_EvalSimple(ctx, "var crossvar = 99", 17);
-    r = call_EvalSimple(ctx, "crossvar", 8);
-    printf("Test 3 (cross-eval var): %ld\n", r);
+    /* Check typeof */
+    c = "typeof myprint";
+    r = call_EvalSimple(ctx, c, strlen(c));
+    printf("typeof myprint (as int): %ld\n", r);
 
-    /* Test 4: cross-eval function */
-    call_EvalSimple(ctx, "function crossfunc(){return 88;}", 32);
-    r = call_EvalSimple(ctx, "crossfunc()", 11);
-    printf("Test 4 (cross-eval func): %ld\n", r);
+    c = "typeof myprint == 'function' ? 1 : 0";
+    r = call_EvalSimple(ctx, c, strlen(c));
+    printf("is function: %ld\n", r);
 
-    /* Test 5: cross-eval globalThis */
-    call_EvalSimple(ctx, "globalThis.gvar = 77", 20);
-    r = call_EvalSimple(ctx, "gvar", 4);
-    printf("Test 5 (globalThis): %ld\n", r);
+    /* Try calling */
+    callback_called = 0;
+    c = "myprint(123)";
+    r = call_EvalSimple(ctx, c, strlen(c));
+    printf("myprint(123): eval=%ld callback=%d argc=%d\n",
+           r, callback_called, callback_argc);
 
+    /* Cleanup */
+    call_FreeValue(ctx, &global);
     call_FreeContext(ctx);
     call_FreeRuntime(rt);
     CloseLibrary(QJSBase);

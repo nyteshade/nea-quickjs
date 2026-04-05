@@ -618,19 +618,7 @@ long QJS_EvalSimple(
     return ret;
 }
 
-void QJS_Eval(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") JSValue *result,
-    __reg("a1") struct JSContext *ctx,
-    __reg("a2") const char *input,
-    __reg("d0") ULONG input_len,
-    __reg("a3") const char *filename,
-    __reg("d1") int eval_flags)
-{
-    /* Store in local first to avoid potential a0 clobber during JS_Eval */
-    JSValue _eval_result = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
-    *result = _eval_result;
-}
+/* QJS_Eval: implemented in qjsfuncs_asm.s */
 
 /* ---- Batch 1: Runtime functions ---- */
 
