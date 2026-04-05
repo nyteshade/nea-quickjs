@@ -18,38 +18,11 @@
 ; LVO -504: QJS_ThrowOutOfMemory(result,ctx)(a0/a1)
 ; Stack: [ret:4] [ctx:4]
 ; ===================================================================
-	xdef	_JS_ThrowOutOfMemory
-_JS_ThrowOutOfMemory:
-	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
-	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	_QJSBase,a6
-	move.l	a6,a5
-	suba.l	#504,a5
-	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
-	movem.l	(sp)+,d2/a2-a6
-	rts
-
 ; ===================================================================
 ; JS_DetectModule(const char *input, size_t input_len) -> int
 ; LVO -510: QJS_DetectModule(input,input_len)(a0/d0)
 ; Stack: [ret:4] [input:4] [input_len:4]
 ; ===================================================================
-	xdef	_JS_DetectModule
-_JS_DetectModule:
-	movem.l	d2/a2-a6,-(sp)
-	move.l	24+4(sp),a0		; a0 = input
-	move.l	24+8(sp),d0		; d0 = input_len
-	move.l	_QJSBase,a6
-	move.l	a6,a5
-	suba.l	#510,a5
-	jsr	(a5)
-	movem.l	(sp)+,d2/a2-a6
-	rts
-
 ; ===================================================================
 ; JS_Malloc(JSContext *ctx, size_t size) -> void *
 ; LVO -516: QJS_Malloc(ctx,size)(a0/d0)
@@ -1183,20 +1156,6 @@ _JS_SetConstructor:
 ; LVO -900: QJS_SetPropertyFunctionList(ctx,obj_ptr,tab,len)(a0/a1/a2/d0)
 ; Stack: [ret:4] [ctx:4] [obj:8] [tab:4] [len:4]
 ; ===================================================================
-	xdef	_JS_SetPropertyFunctionList
-_JS_SetPropertyFunctionList:
-	movem.l	d2/a2-a6,-(sp)
-	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &obj
-	move.l	24+16(sp),a2		; a2 = tab
-	move.l	24+20(sp),d0		; d0 = len
-	move.l	_QJSBase,a6
-	move.l	a6,a5
-	suba.l	#900,a5
-	jsr	(a5)
-	movem.l	(sp)+,d2/a2-a6
-	rts
-
 ; ===================================================================
 ; JS_IsJobPending(JSRuntime *rt) -> int
 ; LVO -906: QJS_IsJobPending(rt)(a0)

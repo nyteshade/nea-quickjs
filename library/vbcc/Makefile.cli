@@ -20,7 +20,7 @@ SRC      = $(ROOT)/src
 OUTDIR   = $(ROOT)/amiga
 
 # Compiler flags
-CFLAGS = +aos68k -c -cpu=68020 -fpu=68881 -O0 \
+CFLAGS = +aos68k -c -cpu=68020 -fpu=68881 -O1 \
          -DQJS_USE_LIBRARY \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
