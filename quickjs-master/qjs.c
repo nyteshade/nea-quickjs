@@ -357,7 +357,12 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
                               JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
     JS_FreeValue(ctx, global);
     JS_FreeValue(ctx, navigator_proto);
-    fprintf(stderr, "[ctx] HasExc=%d end of NewCustomContext\n", JS_HasException(ctx)); fflush(stderr);
+
+    /* Clear any exception from navigator/SPFL setup */
+    if (JS_HasException(ctx)) {
+        JSValue exc = JS_GetException(ctx);
+        JS_FreeValue(ctx, exc);
+    }
 
     return ctx;
 }
@@ -855,26 +860,45 @@ start:
                 JS_FreeValue(ctx, exc);
             }
             fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
-#ifdef QJS_USE_LIBRARY
-            /* Test: use library's EvalSimple (LVO -156) which is proven to work */
-            {
-                extern struct Library *QJSBase;
-                typedef long (*EvalSimpleF)(__reg("a6") void *,
-                    __reg("a0") JSContext *, __reg("a1") const char *,
-                    __reg("d0") unsigned long);
-                long esr;
-                fprintf(stderr, "[eval] using EvalSimple...\n"); fflush(stderr);
-                esr = ((EvalSimpleF)((char *)QJSBase - 156))
-                    ((void *)QJSBase, ctx, expr, (unsigned long)strlen(expr));
-                fprintf(stderr, "[eval] EvalSimple returned %ld\n", esr); fflush(stderr);
+            /* Clear pending exceptions before eval */
+            if (JS_HasException(ctx)) {
+                JSValue exc = JS_GetException(ctx);
+                JS_FreeValue(ctx, exc);
             }
-#else
+            /* Direct JS_Eval test — bypass eval_buf */
+            {
+                JSValue tval;
+                fprintf(stderr, "[test] direct JS_Eval('%s') tval@%p...\n",
+                        expr, (void*)&tval); fflush(stderr);
+                tval = JS_Eval(ctx, expr, strlen(expr), "<test>", 0);
+                fprintf(stderr, "[test] result=%08lx%08lx exc=%d\n",
+                        (unsigned long)(tval>>32), (unsigned long)tval,
+                        JS_HasException(ctx)); fflush(stderr);
+                fflush(stdout);
+                JS_FreeValue(ctx, tval);
+            }
+            fflush(stdout);
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
                 fprintf(stderr, "[eval] FAILED\n"); fflush(stderr);
+                /* Also try EvalSimple as fallback test */
+                if (JS_HasException(ctx)) {
+                    JSValue exc2 = JS_GetException(ctx);
+                    JS_FreeValue(ctx, exc2);
+                }
+                {
+                    extern struct Library *QJSBase;
+                    typedef long (*ESF)(__reg("a6") void *,
+                        __reg("a0") JSContext *, __reg("a1") const char *,
+                        __reg("d0") unsigned long);
+                    long esr = ((ESF)((char *)QJSBase - 156))
+                        ((void *)QJSBase, ctx, expr, (unsigned long)strlen(expr));
+                    fflush(stdout);
+                    fprintf(stderr, "[eval] EvalSimple fallback=%ld\n", esr); fflush(stderr);
+                }
                 goto fail;
             }
+            fflush(stdout);
             fprintf(stderr, "[eval] OK\n"); fflush(stderr);
-#endif
             fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */

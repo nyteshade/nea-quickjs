@@ -627,7 +627,9 @@ void QJS_Eval(
     __reg("a3") const char *filename,
     __reg("d1") int eval_flags)
 {
-    *result = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
+    /* Store in local first to avoid potential a0 clobber during JS_Eval */
+    JSValue _eval_result = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
+    *result = _eval_result;
 }
 
 /* ---- Batch 1: Runtime functions ---- */
