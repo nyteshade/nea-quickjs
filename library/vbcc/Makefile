@@ -79,6 +79,7 @@ FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
               $(OBJDIR_FPU)/sharedlib_int64.o
 
 FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
+              $(OBJDIR_FPU)/qjsfuncs_asm.o \
               $(OBJDIR_FPU)/execinline.o $(OBJDIR_FPU)/qjs_dbg_stub.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
@@ -137,6 +138,9 @@ $(OBJDIR_FPU)/library.o: $(TEMPLATE)/library.c | $(OBJDIR_FPU)
 
 $(OBJDIR_FPU)/qjsfuncs.o: $(LIBVBCC)/qjsfuncs.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/qjsfuncs_asm.o: $(LIBVBCC)/qjsfuncs_asm.s | $(OBJDIR_FPU)
+	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/execinline.o: $(LIBVBCC)/execinline.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@

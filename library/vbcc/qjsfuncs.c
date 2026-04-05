@@ -1255,15 +1255,7 @@ int QJS_SetPropertyUint32(
     return JS_SetPropertyUint32(ctx, *this_ptr, (unsigned long)idx, *val_ptr);
 }
 
-int QJS_SetPropertyStr(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") JSValue *this_ptr,
-    __reg("a2") const char *prop_str,
-    __reg("a3") JSValue *val_ptr)
-{
-    return JS_SetPropertyStr(ctx, *this_ptr, prop_str, *val_ptr);
-}
+/* QJS_SetPropertyStr: implemented in qjsfuncs_asm.s */
 
 /* ---- Batch 3: Property Query/Delete ---- */
 
@@ -1772,11 +1764,8 @@ void QJS_NewCFunction2(
     __reg("a3") const char *name,
     __reg("d0") int length,
     __reg("d1") int cproto,
-    __reg("d2") int magic)
-{
-    *result = JS_NewCFunction2(ctx, (JSCFunction *)func, name,
-                               length, cproto, magic);
-}
+    __reg("d2") int magic);
+/* QJS_NewCFunction2: implemented in qjsfuncs_asm.s */
 
 int QJS_SetConstructor(
     __reg("a6") LIBRARY_BASE_TYPE *base,
