@@ -53,6 +53,8 @@ OBJS = $(OBJDIR)/qjs.o \
        $(OBJDIR)/bridge_a6.o \
        $(OBJDIR)/bridge_dpvs.o \
        $(OBJDIR)/bridge_asm.o \
+       $(OBJDIR)/bridge_asm_batch1.o \
+       $(OBJDIR)/bridge_asm_batch2.o \
        $(OBJDIR)/amiga_posix_stubs.o \
        $(OBJDIR)/amiga_compat_vbcc.o \
        $(OBJDIR)/repl.o \
@@ -96,6 +98,12 @@ $(OBJDIR)/bridge_dpvs.o: $(LIBVBCC)/bridge_dpvs.s | $(OBJDIR)
 	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
 
 $(OBJDIR)/bridge_asm.o: $(LIBVBCC)/bridge_asm.s | $(OBJDIR)
+	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
+
+$(OBJDIR)/bridge_asm_batch1.o: $(LIBVBCC)/bridge_asm_batch1.s | $(OBJDIR)
+	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
+
+$(OBJDIR)/bridge_asm_batch2.o: $(LIBVBCC)/bridge_asm_batch2.s | $(OBJDIR)
 	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
 
 $(OBJDIR):
