@@ -323,7 +323,7 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
 
     global = JS_GetGlobalObject(ctx);
     fprintf(stderr, "[ctx] set func list...\n"); fflush(stderr);
-    JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj));
+    /* DISABLED FOR TEST: JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj)); */
     fprintf(stderr, "[ctx] done, NewArray...\n"); fflush(stderr);
     args = JS_NewArray(ctx);
     fprintf(stderr, "[ctx] HasExc=%d after SPFL\n", JS_HasException(ctx)); fflush(stderr);
@@ -344,17 +344,10 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
               (unsigned long)(s>>32), (unsigned long)s, JS_HasException(ctx)); fflush(stderr);
       { int r2 = JS_DefinePropertyValueStr(ctx, global, "argv0", s, JS_PROP_C_W_E);
         fprintf(stderr, "[ctx] argv0=%d HasExc=%d\n", r2, JS_HasException(ctx)); fflush(stderr); } }
-    /* Navigator: simplified for library bridge — set userAgent as plain string */
     navigator_proto = JS_NewObject(ctx);
-    {
-        char ver[64];
-        snprintf(ver, sizeof(ver), "quickjs-ng/%s", JS_GetVersion());
-        JS_DefinePropertyValueStr(ctx, navigator_proto, "userAgent",
-                                  JS_NewString(ctx, ver), JS_PROP_C_W_E);
-    }
+    JS_SetPropertyFunctionList(ctx, navigator_proto, navigator_proto_funcs, countof(navigator_proto_funcs));
     navigator = JS_NewObjectProto(ctx, navigator_proto);
-    JS_DefinePropertyValueStr(ctx, global, "navigator", navigator,
-                              JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
+    JS_DefinePropertyValueStr(ctx, global, "navigator", navigator, JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
     JS_FreeValue(ctx, global);
     JS_FreeValue(ctx, navigator_proto);
 

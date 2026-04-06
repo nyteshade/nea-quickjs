@@ -5116,10 +5116,9 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
     global_obj = JS_GetGlobalObject(ctx);
 
     console = JS_NewObject(ctx);
-    JS_DefinePropertyValueStr(ctx, console, "log",
-                      JS_NewCFunction(ctx, js_console_log, "log", 1),
-                      JS_PROP_C_W_E);
-    JS_DefinePropertyValueStr(ctx, global_obj, "console", console, JS_PROP_C_W_E);
+    JS_SetPropertyStr(ctx, console, "log",
+                      JS_NewCFunction(ctx, js_console_log, "log", 1));
+    JS_SetPropertyStr(ctx, global_obj, "console", console);
 
     /* same methods as the mozilla JS shell */
     if (argc >= 0) {
@@ -5127,20 +5126,11 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
         for(i = 0; i < argc; i++) {
             JS_SetPropertyUint32(ctx, args, i, JS_NewString(ctx, argv[i]));
         }
-        JS_DefinePropertyValueStr(ctx, global_obj, "scriptArgs", args, JS_PROP_C_W_E);
+        JS_SetPropertyStr(ctx, global_obj, "scriptArgs", args);
     }
 
-    {
-        JSValue pfunc = JS_NewCFunction(ctx, js_print, "print", 1);
-        int pr;
-        fprintf(stderr, "[helpers] pfunc=%08lx%08lx global=%08lx%08lx\n",
-                (unsigned long)(pfunc>>32), (unsigned long)pfunc,
-                (unsigned long)(global_obj>>32), (unsigned long)global_obj);
-        fflush(stderr);
-        pr = JS_DefinePropertyValueStr(ctx, global_obj, "print", pfunc, JS_PROP_C_W_E);
-        fprintf(stderr, "[helpers] SetProp(print)=%d HasExc=%d\n",
-                pr, JS_HasException(ctx));
-        fflush(stderr);
+    JS_SetPropertyStr(ctx, global_obj, "print",
+                      JS_NewCFunction(ctx, js_print, "print", 1));
     }
 
     JS_FreeValue(ctx, global_obj);

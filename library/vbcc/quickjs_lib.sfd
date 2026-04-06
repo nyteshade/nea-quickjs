@@ -174,4 +174,8 @@ QJS_NewDate(result,ctx,epoch_ms_ptr)(a0/a1/a2)
 QJS_SetIsHTMLDDA(ctx,obj_ptr)(a0/a1)
 QJS_SetConstructorBit(ctx,func_ptr,val)(a0/a1/d0)
 QJS_LoadModule(result,ctx,basename,filename)(a0/a1/a2/a3)
+QJS_GetLibcOpaque(rt)(a0)
+QJS_SetLibcOpaque(rt,opaque)(a0/a1)
+QJS_AddModuleExportList(ctx,m,tab,len)(a0/a1/a2/d0)
+QJS_SetModuleExportList(ctx,m,tab,len)(a0/a1/a2/d0)
 ==end

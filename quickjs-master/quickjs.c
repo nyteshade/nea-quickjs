@@ -2033,6 +2033,18 @@ void JS_SetRuntimeOpaque(JSRuntime *rt, void *opaque)
     rt->user_opaque = opaque;
 }
 
+/* AmigaOS library bridge: direct access to libc_opaque for js_std_cmd
+ * without variadic dispatch. Used by quickjs-libc.c thread state. */
+void *JS_GetLibcOpaque(JSRuntime *rt)
+{
+    return rt->libc_opaque;
+}
+
+void JS_SetLibcOpaque(JSRuntime *rt, void *opaque)
+{
+    rt->libc_opaque = opaque;
+}
+
 int JS_AddRuntimeFinalizer(JSRuntime *rt, JSRuntimeFinalizer *finalizer,
                            void *arg)
 {

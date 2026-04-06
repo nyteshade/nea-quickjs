@@ -139,78 +139,25 @@ JSValue JS_ThrowPlainError(JSContext *ctx, int error_class,
  * Module export list helpers (loop over entries)
  * =================================================================== */
 
-int JS_AddModuleExportList(JSContext *ctx, JSModuleDef *m,
-                            const JSCFunctionListEntry *tab, int len) {
-    int i;
-    for (i = 0; i < len; i++) {
-        if (JS_AddModuleExport(ctx, m, tab[i].name))
-            return -1;
-    }
-    return 0;
-}
-
-int JS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
-                            const JSCFunctionListEntry *tab, int len) {
-    int i;
-    for (i = 0; i < len; i++) {
-        JS_SetModuleExport(ctx, m, tab[i].name, JS_UNDEFINED);
-    }
-    return 0;
-}
+/* JS_AddModuleExportList: now via LVO -1062 (bridge_asm.s) */
+/* JS_SetModuleExportList: now via LVO -1068 (bridge_asm.s) */
 
 /* ===================================================================
- * SetPropertyFunctionList — bridge implementation (library LVO hangs)
+ * SetPropertyFunctionList — now uses LVO -900 directly (assembly
+ * wrappers in both bridge and library fix the A6/__reg bugs that
+ * previously caused hangs).
+ * The assembly trampoline is in bridge_asm.s.
  * =================================================================== */
-
-int JS_SetPropertyFunctionList(JSContext *ctx, JSValueConst obj,
-                                const JSCFunctionListEntry *tab, int len) {
-    int i;
-    for (i = 0; i < len; i++) {
-        const JSCFunctionListEntry *e = &tab[i];
-        JSValue val;
-        switch (e->def_type) {
-        case 0: /* JS_DEF_CFUNC */
-            val = JS_NewCFunction2(ctx, e->u.func.cfunc.generic, e->name,
-                                   e->u.func.length, e->u.func.cproto, e->magic);
-            break;
-        case 1: /* JS_DEF_CGETSET */
-        case 5: /* JS_DEF_CGETSET_MAGIC */
-            if (e->u.getset.get.generic) {
-                JSCFunction *getter = e->u.getset.get.generic;
-                val = getter(ctx, obj, 0, NULL);
-                JS_DefinePropertyValueStr(ctx, obj, e->name, val,
-                    e->prop_flags & ~JS_PROP_WRITABLE);
-            }
-            continue;
-        case 2: /* JS_DEF_PROP_STRING */
-            val = JS_NewStringLen(ctx, e->u.str, strlen(e->u.str));
-            break;
-        case 3: /* JS_DEF_PROP_INT32 */
-            val = JS_NewInt32(ctx, e->u.i32);
-            break;
-        case 4: /* JS_DEF_PROP_INT64 */
-            val = JS_NewInt64(ctx, e->u.i64);
-            break;
-        case 6: /* JS_DEF_PROP_DOUBLE */
-            val = JS_NewNumber(ctx, e->u.f64);
-            break;
-        case 8: /* JS_DEF_PROP_UNDEFINED */
-            val = JS_UNDEFINED;
-            break;
-        case 10: /* JS_DEF_PROP_BOOL */
-            val = JS_NewBool(ctx, e->u.i32);
-            break;
-        default:
-            continue;
-        }
-        JS_DefinePropertyValueStr(ctx, obj, e->name, val, e->prop_flags);
-    }
-    return 0;
-}
+/* JS_SetPropertyFunctionList: now via LVO -900 (bridge_asm.s + qjsfuncs_asm_all.s) */
 
 /* ===================================================================
  * js_std_cmd — thread state access for quickjs-libc.c
  * =================================================================== */
+
+/* js_std_cmd — uses JS_GetLibcOpaque/JS_SetLibcOpaque (LVO -1050/-1056)
+ * to access rt->libc_opaque, matching upstream's js_std_cmd behavior. */
+extern void *JS_GetLibcOpaque(JSRuntime *rt);
+extern void JS_SetLibcOpaque(JSRuntime *rt, void *opaque);
 
 uintptr_t js_std_cmd(int cmd, ...) {
     va_list ap;
@@ -220,14 +167,14 @@ uintptr_t js_std_cmd(int cmd, ...) {
     case 0: /* GetOpaque */
         {
             JSRuntime *rt = va_arg(ap, JSRuntime *);
-            rv = (uintptr_t)JS_GetRuntimeOpaque(rt);
+            rv = (uintptr_t)JS_GetLibcOpaque(rt);
         }
         break;
     case 1: /* SetOpaque */
         {
             JSRuntime *rt = va_arg(ap, JSRuntime *);
             void *opaque = va_arg(ap, void *);
-            JS_SetRuntimeOpaque(rt, opaque);
+            JS_SetLibcOpaque(rt, opaque);
         }
         break;
     case 2: /* ErrorBackTrace */
@@ -243,6 +190,8 @@ uintptr_t js_std_cmd(int cmd, ...) {
     va_end(ap);
     return rv;
 }
+
+/* (end of removed SPFL workaround) */
 
 /* ===================================================================
  * Missing function stubs

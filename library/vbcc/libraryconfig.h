@@ -863,6 +863,11 @@ void QJS_NewDate(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *resul
 void QJS_SetIsHTMLDDA(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *obj_ptr);
 int QJS_SetConstructorBit(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") JSValue *func_ptr, __reg("d0") int val);
 void QJS_LoadModule(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") JSValue *result, __reg("a1") struct JSContext *ctx, __reg("a2") const char *basename, __reg("a3") const char *filename);
+/* --- New functions (post-v0.54) --- */
+void *QJS_GetLibcOpaque(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt);
+void QJS_SetLibcOpaque(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("a1") void *opaque);
+int QJS_AddModuleExportList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") void *tab, __reg("d0") int len);
+int QJS_SetModuleExportList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") void *tab, __reg("d0") int len);
 
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
@@ -1053,6 +1058,10 @@ void QJS_Eval(
     (APTR) QJS_NewDate, \
     (APTR) QJS_SetIsHTMLDDA, \
     (APTR) QJS_SetConstructorBit, \
-    (APTR) QJS_LoadModule
+    (APTR) QJS_LoadModule, \
+    (APTR) QJS_GetLibcOpaque, \
+    (APTR) QJS_SetLibcOpaque, \
+    (APTR) QJS_AddModuleExportList, \
+    (APTR) QJS_SetModuleExportList
 
 #endif /* LIBRARYCONFIG_H */

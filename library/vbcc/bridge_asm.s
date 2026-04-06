@@ -30,6 +30,94 @@ _bridge_EvalSimple:
 ; ===================================================================
 
 ; ===================================================================
+; JS_GetLibcOpaque(JSRuntime *rt) -> void*
+; LVO -1050
+; ===================================================================
+	xdef	_JS_GetLibcOpaque
+_JS_GetLibcOpaque:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1050,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
+; JS_SetLibcOpaque(JSRuntime *rt, void *opaque)
+; LVO -1056
+; ===================================================================
+	xdef	_JS_SetLibcOpaque
+_JS_SetLibcOpaque:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	32(sp),a1
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1056,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
+; JS_AddModuleExportList(ctx, m, tab, len) -> int
+; LVO -1062
+; Stack: [ret:4] [ctx:4] [m:4] [tab:4] [len:4]
+; ===================================================================
+	xdef	_JS_AddModuleExportList
+_JS_AddModuleExportList:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0		; ctx
+	move.l	32(sp),a1		; m
+	move.l	36(sp),a2		; tab
+	move.l	40(sp),d0		; len
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1062,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
+; JS_SetModuleExportList(ctx, m, tab, len) -> int
+; LVO -1068
+; Stack: [ret:4] [ctx:4] [m:4] [tab:4] [len:4]
+; ===================================================================
+	xdef	_JS_SetModuleExportList
+_JS_SetModuleExportList:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	32(sp),a1
+	move.l	36(sp),a2
+	move.l	40(sp),d0
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1068,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
+; JS_SetPropertyFunctionList(ctx, obj, tab, len) -> int
+; LVO -900: QJS_SetPropertyFunctionList(ctx,obj_ptr,tab,len)(a0/a1/a2/d0)
+; Stack: [ret:4] [ctx:4] [obj:8] [tab:4] [len:4]
+; ===================================================================
+	xdef	_JS_SetPropertyFunctionList
+_JS_SetPropertyFunctionList:
+	movem.l	d2/a2-a6,-(sp)		; 6 regs = 24 bytes
+	move.l	28(sp),a0		; a0 = ctx
+	lea	32(sp),a1		; a1 = &obj (8-byte JSValue on stack)
+	move.l	40(sp),a2		; a2 = tab
+	move.l	44(sp),d0		; d0 = len
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#900,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
 ; JS_GetGlobalObject(JSContext *ctx) -> JSValue (uint64_t)
 ; LVO -462: QJS_GetGlobalObject(result,ctx)(a0/a1)
 ; Stack: [ret:4] [ctx:4]
