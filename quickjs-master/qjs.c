@@ -860,10 +860,21 @@ start:
                 JS_FreeValue(ctx, exc);
             }
             fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
-            if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
-                goto fail;
+            /* Use EvalSimple via bridge assembly trampoline.
+             * JS_Eval through QJS_Eval has a known issue — same
+             * internal function works from C (EvalSimple) but not
+             * from assembly wrapper. Root cause TBD. */
+            {
+                extern long bridge_EvalSimple(JSContext *ctx,
+                    const char *input, unsigned long len);
+                long esr = bridge_EvalSimple(ctx, expr,
+                    (unsigned long)strlen(expr));
+                fflush(stdout);
+                if (esr == -9999) {
+                    js_std_dump_error(ctx);
+                    goto fail;
+                }
             }
-            fflush(stdout);
             fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */

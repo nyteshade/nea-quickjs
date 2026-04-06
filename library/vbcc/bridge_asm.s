@@ -8,6 +8,24 @@
 	xref	_QJSBase
 
 ; ===================================================================
+; bridge_EvalSimple(ctx, input, len) -> long
+; Calls QJS_EvalSimple at LVO -156
+; Stack: [ret:4] [ctx:4] [input:4] [len:4]
+; ===================================================================
+	xdef	_bridge_EvalSimple
+_bridge_EvalSimple:
+	movem.l	d2/a2-a6,-(sp)		; 6 regs = 24 bytes
+	move.l	28(sp),a0		; ctx
+	move.l	32(sp),a1		; input
+	move.l	36(sp),d0		; len
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#156,a5
+	jsr	(a5)			; returns long in d0
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
 ; Helper macro: compute LVO address in A5 and set A6
 ; ===================================================================
 
