@@ -99,6 +99,26 @@ _JS_SetModuleExportList:
 	rts
 
 ; ===================================================================
+; bridge_EvalBuf(ctx, input, input_len, filename, eval_flags) -> long
+; LVO -1074: QJS_EvalBuf(ctx,input,input_len,filename,eval_flags)(a0/a1/d0/a2/d1)
+; Stack: [ret:4] [ctx:4] [input:4] [input_len:4] [filename:4] [eval_flags:4]
+; ===================================================================
+	xdef	_bridge_EvalBuf
+_bridge_EvalBuf:
+	movem.l	d2/a2-a6,-(sp)		; 6 regs = 24 bytes
+	move.l	28(sp),a0		; ctx
+	move.l	32(sp),a1		; input
+	move.l	36(sp),d0		; input_len
+	move.l	40(sp),a2		; filename
+	move.l	44(sp),d1		; eval_flags
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1074,a5
+	jsr	(a5)			; returns long in d0
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
+; ===================================================================
 ; JS_SetPropertyFunctionList(ctx, obj, tab, len) -> int
 ; LVO -900: QJS_SetPropertyFunctionList(ctx,obj_ptr,tab,len)(a0/a1/a2/d0)
 ; Stack: [ret:4] [ctx:4] [obj:8] [tab:4] [len:4]

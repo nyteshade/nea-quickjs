@@ -178,4 +178,5 @@ QJS_GetLibcOpaque(rt)(a0)
 QJS_SetLibcOpaque(rt,opaque)(a0/a1)
 QJS_AddModuleExportList(ctx,m,tab,len)(a0/a1/a2/d0)
 QJS_SetModuleExportList(ctx,m,tab,len)(a0/a1/a2/d0)
+QJS_EvalBuf(ctx,input,input_len,filename,eval_flags)(a0/a1/d0/a2/d1)
 ==end

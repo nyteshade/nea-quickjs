@@ -868,6 +868,7 @@ void *QJS_GetLibcOpaque(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct 
 void QJS_SetLibcOpaque(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt, __reg("a1") void *opaque);
 int QJS_AddModuleExportList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") void *tab, __reg("d0") int len);
 int QJS_SetModuleExportList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") void *tab, __reg("d0") int len);
+long QJS_EvalBuf(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const char *input, __reg("d0") ULONG input_len, __reg("a2") const char *filename, __reg("d1") int eval_flags);
 
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
@@ -1062,6 +1063,7 @@ void QJS_Eval(
     (APTR) QJS_GetLibcOpaque, \
     (APTR) QJS_SetLibcOpaque, \
     (APTR) QJS_AddModuleExportList, \
-    (APTR) QJS_SetModuleExportList
+    (APTR) QJS_SetModuleExportList, \
+    (APTR) QJS_EvalBuf
 
 #endif /* LIBRARYCONFIG_H */

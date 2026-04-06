@@ -522,6 +522,30 @@ long QJS_EvalSimple(
     return ret;
 }
 
+/* QJS_EvalBuf — eval with module support, runs entirely in library.
+ * Returns 0 on success, -1 on exception. */
+long QJS_EvalBuf(
+    __reg("a6") LIBRARY_BASE_TYPE *base,
+    __reg("a0") struct JSContext *ctx,
+    __reg("a1") const char *input,
+    __reg("d0") ULONG input_len,
+    __reg("a2") const char *filename,
+    __reg("d1") int eval_flags)
+{
+    JSValue val;
+    int ret;
+
+    /* JS_Eval handles both global scripts and modules internally */
+    val = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
+    if (JS_IsException(val)) {
+        ret = -1;
+    } else {
+        ret = 0;
+    }
+    JS_FreeValue(ctx, val);
+    return ret;
+}
+
 /* QJS_Eval: in qjsfuncs_asm_all.s */
 
 /* ---- Runtime functions ---- */

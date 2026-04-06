@@ -183,6 +183,23 @@ static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
     JSValue val;
     int ret;
 
+#ifdef QJS_USE_LIBRARY
+    /* Use library's EvalBuf which runs entirely inside the library,
+     * avoiding the JS_Eval bridge trampoline issue. Handles both
+     * global scripts and module evaluation. */
+    {
+        extern long bridge_EvalBuf(JSContext *ctx, const char *input,
+            unsigned long input_len, const char *filename, int eval_flags);
+        long esr = bridge_EvalBuf(ctx, buf, (unsigned long)buf_len,
+                                   filename, eval_flags);
+        fflush(stdout);
+        ret = (esr < 0) ? -1 : 0;
+        if (ret < 0) {
+            js_std_dump_error(ctx);
+        }
+    }
+    return ret;
+#else
     if ((eval_flags & JS_EVAL_TYPE_MASK) == JS_EVAL_TYPE_MODULE) {
         /* for the modules, we compile then run to be able to set
            import.meta */
@@ -212,6 +229,7 @@ static int eval_buf(JSContext *ctx, const void *buf, int buf_len,
 end:
     JS_FreeValue(ctx, val);
     return ret;
+#endif
 }
 
 static int eval_file(JSContext *ctx, const char *filename, int module)
@@ -853,21 +871,10 @@ start:
                 JS_FreeValue(ctx, exc);
             }
             fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
-            /* Use EvalSimple via bridge assembly trampoline.
-             * JS_Eval through QJS_Eval has a known issue — same
-             * internal function works from C (EvalSimple) but not
-             * from assembly wrapper. Root cause TBD. */
-            {
-                extern long bridge_EvalSimple(JSContext *ctx,
-                    const char *input, unsigned long len);
-                long esr = bridge_EvalSimple(ctx, expr,
-                    (unsigned long)strlen(expr));
-                fflush(stdout);
-                if (esr == -9999) {
-                    js_std_dump_error(ctx);
-                    goto fail;
-                }
+            if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
+                goto fail;
             }
+            fflush(stdout);
             fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */
