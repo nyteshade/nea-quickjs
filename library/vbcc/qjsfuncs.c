@@ -522,6 +522,9 @@ long QJS_EvalSimple(
     return ret;
 }
 
+extern JSValue JS_EvalFunction(struct JSContext *ctx, JSValue fun_obj);
+extern int JS_ResolveModule(struct JSContext *ctx, JSValue obj);
+
 /* QJS_EvalBuf — eval with module support, runs entirely in library.
  * Returns 0 on success, -1 on exception. */
 long QJS_EvalBuf(
@@ -535,8 +538,18 @@ long QJS_EvalBuf(
     JSValue val;
     int ret;
 
-    /* JS_Eval handles both global scripts and modules internally */
-    val = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
+    /* For modules: compile, resolve, then execute. For scripts: direct eval. */
+    if ((eval_flags & 0x03) == 1) {
+        /* JS_EVAL_TYPE_MODULE: compile, resolve, execute */
+        val = JS_Eval(ctx, input, (size_t)input_len, filename,
+                      eval_flags | 0x20); /* JS_EVAL_FLAG_COMPILE_ONLY */
+        if (!JS_IsException(val)) {
+            JS_ResolveModule(ctx, val);
+            val = JS_EvalFunction(ctx, val);
+        }
+    } else {
+        val = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
+    }
     if (JS_IsException(val)) {
         ret = -1;
     } else {
