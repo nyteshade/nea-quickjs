@@ -191,14 +191,12 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
                 else if (long_count == 1) val = va_arg(ap, long);
                 else val = va_arg(ap, int);
                 if (val < 0) { neg = 1; val = -val; }
-                len = fmt_int(tmp + 1, (unsigned long long)val, 10, 0);
-                if (neg) { tmp[0] = '-'; len++; }
-                else if (force_sign) { tmp[0] = '+'; len++; }
-                else { /* shift */ int j; for(j=len-1;j>=0;j--) tmp[j] = tmp[j+1]; }
                 if (neg || force_sign) {
-                    /* tmp already has sign at [0] */
+                    len = fmt_int(tmp + 1, (unsigned long long)val, 10, 0);
+                    tmp[0] = neg ? '-' : '+';
+                    len++;
                 } else {
-                    int j; for(j=0;j<len;j++) tmp[j]=tmp[j+1];
+                    len = fmt_int(tmp, (unsigned long long)val, 10, 0);
                 }
                 break;
             }

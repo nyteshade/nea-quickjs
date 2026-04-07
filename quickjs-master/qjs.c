@@ -344,52 +344,23 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     JSValue global, args, navigator_proto, navigator;
     int i;
 
-    fprintf(stderr, "[ctx] JS_NewContext...\n");
     ctx = JS_NewContext(rt);
     if (!ctx)
         return NULL;
-    fprintf(stderr, "[ctx] ctx=%p, init std...\n", (void *)ctx);
     /* system modules */
     js_init_module_std(ctx, "qjs:std");
-    fprintf(stderr, "[ctx] init os...\n");
     js_init_module_os(ctx, "qjs:os");
-    fprintf(stderr, "[ctx] init bjson...\n"); fflush(stderr);
     js_init_module_bjson(ctx, "qjs:bjson");
-    fprintf(stderr, "[ctx] bjson done\n"); fflush(stderr);
-    fprintf(stderr, "[ctx] NewObject test...\n"); fflush(stderr);
-    {
-        JSValue test_obj = JS_NewObject(ctx);
-        fprintf(stderr, "[ctx] NewObject=%08lx%08lx\n",
-                (unsigned long)(test_obj >> 32),
-                (unsigned long)(test_obj & 0xFFFFFFFFUL)); fflush(stderr);
-        JS_FreeValue(ctx, test_obj);
-        fprintf(stderr, "[ctx] FreeValue OK\n"); fflush(stderr);
-    }
-    fprintf(stderr, "[ctx] get global...\n"); fflush(stderr);
 
     global = JS_GetGlobalObject(ctx);
-    fprintf(stderr, "[ctx] set func list...\n"); fflush(stderr);
-    /* DISABLED FOR TEST: JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj)); */
-    fprintf(stderr, "[ctx] done, NewArray...\n"); fflush(stderr);
+    JS_SetPropertyFunctionList(ctx, global, global_obj, countof(global_obj));
     args = JS_NewArray(ctx);
-    fprintf(stderr, "[ctx] HasExc=%d after SPFL\n", JS_HasException(ctx)); fflush(stderr);
-    fprintf(stderr, "[ctx] argc=%d\n", qjs__argc); fflush(stderr);
     for(i = 0; i < qjs__argc; i++) {
-        fprintf(stderr, "[ctx] arg[%d]='%s' exc=%d\n", i, qjs__argv[i], JS_HasException(ctx)); fflush(stderr);
         JS_SetPropertyUint32(ctx, args, i, JS_NewString(ctx, qjs__argv[i]));
     }
-    fprintf(stderr, "[ctx] HasExc=%d after args loop\n", JS_HasException(ctx)); fflush(stderr);
-    fprintf(stderr, "[ctx] global=%08lx%08lx args=%08lx%08lx\n",
-            (unsigned long)(global >> 32), (unsigned long)(global & 0xFFFFFFFFUL),
-            (unsigned long)(args >> 32), (unsigned long)(args & 0xFFFFFFFFUL));
-    fflush(stderr);
-    { int r1 = JS_DefinePropertyValueStr(ctx, global, "execArgv", args, JS_PROP_C_W_E);
-      fprintf(stderr, "[ctx] execArgv=%d HasExc=%d\n", r1, JS_HasException(ctx)); fflush(stderr); }
+    JS_DefinePropertyValueStr(ctx, global, "execArgv", args, JS_PROP_C_W_E);
     { JSValue s = JS_NewString(ctx, qjs__argv[0]);
-      fprintf(stderr, "[ctx] NewString=%08lx%08lx HasExc=%d\n",
-              (unsigned long)(s>>32), (unsigned long)s, JS_HasException(ctx)); fflush(stderr);
-      { int r2 = JS_DefinePropertyValueStr(ctx, global, "argv0", s, JS_PROP_C_W_E);
-        fprintf(stderr, "[ctx] argv0=%d HasExc=%d\n", r2, JS_HasException(ctx)); fflush(stderr); } }
+      JS_DefinePropertyValueStr(ctx, global, "argv0", s, JS_PROP_C_W_E); }
     navigator_proto = JS_NewObject(ctx);
     JS_SetPropertyFunctionList(ctx, navigator_proto, navigator_proto_funcs, countof(navigator_proto_funcs));
     navigator = JS_NewObjectProto(ctx, navigator_proto);
@@ -773,9 +744,6 @@ int main(int argc, char **argv)
 
 start:
 
-#ifdef QJS_USE_LIBRARY
-    fprintf(stderr, "[qjs] bridge init OK, creating runtime...\n");
-#endif
     if (trace_memory) {
         js_trace_malloc_init(&trace_data);
         rt = JS_NewRuntime2(&trace_mf, &trace_data);
@@ -790,9 +758,6 @@ start:
         fprintf(stderr, "qjs: cannot allocate JS runtime\n");
         exit(2);
     }
-#ifdef QJS_USE_LIBRARY
-    fprintf(stderr, "[qjs] runtime=%p, setting up...\n", (void *)rt);
-#endif
     if (memory_limit >= 0)
         JS_SetMemoryLimit(rt, (size_t)memory_limit);
     if (stack_size >= 0)
@@ -802,22 +767,12 @@ start:
 #ifndef QJS_USE_LIBRARY
     js_std_set_worker_new_context_func(JS_NewCustomContext);
 #endif
-#ifdef QJS_USE_LIBRARY
-    fprintf(stderr, "[qjs] calling js_std_init_handlers...\n");
-#endif
     js_std_init_handlers(rt);
-#ifdef QJS_USE_LIBRARY
-    fprintf(stderr, "[qjs] creating context...\n");
-#endif
     ctx = JS_NewCustomContext(rt);
     if (!ctx) {
         fprintf(stderr, "qjs: cannot allocate JS context\n");
         exit(2);
     }
-#ifdef QJS_USE_LIBRARY
-    fprintf(stderr, "[qjs] context=%p, setting module loader...\n", (void *)ctx);
-#endif
-
     /* loader for ES6 modules */
 #ifdef QJS_USE_LIBRARY
     bridge_SetModuleLoader(rt);
@@ -829,15 +784,8 @@ start:
 #ifndef QJS_USE_LIBRARY
     JS_SetHostPromiseRejectionTracker(rt, js_std_promise_rejection_tracker, NULL);
 #endif
-#ifdef QJS_USE_LIBRARY
-    fprintf(stderr, "[qjs] setup complete, running...\n");
-#endif
-
     if (!empty_run) {
-        fprintf(stderr, "[qjs] add_helpers HasExc=%d\n", JS_HasException(ctx)); fflush(stderr);
         js_std_add_helpers(ctx, argc - optind, argv + optind);
-        fprintf(stderr, "[qjs] after helpers HasExc=%d\n", JS_HasException(ctx)); fflush(stderr);
-        /* print verification removed — C bridge GetPropertyStr is unreliable */
 
         /* make 'std' and 'os' visible to non module code */
         if (load_std) {
@@ -897,19 +845,15 @@ start:
             JS_FreeValue(ctx, call_args[2]);
         } else if (expr) {
             int flags = (module > 0) ? JS_EVAL_TYPE_MODULE : JS_EVAL_TYPE_GLOBAL;
-            fprintf(stderr, "[pre-eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
             /* Clear any pending exception from context setup */
             if (JS_HasException(ctx)) {
                 JSValue exc = JS_GetException(ctx);
-                fprintf(stderr, "[pre-eval] cleared exception\n"); fflush(stderr);
                 JS_FreeValue(ctx, exc);
             }
-            fprintf(stderr, "[eval] expr='%s' flags=%d\n", expr, flags); fflush(stderr);
             if (eval_buf(ctx, expr, strlen(expr), "<cmdline>", flags)) {
                 goto fail;
             }
             fflush(stdout);
-            fprintf(stderr, "[eval] HasException=%d\n", JS_HasException(ctx)); fflush(stderr);
         } else if (optind >= argc) {
             /* interactive mode */
             interactive = 1;
@@ -931,12 +875,9 @@ start:
                 r = js_std_loop(ctx);
             }
         } else {
-            fprintf(stderr, "[loop] entering js_std_loop\n"); fflush(stderr);
             r = js_std_loop(ctx);
-            fprintf(stderr, "[loop] returned %d\n", r); fflush(stderr);
         }
         if (r) {
-            fprintf(stderr, "[loop] dumping error\n"); fflush(stderr);
             js_std_dump_error(ctx);
             goto fail;
         }

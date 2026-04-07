@@ -56,7 +56,7 @@ int quickjs_bridge_init(void)
     extern struct Library *OpenLibrary(const char *, unsigned long);
     QJSBase = OpenLibrary("quickjs.library", 0);
     if (QJSBase) {
-        fprintf(stderr, "[bridge] quickjs.library opened at %p\n", (void *)QJSBase);
+        /* library opened successfully */
     }
     return QJSBase ? 0 : -1;
 }
@@ -247,13 +247,8 @@ void JS_SetModuleNormalizeFunc2(JSRuntime *rt,
 void JS_PrintValue(JSContext *ctx, JSPrintValueWrite *write_func,
                     void *opaque, JSValueConst val,
                     const JSPrintValueOptions *options) {
-    /* Minimal implementation: convert to string and write */
     const char *str;
-    fprintf(stderr, "[PrintValue] called, val=%08lx%08lx\n",
-            (unsigned long)(val>>32), (unsigned long)val); fflush(stderr);
     str = JS_ToCString(ctx, val);
-    fprintf(stderr, "[PrintValue] str=%p '%s'\n",
-            (void*)str, str ? str : "(null)"); fflush(stderr);
     if (str) {
         if (write_func) {
             write_func(opaque, str, strlen(str));

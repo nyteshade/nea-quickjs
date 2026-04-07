@@ -140,14 +140,13 @@ int pclose(FILE *stream)
     return -1;
 }
 
-/* === Step 8: fdopen/fileno stubs ===
+/* === Step 8: fdopen/fileno ===
  *
- * amiga_compat_vbcc.h declares these but they may not be
- * implemented in the library link.  Provide minimal stubs.
- * fdopen returns NULL (can't convert fd to FILE* in library).
- * fileno returns the fd field if we had one, but we don't --
- * return -1.
+ * fileno: map FILE* back to fd number.
+ * stdin=0, stdout=1, stderr=2, others via sharedlib_clib fd table.
  */
+extern FILE *stdin, *stdout, *stderr;
+
 FILE *fdopen(int fd, const char *mode)
 {
     (void)fd;
@@ -157,7 +156,10 @@ FILE *fdopen(int fd, const char *mode)
 
 int fileno(FILE *stream)
 {
-    (void)stream;
+    if (!stream) return -1;
+    if (stream == stdin) return 0;
+    if (stream == stdout) return 1;
+    if (stream == stderr) return 2;
     return -1;
 }
 

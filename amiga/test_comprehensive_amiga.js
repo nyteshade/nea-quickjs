@@ -13,8 +13,7 @@ import * as std from 'qjs:std';
 print('>>> std imported');
 import * as os from 'qjs:os';
 print('>>> os imported');
-let bjson;
-try { bjson = null; } catch(e) { bjson = null; }
+import * as bjson from 'qjs:bjson';
 
 print('>>> setting up test harness...');
 let pass = 0, fail = 0, skip = 0, total = 0;
@@ -422,32 +421,26 @@ test('os.sleep', () => {
 });
 
 section('26. bjson module');
-if (bjson) {
-    test('bjson.write', () => {
-        const buf = bjson.write({a: 42, b: 'hello'});
-        return buf instanceof ArrayBuffer && buf.byteLength > 0;
-    });
-    test('bjson.read', () => {
-        const buf = bjson.write({x: 99});
-        const obj = bjson.read(buf, 0, buf.byteLength);
-        return obj.x === 99;
-    });
-    test('bjson roundtrip complex', () => {
-        const orig = {
-            num: 42, str: 'hello', arr: [1,2,3],
-            nested: {a: true, b: null}
-        };
-        const buf = bjson.write(orig);
-        const copy = bjson.read(buf, 0, buf.byteLength);
-        return copy.num === 42 && copy.str === 'hello' &&
-               copy.arr.length === 3 && copy.nested.a === true &&
-               copy.nested.b === null;
-    });
-} else {
-    skip_test('bjson.write', 'bjson module not loaded');
-    skip_test('bjson.read', 'bjson module not loaded');
-    skip_test('bjson roundtrip', 'bjson module not loaded');
-}
+test('bjson.write', () => {
+    const buf = bjson.write({a: 42, b: 'hello'});
+    return buf instanceof ArrayBuffer && buf.byteLength > 0;
+});
+test('bjson.read', () => {
+    const buf = bjson.write({x: 99});
+    const obj = bjson.read(buf, 0, buf.byteLength);
+    return obj.x === 99;
+});
+test('bjson roundtrip complex', () => {
+    const orig = {
+        num: 42, str: 'hello', arr: [1,2,3],
+        nested: {a: true, b: null}
+    };
+    const buf = bjson.write(orig);
+    const copy = bjson.read(buf, 0, buf.byteLength);
+    return copy.num === 42 && copy.str === 'hello' &&
+           copy.arr.length === 3 && copy.nested.a === true &&
+           copy.nested.b === null;
+});
 
 // =========================================================================
 // Cleanup & Summary

@@ -182,24 +182,6 @@ void sharedlib_stdio_init(void)
     _stderr_file.flags = _WRITE | _WRITEABLE;
 
     memset(_file_pool_used, 0, sizeof(_file_pool_used));
-
-    /* Debug: verify dos_Write works directly */
-    if (out) {
-        dos_Write(out, "[stdio] init OK, out=", 21);
-        /* write hex of out handle */
-        {
-            char hexbuf[12];
-            unsigned long v = (unsigned long)out;
-            int i;
-            hexbuf[0] = '0'; hexbuf[1] = 'x';
-            for (i = 0; i < 8; i++) {
-                int d = (v >> (28 - i*4)) & 0xF;
-                hexbuf[2+i] = (d < 10) ? '0'+d : 'a'+d-10;
-            }
-            hexbuf[10] = '\n'; hexbuf[11] = 0;
-            dos_Write(out, hexbuf, 11);
-        }
-    }
 }
 
 void sharedlib_stdio_cleanup(void)

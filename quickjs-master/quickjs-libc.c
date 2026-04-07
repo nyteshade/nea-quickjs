@@ -4895,6 +4895,8 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 #define OS_PLATFORM "wasi"
 #elif defined(__GNU__)
 #define OS_PLATFORM "hurd"
+#elif defined(__amigaos__) || defined(__SASC) || defined(__VBCC__)
+#define OS_PLATFORM "amiga"
 #else
 #define OS_PLATFORM "unknown"
 #endif
