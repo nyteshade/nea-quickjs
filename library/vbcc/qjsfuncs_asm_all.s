@@ -124,6 +124,91 @@
 	xref	_JS_LoadModule
 	xref	_JS_SetDumpFlags
 	xref	_JS_GetDumpFlags
+	xref	_QJS_EvalBuf_impl
+	xref	_JS_GetLibcOpaque
+	xref	_JS_SetLibcOpaque
+	xref	_JS_AddModuleExportList
+	xref	_JS_SetModuleExportList
+; --- Remaining simple forwarders ---
+	xref	_JS_FreeRuntime
+	xref	_JS_NewContextRaw
+	xref	_JS_FreeContext
+	xref	_JS_GetVersion
+	xref	_JS_SetMemoryLimit
+	xref	_JS_SetMaxStackSize
+	xref	_JS_RunGC
+	xref	_JS_AddIntrinsicBaseObjects
+	xref	_JS_AddIntrinsicEval
+	xref	_JS_AddIntrinsicDate
+	xref	_JS_AddIntrinsicRegExp
+	xref	_JS_AddIntrinsicJSON
+	xref	_JS_AddIntrinsicProxy
+	xref	_JS_AddIntrinsicMapSet
+	xref	_JS_AddIntrinsicTypedArrays
+	xref	_JS_AddIntrinsicPromise
+	xref	_JS_AddIntrinsicWeakRef
+	xref	_JS_AddIntrinsicDOMException
+	xref	_JS_AddPerformance
+	xref	_JS_SetRuntimeInfo
+	xref	_JS_GetRuntimeOpaque
+	xref	_JS_SetRuntimeOpaque
+	xref	_JS_UpdateStackTop
+	xref	_JS_GetGCThreshold
+	xref	_JS_SetGCThreshold
+	xref	_JS_DupContext
+	xref	_JS_GetContextOpaque
+	xref	_JS_SetContextOpaque
+	xref	_JS_GetRuntime
+	xref	_JS_AddIntrinsicBigInt
+	xref	_JS_AddIntrinsicRegExpCompiler
+	xref	_JS_ComputeMemoryUsage
+	xref	_JS_AddRuntimeFinalizer
+	xref	_JS_FreeCString
+	xref	_JS_HasException
+	xref	_JS_DetectModule
+	xref	_js_malloc
+	xref	_js_free
+	xref	_js_realloc
+	xref	_js_calloc
+	xref	_js_mallocz
+	xref	_js_strdup
+	xref	_JS_FreePropertyEnum
+	xref	_JS_NewAtomLen
+	xref	_JS_NewAtom
+	xref	_JS_NewAtomUInt32
+	xref	_JS_DupAtom
+	xref	_JS_FreeAtom
+	xref	_JS_AtomToCStringLen
+	xref	_JS_NewClassID
+	xref	_JS_NewClass
+	xref	_JS_IsRegisteredClass
+	xref	_JS_SetModuleLoaderFunc
+	xref	_JS_GetModuleName
+	xref	_JS_NewCModule
+	xref	_JS_AddModuleExport
+	xref	_JS_GetScriptOrModuleName
+	xref	_JS_IsJobPending
+	xref	_JS_ExecutePendingJob
+	xref	_JS_SetInterruptHandler
+	xref	_JS_SetHostPromiseRejectionTracker
+	xref	_JS_SetCanBlock
+; --- Complex function impls ---
+	xref	_QJS_NewRuntime_impl
+	xref	_QJS_NewContext_impl
+	xref	_QJS_EvalSimple_impl
+	xref	_QJS_NewDate_impl
+; --- quickjs-libc module init functions ---
+	xref	_js_init_module_std
+	xref	_js_init_module_os
+	xref	_js_init_module_bjson
+	xref	_js_std_init_handlers
+	xref	_js_std_free_handlers
+	xref	_js_std_add_helpers
+	xref	_js_std_loop
+	xref	_js_std_eval_binary
+	xref	_js_std_dump_error
+	xref	_js_load_file
+	xref	_QJS_SetModuleLoader_impl
 
 ; ===================================================================
 ; Public symbols
@@ -233,6 +318,90 @@
 	xdef	_QJS_LoadModule
 	xdef	_QJS_SetDumpFlags
 	xdef	_QJS_GetDumpFlags
+	xdef	_QJS_EvalBuf
+	xdef	_QJS_GetLibcOpaque
+	xdef	_QJS_SetLibcOpaque
+	xdef	_QJS_AddModuleExportList
+	xdef	_QJS_SetModuleExportList
+; --- Remaining functions ---
+	xdef	_QJS_NewRuntime
+	xdef	_QJS_FreeRuntime
+	xdef	_QJS_NewContext
+	xdef	_QJS_NewContextRaw
+	xdef	_QJS_FreeContext
+	xdef	_QJS_GetVersion
+	xdef	_QJS_SetMemoryLimit
+	xdef	_QJS_SetMaxStackSize
+	xdef	_QJS_RunGC
+	xdef	_QJS_AddBaseObjects
+	xdef	_QJS_AddEval
+	xdef	_QJS_AddDate
+	xdef	_QJS_AddRegExp
+	xdef	_QJS_AddJSON
+	xdef	_QJS_AddProxy
+	xdef	_QJS_AddMapSet
+	xdef	_QJS_AddTypedArrays
+	xdef	_QJS_AddPromise
+	xdef	_QJS_AddWeakRef
+	xdef	_QJS_AddDOMException
+	xdef	_QJS_AddPerformance
+	xdef	_QJS_EvalSimple
+	xdef	_QJS_SetRuntimeInfo
+	xdef	_QJS_GetRuntimeOpaque
+	xdef	_QJS_SetRuntimeOpaque
+	xdef	_QJS_UpdateStackTop
+	xdef	_QJS_GetGCThreshold
+	xdef	_QJS_SetGCThreshold
+	xdef	_QJS_DupContext
+	xdef	_QJS_GetContextOpaque
+	xdef	_QJS_SetContextOpaque
+	xdef	_QJS_GetRuntime
+	xdef	_QJS_AddBigInt
+	xdef	_QJS_AddRegExpCompiler
+	xdef	_QJS_ComputeMemoryUsage
+	xdef	_QJS_AddRuntimeFinalizer
+	xdef	_QJS_FreeCString
+	xdef	_QJS_HasException
+	xdef	_QJS_DetectModule
+	xdef	_QJS_Malloc
+	xdef	_QJS_Free
+	xdef	_QJS_Realloc
+	xdef	_QJS_Calloc
+	xdef	_QJS_Mallocz
+	xdef	_QJS_Strdup
+	xdef	_QJS_FreePropertyEnum
+	xdef	_QJS_NewAtomLen
+	xdef	_QJS_NewAtom
+	xdef	_QJS_NewAtomUInt32
+	xdef	_QJS_DupAtom
+	xdef	_QJS_FreeAtom
+	xdef	_QJS_AtomToCStringLen
+	xdef	_QJS_NewClassID
+	xdef	_QJS_NewClass
+	xdef	_QJS_IsRegisteredClass
+	xdef	_QJS_SetModuleLoaderFunc
+	xdef	_QJS_GetModuleName
+	xdef	_QJS_NewCModule
+	xdef	_QJS_AddModuleExport
+	xdef	_QJS_GetScriptOrModuleName
+	xdef	_QJS_IsJobPending
+	xdef	_QJS_ExecutePendingJob
+	xdef	_QJS_SetInterruptHandler
+	xdef	_QJS_SetHostPromiseRejectionTracker
+	xdef	_QJS_SetCanBlock
+	xdef	_QJS_NewDate
+; --- quickjs-libc module init ---
+	xdef	_QJS_InitModuleStd
+	xdef	_QJS_InitModuleOS
+	xdef	_QJS_InitModuleBJSON
+	xdef	_QJS_StdInitHandlers
+	xdef	_QJS_StdFreeHandlers
+	xdef	_QJS_StdAddHelpers
+	xdef	_QJS_StdLoop
+	xdef	_QJS_StdEvalBinary
+	xdef	_QJS_StdDumpError
+	xdef	_QJS_LoadFile
+	xdef	_QJS_SetModuleLoader
 
 
 ; ===================================================================
@@ -2557,6 +2726,853 @@ _QJS_GetDumpFlags:
 
 	move.l	d0,(a4)			; high word
 	move.l	d1,4(a4)		; low word
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_GetLibcOpaque
+; SFD: (rt)(a0)
+; Calls: void *JS_GetLibcOpaque(rt)
+; Returns: pointer in d0
+; ===================================================================
+_QJS_GetLibcOpaque:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)		; rt
+	jsr	_JS_GetLibcOpaque
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_SetLibcOpaque
+; SFD: (rt,opaque)(a0/a1)
+; Calls: void JS_SetLibcOpaque(rt, opaque)
+; ===================================================================
+_QJS_SetLibcOpaque:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)		; opaque
+	move.l	a0,-(sp)		; rt
+	jsr	_JS_SetLibcOpaque
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_AddModuleExportList
+; SFD: (ctx,m,tab,len)(a0/a1/a2/d0)
+; Calls: int JS_AddModuleExportList(ctx, m, tab, len)
+; Returns: int in d0
+; ===================================================================
+_QJS_AddModuleExportList:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)		; len
+	move.l	a2,-(sp)		; tab
+	move.l	a1,-(sp)		; m
+	move.l	a0,-(sp)		; ctx
+	jsr	_JS_AddModuleExportList
+	lea	16(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_SetModuleExportList
+; SFD: (ctx,m,tab,len)(a0/a1/a2/d0)
+; Calls: int JS_SetModuleExportList(ctx, m, tab, len)
+; Returns: int in d0
+; ===================================================================
+_QJS_SetModuleExportList:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)		; len
+	move.l	a2,-(sp)		; tab
+	move.l	a1,-(sp)		; m
+	move.l	a0,-(sp)		; ctx
+	jsr	_JS_SetModuleExportList
+	lea	16(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; REMAINING FUNCTIONS — moved from C to assembly
+; ===================================================================
+
+; QJS_NewRuntime — COMPLEX, calls _QJS_NewRuntime_impl(base)
+_QJS_NewRuntime:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a6,-(sp)
+	jsr	_QJS_NewRuntime_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_FreeRuntime — (rt)(a0)
+_QJS_FreeRuntime:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_FreeRuntime
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewContext — COMPLEX, calls _QJS_NewContext_impl(rt)
+_QJS_NewContext:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_NewContext_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewContextRaw — (rt)(a0)
+_QJS_NewContextRaw:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_NewContextRaw
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_FreeContext — (ctx)(a0)
+_QJS_FreeContext:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_FreeContext
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetVersion — ()()
+_QJS_GetVersion:
+	movem.l	d2-d7/a2-a6,-(sp)
+	jsr	_JS_GetVersion
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetMemoryLimit — (rt,limit)(a0/d0)
+_QJS_SetMemoryLimit:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetMemoryLimit
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetMaxStackSize — (rt,stack_size)(a0/d0)
+_QJS_SetMaxStackSize:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetMaxStackSize
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_RunGC — (rt)(a0)
+_QJS_RunGC:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_RunGC
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddBaseObjects — (ctx)(a0)
+_QJS_AddBaseObjects:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicBaseObjects
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddEval — (ctx)(a0)
+_QJS_AddEval:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicEval
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddDate — (ctx)(a0)
+_QJS_AddDate:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicDate
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddRegExp — (ctx)(a0)
+_QJS_AddRegExp:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicRegExp
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddJSON — (ctx)(a0)
+_QJS_AddJSON:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicJSON
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddProxy — (ctx)(a0)
+_QJS_AddProxy:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicProxy
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddMapSet — (ctx)(a0)
+_QJS_AddMapSet:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicMapSet
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddTypedArrays — (ctx)(a0)
+_QJS_AddTypedArrays:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicTypedArrays
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddPromise — (ctx)(a0)
+_QJS_AddPromise:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicPromise
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddWeakRef — (ctx)(a0)
+_QJS_AddWeakRef:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicWeakRef
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddDOMException — (ctx)(a0)
+_QJS_AddDOMException:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicDOMException
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddPerformance — (ctx)(a0)
+_QJS_AddPerformance:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddPerformance
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_EvalSimple — COMPLEX, (ctx,input,input_len)(a0/a1/d0)
+_QJS_EvalSimple:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_EvalSimple_impl
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetRuntimeInfo — (rt,info)(a0/a1)
+_QJS_SetRuntimeInfo:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetRuntimeInfo
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetRuntimeOpaque — (rt)(a0)
+_QJS_GetRuntimeOpaque:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_GetRuntimeOpaque
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetRuntimeOpaque — (rt,opaque)(a0/a1)
+_QJS_SetRuntimeOpaque:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetRuntimeOpaque
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_UpdateStackTop — (rt)(a0)
+_QJS_UpdateStackTop:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_UpdateStackTop
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetGCThreshold — (rt)(a0)
+_QJS_GetGCThreshold:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_GetGCThreshold
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetGCThreshold — (rt,threshold)(a0/d0)
+_QJS_SetGCThreshold:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetGCThreshold
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_DupContext — (ctx)(a0)
+_QJS_DupContext:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_DupContext
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetContextOpaque — (ctx)(a0)
+_QJS_GetContextOpaque:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_GetContextOpaque
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetContextOpaque — (ctx,opaque)(a0/a1)
+_QJS_SetContextOpaque:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetContextOpaque
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetRuntime — (ctx)(a0)
+_QJS_GetRuntime:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_GetRuntime
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddBigInt — (ctx)(a0)
+_QJS_AddBigInt:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicBigInt
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddRegExpCompiler — (ctx)(a0)
+_QJS_AddRegExpCompiler:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddIntrinsicRegExpCompiler
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_ComputeMemoryUsage — (rt,s)(a0/a1)
+_QJS_ComputeMemoryUsage:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_ComputeMemoryUsage
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddRuntimeFinalizer — (rt,finalizer,arg)(a0/a1/a2)
+_QJS_AddRuntimeFinalizer:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddRuntimeFinalizer
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_FreeCString — (ctx,ptr)(a0/a1)
+_QJS_FreeCString:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_FreeCString
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_HasException — (ctx)(a0)
+_QJS_HasException:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_HasException
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_DetectModule — (input,input_len)(a0/d0)
+_QJS_DetectModule:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_DetectModule
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_Malloc — (ctx,size)(a0/d0)
+_QJS_Malloc:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_malloc
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_Free — (ctx,ptr)(a0/a1)
+_QJS_Free:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_free
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_Realloc — (ctx,ptr,size)(a0/a1/d0)
+_QJS_Realloc:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_realloc
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_Calloc — (ctx,count,size)(a0/d0/d1)
+_QJS_Calloc:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d1,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_calloc
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_Mallocz — (ctx,size)(a0/d0)
+_QJS_Mallocz:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_mallocz
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_Strdup — (ctx,str)(a0/a1)
+_QJS_Strdup:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_strdup
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_FreePropertyEnum — (ctx,tab,len)(a0/a1/d0)
+_QJS_FreePropertyEnum:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_FreePropertyEnum
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewAtomLen — (ctx,str,len)(a0/a1/d0)
+_QJS_NewAtomLen:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_NewAtomLen
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewAtom — (ctx,str)(a0/a1)
+_QJS_NewAtom:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_NewAtom
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewAtomUInt32 — (ctx,n)(a0/d0)
+_QJS_NewAtomUInt32:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_NewAtomUInt32
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_DupAtom — (ctx,v)(a0/d0)
+_QJS_DupAtom:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_DupAtom
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_FreeAtom — (ctx,v)(a0/d0)
+_QJS_FreeAtom:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_FreeAtom
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AtomToCStringLen — (ctx,plen,atom)(a0/a1/d0)
+_QJS_AtomToCStringLen:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AtomToCStringLen
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewClassID — (rt,pclass_id)(a0/a1)
+_QJS_NewClassID:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_NewClassID
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewClass — (rt,class_def,class_id)(a0/a1/d0)
+; NOTE: JS_NewClass takes (rt, class_id, class_def) — args reordered
+_QJS_NewClass:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)		; class_def (3rd C arg)
+	move.l	d0,-(sp)		; class_id (2nd C arg)
+	move.l	a0,-(sp)		; rt
+	jsr	_JS_NewClass
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_IsRegisteredClass — (rt,class_id)(a0/d0)
+_QJS_IsRegisteredClass:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_IsRegisteredClass
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetModuleLoaderFunc — (rt,normalize_func,loader_func,opaque)(a0/a1/a2/a3)
+_QJS_SetModuleLoaderFunc:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a3,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetModuleLoaderFunc
+	lea	16(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetModuleName — (ctx,m)(a0/a1)
+_QJS_GetModuleName:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_GetModuleName
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewCModule — (ctx,name_str,func)(a0/a1/a2)
+_QJS_NewCModule:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_NewCModule
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_AddModuleExport — (ctx,m,name_str)(a0/a1/a2)
+_QJS_AddModuleExport:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_AddModuleExport
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetScriptOrModuleName — (ctx,n_stack_levels)(a0/d0)
+_QJS_GetScriptOrModuleName:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_GetScriptOrModuleName
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_IsJobPending — (rt)(a0)
+_QJS_IsJobPending:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_IsJobPending
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_ExecutePendingJob — (rt,pctx)(a0/a1)
+_QJS_ExecutePendingJob:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_ExecutePendingJob
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetInterruptHandler — (rt,cb,opaque)(a0/a1/a2)
+_QJS_SetInterruptHandler:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetInterruptHandler
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetHostPromiseRejectionTracker — (rt,cb,opaque)(a0/a1/a2)
+_QJS_SetHostPromiseRejectionTracker:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetHostPromiseRejectionTracker
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetCanBlock — (rt,can_block)(a0/d0)
+_QJS_SetCanBlock:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	jsr	_JS_SetCanBlock
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_NewDate — COMPLEX, (result,ctx,epoch_ms_ptr)(a0/a1/a2)
+_QJS_NewDate:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_NewDate_impl
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; QJS_EvalBuf
+; SFD: (ctx,input,input_len,filename,eval_flags)(a0/a1/d0/a2/d1)
+; Calls: long QJS_EvalBuf_impl(ctx, input, input_len, filename, eval_flags)
+; Plain C function — no __reg, so JSValue locals work correctly.
+; Returns: long in d0
+; ===================================================================
+_QJS_EvalBuf:
+	movem.l	d2-d7/a2-a6,-(sp)
+
+	; Push right-to-left: eval_flags, filename, input_len, input, ctx
+	move.l	d1,-(sp)		; eval_flags
+	move.l	a2,-(sp)		; filename
+	move.l	d0,-(sp)		; input_len
+	move.l	a1,-(sp)		; input
+	move.l	a0,-(sp)		; ctx
+	jsr	_QJS_EvalBuf_impl
+	lea	20(sp),sp
+
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; quickjs-libc module init / std helpers
+; ===================================================================
+
+; QJS_InitModuleStd — (ctx,module_name)(a0/a1)
+_QJS_InitModuleStd:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_init_module_std
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InitModuleOS — (ctx,module_name)(a0/a1)
+_QJS_InitModuleOS:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_init_module_os
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InitModuleBJSON — (ctx,module_name)(a0/a1)
+_QJS_InitModuleBJSON:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_init_module_bjson
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_StdInitHandlers — (rt)(a0)
+_QJS_StdInitHandlers:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_std_init_handlers
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_StdFreeHandlers — (rt)(a0)
+_QJS_StdFreeHandlers:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_std_free_handlers
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_StdAddHelpers — (ctx,argc,argv)(a0/d0/a1)
+_QJS_StdAddHelpers:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)		; argv
+	move.l	d0,-(sp)		; argc
+	move.l	a0,-(sp)		; ctx
+	jsr	_js_std_add_helpers
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_StdLoop — (ctx)(a0)
+_QJS_StdLoop:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_std_loop
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_StdEvalBinary — (ctx,buf,buf_len,flags)(a0/a1/d0/d1)
+_QJS_StdEvalBinary:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d1,-(sp)		; flags
+	move.l	d0,-(sp)		; buf_len
+	move.l	a1,-(sp)		; buf
+	move.l	a0,-(sp)		; ctx
+	jsr	_js_std_eval_binary
+	lea	16(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_StdDumpError — (ctx)(a0)
+_QJS_StdDumpError:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_std_dump_error
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_LoadFile — (ctx,pbuf_len,filename)(a0/a1/a2)
+_QJS_LoadFile:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a2,-(sp)		; filename
+	move.l	a1,-(sp)		; pbuf_len
+	move.l	a0,-(sp)		; ctx
+	jsr	_js_load_file
+	lea	12(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_SetModuleLoader — (rt)(a0)
+; Sets up js_module_loader as the module loader for the runtime
+_QJS_SetModuleLoader:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_SetModuleLoader_impl
+	lea	4(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 

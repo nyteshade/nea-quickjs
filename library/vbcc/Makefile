@@ -47,7 +47,9 @@ ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m68020
 
 # Linker flags
 LDFLAGS = -bamigahunk -Bstatic -nostdlib -mrel
-# Soft-float: self-contained, no .lib files needed
+# No .lib files — shared library is fully self-contained.
+# All POSIX/stdio functions implemented via dos.library in sharedlib_*.c
+LINK_LIBS =
 
 # Object file directories
 OBJDIR_FPU  = /tmp/qjslib
@@ -76,11 +78,15 @@ FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
               $(OBJDIR_FPU)/sharedlib_strtod.o \
               $(OBJDIR_FPU)/sharedlib_printf.o \
               $(OBJDIR_FPU)/sharedlib_vbcc.o \
-              $(OBJDIR_FPU)/sharedlib_int64.o
+              $(OBJDIR_FPU)/sharedlib_int64.o \
+              $(OBJDIR_FPU)/sharedlib_posix.o \
+              $(OBJDIR_FPU)/sharedlib_stdio.o \
+              $(OBJDIR_FPU)/sharedlib_clib.o
 
 FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/qjsfuncs_asm_all.o \
-              $(OBJDIR_FPU)/execinline.o $(OBJDIR_FPU)/qjs_dbg_stub.o
+              $(OBJDIR_FPU)/execinline.o $(OBJDIR_FPU)/qjs_dbg_stub.o \
+              $(OBJDIR_FPU)/quickjs_libc_lib.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
 
@@ -96,10 +102,15 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
                $(OBJDIR_SOFT)/sharedlib_printf.o \
                $(OBJDIR_SOFT)/sharedlib_vbcc.o \
                $(OBJDIR_SOFT)/sharedlib_int64_soft.o \
-               $(OBJDIR_SOFT)/sharedlib_int64_conv.o
+               $(OBJDIR_SOFT)/sharedlib_int64_conv.o \
+               $(OBJDIR_SOFT)/sharedlib_posix.o \
+               $(OBJDIR_SOFT)/sharedlib_stdio.o \
+               $(OBJDIR_SOFT)/sharedlib_clib.o
 
 SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
-              $(OBJDIR_SOFT)/execinline.o $(OBJDIR_SOFT)/qjs_dbg_stub.o
+              $(OBJDIR_SOFT)/qjsfuncs_asm_all.o \
+              $(OBJDIR_SOFT)/execinline.o $(OBJDIR_SOFT)/qjs_dbg_stub.o \
+              $(OBJDIR_SOFT)/quickjs_libc_lib.o
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
@@ -118,7 +129,7 @@ soft: $(TARGET_SOFT)
 # --- FPU variant build rules ---
 
 $(TARGET_FPU): $(FPU_ALL)
-	$(VLINK) $(LDFLAGS) $(FPU_ALL) -o $@
+	$(VLINK) $(LDFLAGS) $(FPU_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
 $(OBJDIR_FPU)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_FPU)
@@ -148,6 +159,9 @@ $(OBJDIR_FPU)/execinline.o: $(LIBVBCC)/execinline.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/qjs_dbg_stub.o: $(LIBVBCC)/qjs_dbg_stub.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/quickjs_libc_lib.o: $(LIBVBCC)/quickjs_libc_lib.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
 $(OBJDIR_FPU)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
@@ -169,6 +183,15 @@ $(OBJDIR_FPU)/sharedlib_printf.o: $(LIBVBCC)/sharedlib_printf.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/sharedlib_vbcc.o: $(LIBVBCC)/sharedlib_vbcc.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/sharedlib_posix.o: $(LIBVBCC)/sharedlib_posix.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/sharedlib_stdio.o: $(LIBVBCC)/sharedlib_stdio.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/sharedlib_clib.o: $(LIBVBCC)/sharedlib_clib.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
 $(OBJDIR_FPU)/sharedlib_int64.o: $(LIBVBCC)/sharedlib_int64.s | $(OBJDIR_FPU)
 	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
@@ -178,7 +201,7 @@ $(OBJDIR_FPU):
 # --- Soft-float variant build rules ---
 
 $(TARGET_SOFT): $(SOFT_ALL)
-	$(VLINK) $(LDFLAGS) $(SOFT_ALL) -o $@
+	$(VLINK) $(LDFLAGS) $(SOFT_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
 $(OBJDIR_SOFT)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_SOFT)
@@ -199,10 +222,16 @@ $(OBJDIR_SOFT)/library.o: $(TEMPLATE)/library.c | $(OBJDIR_SOFT)
 $(OBJDIR_SOFT)/qjsfuncs.o: $(LIBVBCC)/qjsfuncs.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
+$(OBJDIR_SOFT)/qjsfuncs_asm_all.o: $(LIBVBCC)/qjsfuncs_asm_all.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
+
 $(OBJDIR_SOFT)/execinline.o: $(LIBVBCC)/execinline.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/qjs_dbg_stub.o: $(LIBVBCC)/qjs_dbg_stub.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/quickjs_libc_lib.o: $(LIBVBCC)/quickjs_libc_lib.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_SOFT)
@@ -228,6 +257,15 @@ $(OBJDIR_SOFT)/sharedlib_vbcc.o: $(LIBVBCC)/sharedlib_vbcc.c | $(OBJDIR_SOFT)
 
 $(OBJDIR_SOFT)/sharedlib_int64_soft.o: $(LIBVBCC)/sharedlib_int64_soft.s | $(OBJDIR_SOFT)
 	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_posix.o: $(LIBVBCC)/sharedlib_posix.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_stdio.o: $(LIBVBCC)/sharedlib_stdio.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_clib.o: $(LIBVBCC)/sharedlib_clib.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_int64_conv.o: $(LIBVBCC)/sharedlib_int64_conv.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@

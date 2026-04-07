@@ -869,6 +869,18 @@ void QJS_SetLibcOpaque(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct J
 int QJS_AddModuleExportList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") void *tab, __reg("d0") int len);
 int QJS_SetModuleExportList(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") void *m, __reg("a2") void *tab, __reg("d0") int len);
 long QJS_EvalBuf(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const char *input, __reg("d0") ULONG input_len, __reg("a2") const char *filename, __reg("d1") int eval_flags);
+/* --- Module init / std helpers (quickjs-libc in library) --- */
+void *QJS_InitModuleStd(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const char *module_name);
+void *QJS_InitModuleOS(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const char *module_name);
+void *QJS_InitModuleBJSON(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const char *module_name);
+void QJS_StdInitHandlers(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt);
+void QJS_StdFreeHandlers(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt);
+void QJS_StdAddHelpers(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("d0") int argc, __reg("a1") char **argv);
+int QJS_StdLoop(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx);
+void QJS_StdEvalBinary(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") const void *buf, __reg("d0") ULONG buf_len, __reg("d1") int flags);
+void QJS_StdDumpError(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx);
+void *QJS_LoadFile(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") ULONG *pbuf_len, __reg("a2") const char *filename);
+void QJS_SetModuleLoader(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt);
 
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
@@ -1064,6 +1076,17 @@ void QJS_Eval(
     (APTR) QJS_SetLibcOpaque, \
     (APTR) QJS_AddModuleExportList, \
     (APTR) QJS_SetModuleExportList, \
-    (APTR) QJS_EvalBuf
+    (APTR) QJS_EvalBuf, \
+    (APTR) QJS_InitModuleStd, \
+    (APTR) QJS_InitModuleOS, \
+    (APTR) QJS_InitModuleBJSON, \
+    (APTR) QJS_StdInitHandlers, \
+    (APTR) QJS_StdFreeHandlers, \
+    (APTR) QJS_StdAddHelpers, \
+    (APTR) QJS_StdLoop, \
+    (APTR) QJS_StdEvalBinary, \
+    (APTR) QJS_StdDumpError, \
+    (APTR) QJS_LoadFile, \
+    (APTR) QJS_SetModuleLoader
 
 #endif /* LIBRARYCONFIG_H */

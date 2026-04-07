@@ -154,6 +154,8 @@ extern "C" {
 # define JS__PATH_MAX PATH_MAX
 #elif defined(_WIN32)
 # define JS__PATH_MAX 32767
+#elif defined(__amigaos__) || defined(__VBCC__)
+# define JS__PATH_MAX 256
 #else
 # define JS__PATH_MAX 8192
 #endif

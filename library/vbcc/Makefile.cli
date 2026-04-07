@@ -33,11 +33,9 @@ LDFLAGS = +aos68k -cpu=68020 -fpu=68881 \
 
 OBJDIR = /tmp/qjscli
 
-# Source files
+# Source files (quickjs-libc is now inside the library)
 CLI_SRC    = $(QJS)/qjs.c
-LIBC_SRC   = $(QJS)/quickjs-libc.c
 BRIDGE_SRC = $(LIBVBCC)/quickjs_bridge.c
-STUBS_SRC  = $(SRC)/amiga_posix_stubs.c
 COMPAT_SRC = $(SRC)/amiga_compat_vbcc.c
 
 # Bytecode modules (compiled by qjsc on host, in gen/)
@@ -48,14 +46,13 @@ STAND_SRC  = $(QJS)/gen/standalone.c
 VASM = $(VBCC)/vasmm68k_mot
 
 OBJS = $(OBJDIR)/qjs.o \
-       $(OBJDIR)/quickjs-libc.o \
        $(OBJDIR)/quickjs_bridge.o \
        $(OBJDIR)/bridge_a6.o \
        $(OBJDIR)/bridge_dpvs.o \
        $(OBJDIR)/bridge_asm.o \
        $(OBJDIR)/bridge_asm_batch1.o \
        $(OBJDIR)/bridge_asm_batch2.o \
-       $(OBJDIR)/amiga_posix_stubs.o \
+       $(OBJDIR)/bridge_asm_libc.o \
        $(OBJDIR)/amiga_compat_vbcc.o \
        $(OBJDIR)/repl.o \
        $(OBJDIR)/standalone.o
@@ -67,19 +64,13 @@ TARGET = $(OUTDIR)/qjs
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(VC) $(LDFLAGS) $(OBJS) -lposix -lamiga -lm881 -o $@
+	$(VC) $(LDFLAGS) $(OBJS) -lamiga -lm881 -o $@
 	@ls -la $@
 
 $(OBJDIR)/qjs.o: $(CLI_SRC) | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
 
-$(OBJDIR)/quickjs-libc.o: $(LIBC_SRC) | $(OBJDIR)
-	$(VC) $(CFLAGS) $< -o $@
-
 $(OBJDIR)/quickjs_bridge.o: $(BRIDGE_SRC) | $(OBJDIR)
-	$(VC) $(CFLAGS) $< -o $@
-
-$(OBJDIR)/amiga_posix_stubs.o: $(STUBS_SRC) | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
 
 $(OBJDIR)/amiga_compat_vbcc.o: $(COMPAT_SRC) | $(OBJDIR)
@@ -104,6 +95,9 @@ $(OBJDIR)/bridge_asm_batch1.o: $(LIBVBCC)/bridge_asm_batch1.s | $(OBJDIR)
 	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
 
 $(OBJDIR)/bridge_asm_batch2.o: $(LIBVBCC)/bridge_asm_batch2.s | $(OBJDIR)
+	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
+
+$(OBJDIR)/bridge_asm_libc.o: $(LIBVBCC)/bridge_asm_libc.s | $(OBJDIR)
 	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
 
 $(OBJDIR):

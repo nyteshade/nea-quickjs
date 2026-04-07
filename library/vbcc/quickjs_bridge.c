@@ -18,6 +18,27 @@
 #include "quickjs-libc.h"
 #include <string.h>
 #include <stdio.h>
+
+/* amiga_force_color — color control for terminal output.
+ * Was in amiga_posix_stubs.c (removed from CLI). */
+int amiga_force_color = 0;
+
+/* js_module_set_import_meta / js_std_await — these are in quickjs-libc.c
+ * (now inside the library). The CLI's eval_buf uses bridge_EvalBuf under
+ * QJS_USE_LIBRARY, but the non-library #else path still references these.
+ * Provide stubs so the CLI links. */
+int js_module_set_import_meta(JSContext *ctx, JSValueConst func_val,
+                              int use_realpath, int is_main)
+{
+    (void)ctx; (void)func_val; (void)use_realpath; (void)is_main;
+    return 0;
+}
+
+JSValue js_std_await(JSContext *ctx, JSValue obj)
+{
+    (void)ctx;
+    return obj;
+}
 #include <stdlib.h>
 #include <stdarg.h>
 #include <exec/types.h>
@@ -154,42 +175,10 @@ JSValue JS_ThrowPlainError(JSContext *ctx, int error_class,
  * js_std_cmd — thread state access for quickjs-libc.c
  * =================================================================== */
 
-/* js_std_cmd — uses JS_GetLibcOpaque/JS_SetLibcOpaque (LVO -1050/-1056)
- * to access rt->libc_opaque, matching upstream's js_std_cmd behavior. */
-extern void *JS_GetLibcOpaque(JSRuntime *rt);
-extern void JS_SetLibcOpaque(JSRuntime *rt, void *opaque);
-
-uintptr_t js_std_cmd(int cmd, ...) {
-    va_list ap;
-    uintptr_t rv = 0;
-    va_start(ap, cmd);
-    switch (cmd) {
-    case 0: /* GetOpaque */
-        {
-            JSRuntime *rt = va_arg(ap, JSRuntime *);
-            rv = (uintptr_t)JS_GetLibcOpaque(rt);
-        }
-        break;
-    case 1: /* SetOpaque */
-        {
-            JSRuntime *rt = va_arg(ap, JSRuntime *);
-            void *opaque = va_arg(ap, void *);
-            JS_SetLibcOpaque(rt, opaque);
-        }
-        break;
-    case 2: /* ErrorBackTrace */
-        {
-            JSContext *ctx = va_arg(ap, JSContext *);
-            JSValue *pv = va_arg(ap, JSValue *);
-            *pv = JS_UNDEFINED;
-        }
-        break;
-    default:
-        break;
-    }
-    va_end(ap);
-    return rv;
-}
+/* js_std_cmd — now defined in quickjs.c (engine, inside library).
+ * quickjs-libc.c is also in the library, so js_std_cmd resolves
+ * directly to the engine's definition accessing rt->libc_opaque.
+ * The bridge no longer needs its own copy. */
 
 /* (end of removed SPFL workaround) */
 

@@ -186,6 +186,21 @@ static struct ExecBase *g_dbg_sys;
 extern void sharedlib_time_init(struct Library *dosBase);
 extern void sharedlib_time_cleanup(void);
 
+/* From sharedlib_posix.c — POSIX shims using dos.library for quickjs-libc */
+extern void sharedlib_posix_init(struct Library *dosBase);
+extern void sharedlib_posix_cleanup(void);
+
+/* From quickjs_libc_lib.c — DOSBase for proto/dos.h inline calls */
+extern void quickjs_libc_lib_init(struct Library *dosBase);
+extern void quickjs_libc_lib_cleanup(void);
+
+/* From sharedlib_stdio.c — dos.library-based stdio for quickjs-libc */
+extern void sharedlib_stdio_init(void);
+extern void sharedlib_stdio_cleanup(void);
+
+/* From sharedlib_clib.c — fd table init */
+extern void sharedlib_clib_init(void);
+
 /* From sharedlib_math_soft.c or sharedlib_math.c — sets math library bases.
  * Soft-float build: sets MathIeeeDoubBasBase/MathIeeeDoubTransBase globals.
  * FPU build: no-op stubs. */
@@ -245,6 +260,18 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
     /* Init time subsystem with DOSBase for gettimeofday/DateStamp */
     sharedlib_time_init(aBase->iDOSBase);
 
+    /* Init POSIX shim with DOSBase for file I/O, stat, getcwd, etc. */
+    sharedlib_posix_init(aBase->iDOSBase);
+
+    /* Init quickjs-libc DOSBase for proto/dos.h inline calls */
+    quickjs_libc_lib_init(aBase->iDOSBase);
+
+    /* Init stdio (fopen/fclose etc.) using dos.library — must be after posix init */
+    sharedlib_stdio_init();
+
+    /* Init fd table for open/close/read/write */
+    sharedlib_clib_init();
+
     aBase->iMathDoubBasBase = __OpenLibrary(sys,
         "mathieeedoubbas.library", 34);
     if (!aBase->iMathDoubBasBase)
@@ -280,6 +307,15 @@ VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
     /* Tear down time subsystem */
     sharedlib_time_cleanup();
 
+    /* Tear down POSIX shim */
+    sharedlib_posix_cleanup();
+
+    /* Tear down stdio */
+    sharedlib_stdio_cleanup();
+
+    /* Tear down quickjs-libc DOSBase */
+    quickjs_libc_lib_cleanup();
+
     /* Tear down math subsystem */
     sharedlib_math_soft_cleanup();
 
@@ -298,213 +334,49 @@ VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
 }
 
 /* ==================================================================
- * Library functions — C wrappers (pointer/int params only)
- * Functions that handle JSValue by-value are in qjsfuncs_asm_all.s
+ * Library functions — ALL moved to assembly (qjsfuncs_asm_all.s).
+ * Only _impl functions for complex wrappers remain here.
  * ================================================================== */
 
-struct JSRuntime *QJS_NewRuntime(
-    __reg("a6") LIBRARY_BASE_TYPE *base)
+/* QJS_NewRuntime_impl — called from assembly, no __reg */
+struct JSRuntime *QJS_NewRuntime_impl(LIBRARY_BASE_TYPE *base)
 {
-    /* Pass library base as opaque — allocator callbacks use it
-     * to reach SysBase and the memory pool. */
     return JS_NewRuntime2(&amiga_mf, (void *)base);
 }
 
-void QJS_FreeRuntime(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    JS_FreeRuntime(rt);
-}
-
-struct JSContext *QJS_NewContext(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
+/* QJS_NewContext_impl — called from assembly, no __reg */
+struct JSContext *QJS_NewContext_impl(struct JSRuntime *rt)
 {
     JSContext *ctx;
-    struct ExecBase *sys = g_dbg_sys;
 
-    dbg_str(sys, "NC:Raw\n");
     ctx = JS_NewContextRaw(rt);
-    if (!ctx) { dbg_str(sys, "NC:Raw FAIL\n"); return NULL; }
+    if (!ctx) return NULL;
 
-    dbg_str(sys, "NC:Base\n");
     if (JS_AddIntrinsicBaseObjects(ctx)) goto fail;
-
-    dbg_str(sys, "NC:Date\n");
     if (JS_AddIntrinsicDate(ctx)) goto fail;
-
-    dbg_str(sys, "NC:Eval\n");
     if (JS_AddIntrinsicEval(ctx)) goto fail;
-
-    dbg_str(sys, "NC:RegExp\n");
     if (JS_AddIntrinsicRegExp(ctx)) goto fail;
-
-    dbg_str(sys, "NC:JSON\n");
     if (JS_AddIntrinsicJSON(ctx)) goto fail;
-
-    dbg_str(sys, "NC:Proxy\n");
     if (JS_AddIntrinsicProxy(ctx)) goto fail;
-
-    dbg_str(sys, "NC:MapSet\n");
     if (JS_AddIntrinsicMapSet(ctx)) goto fail;
-
-    dbg_str(sys, "NC:TypedArr\n");
     if (JS_AddIntrinsicTypedArrays(ctx)) goto fail;
-
-    dbg_str(sys, "NC:Promise\n");
     if (JS_AddIntrinsicPromise(ctx)) goto fail;
-
-    dbg_str(sys, "NC:WeakRef\n");
     if (JS_AddIntrinsicWeakRef(ctx)) goto fail;
-
-    dbg_str(sys, "NC:DOMExc\n");
     if (JS_AddIntrinsicDOMException(ctx)) goto fail;
-
-    dbg_str(sys, "NC:Perf\n");
     if (JS_AddPerformance(ctx)) goto fail;
 
-    dbg_str(sys, "NC:DONE\n");
     return ctx;
 
 fail:
-    dbg_str(sys, "NC:FAIL\n");
     JS_FreeContext(ctx);
     return NULL;
 }
 
-struct JSContext *QJS_NewContextRaw(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    return JS_NewContextRaw(rt);
-}
-
-void QJS_FreeContext(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    JS_FreeContext(ctx);
-}
-
-const char *QJS_GetVersion(
-    __reg("a6") LIBRARY_BASE_TYPE *base)
-{
-    return JS_GetVersion();
-}
-
-void QJS_SetMemoryLimit(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("d0") ULONG limit)
-{
-    JS_SetMemoryLimit(rt, (size_t)limit);
-}
-
-void QJS_SetMaxStackSize(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("d0") ULONG stack_size)
-{
-    JS_SetMaxStackSize(rt, (size_t)stack_size);
-}
-
-void QJS_RunGC(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    JS_RunGC(rt);
-}
-
-int QJS_AddBaseObjects(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicBaseObjects(ctx);
-}
-
-int QJS_AddEval(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicEval(ctx);
-}
-
-int QJS_AddDate(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicDate(ctx);
-}
-
-int QJS_AddRegExp(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicRegExp(ctx);
-}
-
-int QJS_AddJSON(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicJSON(ctx);
-}
-
-int QJS_AddProxy(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicProxy(ctx);
-}
-
-int QJS_AddMapSet(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicMapSet(ctx);
-}
-
-int QJS_AddTypedArrays(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicTypedArrays(ctx);
-}
-
-int QJS_AddPromise(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicPromise(ctx);
-}
-
-int QJS_AddWeakRef(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicWeakRef(ctx);
-}
-
-int QJS_AddDOMException(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicDOMException(ctx);
-}
-
-int QJS_AddPerformance(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddPerformance(ctx);
-}
-
-long QJS_EvalSimple(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *input,
-    __reg("d0") ULONG input_len)
+/* QJS_EvalSimple_impl — called from assembly, no __reg */
+long QJS_EvalSimple_impl(
+    struct JSContext *ctx,
+    const char *input,
+    unsigned long input_len)
 {
     JSValue result;
     long ret;
@@ -526,14 +398,15 @@ extern JSValue JS_EvalFunction(struct JSContext *ctx, JSValue fun_obj);
 extern int JS_ResolveModule(struct JSContext *ctx, JSValue obj);
 
 /* QJS_EvalBuf — eval with module support, runs entirely in library.
- * Returns 0 on success, -1 on exception. */
-long QJS_EvalBuf(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *input,
-    __reg("d0") ULONG input_len,
-    __reg("a2") const char *filename,
-    __reg("d1") int eval_flags)
+ * Returns 0 on success, -1 on exception.
+ * Assembly wrapper _QJS_EvalBuf in qjsfuncs_asm_all.s calls this.
+ * NO __reg params — avoids VBCC A6 frame pointer corruption on JSValue locals. */
+long QJS_EvalBuf_impl(
+    struct JSContext *ctx,
+    const char *input,
+    unsigned long input_len,
+    const char *filename,
+    int eval_flags)
 {
     JSValue val;
     int ret;
@@ -559,545 +432,26 @@ long QJS_EvalBuf(
     return ret;
 }
 
-/* QJS_Eval: in qjsfuncs_asm_all.s */
+/* ALL remaining QJS_* functions are now in qjsfuncs_asm_all.s */
 
-/* ---- Runtime functions ---- */
+/* QJS_SetModuleLoader_impl — sets up the standard module loader.
+ * Called from assembly, no __reg. */
+extern void *js_module_loader;
+extern int js_module_set_import_meta(void *ctx, JSValue func_val,
+                                     int use_realpath, int is_main);
 
-void QJS_SetRuntimeInfo(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") const char *info)
+void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
 {
-    JS_SetRuntimeInfo(rt, info);
+    JS_SetModuleLoaderFunc(rt, NULL,
+        (void *)js_module_loader, NULL);
 }
 
-void *QJS_GetRuntimeOpaque(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    return JS_GetRuntimeOpaque(rt);
-}
-
-void QJS_SetRuntimeOpaque(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *opaque)
-{
-    JS_SetRuntimeOpaque(rt, opaque);
-}
-
-void QJS_UpdateStackTop(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    JS_UpdateStackTop(rt);
-}
-
-/* QJS_SetDumpFlags: in qjsfuncs_asm_all.s */
-/* QJS_GetDumpFlags: in qjsfuncs_asm_all.s */
-
-ULONG QJS_GetGCThreshold(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    return (ULONG)JS_GetGCThreshold(rt);
-}
-
-void QJS_SetGCThreshold(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("d0") ULONG threshold)
-{
-    JS_SetGCThreshold(rt, (size_t)threshold);
-}
-
-/* QJS_IsLiveObject: in qjsfuncs_asm_all.s */
-
-/* ---- Context functions ---- */
-
-struct JSContext *QJS_DupContext(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_DupContext(ctx);
-}
-
-void *QJS_GetContextOpaque(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_GetContextOpaque(ctx);
-}
-
-void QJS_SetContextOpaque(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *opaque)
-{
-    JS_SetContextOpaque(ctx, opaque);
-}
-
-struct JSRuntime *QJS_GetRuntime(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_GetRuntime(ctx);
-}
-
-/* QJS_SetClassProto: in qjsfuncs_asm_all.s */
-/* QJS_GetClassProto: in qjsfuncs_asm_all.s */
-/* QJS_GetFunctionProto: in qjsfuncs_asm_all.s */
-
-int QJS_AddBigInt(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return JS_AddIntrinsicBigInt(ctx);
-}
-
-void QJS_AddRegExpCompiler(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    JS_AddIntrinsicRegExpCompiler(ctx);
-}
-
-/* QJS_IsEqual: in qjsfuncs_asm_all.s */
-/* QJS_IsStrictEqual: in qjsfuncs_asm_all.s */
-/* QJS_IsSameValue: in qjsfuncs_asm_all.s */
-/* QJS_IsSameValueZero: in qjsfuncs_asm_all.s */
-
-/* ---- Memory/Finalizer functions ---- */
-
-void QJS_ComputeMemoryUsage(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *s)
-{
-    JS_ComputeMemoryUsage(rt, (JSMemoryUsage *)s);
-}
-
-int QJS_AddRuntimeFinalizer(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *finalizer,
-    __reg("a2") void *arg)
-{
-    return JS_AddRuntimeFinalizer(rt, (JSRuntimeFinalizer *)finalizer, arg);
-}
-
-/* ---- Value Management (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_FreeValue: in qjsfuncs_asm_all.s */
-/* QJS_FreeValueRT: in qjsfuncs_asm_all.s */
-/* QJS_DupValue: in qjsfuncs_asm_all.s */
-/* QJS_DupValueRT: in qjsfuncs_asm_all.s */
-
-/* ---- Value Creation (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_NewNumber: in qjsfuncs_asm_all.s */
-/* QJS_NewBigInt64: in qjsfuncs_asm_all.s */
-/* QJS_NewBigUint64: in qjsfuncs_asm_all.s */
-
-/* ---- Strings ---- */
-/* QJS_NewStringLen: in qjsfuncs_asm_all.s */
-/* QJS_NewAtomString: in qjsfuncs_asm_all.s */
-/* QJS_ToString: in qjsfuncs_asm_all.s */
-/* QJS_ToPropertyKey: in qjsfuncs_asm_all.s */
-/* QJS_ToCStringLen2: in qjsfuncs_asm_all.s */
-
-void QJS_FreeCString(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *ptr)
-{
-    JS_FreeCString(ctx, ptr);
-}
-
-/* ---- Conversion (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_ToBool: in qjsfuncs_asm_all.s */
-/* QJS_ToInt32: in qjsfuncs_asm_all.s */
-/* QJS_ToInt64: in qjsfuncs_asm_all.s */
-/* QJS_ToFloat64: in qjsfuncs_asm_all.s */
-/* QJS_ToNumber: in qjsfuncs_asm_all.s */
-
-/* ---- Objects (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_NewObject: in qjsfuncs_asm_all.s */
-/* QJS_NewObjectClass: in qjsfuncs_asm_all.s */
-/* QJS_NewObjectProto: in qjsfuncs_asm_all.s */
-/* QJS_NewArray: in qjsfuncs_asm_all.s */
-/* QJS_IsArray: in qjsfuncs_asm_all.s */
-/* QJS_IsFunction: in qjsfuncs_asm_all.s */
-/* QJS_IsConstructor: in qjsfuncs_asm_all.s */
-/* QJS_GetGlobalObject: in qjsfuncs_asm_all.s */
-/* QJS_ToObject: in qjsfuncs_asm_all.s */
-
-/* ---- Exceptions ---- */
-/* QJS_Throw: in qjsfuncs_asm_all.s */
-/* QJS_GetException: in qjsfuncs_asm_all.s */
-
-int QJS_HasException(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx)
-{
-    return (int)JS_HasException(ctx);
-}
-
-/* QJS_IsError: in qjsfuncs_asm_all.s */
-/* QJS_NewError: in qjsfuncs_asm_all.s */
-/* QJS_ThrowOutOfMemory: in qjsfuncs_asm_all.s */
-
-/* ---- Detect Module ---- */
-
-int QJS_DetectModule(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") const char *input,
-    __reg("d0") ULONG input_len)
-{
-    return (int)JS_DetectModule(input, (size_t)input_len);
-}
-
-/* ---- Memory Allocation ---- */
-
-void *QJS_Malloc(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") ULONG size)
-{
-    return js_malloc(ctx, (size_t)size);
-}
-
-void QJS_Free(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *ptr)
-{
-    js_free(ctx, ptr);
-}
-
-void *QJS_Realloc(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *ptr,
-    __reg("d0") ULONG size)
-{
-    return js_realloc(ctx, ptr, (size_t)size);
-}
-
-void *QJS_Calloc(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") ULONG count,
-    __reg("d1") ULONG size)
-{
-    return js_calloc(ctx, (size_t)count, (size_t)size);
-}
-
-void *QJS_Mallocz(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") ULONG size)
-{
-    return js_mallocz(ctx, (size_t)size);
-}
-
-char *QJS_Strdup(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *str)
-{
-    return js_strdup(ctx, str);
-}
-
-/* ---- Property access (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_GetProperty: in qjsfuncs_asm_all.s */
-/* QJS_GetPropertyUint32: in qjsfuncs_asm_all.s */
-/* QJS_GetPropertyStr: in qjsfuncs_asm_all.s */
-/* QJS_GetPropertyInt64: in qjsfuncs_asm_all.s */
-/* QJS_SetProperty: in qjsfuncs_asm_all.s */
-/* QJS_SetPropertyUint32: in qjsfuncs_asm_all.s */
-/* QJS_SetPropertyStr: in qjsfuncs_asm_all.s */
-/* QJS_HasProperty: in qjsfuncs_asm_all.s */
-/* QJS_DeleteProperty: in qjsfuncs_asm_all.s */
-
-/* ---- Prototype (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_SetPrototype: in qjsfuncs_asm_all.s */
-/* QJS_GetPrototype: in qjsfuncs_asm_all.s */
-
-/* ---- Length (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_GetLength: in qjsfuncs_asm_all.s */
-/* QJS_SetLength: in qjsfuncs_asm_all.s */
-
-/* ---- Extensibility/Seal/Freeze (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_IsExtensible: in qjsfuncs_asm_all.s */
-/* QJS_PreventExtensions: in qjsfuncs_asm_all.s */
-/* QJS_SealObject: in qjsfuncs_asm_all.s */
-/* QJS_FreezeObject: in qjsfuncs_asm_all.s */
-
-/* ---- Define Property (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_DefinePropertyValue: in qjsfuncs_asm_all.s */
-/* QJS_DefinePropertyValueUint32: in qjsfuncs_asm_all.s */
-/* QJS_DefinePropertyValueStr: in qjsfuncs_asm_all.s */
-
-/* ---- Opaque (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_SetOpaque: in qjsfuncs_asm_all.s */
-/* QJS_GetOpaque: in qjsfuncs_asm_all.s */
-/* QJS_GetOpaque2: in qjsfuncs_asm_all.s */
-
-/* ---- Own Property Names ---- */
-/* QJS_GetOwnPropertyNames: in qjsfuncs_asm_all.s */
-
-void QJS_FreePropertyEnum(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *tab,
-    __reg("d0") ULONG len)
-{
-    JS_FreePropertyEnum(ctx, tab, (unsigned long)len);
-}
-
-/* QJS_IsInstanceOf: in qjsfuncs_asm_all.s */
-
-/* ---- Atoms ---- */
-
-ULONG QJS_NewAtomLen(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *str,
-    __reg("d0") ULONG len)
-{
-    return (ULONG)JS_NewAtomLen(ctx, str, (size_t)len);
-}
-
-ULONG QJS_NewAtom(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *str)
-{
-    return (ULONG)JS_NewAtom(ctx, str);
-}
-
-ULONG QJS_NewAtomUInt32(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") ULONG n)
-{
-    return (ULONG)JS_NewAtomUInt32(ctx, (unsigned long)n);
-}
-
-ULONG QJS_DupAtom(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") ULONG v)
-{
-    return (ULONG)JS_DupAtom(ctx, (JSAtom)v);
-}
-
-void QJS_FreeAtom(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") ULONG v)
-{
-    JS_FreeAtom(ctx, (JSAtom)v);
-}
-
-/* QJS_AtomToValue: in qjsfuncs_asm_all.s */
-/* QJS_AtomToString: in qjsfuncs_asm_all.s */
-
-const char *QJS_AtomToCStringLen(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") ULONG *plen,
-    __reg("d0") ULONG atom)
-{
-    size_t slen;
-    const char *r;
-    r = JS_AtomToCStringLen(ctx, plen ? &slen : NULL, (JSAtom)atom);
-    if (plen && r)
-        *plen = (ULONG)slen;
-    return r;
-}
-
-/* QJS_ValueToAtom: in qjsfuncs_asm_all.s */
-
-/* ---- Eval/Call (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_EvalFunction: in qjsfuncs_asm_all.s */
-/* QJS_Call: in qjsfuncs_asm_all.s */
-/* QJS_Invoke: in qjsfuncs_asm_all.s */
-/* QJS_CallConstructor: in qjsfuncs_asm_all.s */
-
-/* ---- JSON (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_ParseJSON: in qjsfuncs_asm_all.s */
-/* QJS_JSONStringify: in qjsfuncs_asm_all.s */
-
-/* ---- Serialization (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_WriteObject: in qjsfuncs_asm_all.s */
-/* QJS_ReadObject: in qjsfuncs_asm_all.s */
-
-/* ---- Class ---- */
-
-ULONG QJS_NewClassID(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") ULONG *pclass_id)
-{
-    return (ULONG)JS_NewClassID(rt, (unsigned long *)pclass_id);
-}
-
-int QJS_NewClass(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *class_def,
-    __reg("d0") ULONG class_id)
-{
-    return JS_NewClass(rt, (unsigned long)class_id, class_def);
-}
-
-int QJS_IsRegisteredClass(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("d0") ULONG class_id)
-{
-    return (int)JS_IsRegisteredClass(rt, (unsigned long)class_id);
-}
-
-/* QJS_GetClassID: in qjsfuncs_asm_all.s */
-
-/* ---- Module functions ---- */
-
-void QJS_SetModuleLoaderFunc(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *normalize_func,
-    __reg("a2") void *loader_func,
-    __reg("a3") void *opaque)
-{
-    JS_SetModuleLoaderFunc(rt,
-        (JSModuleNormalizeFunc *)normalize_func,
-        (JSModuleLoaderFunc *)loader_func,
-        opaque);
-}
-
-/* QJS_GetImportMeta: in qjsfuncs_asm_all.s */
-
-ULONG QJS_GetModuleName(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *m)
-{
-    return (ULONG)JS_GetModuleName(ctx, (JSModuleDef *)m);
-}
-
-/* QJS_GetModuleNamespace: in qjsfuncs_asm_all.s */
-
-void *QJS_NewCModule(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") const char *name_str,
-    __reg("a2") void *func)
-{
-    return (void *)JS_NewCModule(ctx, name_str, (JSModuleInitFunc *)func);
-}
-
-int QJS_AddModuleExport(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *m,
-    __reg("a2") const char *name_str)
-{
-    return JS_AddModuleExport(ctx, (JSModuleDef *)m, name_str);
-}
-
-/* QJS_SetModuleExport: in qjsfuncs_asm_all.s */
-/* QJS_ResolveModule: in qjsfuncs_asm_all.s */
-
-ULONG QJS_GetScriptOrModuleName(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("d0") int n_stack_levels)
-{
-    return (ULONG)JS_GetScriptOrModuleName(ctx, n_stack_levels);
-}
-
-/* ---- C Function / Constructor (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_NewCFunction2: in qjsfuncs_asm_all.s */
-/* QJS_SetConstructor: in qjsfuncs_asm_all.s */
-/* QJS_SetPropertyFunctionList: in qjsfuncs_asm_all.s */
-
-/* ---- Jobs/Pending ---- */
-
-int QJS_IsJobPending(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    return (int)JS_IsJobPending(rt);
-}
-
-int QJS_ExecutePendingJob(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *pctx)
-{
-    return JS_ExecutePendingJob(rt, (JSContext **)pctx);
-}
-
-/* ---- Promise (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_NewPromiseCapability: in qjsfuncs_asm_all.s */
-/* QJS_PromiseState: in qjsfuncs_asm_all.s */
-/* QJS_PromiseResult: in qjsfuncs_asm_all.s */
-/* QJS_IsPromise: in qjsfuncs_asm_all.s */
-
-/* ---- Callbacks ---- */
-
-void QJS_SetInterruptHandler(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *cb,
-    __reg("a2") void *opaque)
-{
-    JS_SetInterruptHandler(rt, (JSInterruptHandler *)cb, opaque);
-}
-
-void QJS_SetHostPromiseRejectionTracker(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *cb,
-    __reg("a2") void *opaque)
-{
-    JS_SetHostPromiseRejectionTracker(rt,
-        (JSHostPromiseRejectionTracker *)cb, opaque);
-}
-
-void QJS_SetCanBlock(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("d0") int can_block)
-{
-    JS_SetCanBlock(rt, can_block);
-}
-
-/* ---- ArrayBuffer (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_NewArrayBufferCopy: in qjsfuncs_asm_all.s */
-/* QJS_GetArrayBuffer: in qjsfuncs_asm_all.s */
-/* QJS_IsArrayBuffer: in qjsfuncs_asm_all.s */
-/* QJS_DetachArrayBuffer: in qjsfuncs_asm_all.s */
-/* QJS_GetUint8Array: in qjsfuncs_asm_all.s */
-/* QJS_NewUint8ArrayCopy: in qjsfuncs_asm_all.s */
-
-/* ---- Type checks (all in qjsfuncs_asm_all.s) ---- */
-/* QJS_IsDate: in qjsfuncs_asm_all.s */
-/* QJS_IsRegExp: in qjsfuncs_asm_all.s */
-/* QJS_IsMap: in qjsfuncs_asm_all.s */
-/* QJS_IsSet: in qjsfuncs_asm_all.s */
-
-/* ---- Symbol (in qjsfuncs_asm_all.s) ---- */
-/* QJS_NewSymbol: in qjsfuncs_asm_all.s */
-
-/* ---- NewDate (composite function — calls multiple JS_ internally) ---- */
-
-void QJS_NewDate(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") JSValue *result,
-    __reg("a1") struct JSContext *ctx,
-    __reg("a2") double *epoch_ms_ptr)
+/* QJS_NewDate_impl — called from assembly, no __reg.
+ * Composite function: uses multiple JSValue locals. */
+void QJS_NewDate_impl(
+    JSValue *result,
+    struct JSContext *ctx,
+    double *epoch_ms_ptr)
 {
     JSValue global, date_ctor, arg;
     global = JS_GetGlobalObject(ctx);
@@ -1115,38 +469,7 @@ void QJS_NewDate(
 /* QJS_LoadModule: in qjsfuncs_asm_all.s */
 
 /* ---- New functions (post-v0.54) ---- */
-
-void *QJS_GetLibcOpaque(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt)
-{
-    return JS_GetLibcOpaque(rt);
-}
-
-void QJS_SetLibcOpaque(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSRuntime *rt,
-    __reg("a1") void *opaque)
-{
-    JS_SetLibcOpaque(rt, opaque);
-}
-
-int QJS_AddModuleExportList(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *m,
-    __reg("a2") void *tab,
-    __reg("d0") int len)
-{
-    return JS_AddModuleExportList(ctx, m, tab, len);
-}
-
-int QJS_SetModuleExportList(
-    __reg("a6") LIBRARY_BASE_TYPE *base,
-    __reg("a0") struct JSContext *ctx,
-    __reg("a1") void *m,
-    __reg("a2") void *tab,
-    __reg("d0") int len)
-{
-    return JS_SetModuleExportList(ctx, m, tab, len);
-}
+/* QJS_GetLibcOpaque: in qjsfuncs_asm_all.s */
+/* QJS_SetLibcOpaque: in qjsfuncs_asm_all.s */
+/* QJS_AddModuleExportList: in qjsfuncs_asm_all.s */
+/* QJS_SetModuleExportList: in qjsfuncs_asm_all.s */

@@ -38,10 +38,38 @@
 
 #ifdef __VBCC__
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.55 (4.4.2026)";
+static const char amiga_ver[] = "$VER: qjs 0.56 (6.4.2026)";
 extern int amiga_force_color;
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
+
+#ifdef QJS_USE_LIBRARY
+/* When using the library, quickjs-libc functions are inside
+ * quickjs.library. Route all calls through bridge trampolines. */
+extern void *bridge_InitModuleStd(void *ctx, const char *name);
+extern void *bridge_InitModuleOS(void *ctx, const char *name);
+extern void *bridge_InitModuleBJSON(void *ctx, const char *name);
+extern void  bridge_StdInitHandlers(void *rt);
+extern void  bridge_StdFreeHandlers(void *rt);
+extern void  bridge_StdAddHelpers(void *ctx, int argc, char **argv);
+extern int   bridge_StdLoop(void *ctx);
+extern void  bridge_StdEvalBinary(void *ctx, const void *buf,
+                                  unsigned long len, int flags);
+extern void  bridge_StdDumpError(void *ctx);
+extern void *bridge_LoadFile(void *ctx, size_t *plen, const char *fn);
+extern void  bridge_SetModuleLoader(void *rt);
+
+#define js_init_module_std(ctx, name)    bridge_InitModuleStd(ctx, name)
+#define js_init_module_os(ctx, name)     bridge_InitModuleOS(ctx, name)
+#define js_init_module_bjson(ctx, name)  bridge_InitModuleBJSON(ctx, name)
+#define js_std_init_handlers(rt)         bridge_StdInitHandlers(rt)
+#define js_std_free_handlers(rt)         bridge_StdFreeHandlers(rt)
+#define js_std_add_helpers(ctx, ac, av)  bridge_StdAddHelpers(ctx, ac, av)
+#define js_std_loop(ctx)                 bridge_StdLoop(ctx)
+#define js_std_eval_binary(c, b, l, f)   bridge_StdEvalBinary(c, b, l, f)
+#define js_std_dump_error(ctx)           bridge_StdDumpError(ctx)
+#define js_load_file(ctx, pl, fn)        bridge_LoadFile(ctx, pl, fn)
+#endif /* QJS_USE_LIBRARY */
 
 #elif defined(__SASC)
 static const char amiga_ver[] = "$VER: qjs 0.49 (27.3.2026)";
@@ -771,7 +799,9 @@ start:
         JS_SetMaxStackSize(rt, (size_t)stack_size);
     if (dump_flags != 0)
         JS_SetDumpFlags(rt, dump_flags);
+#ifndef QJS_USE_LIBRARY
     js_std_set_worker_new_context_func(JS_NewCustomContext);
+#endif
 #ifdef QJS_USE_LIBRARY
     fprintf(stderr, "[qjs] calling js_std_init_handlers...\n");
 #endif
@@ -789,7 +819,11 @@ start:
 #endif
 
     /* loader for ES6 modules */
+#ifdef QJS_USE_LIBRARY
+    bridge_SetModuleLoader(rt);
+#else
     JS_SetModuleLoaderFunc2(rt, NULL, js_module_loader, js_module_check_attributes, NULL);
+#endif
 
     /* exit on unhandled promise rejections */
 #ifndef QJS_USE_LIBRARY

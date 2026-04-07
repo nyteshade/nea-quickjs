@@ -1,7 +1,6 @@
 /*
  * sharedlib_vbcc.c — VBCC compiler runtime stubs for shared library context.
- * Provides symbols that the VBCC compiler emits calls to, or that vc.lib
- * would normally supply.
+ * Provides symbols that the VBCC compiler emits calls to.
  * No .lib dependencies.
  */
 
@@ -18,38 +17,24 @@ const char __pInf_d[8] = { 0x7F, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 void abort(void)
 {
-    /* In shared library context we can't exit the process.
-     * Spin forever — the caller should never reach here. */
     for (;;) ;
 }
 
-/* ---- printf/fprintf stubs ---- */
+/* ---- SysBase ---- */
+/* Some code references SysBase as a global. The library gets it
+ * from exec during init and stores in the library base struct.
+ * This global is for code that expects a flat SysBase symbol. */
+#pragma amiga-align
+#include <exec/types.h>
+#pragma default-align
 
-/* QuickJS references printf/fprintf in debug and error paths.
- * In shared library context there is no stdout. Stub to no-op. */
-int printf(const char *fmt, ...) { return 0; }
-int fprintf(void *stream, const char *fmt, ...) { return 0; }
-
-/* stdout — referenced by fprintf. Points to a dummy. */
-static int _stdout_dummy;
-void *stdout = (void *)&_stdout_dummy;
-
-/* VBCC internal printf helpers — referenced if snprintf/vsnprintf
- * are pulled in from vc.lib. Since we'll provide our own, these
- * are stubs in case anything still references them. */
-/* VBCC internal printf helpers. C names with double underscore
- * -> triple underscore linker symbols. These are the actual
- * formatting core of VBCC's printf. Our snprintf/vsnprintf in
- * sharedlib_printf.c provides the full implementation, so these
- * are only needed as fallback stubs. */
-void __v0printf(void) {}
-void __v0fprintf(void) {}
-void _putbuf(void) {}
+struct Library *SysBase = 0;
 
 /* ---- _exit / __exit ---- */
+/* In shared library context we can't exit the process. */
 
-void _exit(int code) { for(;;); }
-void __exit(int code) { for(;;); }
+void _exit(int code) { (void)code; for(;;); }
+void __exit(int code) { (void)code; for(;;); }
 
 /* ---- CTOR/DTOR lists (empty) ---- */
 
