@@ -1,18 +1,16 @@
 /*
  * amiga_ssl_lib.c — AmiSSL HTTP/HTTPS client for quickjs.library (VBCC)
  *
- * VBCC port of src/amiga_ssl.c. Uses proto/ headers instead of
- * SAS/C pragmas/ for library dispatch. Otherwise identical logic.
- *
- * This file is compiled into the shared library so that std.urlGet()
- * works natively without requiring curl.
+ * Uses VBCC inline assembly stubs from AmiSSL SDK's inline/ headers
+ * which embed `jsr -N(a6)` directly at the call site, sidestepping
+ * the __reg("a6") frame pointer clobber issue.
  */
 
 #ifdef __VBCC__
 
 #include "amiga_ssl.h"
 
-/* Prevent OpenSSL static inline functions */
+/* Suppress AMISSL static inline functions to avoid macro conflicts */
 #define AMISSL_NO_STATIC_FUNCTIONS
 
 #pragma amiga-align
@@ -22,16 +20,101 @@
 #include <proto/dos.h>
 #pragma default-align
 
-/* AmiSSL tags and version constants */
+/* AmiSSL master library — VBCC inline header (safe, no openssl conflicts) */
 #include <libraries/amisslmaster.h>
 #include <amissl/tags.h>
+#include <inline/amisslmaster_protos.h>
 
-/* AmiSSL master library — explicit LVO dispatch (no proto headers,
- * they conflict with AmiSSL SDK inline protos) */
-#define AMISSL_LVO(base, off, proto) \
-    ((proto)(((char *)(base)) - (off)))
+/* Forward declare OpenSSL types we use */
+typedef struct ssl_ctx_st SSL_CTX;
+typedef struct ssl_st SSL;
+typedef struct ssl_method_st SSL_METHOD;
+typedef struct OSSL_LIB_CTX_st OSSL_LIB_CTX;
+typedef struct evp_pkey_st EVP_PKEY;
+typedef struct asn1_string_st ASN1_INTEGER;
+typedef struct ssl_session_st SSL_SESSION;
+typedef struct x509_st X509;
+typedef struct X509_VERIFY_PARAM_st X509_VERIFY_PARAM;
+typedef struct X509_NAME_st X509_NAME;
+typedef struct X509_STORE_st X509_STORE;
+typedef struct stack_st STACK;
+typedef int (*pem_password_cb)(char *buf, int size, int rwflag, void *userdata);
 
-/* BSD socket types — declare manually to avoid netinclude header chain */
+/* The amissl_protos.h header has many type dependencies. We need just
+ * the SSL functions we use. Declare them manually with the same VBCC
+ * inline syntax (function = "jsr -N(a6)") that bypasses __reg("a6")
+ * frame pointer issues. */
+
+extern struct Library *AmiSSLBase;
+
+/* Manually-declared inline stubs for the SSL functions we use.
+ * These embed `jsr -N(a6)` directly via VBCC inline assembly,
+ * avoiding the __reg("a6") frame pointer clobber. */
+
+static SSL_CTX * __SSL_CTX_new(__reg("a6") struct Library *base,
+                               __reg("a0") const SSL_METHOD *meth)
+                               = "\tjsr\t-8208(a6)";
+
+static void __SSL_CTX_free(__reg("a6") struct Library *base,
+                           __reg("a0") SSL_CTX *a) = "\tjsr\t-8214(a6)";
+
+static int __SSL_set_fd(__reg("a6") struct Library *base,
+                        __reg("a0") SSL *s, __reg("d0") int fd)
+                        = "\tjsr\t-8358(a6)";
+
+static SSL * __SSL_new(__reg("a6") struct Library *base,
+                       __reg("a0") SSL_CTX *ctx) = "\tjsr\t-8784(a6)";
+
+static void __SSL_free(__reg("a6") struct Library *base,
+                       __reg("a0") SSL *ssl) = "\tjsr\t-8820(a6)";
+
+static int __SSL_connect(__reg("a6") struct Library *base,
+                         __reg("a0") SSL *ssl) = "\tjsr\t-8832(a6)";
+
+static int __SSL_read(__reg("a6") struct Library *base,
+                      __reg("a0") SSL *ssl,
+                      __reg("a1") void *buf,
+                      __reg("d0") int num) = "\tjsr\t-8838(a6)";
+
+static int __SSL_write(__reg("a6") struct Library *base,
+                       __reg("a0") SSL *ssl,
+                       __reg("a1") const void *buf,
+                       __reg("d0") int num) = "\tjsr\t-8850(a6)";
+
+static long __SSL_ctrl(__reg("a6") struct Library *base,
+                       __reg("a0") SSL *ssl,
+                       __reg("d0") int cmd,
+                       __reg("d1") long larg,
+                       __reg("a1") void *parg) = "\tjsr\t-8856(a6)";
+
+static int __SSL_shutdown(__reg("a6") struct Library *base,
+                          __reg("a0") SSL *s) = "\tjsr\t-8994(a6)";
+
+static const SSL_METHOD * __TLS_client_method(__reg("a6") struct Library *base)
+                                              = "\tjsr\t-26934(a6)";
+
+/* Convenience macros */
+#define SSL_CTX_new(m)       __SSL_CTX_new(AmiSSLBase, (m))
+#define SSL_CTX_free(a)      __SSL_CTX_free(AmiSSLBase, (a))
+#define SSL_set_fd(s,f)      __SSL_set_fd(AmiSSLBase, (s), (f))
+#define SSL_new(c)           __SSL_new(AmiSSLBase, (c))
+#define SSL_free(s)          __SSL_free(AmiSSLBase, (s))
+#define SSL_connect(s)       __SSL_connect(AmiSSLBase, (s))
+#define SSL_read(s,b,n)      __SSL_read(AmiSSLBase, (s), (b), (n))
+#define SSL_write(s,b,n)     __SSL_write(AmiSSLBase, (s), (b), (n))
+#define SSL_ctrl(s,c,l,p)    __SSL_ctrl(AmiSSLBase, (s), (c), (l), (p))
+#define SSL_shutdown(s)      __SSL_shutdown(AmiSSLBase, (s))
+#define TLS_client_method()  __TLS_client_method(AmiSSLBase)
+
+/* SNI support */
+#ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#define SSL_CTRL_SET_TLSEXT_HOSTNAME 55
+#define TLSEXT_NAMETYPE_host_name 0
+#define SSL_set_tlsext_host_name(ssl, name) \
+    SSL_ctrl(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, (void *)name)
+#endif
+
+/* BSD socket types — declare manually */
 #define AF_INET     2
 #define SOCK_STREAM 1
 
@@ -60,205 +143,44 @@ struct hostent {
 };
 #define h_addr h_addr_list[0]
 
-/* Socket library base and function declarations via LVO dispatch */
 extern struct Library *SocketBase;
 
-/* Socket functions — explicit LVO calls via SocketBase */
-#define SOCK_LVO(base, off, proto) \
-    ((proto)(((char *)(base)) - (off)))
+/* bsdsocket.library inline stubs */
+static long __socket(__reg("a6") struct Library *base,
+                     __reg("d0") long domain,
+                     __reg("d1") long type,
+                     __reg("d2") long protocol) = "\tjsr\t-30(a6)";
 
-/* LVO offsets for bsdsocket.library */
-static long bsd_socket(long domain, long type, long protocol)
-{
-    return SOCK_LVO(SocketBase, 30,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d0") long,
-                 __reg("d1") long,
-                 __reg("d2") long))(SocketBase, domain, type, protocol);
-}
+static long __connect(__reg("a6") struct Library *base,
+                      __reg("d0") long s,
+                      __reg("a0") const struct sockaddr *name,
+                      __reg("d1") long namelen) = "\tjsr\t-54(a6)";
 
-static long bsd_connect(long s, const struct sockaddr *name, long namelen)
-{
-    return SOCK_LVO(SocketBase, 54,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d0") long,
-                 __reg("a0") const struct sockaddr *,
-                 __reg("d1") long))(SocketBase, s, name, namelen);
-}
+static long __send(__reg("a6") struct Library *base,
+                   __reg("d0") long s,
+                   __reg("a0") const void *msg,
+                   __reg("d1") long len,
+                   __reg("d2") long flags) = "\tjsr\t-66(a6)";
 
-static long bsd_send(long s, const void *msg, long len, long flags)
-{
-    return SOCK_LVO(SocketBase, 66,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d0") long,
-                 __reg("a0") const void *,
-                 __reg("d1") long,
-                 __reg("d2") long))(SocketBase, s, msg, len, flags);
-}
+static long __recv(__reg("a6") struct Library *base,
+                   __reg("d0") long s,
+                   __reg("a0") void *buf,
+                   __reg("d1") long len,
+                   __reg("d2") long flags) = "\tjsr\t-78(a6)";
 
-static long bsd_recv(long s, void *buf, long len, long flags)
-{
-    return SOCK_LVO(SocketBase, 78,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d0") long,
-                 __reg("a0") void *,
-                 __reg("d1") long,
-                 __reg("d2") long))(SocketBase, s, buf, len, flags);
-}
+static long __CloseSocket(__reg("a6") struct Library *base,
+                          __reg("d0") long d) = "\tjsr\t-120(a6)";
 
-static void bsd_CloseSocket(long d)
-{
-    SOCK_LVO(SocketBase, 120,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d0") long))(SocketBase, d);
-}
+static struct hostent * __gethostbyname(__reg("a6") struct Library *base,
+                                        __reg("a0") const char *name)
+                                        = "\tjsr\t-210(a6)";
 
-static struct hostent *bsd_gethostbyname(const char *name)
-{
-    return SOCK_LVO(SocketBase, 210,
-        struct hostent * (*)(__reg("a6") struct Library *,
-                             __reg("a0") const char *))(SocketBase, name);
-}
-
-/* Map names used in the implementation */
-#define socket(d,t,p)       bsd_socket(d,t,p)
-#define connect(s,a,l)      bsd_connect(s,a,l)
-#define send(s,m,l,f)       bsd_send(s,m,l,f)
-#define recv(s,b,l,f)       bsd_recv(s,b,l,f)
-#define CloseSocket(d)      bsd_CloseSocket(d)
-#define gethostbyname(n)    bsd_gethostbyname(n)
-
-/* Forward declarations for OpenSSL types */
-typedef struct ssl_ctx_st SSL_CTX;
-typedef struct ssl_st SSL;
-typedef struct ssl_method_st SSL_METHOD;
-
-/* AmiSSL functions — explicit LVO dispatch via AmiSSLBase.
- * LVO offsets from the AmiSSL SDK fd files. */
-extern struct Library *AmiSSLBase;
-
-/* AmiSSL functions — explicit LVO dispatch through AmiSSLBase.
- * No proto/inline headers (they have macro conflicts).
- * LVO offsets from AmiSSL v5.26 SDK fd file. */
-extern struct Library *AmiSSLBase;
-
-static SSL_CTX *ssl_CTX_new(const SSL_METHOD *meth) {
-    return AMISSL_LVO(AmiSSLBase, 8208,
-        SSL_CTX * (*)(__reg("a6") struct Library *,
-                      __reg("a0") const SSL_METHOD *))(AmiSSLBase, meth);
-}
-static void ssl_CTX_free(SSL_CTX *a) {
-    AMISSL_LVO(AmiSSLBase, 8214,
-        void (*)(__reg("a6") struct Library *,
-                 __reg("a0") SSL_CTX *))(AmiSSLBase, a);
-}
-static int ssl_set_fd(SSL *s, int fd) {
-    return AMISSL_LVO(AmiSSLBase, 8358,
-        int (*)(__reg("a6") struct Library *,
-                __reg("a0") SSL *,
-                __reg("d0") int))(AmiSSLBase, s, fd);
-}
-static SSL *ssl_new(SSL_CTX *ctx) {
-    return AMISSL_LVO(AmiSSLBase, 8784,
-        SSL * (*)(__reg("a6") struct Library *,
-                  __reg("a0") SSL_CTX *))(AmiSSLBase, ctx);
-}
-static void ssl_free(SSL *ssl) {
-    AMISSL_LVO(AmiSSLBase, 8820,
-        void (*)(__reg("a6") struct Library *,
-                 __reg("a0") SSL *))(AmiSSLBase, ssl);
-}
-static int ssl_connect(SSL *ssl) {
-    return AMISSL_LVO(AmiSSLBase, 8832,
-        int (*)(__reg("a6") struct Library *,
-                __reg("a0") SSL *))(AmiSSLBase, ssl);
-}
-static int ssl_read(SSL *ssl, void *buf, int num) {
-    return AMISSL_LVO(AmiSSLBase, 8838,
-        int (*)(__reg("a6") struct Library *,
-                __reg("a0") SSL *,
-                __reg("a1") void *,
-                __reg("d0") int))(AmiSSLBase, ssl, buf, num);
-}
-static int ssl_write(SSL *ssl, const void *buf, int num) {
-    return AMISSL_LVO(AmiSSLBase, 8850,
-        int (*)(__reg("a6") struct Library *,
-                __reg("a0") SSL *,
-                __reg("a1") const void *,
-                __reg("d0") int))(AmiSSLBase, ssl, buf, num);
-}
-static long ssl_ctrl(SSL *ssl, int cmd, long larg, void *parg) {
-    return AMISSL_LVO(AmiSSLBase, 8856,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("a0") SSL *,
-                 __reg("d0") int,
-                 __reg("d1") long,
-                 __reg("a1") void *))(AmiSSLBase, ssl, cmd, larg, parg);
-}
-static int ssl_shutdown(SSL *s) {
-    return AMISSL_LVO(AmiSSLBase, 8994,
-        int (*)(__reg("a6") struct Library *,
-                __reg("a0") SSL *))(AmiSSLBase, s);
-}
-static const SSL_METHOD *ssl_TLS_client_method(void) {
-    return AMISSL_LVO(AmiSSLBase, 26934,
-        const SSL_METHOD * (*)(__reg("a6") struct Library *))(AmiSSLBase);
-}
-
-/* Map standard names to our LVO wrappers */
-#define SSL_CTX_new(m)       ssl_CTX_new(m)
-#define SSL_CTX_free(a)      ssl_CTX_free(a)
-#define SSL_set_fd(s,f)      ssl_set_fd(s,f)
-#define SSL_new(c)           ssl_new(c)
-#define SSL_free(s)          ssl_free(s)
-#define SSL_connect(s)       ssl_connect(s)
-#define SSL_read(s,b,n)      ssl_read(s,b,n)
-#define SSL_write(s,b,n)     ssl_write(s,b,n)
-#define SSL_ctrl(s,c,l,p)    ssl_ctrl(s,c,l,p)
-#define SSL_shutdown(s)      ssl_shutdown(s)
-#define TLS_client_method()  ssl_TLS_client_method()
-
-/* amisslmaster.library LVO wrappers */
-extern struct Library *AmiSSLMasterBase;
-
-/* OpenAmiSSLTagList - LVO -60 (variadic OpenAmiSSLTags wraps this) */
-static long ssl_OpenAmiSSLTagList(long apiVersion, struct TagItem *tags) {
-    return AMISSL_LVO(AmiSSLMasterBase, 60,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d0") long,
-                 __reg("a0") struct TagItem *))(AmiSSLMasterBase, apiVersion, tags);
-}
-
-/* CloseAmiSSL - LVO -42 */
-static void ssl_CloseAmiSSL(void) {
-    AMISSL_LVO(AmiSSLMasterBase, 42,
-        void (*)(__reg("a6") struct Library *))(AmiSSLMasterBase);
-}
-
-/* Variadic wrapper for OpenAmiSSLTags */
-#include <stdarg.h>
-static long ssl_OpenAmiSSLTags(long apiVersion, ...)
-{
-    /* On 68k, va_args are on the stack contiguously.
-     * TagItem array is just ULONG pairs — same layout. */
-    va_list ap;
-    struct TagItem *tags;
-    va_start(ap, apiVersion);
-    tags = (struct TagItem *)ap;
-    va_end(ap);
-    return ssl_OpenAmiSSLTagList(apiVersion, tags);
-}
-
-#define OpenAmiSSLTags  ssl_OpenAmiSSLTags
-#define CloseAmiSSL()   ssl_CloseAmiSSL()
-
-/* SNI support */
-#ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
-#define SSL_CTRL_SET_TLSEXT_HOSTNAME 55
-#define TLSEXT_NAMETYPE_host_name 0
-#define SSL_set_tlsext_host_name(ssl, name) \
-    SSL_ctrl(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, (void *)name)
-#endif
+#define socket(d,t,p)       __socket(SocketBase, (d), (t), (p))
+#define connect(s,a,l)      __connect(SocketBase, (s), (a), (l))
+#define send(s,m,l,f)       __send(SocketBase, (s), (m), (l), (f))
+#define recv(s,b,l,f)       __recv(SocketBase, (s), (b), (l), (f))
+#define CloseSocket(d)      __CloseSocket(SocketBase, (d))
+#define gethostbyname(n)    __gethostbyname(SocketBase, (n))
 
 #include <stdlib.h>
 #include <string.h>
@@ -290,6 +212,7 @@ int amiga_ssl_init(void)
         return -1;
     }
 
+    /* OpenAmiSSLTags from inline header — handles the variadic correctly */
     if (OpenAmiSSLTags(AMISSL_CURRENT_VERSION,
                        AmiSSL_UsesOpenSSLStructs, FALSE,
                        AmiSSL_GetAmiSSLBase, &AmiSSLBase,
