@@ -39,16 +39,15 @@ void sharedlib_time_cleanup(void)
     sl_DOSBase = NULL;
 }
 
-/* DateStamp — dos.library LVO -192 */
-#define DOS_LVO(base, offset, type) ((type)((char *)(base) - (offset)))
+/* DateStamp — dos.library LVO -192
+ * Uses VBCC inline assembly syntax which embeds `jsr -192(a6)` directly
+ * at the call site, sidestepping the __reg("a6") frame pointer issue
+ * that affects function-pointer dispatch. */
+static struct DateStamp * __sl_DateStamp(
+    __reg("a6") struct Library *base,
+    __reg("d1") struct DateStamp *ds) = "\tjsr\t-192(a6)";
 
-static struct DateStamp *sl_DateStamp(struct DateStamp *ds)
-{
-    return DOS_LVO(sl_DOSBase, 192,
-        struct DateStamp *(*)(
-            __reg("a6") struct Library *,
-            __reg("d1") struct DateStamp *))(sl_DOSBase, ds);
-}
+#define sl_DateStamp(ds) __sl_DateStamp(sl_DOSBase, (ds))
 
 /* AmigaOS epoch: Jan 1, 1978. Unix epoch: Jan 1, 1970.
  * 8 years = 2922 days (includes leap years 72, 76) */

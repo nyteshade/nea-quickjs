@@ -57,181 +57,109 @@ void sharedlib_posix_cleanup(void)
 #define DOS_LVO(base, offset, type) \
     ((type)((char *)(base) - (offset)))
 
-/* -30:  Open(name:d1, accessMode:d2) -> BPTR */
-static BPTR sl_Open(const char *name, LONG mode)
-{
-    return DOS_LVO(sl_DOSBase, 30,
-        BPTR (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") LONG))(sl_DOSBase, name, mode);
-}
+/* dos.library wrappers using VBCC inline assembly syntax.
+ * `function = "asm";` embeds the jsr directly at the call site,
+ * sidestepping the __reg("a6") frame pointer corruption that
+ * affects function-pointer dispatch via DOS_LVO macro. */
 
-/* -36:  Close(file:d1) -> LONG */
-static LONG sl_Close(BPTR file)
-{
-    return DOS_LVO(sl_DOSBase, 36,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR))(sl_DOSBase, file);
-}
+static BPTR __sl_Open(__reg("a6") struct Library *base,
+                      __reg("d1") const char *name,
+                      __reg("d2") LONG mode) = "\tjsr\t-30(a6)";
+#define sl_Open(n,m) __sl_Open(sl_DOSBase, (n), (m))
 
-/* -72:  DeleteFile(name:d1) -> LONG */
-static LONG sl_DeleteFile(const char *name)
-{
-    return DOS_LVO(sl_DOSBase, 72,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *))(sl_DOSBase, name);
-}
+static LONG __sl_Close(__reg("a6") struct Library *base,
+                       __reg("d1") BPTR file) = "\tjsr\t-36(a6)";
+#define sl_Close(f) __sl_Close(sl_DOSBase, (f))
 
-/* -78:  Rename(oldName:d1, newName:d2) -> LONG */
-static LONG sl_Rename(const char *oldName, const char *newName)
-{
-    return DOS_LVO(sl_DOSBase, 78,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") const char *))(sl_DOSBase, oldName, newName);
-}
+static LONG __sl_DeleteFile(__reg("a6") struct Library *base,
+                            __reg("d1") const char *name) = "\tjsr\t-72(a6)";
+#define sl_DeleteFile(n) __sl_DeleteFile(sl_DOSBase, (n))
 
-/* -84:  Lock(name:d1, type:d2) -> BPTR */
-static BPTR sl_Lock(const char *name, LONG type)
-{
-    return DOS_LVO(sl_DOSBase, 84,
-        BPTR (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") LONG))(sl_DOSBase, name, type);
-}
+static LONG __sl_Rename(__reg("a6") struct Library *base,
+                        __reg("d1") const char *o,
+                        __reg("d2") const char *n) = "\tjsr\t-78(a6)";
+#define sl_Rename(o,n) __sl_Rename(sl_DOSBase, (o), (n))
 
-/* -90:  UnLock(lock:d1) -> void */
-static void sl_UnLock(BPTR lock)
-{
-    DOS_LVO(sl_DOSBase, 90,
-        void (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR))(sl_DOSBase, lock);
-}
+static BPTR __sl_Lock(__reg("a6") struct Library *base,
+                      __reg("d1") const char *name,
+                      __reg("d2") LONG type) = "\tjsr\t-84(a6)";
+#define sl_Lock(n,t) __sl_Lock(sl_DOSBase, (n), (t))
 
-/* -96:  DupLock(lock:d1) -> BPTR */
-static BPTR sl_DupLock(BPTR lock)
-{
-    return DOS_LVO(sl_DOSBase, 96,
-        BPTR (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR))(sl_DOSBase, lock);
-}
+static void __sl_UnLock(__reg("a6") struct Library *base,
+                        __reg("d1") BPTR lock) = "\tjsr\t-90(a6)";
+#define sl_UnLock(l) __sl_UnLock(sl_DOSBase, (l))
 
-/* -102: Examine(lock:d1, fib:d2) -> LONG */
-static LONG sl_Examine(BPTR lock, struct FileInfoBlock *fib)
-{
-    return DOS_LVO(sl_DOSBase, 102,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR,
-                 __reg("d2") struct FileInfoBlock *))(sl_DOSBase, lock, fib);
-}
+static BPTR __sl_DupLock(__reg("a6") struct Library *base,
+                         __reg("d1") BPTR lock) = "\tjsr\t-96(a6)";
+#define sl_DupLock(l) __sl_DupLock(sl_DOSBase, (l))
 
-/* -108: ExNext(lock:d1, fib:d2) -> LONG */
-static LONG sl_ExNext(BPTR lock, struct FileInfoBlock *fib)
-{
-    return DOS_LVO(sl_DOSBase, 108,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR,
-                 __reg("d2") struct FileInfoBlock *))(sl_DOSBase, lock, fib);
-}
+static LONG __sl_Examine(__reg("a6") struct Library *base,
+                         __reg("d1") BPTR lock,
+                         __reg("d2") struct FileInfoBlock *fib)
+                         = "\tjsr\t-102(a6)";
+#define sl_Examine(l,f) __sl_Examine(sl_DOSBase, (l), (f))
 
-/* -114: Info(lock:d1, info:d2) -> LONG */
-static LONG sl_Info(BPTR lock, struct InfoData *info)
-{
-    return DOS_LVO(sl_DOSBase, 114,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR,
-                 __reg("d2") struct InfoData *))(sl_DOSBase, lock, info);
-}
+static LONG __sl_ExNext(__reg("a6") struct Library *base,
+                        __reg("d1") BPTR lock,
+                        __reg("d2") struct FileInfoBlock *fib)
+                        = "\tjsr\t-108(a6)";
+#define sl_ExNext(l,f) __sl_ExNext(sl_DOSBase, (l), (f))
 
-/* -120: CreateDir(name:d1) -> BPTR */
-static BPTR sl_CreateDir(const char *name)
-{
-    return DOS_LVO(sl_DOSBase, 120,
-        BPTR (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *))(sl_DOSBase, name);
-}
+static LONG __sl_Info(__reg("a6") struct Library *base,
+                      __reg("d1") BPTR lock,
+                      __reg("d2") struct InfoData *info)
+                      = "\tjsr\t-114(a6)";
+#define sl_Info(l,i) __sl_Info(sl_DOSBase, (l), (i))
 
-/* -126: CurrentDir(lock:d1) -> BPTR (old lock) */
-static BPTR sl_CurrentDir(BPTR lock)
-{
-    return DOS_LVO(sl_DOSBase, 126,
-        BPTR (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR))(sl_DOSBase, lock);
-}
+static BPTR __sl_CreateDir(__reg("a6") struct Library *base,
+                           __reg("d1") const char *name) = "\tjsr\t-120(a6)";
+#define sl_CreateDir(n) __sl_CreateDir(sl_DOSBase, (n))
 
-/* -132: IoErr() -> LONG */
-static LONG sl_IoErr(void)
-{
-    return DOS_LVO(sl_DOSBase, 132,
-        LONG (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static BPTR __sl_CurrentDir(__reg("a6") struct Library *base,
+                            __reg("d1") BPTR lock) = "\tjsr\t-126(a6)";
+#define sl_CurrentDir(l) __sl_CurrentDir(sl_DOSBase, (l))
 
-/* -186: SetProtection(name:d1, protect:d2) -> LONG */
-static LONG sl_SetProtection(const char *name, LONG protect)
-{
-    return DOS_LVO(sl_DOSBase, 186,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") LONG))(sl_DOSBase, name, protect);
-}
+static LONG __sl_IoErr(__reg("a6") struct Library *base) = "\tjsr\t-132(a6)";
+#define sl_IoErr() __sl_IoErr(sl_DOSBase)
 
-/* -198: Delay(timeout:d1) -> void */
-static void sl_Delay(LONG timeout)
-{
-    DOS_LVO(sl_DOSBase, 198,
-        void (*)(__reg("a6") struct Library *,
-                 __reg("d1") LONG))(sl_DOSBase, timeout);
-}
+static LONG __sl_SetProtection(__reg("a6") struct Library *base,
+                               __reg("d1") const char *name,
+                               __reg("d2") LONG protect)
+                               = "\tjsr\t-186(a6)";
+#define sl_SetProtection(n,p) __sl_SetProtection(sl_DOSBase, (n), (p))
 
-/* -204: WaitForChar(file:d1, timeout:d2) -> LONG */
-static LONG sl_WaitForChar(BPTR file, LONG timeout)
-{
-    return DOS_LVO(sl_DOSBase, 204,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR,
-                 __reg("d2") LONG))(sl_DOSBase, file, timeout);
-}
+static void __sl_Delay(__reg("a6") struct Library *base,
+                       __reg("d1") LONG timeout) = "\tjsr\t-198(a6)";
+#define sl_Delay(t) __sl_Delay(sl_DOSBase, (t))
 
-/* -216: IsInteractive(file:d1) -> LONG */
-static LONG sl_IsInteractive(BPTR file)
-{
-    return DOS_LVO(sl_DOSBase, 216,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR))(sl_DOSBase, file);
-}
+static LONG __sl_WaitForChar(__reg("a6") struct Library *base,
+                             __reg("d1") BPTR file,
+                             __reg("d2") LONG timeout)
+                             = "\tjsr\t-204(a6)";
+#define sl_WaitForChar(f,t) __sl_WaitForChar(sl_DOSBase, (f), (t))
 
-/* -54: Input() -> BPTR */
-static BPTR sl_Input(void)
-{
-    return DOS_LVO(sl_DOSBase, 54,
-        BPTR (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static LONG __sl_IsInteractive(__reg("a6") struct Library *base,
+                               __reg("d1") BPTR file) = "\tjsr\t-216(a6)";
+#define sl_IsInteractive(f) __sl_IsInteractive(sl_DOSBase, (f))
 
-/* -60: Output() -> BPTR */
-static BPTR sl_Output(void)
-{
-    return DOS_LVO(sl_DOSBase, 60,
-        BPTR (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static BPTR __sl_Input(__reg("a6") struct Library *base) = "\tjsr\t-54(a6)";
+#define sl_Input() __sl_Input(sl_DOSBase)
 
-/* -396: SetFileDate(name:d1, date:d2) -> LONG */
-static LONG sl_SetFileDate(const char *name, struct DateStamp *date)
-{
-    return DOS_LVO(sl_DOSBase, 396,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") struct DateStamp *))(sl_DOSBase, name, date);
-}
+static BPTR __sl_Output(__reg("a6") struct Library *base) = "\tjsr\t-60(a6)";
+#define sl_Output() __sl_Output(sl_DOSBase)
 
-/* -402: NameFromLock(lock:d1, buffer:d2, len:d3) -> LONG */
-static LONG sl_NameFromLock(BPTR lock, char *buffer, LONG len)
-{
-    return DOS_LVO(sl_DOSBase, 402,
-        LONG (*)(__reg("a6") struct Library *,
-                 __reg("d1") BPTR,
-                 __reg("d2") char *,
-                 __reg("d3") LONG))(sl_DOSBase, lock, buffer, len);
-}
+static LONG __sl_SetFileDate(__reg("a6") struct Library *base,
+                             __reg("d1") const char *name,
+                             __reg("d2") struct DateStamp *date)
+                             = "\tjsr\t-396(a6)";
+#define sl_SetFileDate(n,d) __sl_SetFileDate(sl_DOSBase, (n), (d))
+
+static LONG __sl_NameFromLock(__reg("a6") struct Library *base,
+                              __reg("d1") BPTR lock,
+                              __reg("d2") char *buffer,
+                              __reg("d3") LONG len)
+                              = "\tjsr\t-402(a6)";
+#define sl_NameFromLock(l,b,n) __sl_NameFromLock(sl_DOSBase, (l), (b), (n))
 
 /* ================================================================
  * AmigaOS epoch offset

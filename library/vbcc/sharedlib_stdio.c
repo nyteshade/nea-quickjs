@@ -36,83 +36,61 @@ extern struct Library *sl_DOSBase;
 #define OFFSET_CURRENT    0L
 #define OFFSET_END        1L
 
-/* ---- dos.library call wrappers ---- */
+/* ---- dos.library call wrappers ----
+ * Use VBCC inline assembly syntax: function = "asm";
+ * Embeds jsr -N(a6) directly at call site, sidestepping the
+ * __reg("a6") frame pointer issue. */
 
-static long dos_Open(const char *name, long mode)
-{
-    return DOS_LVO(sl_DOSBase, 30,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") long))(sl_DOSBase, name, mode);
-}
+static long __dos_Open(__reg("a6") struct Library *base,
+                       __reg("d1") const char *name,
+                       __reg("d2") long mode) = "\tjsr\t-30(a6)";
+#define dos_Open(n,m) __dos_Open(sl_DOSBase, (n), (m))
 
-static void dos_Close(long file)
-{
-    DOS_LVO(sl_DOSBase, 36,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long))(sl_DOSBase, file);
-}
+static long __dos_Close(__reg("a6") struct Library *base,
+                        __reg("d1") long file) = "\tjsr\t-36(a6)";
+#define dos_Close(f) __dos_Close(sl_DOSBase, (f))
 
-static long dos_Read(long file, void *buf, long len)
-{
-    return DOS_LVO(sl_DOSBase, 42,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") void *,
-                 __reg("d3") long))(sl_DOSBase, file, buf, len);
-}
+static long __dos_Read(__reg("a6") struct Library *base,
+                       __reg("d1") long file,
+                       __reg("d2") void *buf,
+                       __reg("d3") long len) = "\tjsr\t-42(a6)";
+#define dos_Read(f,b,l) __dos_Read(sl_DOSBase, (f), (b), (l))
 
-static long dos_Write(long file, const void *buf, long len)
-{
-    return DOS_LVO(sl_DOSBase, 48,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") const void *,
-                 __reg("d3") long))(sl_DOSBase, file, buf, len);
-}
+static long __dos_Write(__reg("a6") struct Library *base,
+                        __reg("d1") long file,
+                        __reg("d2") const void *buf,
+                        __reg("d3") long len) = "\tjsr\t-48(a6)";
+#define dos_Write(f,b,l) __dos_Write(sl_DOSBase, (f), (b), (l))
 
-static long dos_Seek(long file, long pos, long mode)
-{
-    return DOS_LVO(sl_DOSBase, 66,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") long,
-                 __reg("d3") long))(sl_DOSBase, file, pos, mode);
-}
+static long __dos_Seek(__reg("a6") struct Library *base,
+                       __reg("d1") long file,
+                       __reg("d2") long pos,
+                       __reg("d3") long mode) = "\tjsr\t-66(a6)";
+#define dos_Seek(f,p,m) __dos_Seek(sl_DOSBase, (f), (p), (m))
 
-static long dos_Input(void)
-{
-    return DOS_LVO(sl_DOSBase, 54,
-        long (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static long __dos_Input(__reg("a6") struct Library *base) = "\tjsr\t-54(a6)";
+#define dos_Input() __dos_Input(sl_DOSBase)
 
-static long dos_Output(void)
-{
-    return DOS_LVO(sl_DOSBase, 60,
-        long (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static long __dos_Output(__reg("a6") struct Library *base) = "\tjsr\t-60(a6)";
+#define dos_Output() __dos_Output(sl_DOSBase)
 
-static void dos_Flush(long file)
-{
-    DOS_LVO(sl_DOSBase, 360,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long))(sl_DOSBase, file);
-}
+static long __dos_Flush(__reg("a6") struct Library *base,
+                        __reg("d1") long file) = "\tjsr\t-360(a6)";
+#define dos_Flush(f) __dos_Flush(sl_DOSBase, (f))
 
-static long dos_FGetC(long file)
-{
-    return DOS_LVO(sl_DOSBase, 306,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long))(sl_DOSBase, file);
-}
+static long __dos_FGetC(__reg("a6") struct Library *base,
+                        __reg("d1") long file) = "\tjsr\t-306(a6)";
+#define dos_FGetC(f) __dos_FGetC(sl_DOSBase, (f))
 
-static long dos_FPutC(long file, long ch)
-{
-    return DOS_LVO(sl_DOSBase, 312,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") long))(sl_DOSBase, file, ch);
-}
+static long __dos_FPutC(__reg("a6") struct Library *base,
+                        __reg("d1") long file,
+                        __reg("d2") long ch) = "\tjsr\t-312(a6)";
+#define dos_FPutC(f,c) __dos_FPutC(sl_DOSBase, (f), (c))
+
+static long __dos_UnGetC(__reg("a6") struct Library *base,
+                         __reg("d1") long file,
+                         __reg("d2") long ch) = "\tjsr\t-318(a6)";
+#define dos_UnGetC(f,c) __dos_UnGetC(sl_DOSBase, (f), (c))
 
 /* ---- FILE pool (static allocation, no malloc needed) ---- */
 
@@ -525,10 +503,7 @@ int ungetc(int c, FILE *f)
     fh = get_filehandle(f);
     if (!fh) return EOF;
 
-    DOS_LVO(sl_DOSBase, 318,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") long))(sl_DOSBase, fh, (long)c);
+    dos_UnGetC(fh, (long)c);
 
     f->flags &= ~_EOF;
     return c;

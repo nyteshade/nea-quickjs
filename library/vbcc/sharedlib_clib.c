@@ -128,24 +128,34 @@ long strtol(const char *nptr, char **endptr, int base)
 #define DOS_LVO(base, off, proto) \
     ((proto)(((char *)(base)) - (off)))
 
-/* GetVar - LVO -906 */
-static long dos_GetVar(const char *name, char *buf, long size, long flags)
-{
-    if (!sl_DOSBase) return -1;
-    return DOS_LVO(sl_DOSBase, 906,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") char *,
-                 __reg("d3") long,
-                 __reg("d4") long))(sl_DOSBase, name, buf, size, flags);
-}
+/* dos.library wrappers using VBCC inline assembly syntax —
+ * sidesteps __reg("a6") frame pointer corruption */
+
+static long __dos_GetVar(__reg("a6") struct Library *base,
+                         __reg("d1") const char *name,
+                         __reg("d2") char *buf,
+                         __reg("d3") long size,
+                         __reg("d4") long flags) = "\tjsr\t-906(a6)";
+#define dos_GetVar(n,b,s,f) __dos_GetVar(sl_DOSBase, (n), (b), (s), (f))
+
+static long __dos_SetVar(__reg("a6") struct Library *base,
+                         __reg("d1") const char *name,
+                         __reg("d2") const char *value,
+                         __reg("d3") long len,
+                         __reg("d4") long flags) = "\tjsr\t-912(a6)";
+#define dos_SetVar(n,v,l,f) __dos_SetVar(sl_DOSBase, (n), (v), (l), (f))
+
+static long __dos_DeleteVar(__reg("a6") struct Library *base,
+                            __reg("d1") const char *name,
+                            __reg("d2") long flags) = "\tjsr\t-918(a6)";
+#define dos_DeleteVar(n,f) __dos_DeleteVar(sl_DOSBase, (n), (f))
 
 static char _getenv_buf[256];
 
 char *getenv(const char *name)
 {
     long r;
-    if (!name) return NULL;
+    if (!name || !sl_DOSBase) return NULL;
     r = dos_GetVar(name, _getenv_buf, sizeof(_getenv_buf), 0);
     if (r < 0) return NULL;
     return _getenv_buf;
@@ -153,30 +163,20 @@ char *getenv(const char *name)
 
 int setenv(const char *name, const char *value, int overwrite)
 {
-    /* SetVar - LVO -912 */
     long len;
     if (!sl_DOSBase || !name || !value) return -1;
     if (!overwrite) {
         if (dos_GetVar(name, _getenv_buf, 4, 0) >= 0) return 0;
     }
     len = (long)strlen(value);
-    DOS_LVO(sl_DOSBase, 912,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") const char *,
-                 __reg("d3") long,
-                 __reg("d4") long))(sl_DOSBase, name, value, len, 0);
+    dos_SetVar(name, value, len, 0);
     return 0;
 }
 
 int unsetenv(const char *name)
 {
-    /* DeleteVar - LVO -918 */
     if (!sl_DOSBase || !name) return -1;
-    DOS_LVO(sl_DOSBase, 918,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") long))(sl_DOSBase, name, 0);
+    dos_DeleteVar(name, 0);
     return 0;
 }
 
@@ -188,60 +188,39 @@ int unsetenv(const char *name)
 static long _fd_table[MAX_FDS];
 static int _fd_used[MAX_FDS];
 
-/* LVO offsets for dos.library file operations */
-static long dos_Open_raw(const char *name, long mode)
-{
-    return DOS_LVO(sl_DOSBase, 30,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") const char *,
-                 __reg("d2") long))(sl_DOSBase, name, mode);
-}
+/* dos.library file ops via inline assembly */
+static long __dos_Open_raw(__reg("a6") struct Library *base,
+                           __reg("d1") const char *name,
+                           __reg("d2") long mode) = "\tjsr\t-30(a6)";
+#define dos_Open_raw(n,m) __dos_Open_raw(sl_DOSBase, (n), (m))
 
-static void dos_Close_raw(long fh)
-{
-    DOS_LVO(sl_DOSBase, 36,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long))(sl_DOSBase, fh);
-}
+static long __dos_Close_raw(__reg("a6") struct Library *base,
+                            __reg("d1") long fh) = "\tjsr\t-36(a6)";
+#define dos_Close_raw(f) __dos_Close_raw(sl_DOSBase, (f))
 
-static long dos_Read_raw(long fh, void *buf, long len)
-{
-    return DOS_LVO(sl_DOSBase, 42,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") void *,
-                 __reg("d3") long))(sl_DOSBase, fh, buf, len);
-}
+static long __dos_Read_raw(__reg("a6") struct Library *base,
+                           __reg("d1") long fh,
+                           __reg("d2") void *buf,
+                           __reg("d3") long len) = "\tjsr\t-42(a6)";
+#define dos_Read_raw(f,b,l) __dos_Read_raw(sl_DOSBase, (f), (b), (l))
 
-static long dos_Write_raw(long fh, const void *buf, long len)
-{
-    return DOS_LVO(sl_DOSBase, 48,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") const void *,
-                 __reg("d3") long))(sl_DOSBase, fh, buf, len);
-}
+static long __dos_Write_raw(__reg("a6") struct Library *base,
+                            __reg("d1") long fh,
+                            __reg("d2") const void *buf,
+                            __reg("d3") long len) = "\tjsr\t-48(a6)";
+#define dos_Write_raw(f,b,l) __dos_Write_raw(sl_DOSBase, (f), (b), (l))
 
-static long dos_Seek_raw(long fh, long pos, long mode)
-{
-    return DOS_LVO(sl_DOSBase, 66,
-        long (*)(__reg("a6") struct Library *,
-                 __reg("d1") long,
-                 __reg("d2") long,
-                 __reg("d3") long))(sl_DOSBase, fh, pos, mode);
-}
+static long __dos_Seek_raw(__reg("a6") struct Library *base,
+                           __reg("d1") long fh,
+                           __reg("d2") long pos,
+                           __reg("d3") long mode) = "\tjsr\t-66(a6)";
+#define dos_Seek_raw(f,p,m) __dos_Seek_raw(sl_DOSBase, (f), (p), (m))
 
-static long dos_Input_raw(void)
-{
-    return DOS_LVO(sl_DOSBase, 54,
-        long (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static long __dos_Input_raw(__reg("a6") struct Library *base) = "\tjsr\t-54(a6)";
+#define dos_Input_raw() __dos_Input_raw(sl_DOSBase)
 
-static long dos_Output_raw(void)
-{
-    return DOS_LVO(sl_DOSBase, 60,
-        long (*)(__reg("a6") struct Library *))(sl_DOSBase);
-}
+static long __dos_Output_raw(__reg("a6") struct Library *base) = "\tjsr\t-60(a6)";
+#define dos_Output_raw() __dos_Output_raw(sl_DOSBase)
 
 void sharedlib_clib_init(void)
 {
