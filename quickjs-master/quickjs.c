@@ -55925,6 +55925,21 @@ int JS_AddIntrinsicBaseObjects(JSContext *ctx)
                                    countof(js_global_funcs)))
         return -1;
 
+#ifdef __VBCC__
+    /* VBCC can't compute 1.0/0.0 in a static initializer, so the
+     * Infinity and NaN values from js_global_funcs[] may be wrong.
+     * Patch them at runtime using proper IEEE 754 bit patterns. */
+    {
+        union { double d; unsigned long w[2]; } inf_u, nan_u;
+        inf_u.w[0] = 0x7FF00000ul; inf_u.w[1] = 0x00000000ul;
+        nan_u.w[0] = 0x7FF80000ul; nan_u.w[1] = 0x00000000ul;
+        JS_SetPropertyStr(ctx, ctx->global_obj, "Infinity",
+                          js_float64(inf_u.d));
+        JS_SetPropertyStr(ctx, ctx->global_obj, "NaN",
+                          js_float64(nan_u.d));
+    }
+#endif
+
     /* Number */
     obj1 = JS_NewCConstructor(ctx, JS_CLASS_NUMBER, "Number",
                               js_number_constructor, 1, JS_CFUNC_constructor_or_func, 0,

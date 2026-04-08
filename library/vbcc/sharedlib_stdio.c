@@ -556,13 +556,22 @@ int atexit(void (*func)(void))
     return 0;
 }
 
+/* exit_code is readable by the CLI after js_std_loop returns */
+static int _exit_requested = 0;
+static int _exit_code = 0;
+
+int sharedlib_exit_requested(void) { return _exit_requested; }
+int sharedlib_exit_code(void) { return _exit_code; }
+void sharedlib_exit_reset(void) { _exit_requested = 0; _exit_code = 0; }
+
 void exit(int code)
 {
     int i;
     for (i = _atexit_count - 1; i >= 0; i--) {
         if (_atexit_funcs[i]) _atexit_funcs[i]();
     }
-    /* In shared library, we can't actually exit. Loop forever. */
-    (void)code;
-    for (;;) ;
+    /* In shared library, we can't call the real exit.
+     * Set a flag so js_std_loop knows to break. */
+    _exit_requested = 1;
+    _exit_code = code;
 }
