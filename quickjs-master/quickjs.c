@@ -54279,12 +54279,15 @@ static const JSCFunctionListEntry js_global_funcs[] = {
     JS_CFUNC_MAGIC_DEF("encodeURIComponent", 1, js_global_encodeURI, 1 ),
     JS_CFUNC_DEF("escape", 1, js_global_escape ),
     JS_CFUNC_DEF("unescape", 1, js_global_unescape ),
-#ifndef __SASC
-    JS_PROP_DOUBLE_DEF("Infinity", 1.0 / 0.0, 0 ),
-    JS_PROP_U2D_DEF("NaN", 0x7FF8ull<<48, 0 ), /* workaround for msvc */
-#else
+#if defined(__VBCC__)
+    /* VBCC can't compute 1.0/0.0 in static initializers — these are
+     * added at runtime in JS_AddIntrinsicBaseObjects instead. */
+#elif defined(__SASC)
     JS_PROP_DOUBLE_RAW_DEF("Infinity", 0x7FF00000ul, 0x00000000ul, 0 ),
     JS_PROP_DOUBLE_RAW_DEF("NaN",      0x7FF80000ul, 0x00000000ul, 0 ),
+#else
+    JS_PROP_DOUBLE_DEF("Infinity", 1.0 / 0.0, 0 ),
+    JS_PROP_U2D_DEF("NaN", 0x7FF8ull<<48, 0 ), /* workaround for msvc */
 #endif
     JS_PROP_UNDEFINED_DEF("undefined", 0 ),
     JS_PROP_STRING_DEF("[Symbol.toStringTag]", "global", JS_PROP_CONFIGURABLE ),
@@ -55926,17 +55929,17 @@ int JS_AddIntrinsicBaseObjects(JSContext *ctx)
         return -1;
 
 #ifdef __VBCC__
-    /* VBCC can't compute 1.0/0.0 in a static initializer, so the
-     * Infinity and NaN values from js_global_funcs[] may be wrong.
-     * Patch them at runtime using proper IEEE 754 bit patterns. */
+    /* VBCC can't compute 1.0/0.0 in static initializers. Infinity and
+     * NaN are excluded from js_global_funcs[] and defined here using
+     * proper IEEE 754 bit patterns via union cast. */
     {
         union { double d; unsigned long w[2]; } inf_u, nan_u;
         inf_u.w[0] = 0x7FF00000ul; inf_u.w[1] = 0x00000000ul;
         nan_u.w[0] = 0x7FF80000ul; nan_u.w[1] = 0x00000000ul;
-        JS_SetPropertyStr(ctx, ctx->global_obj, "Infinity",
-                          js_float64(inf_u.d));
-        JS_SetPropertyStr(ctx, ctx->global_obj, "NaN",
-                          js_float64(nan_u.d));
+        JS_DefinePropertyValueStr(ctx, ctx->global_obj, "Infinity",
+                                  js_float64(inf_u.d), 0);
+        JS_DefinePropertyValueStr(ctx, ctx->global_obj, "NaN",
+                                  js_float64(nan_u.d), 0);
     }
 #endif
 
