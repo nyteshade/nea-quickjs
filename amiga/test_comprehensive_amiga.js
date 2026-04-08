@@ -8,14 +8,10 @@
  * Reports PASS/FAIL with summary.
  */
 
-print('>>> module loading...');
 import * as std from 'qjs:std';
-print('>>> std imported');
 import * as os from 'qjs:os';
-print('>>> os imported');
 import * as bjson from 'qjs:bjson';
 
-print('>>> setting up test harness...');
 let pass = 0, fail = 0, skip = 0, total = 0;
 const failures = [];
 
@@ -47,13 +43,10 @@ function section(name) {
     print('\n[' + name + ']');
 }
 
-print('>>> checking platform...');
 let isAmiga;
 try {
     isAmiga = os.platform === 'amiga' || os.platform === 'AmigaOS';
-    print('>>> platform=' + os.platform);
 } catch(e) {
-    print('>>> os.platform failed: ' + e.message);
     isAmiga = true;
 }
 
@@ -296,32 +289,21 @@ test('globalThis === global', () => { globalThis.testVal = 99; return testVal ==
 // =========================================================================
 
 section('21. std module');
-print('>>> 21a: std.puts');
 test('std.puts', () => { std.puts(''); return true; });
-print('>>> 21b: std.printf');
 test('std.printf', () => { std.printf(''); return true; });
-print('>>> 21c: std.sprintf');
 test('std.sprintf', () => std.sprintf('%d', 42) === '42');
-print('>>> 21d: std.sprintf float');
 test('std.sprintf float', () => std.sprintf('%.2f', 3.14) === '3.14');
-print('>>> 21e: std.sprintf string');
 test('std.sprintf string', () => std.sprintf('%s!', 'hi') === 'hi!');
-print('>>> 21f: std.getenv');
 test('std.getenv', () => typeof std.getenv('PATH') === 'string' || std.getenv('PATH') === undefined);
-print('>>> 21g: std.strerror');
 test('std.strerror', () => typeof std.strerror(1) === 'string');
-print('>>> 21h: std.gc');
 test('std.gc', () => { std.gc(); return true; });
-print('>>> 21i: std.evalScript');
 test('std.evalScript', () => std.evalScript('1+1') === 2);
-print('>>> 21j: std.Error');
 test('std.Error', () => typeof std.Error !== 'undefined');
 
 section('22. std file I/O');
 /* Use relative paths — Amiga assigns (T:) may crash QuickJS path handling */
 const TESTFILE = 'qjs_test_io.txt';
 const TESTFILE2 = 'qjs_test_io2.txt';
-print('>>> file I/O tests using relative path: ' + TESTFILE);
 test('std.open write', () => {
     const f = std.open(TESTFILE, 'w');
     if (!f) return false;
@@ -369,42 +351,33 @@ test('file readAsArrayBuffer', () => {
 });
 
 section('23. os module basics');
-print('>>> 23a: os.platform');
 test('os.platform', () => typeof os.platform === 'string' && os.platform.length > 0);
-print('>>> 23b: os.now');
 test('os.now', () => typeof os.now() === 'number');
-print('>>> 23c: os.getcwd');
 test('os.getcwd', () => { const [cwd, err] = os.getcwd(); return typeof cwd === 'string'; });
-print('>>> 23d: os.isatty');
 test('os.isatty', () => typeof os.isatty(0) === 'boolean' || typeof os.isatty(0) === 'number');
 
 section('24. os file operations');
-print('>>> 24a: os.stat');
 test('os.stat', () => {
     const [st, err] = os.stat(TESTFILE);
     return st !== null && typeof st.size === 'number';
 });
-print('>>> 24b: os.readdir');
 test('os.readdir', () => {
     /* Amiga current dir = "" (empty string), no '.' support */
     const [entries, err] = os.readdir('');
     return Array.isArray(entries) && entries.length >= 0;
 });
-print('>>> 24c: os.mkdir');
 test('os.mkdir', () => {
     os.mkdir('qjs_testdir');
     const [st, err] = os.stat('qjs_testdir');
     os.remove('qjs_testdir');
     return st !== null;
 });
-print('>>> 24d: os.rename');
 test('os.rename', () => {
     std.writeFile('qjs_rename_src.txt', 'data');
     const r = os.rename('qjs_rename_src.txt', 'qjs_rename_dst.txt');
     os.remove('qjs_rename_dst.txt');
     return true;
 });
-print('>>> 24e: os.remove');
 test('os.remove', () => {
     std.writeFile('qjs_remove_test.txt', 'data');
     os.remove('qjs_remove_test.txt');
