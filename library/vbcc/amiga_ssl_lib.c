@@ -137,30 +137,120 @@ typedef struct ssl_method_st SSL_METHOD;
  * LVO offsets from the AmiSSL SDK fd files. */
 extern struct Library *AmiSSLBase;
 
-/* AmiSSL proto headers have macro conflicts between inline protos
- * and openssl headers. Bypass entirely — declare only the functions
- * we actually use, with manual prototypes. The VBCC linker doesn't
- * need protos for library calls made through our LVO wrappers below.
- *
- * These functions will be called through AmiSSLBase using the
- * inline stub mechanism from amisslmaster proto. */
+/* AmiSSL functions — explicit LVO dispatch through AmiSSLBase.
+ * No proto/inline headers (they have macro conflicts).
+ * LVO offsets from AmiSSL v5.26 SDK fd file. */
+extern struct Library *AmiSSLBase;
 
-/* OpenAmiSSLTags is variadic — use amisslmaster proto */
-#include <clib/amisslmaster_protos.h>
+static SSL_CTX *ssl_CTX_new(const SSL_METHOD *meth) {
+    return AMISSL_LVO(AmiSSLBase, 8208,
+        SSL_CTX * (*)(__reg("a6") struct Library *,
+                      __reg("a0") const SSL_METHOD *))(AmiSSLBase, meth);
+}
+static void ssl_CTX_free(SSL_CTX *a) {
+    AMISSL_LVO(AmiSSLBase, 8214,
+        void (*)(__reg("a6") struct Library *,
+                 __reg("a0") SSL_CTX *))(AmiSSLBase, a);
+}
+static int ssl_set_fd(SSL *s, int fd) {
+    return AMISSL_LVO(AmiSSLBase, 8358,
+        int (*)(__reg("a6") struct Library *,
+                __reg("a0") SSL *,
+                __reg("d0") int))(AmiSSLBase, s, fd);
+}
+static SSL *ssl_new(SSL_CTX *ctx) {
+    return AMISSL_LVO(AmiSSLBase, 8784,
+        SSL * (*)(__reg("a6") struct Library *,
+                  __reg("a0") SSL_CTX *))(AmiSSLBase, ctx);
+}
+static void ssl_free(SSL *ssl) {
+    AMISSL_LVO(AmiSSLBase, 8820,
+        void (*)(__reg("a6") struct Library *,
+                 __reg("a0") SSL *))(AmiSSLBase, ssl);
+}
+static int ssl_connect(SSL *ssl) {
+    return AMISSL_LVO(AmiSSLBase, 8832,
+        int (*)(__reg("a6") struct Library *,
+                __reg("a0") SSL *))(AmiSSLBase, ssl);
+}
+static int ssl_read(SSL *ssl, void *buf, int num) {
+    return AMISSL_LVO(AmiSSLBase, 8838,
+        int (*)(__reg("a6") struct Library *,
+                __reg("a0") SSL *,
+                __reg("a1") void *,
+                __reg("d0") int))(AmiSSLBase, ssl, buf, num);
+}
+static int ssl_write(SSL *ssl, const void *buf, int num) {
+    return AMISSL_LVO(AmiSSLBase, 8850,
+        int (*)(__reg("a6") struct Library *,
+                __reg("a0") SSL *,
+                __reg("a1") const void *,
+                __reg("d0") int))(AmiSSLBase, ssl, buf, num);
+}
+static long ssl_ctrl(SSL *ssl, int cmd, long larg, void *parg) {
+    return AMISSL_LVO(AmiSSLBase, 8856,
+        long (*)(__reg("a6") struct Library *,
+                 __reg("a0") SSL *,
+                 __reg("d0") int,
+                 __reg("d1") long,
+                 __reg("a1") void *))(AmiSSLBase, ssl, cmd, larg, parg);
+}
+static int ssl_shutdown(SSL *s) {
+    return AMISSL_LVO(AmiSSLBase, 8994,
+        int (*)(__reg("a6") struct Library *,
+                __reg("a0") SSL *))(AmiSSLBase, s);
+}
+static const SSL_METHOD *ssl_TLS_client_method(void) {
+    return AMISSL_LVO(AmiSSLBase, 26934,
+        const SSL_METHOD * (*)(__reg("a6") struct Library *))(AmiSSLBase);
+}
 
-/* SSL functions — we declare manually and call through AmiSSLBase.
- * On AmigaOS, amissl.library functions need AmiSSLBase in a6. */
-SSL_CTX *SSL_CTX_new(const SSL_METHOD *method);
-void SSL_CTX_free(SSL_CTX *ctx);
-const SSL_METHOD *TLS_client_method(void);
-SSL *SSL_new(SSL_CTX *ctx);
-void SSL_free(SSL *ssl);
-int SSL_set_fd(SSL *ssl, int fd);
-int SSL_connect(SSL *ssl);
-int SSL_read(SSL *ssl, void *buf, int num);
-int SSL_write(SSL *ssl, const void *buf, int num);
-int SSL_shutdown(SSL *ssl);
-long SSL_ctrl(SSL *ssl, int cmd, long larg, void *parg);
+/* Map standard names to our LVO wrappers */
+#define SSL_CTX_new(m)       ssl_CTX_new(m)
+#define SSL_CTX_free(a)      ssl_CTX_free(a)
+#define SSL_set_fd(s,f)      ssl_set_fd(s,f)
+#define SSL_new(c)           ssl_new(c)
+#define SSL_free(s)          ssl_free(s)
+#define SSL_connect(s)       ssl_connect(s)
+#define SSL_read(s,b,n)      ssl_read(s,b,n)
+#define SSL_write(s,b,n)     ssl_write(s,b,n)
+#define SSL_ctrl(s,c,l,p)    ssl_ctrl(s,c,l,p)
+#define SSL_shutdown(s)      ssl_shutdown(s)
+#define TLS_client_method()  ssl_TLS_client_method()
+
+/* amisslmaster.library LVO wrappers */
+extern struct Library *AmiSSLMasterBase;
+
+/* OpenAmiSSLTagList - LVO -60 (variadic OpenAmiSSLTags wraps this) */
+static long ssl_OpenAmiSSLTagList(long apiVersion, struct TagItem *tags) {
+    return AMISSL_LVO(AmiSSLMasterBase, 60,
+        long (*)(__reg("a6") struct Library *,
+                 __reg("d0") long,
+                 __reg("a0") struct TagItem *))(AmiSSLMasterBase, apiVersion, tags);
+}
+
+/* CloseAmiSSL - LVO -42 */
+static void ssl_CloseAmiSSL(void) {
+    AMISSL_LVO(AmiSSLMasterBase, 42,
+        void (*)(__reg("a6") struct Library *))(AmiSSLMasterBase);
+}
+
+/* Variadic wrapper for OpenAmiSSLTags */
+#include <stdarg.h>
+static long ssl_OpenAmiSSLTags(long apiVersion, ...)
+{
+    /* On 68k, va_args are on the stack contiguously.
+     * TagItem array is just ULONG pairs — same layout. */
+    va_list ap;
+    struct TagItem *tags;
+    va_start(ap, apiVersion);
+    tags = (struct TagItem *)ap;
+    va_end(ap);
+    return ssl_OpenAmiSSLTagList(apiVersion, tags);
+}
+
+#define OpenAmiSSLTags  ssl_OpenAmiSSLTags
+#define CloseAmiSSL()   ssl_CloseAmiSSL()
 
 /* SNI support */
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME

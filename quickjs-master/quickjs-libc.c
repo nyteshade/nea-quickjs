@@ -1821,11 +1821,12 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
             break;
         }
     }
-    JS_FreeCString(ctx, url);
+    /* Don't free url yet — AmiSSL path needs it for amiga_http_get */
     dbuf_putstr(&cmd_buf, "'");
     dbuf_putc(&cmd_buf, '\0');
     if (dbuf_error(&cmd_buf)) {
         dbuf_free(&cmd_buf);
+        JS_FreeCString(ctx, url);
         return JS_EXCEPTION;
     }
 #if defined(__SASC) || defined(__VBCC__)
@@ -1892,6 +1893,7 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
     }
 }
 #else /* !__SASC && !__VBCC__: popen/curl fallback */
+    JS_FreeCString(ctx, url);
     /*    printf("%s\n", (char *)cmd_buf.buf); */
     f = popen((char *)cmd_buf.buf, "r");
     dbuf_free(&cmd_buf);
