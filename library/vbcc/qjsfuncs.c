@@ -156,14 +156,11 @@ extern int JS_SetModuleExportList(struct JSContext *ctx, void *m,
     const void *tab, int len);
 
 /* ---- Serial debug output via RawPutChar (exec LVO -516) ---- */
-#define LVO_CALL(base, offset, type) ((type)((char *)(base) - (offset)))
-
-static void dbg_char(struct ExecBase *sys, char c)
-{
-    LVO_CALL(sys, 516,
-        void (*)(__reg("a6") struct ExecBase *,
-                 __reg("d0") UBYTE))(sys, (UBYTE)c);
-}
+/* Use VBCC inline assembly syntax to avoid __reg("a6") frame
+ * pointer corruption from function-pointer dispatch. */
+static void __dbg_char(__reg("a6") struct ExecBase *sys,
+                       __reg("d0") UBYTE c) = "\tjsr\t-516(a6)";
+#define dbg_char(sys, c) __dbg_char((sys), (UBYTE)(c))
 
 static void dbg_str(struct ExecBase *sys, const char *s)
 {
