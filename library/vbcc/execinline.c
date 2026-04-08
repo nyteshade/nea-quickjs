@@ -1,73 +1,154 @@
 /*
- * execinline.c — Direct exec.library calls via VBCC inline assembly.
+ * execinline.c — Direct exec.library calls via explicit SysBase.
+ * No globals, no amiga.lib. Each function dispatches through the
+ * exec jump table using VBCC's __reg() syntax.
  *
- * The functions here are simple wrappers that take ExecBase as the
- * first argument and call the corresponding exec.library LVO. They
- * use VBCC's inline assembly syntax (`function = "asm";`) which
- * embeds the jsr directly at the call site, sidestepping any
- * __reg("a6") frame pointer issues.
+ * IMPORTANT: Amiga library LVO entries contain JMP instructions,
+ * not function pointers. We cast (sysBase - offset) as a function
+ * pointer and call it directly — the CPU executes the JMP at that
+ * address which bounces to the real implementation.
  */
 #include <exec/types.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
 #include <exec/nodes.h>
 
+/* Helper macro: cast LVO address as callable function pointer.
+ * base - offset gives the address of the JMP instruction in the
+ * library's jump table. Calling it executes the JMP. */
+#define LVO(base, offset, type) ((type)((char *)(base) - (offset)))
+
 /* ---- Library management ---- */
 
-struct Library *__OpenLibrary(__reg("a6") struct ExecBase *sysBase,
-                              __reg("a1") const char *name,
-                              __reg("d0") ULONG version)
-                              = "\tjsr\t-552(a6)";
+/* OpenLibrary — LVO -552 */
+struct Library *__OpenLibrary(struct ExecBase *sysBase,
+                               const char *name, ULONG version)
+{
+    return LVO(sysBase, 552,
+        struct Library *(*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a1") const char *,
+            __reg("d0") ULONG))(sysBase, name, version);
+}
 
-void __CloseLibrary(__reg("a6") struct ExecBase *sysBase,
-                    __reg("a1") struct Library *lib) = "\tjsr\t-414(a6)";
+/* CloseLibrary — LVO -414 */
+void __CloseLibrary(struct ExecBase *sysBase, struct Library *lib)
+{
+    LVO(sysBase, 414,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a1") struct Library *))(sysBase, lib);
+}
 
 /* ---- Node management ---- */
 
-void __Remove(__reg("a6") struct ExecBase *sysBase,
-              __reg("a1") struct Node *node) = "\tjsr\t-252(a6)";
+/* Remove — LVO -252 */
+void __Remove(struct ExecBase *sysBase, struct Node *node)
+{
+    LVO(sysBase, 252,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a1") struct Node *))(sysBase, node);
+}
 
 /* ---- Raw memory ---- */
 
-void *__AllocMem(__reg("a6") struct ExecBase *sysBase,
-                 __reg("d0") ULONG size,
-                 __reg("d1") ULONG attrs) = "\tjsr\t-198(a6)";
+/* AllocMem — LVO -198 */
+void *__AllocMem(struct ExecBase *sysBase, ULONG size, ULONG attrs)
+{
+    return LVO(sysBase, 198,
+        void *(*)(
+            __reg("a6") struct ExecBase *,
+            __reg("d0") ULONG,
+            __reg("d1") ULONG))(sysBase, size, attrs);
+}
 
-void __FreeMem(__reg("a6") struct ExecBase *sysBase,
-               __reg("a1") APTR mem,
-               __reg("d0") ULONG size) = "\tjsr\t-210(a6)";
+/* FreeMem — LVO -210 */
+void __FreeMem(struct ExecBase *sysBase, void *mem, ULONG size)
+{
+    LVO(sysBase, 210,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a1") APTR,
+            __reg("d0") ULONG))(sysBase, (APTR)mem, size);
+}
 
 /* ---- Vector memory ---- */
 
-void *__AllocVec(__reg("a6") struct ExecBase *sysBase,
-                 __reg("d0") ULONG size,
-                 __reg("d1") ULONG attrs) = "\tjsr\t-684(a6)";
+/* AllocVec — LVO -684 */
+void *__AllocVec(struct ExecBase *sysBase, ULONG size, ULONG attrs)
+{
+    return LVO(sysBase, 684,
+        void *(*)(
+            __reg("a6") struct ExecBase *,
+            __reg("d0") ULONG,
+            __reg("d1") ULONG))(sysBase, size, attrs);
+}
 
-void __FreeVec(__reg("a6") struct ExecBase *sysBase,
-               __reg("a1") APTR mem) = "\tjsr\t-690(a6)";
+/* FreeVec — LVO -690 */
+void __FreeVec(struct ExecBase *sysBase, void *mem)
+{
+    LVO(sysBase, 690,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a1") APTR))(sysBase, (APTR)mem);
+}
 
 /* ---- Pool memory (V39+) ---- */
 
-APTR __CreatePool(__reg("a6") struct ExecBase *sysBase,
-                  __reg("d0") ULONG attrs,
-                  __reg("d1") ULONG puddleSize,
-                  __reg("d2") ULONG threshSize) = "\tjsr\t-696(a6)";
+/* CreatePool — LVO -696 */
+APTR __CreatePool(struct ExecBase *sysBase,
+                  ULONG attrs, ULONG puddleSize, ULONG threshSize)
+{
+    return LVO(sysBase, 696,
+        APTR (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("d0") ULONG,
+            __reg("d1") ULONG,
+            __reg("d2") ULONG))(sysBase, attrs, puddleSize, threshSize);
+}
 
-void __DeletePool(__reg("a6") struct ExecBase *sysBase,
-                  __reg("a0") APTR pool) = "\tjsr\t-702(a6)";
+/* DeletePool — LVO -702 */
+void __DeletePool(struct ExecBase *sysBase, APTR pool)
+{
+    LVO(sysBase, 702,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a0") APTR))(sysBase, pool);
+}
 
-void *__AllocPooled(__reg("a6") struct ExecBase *sysBase,
-                    __reg("a0") APTR pool,
-                    __reg("d0") ULONG size) = "\tjsr\t-708(a6)";
+/* AllocPooled — LVO -708 */
+void *__AllocPooled(struct ExecBase *sysBase, APTR pool, ULONG size)
+{
+    return LVO(sysBase, 708,
+        void *(*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a0") APTR,
+            __reg("d0") ULONG))(sysBase, pool, size);
+}
 
-void __FreePooled(__reg("a6") struct ExecBase *sysBase,
-                  __reg("a0") APTR pool,
-                  __reg("a1") APTR mem,
-                  __reg("d0") ULONG size) = "\tjsr\t-714(a6)";
+/* FreePooled — LVO -714 */
+void __FreePooled(struct ExecBase *sysBase, APTR pool,
+                  void *mem, ULONG size)
+{
+    LVO(sysBase, 714,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a0") APTR,
+            __reg("a1") APTR,
+            __reg("d0") ULONG))(sysBase, pool, (APTR)mem, size);
+}
 
 /* ---- Misc ---- */
 
-void __CopyMem(__reg("a6") struct ExecBase *sysBase,
-               __reg("a0") const void *src,
-               __reg("a1") void *dest,
-               __reg("d0") ULONG size) = "\tjsr\t-624(a6)";
+/* CopyMem — LVO -624 */
+void __CopyMem(struct ExecBase *sysBase,
+               const void *src, void *dest, ULONG size)
+{
+    LVO(sysBase, 624,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a0") const void *,
+            __reg("a1") void *,
+            __reg("d0") ULONG))(sysBase, src, dest, size);
+}
