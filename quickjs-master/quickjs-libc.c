@@ -5261,6 +5261,20 @@ void js_std_dump_error(JSContext *ctx)
 {
     JSValue exception_val;
 
+#if defined(__VBCC__) || defined(__SASC)
+    /* Suppress error dump if exit() was called — the InternalError
+     * from js_std_exit is just a mechanism to unwind the event loop,
+     * not a real error the user needs to see. */
+    {
+        extern int sharedlib_exit_requested(void);
+        if (sharedlib_exit_requested()) {
+            exception_val = JS_GetException(ctx);
+            JS_FreeValue(ctx, exception_val);
+            return;
+        }
+    }
+#endif
+
     exception_val = JS_GetException(ctx);
     js_std_dump_error1(ctx, exception_val);
     JS_FreeValue(ctx, exception_val);
