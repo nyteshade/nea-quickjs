@@ -29,6 +29,7 @@
 extern int amiga_force_color;
 #elif defined(__VBCC__)
 #include "amiga_compat_vbcc.h"
+#include "amiga_ssl.h"
 #include <proto/exec.h>
 extern int amiga_force_color;
 #endif
@@ -1827,8 +1828,8 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         dbuf_free(&cmd_buf);
         return JS_EXCEPTION;
     }
-#if defined(__SASC)
-    /* AmigaOS / SAS-C: use native AmiSSL HTTP client instead of curl */
+#if defined(__SASC) || defined(__VBCC__)
+    /* AmigaOS: use native AmiSSL HTTP client instead of curl */
     {
         char *body = NULL;
         int body_len = 0, http_status = 0;
@@ -1889,7 +1890,8 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         }
         return response;
     }
-#else /* !__SASC: popen/curl fallback (VBCC uses this path too) */
+}
+#else /* !__SASC && !__VBCC__: popen/curl fallback */
     /*    printf("%s\n", (char *)cmd_buf.buf); */
     f = popen((char *)cmd_buf.buf, "r");
     dbuf_free(&cmd_buf);

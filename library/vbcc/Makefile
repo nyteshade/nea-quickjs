@@ -28,12 +28,15 @@ QJS      = $(ROOT)/quickjs-master
 INCLUDE  = $(ROOT)/include
 TEMPLATE = $(ROOT)/vbcc-librarytemplate
 LIBVBCC  = $(ROOT)/library/vbcc
+SRC      = $(ROOT)/src
 OUTDIR   = $(ROOT)/amiga
 
 # Common compiler flags (no FPU setting — added per target)
+AMISSL_SDK = $(ROOT)/sdks/AmiSSL-v5.26-SDK/Developer/include
 CFLAGS_COMMON = +aos68k -c -cpu=68020 -O1 \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
+         -I$(AMISSL_SDK) \
          -I$(INCLUDE) -I$(QJS) \
          -I$(TEMPLATE) -I$(LIBVBCC)
 
@@ -86,7 +89,8 @@ FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
 FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/qjsfuncs_asm_all.o \
               $(OBJDIR_FPU)/execinline.o $(OBJDIR_FPU)/qjs_dbg_stub.o \
-              $(OBJDIR_FPU)/quickjs_libc_lib.o
+              $(OBJDIR_FPU)/quickjs_libc_lib.o \
+              $(OBJDIR_FPU)/amiga_ssl_lib.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
 
@@ -110,7 +114,8 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
 SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/qjsfuncs_asm_all.o \
               $(OBJDIR_SOFT)/execinline.o $(OBJDIR_SOFT)/qjs_dbg_stub.o \
-              $(OBJDIR_SOFT)/quickjs_libc_lib.o
+              $(OBJDIR_SOFT)/quickjs_libc_lib.o \
+              $(OBJDIR_SOFT)/amiga_ssl_lib.o
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
@@ -160,6 +165,9 @@ $(OBJDIR_FPU)/qjs_dbg_stub.o: $(LIBVBCC)/qjs_dbg_stub.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/quickjs_libc_lib.o: $(LIBVBCC)/quickjs_libc_lib.c $(QJS)/quickjs-libc.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/amiga_ssl_lib.o: $(LIBVBCC)/amiga_ssl_lib.c $(SRC)/amiga_ssl.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_FPU)
@@ -232,6 +240,9 @@ $(OBJDIR_SOFT)/qjs_dbg_stub.o: $(LIBVBCC)/qjs_dbg_stub.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/quickjs_libc_lib.o: $(LIBVBCC)/quickjs_libc_lib.c $(QJS)/quickjs-libc.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/amiga_ssl_lib.o: $(LIBVBCC)/amiga_ssl_lib.c $(SRC)/amiga_ssl.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_SOFT)
