@@ -1,5 +1,83 @@
 # QuickJS → AmigaOS Port — SO_FAR
 
+## Current State (April 2026, post-library architecture)
+
+**Major architectural milestone: quickjs.library is now the product.**
+
+The CLI binary (`amiga/qjs`) is a thin shell (~77 KB) that opens
+`quickjs.library` and calls into it via LVO. Any Amiga application
+can do the same and get full JavaScript with std/os/bjson modules.
+
+### Test results: **221/221 pass** on AmigaOS (Amiberry, 020 FPU)
+- All core JS, std, os, bjson modules work
+- REPL works with .quit and Ctrl-D
+- Module imports work (`import * as std from 'qjs:std'`)
+- File I/O works through dos.library
+- No crashes during normal operation
+
+### Build (modern, simple)
+
+```sh
+make           # build library + CLI
+make lib       # build library variants
+make cli       # build CLI binary
+make clean     # clean all
+```
+
+### Architecture
+
+| Component | Size | Contents |
+|-----------|------|----------|
+| `quickjs.library` (FPU) | ~998 KB | engine + std/os/bjson + dos.library shims |
+| `quickjs_soft.library` | ~1011 KB | same, soft-float math |
+| `qjs` (CLI) | ~77 KB | thin shell, opens library via LVO |
+
+### What lives WHERE
+
+| In library | In CLI |
+|-----------|--------|
+| QuickJS engine (quickjs.c, dtoa.c, libregexp.c, libunicode.c) | qjs.c (main, arg parsing, S:QJS-Config.txt) |
+| quickjs-libc.c (std, os, bjson modules) | bridge_asm*.s (LVO trampolines) |
+| sharedlib_posix.c (stat, getcwd, opendir, mkdir, rename, etc.) | quickjs_bridge.c (init/cleanup, stubs) |
+| sharedlib_stdio.c (fopen, fwrite via dos.library) | repl.o (precompiled REPL bytecode) |
+| sharedlib_clib.c (errno, strtol, sscanf, getenv, fd I/O) | standalone.o (precompiled standalone runner) |
+| sharedlib_mem.c (AllocVec malloc/free) | |
+| sharedlib_time.c (gettimeofday via DateStamp) | |
+| sharedlib_printf.c (snprintf/vsnprintf) | |
+| sharedlib_int64.s (64-bit integer helpers) | |
+| All 186 QJS_* LVO entry points (assembly) | |
+
+### Known issues / pending work
+
+- **AmiSSL HTTPS**: VBCC integration crashes — opt-in only via
+  `-DQJS_ENABLE_AMISSL`. Default builds use popen("curl") fallback
+  which fails cleanly. Root cause likely related to inline assembly
+  function signatures or AmiSSL task-local state.
+- **6 CPU/FPU variants**: Currently builds 020 FPU and 020 soft-float.
+  040/060 variants would need Makefile refactoring.
+- **os.now precision**: Returns ~7-digit values (microseconds since
+  some baseline) instead of microseconds since Unix epoch. Likely
+  in 64-bit multiply or VBCC inline behavior. Tests pass since they
+  just check delta, not absolute time.
+- **setTimeout timing**: Same root cause as os.now — depends on
+  js__hrtime_ms which uses gettimeofday.
+
+### Critical architectural rules (don't repeat past mistakes)
+
+1. **The library is the product, CLIs are just clients.** All
+   functionality MUST live in the library so any Amiga app can use
+   it. Never put JS-facing functionality in the CLI.
+2. **No .lib files in the library.** vc.lib, posix.lib, etc. depend
+   on C startup code that doesn't run in shared library context.
+   Use dos.library/exec.library directly via LVO.
+3. **VBCC `__reg("a6")` clobbers the frame pointer.** Any C function
+   declared with `__reg("a6")` parameter that uses stack-relative
+   addressing (locals, function calls) is broken. Use assembly
+   trampolines that read params from registers and call plain C
+   helpers without `__reg`.
+
+---
+
 ## Getting Started (read this first)
 
 This repo is worked on across multiple machines with different usernames.
