@@ -89,8 +89,7 @@ FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
 FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/qjsfuncs_asm_all.o \
               $(OBJDIR_FPU)/execinline.o $(OBJDIR_FPU)/qjs_dbg_stub.o \
-              $(OBJDIR_FPU)/quickjs_libc_lib.o \
-              $(OBJDIR_FPU)/amiga_ssl_lib.o
+              $(OBJDIR_FPU)/quickjs_libc_lib.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
 
@@ -114,8 +113,7 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
 SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/qjsfuncs_asm_all.o \
               $(OBJDIR_SOFT)/execinline.o $(OBJDIR_SOFT)/qjs_dbg_stub.o \
-              $(OBJDIR_SOFT)/quickjs_libc_lib.o \
-              $(OBJDIR_SOFT)/amiga_ssl_lib.o
+              $(OBJDIR_SOFT)/quickjs_libc_lib.o
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
