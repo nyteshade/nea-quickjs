@@ -38,7 +38,7 @@
 
 #ifdef __VBCC__
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.56 (6.4.2026)";
+static const char amiga_ver[] = "$VER: qjs 0.57 (8.4.2026)";
 extern int amiga_force_color;
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
