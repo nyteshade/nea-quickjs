@@ -974,8 +974,16 @@ static JSValue js_std_exit(JSContext *ctx, JSValueConst this_val,
     int status;
     if (JS_ToInt32(ctx, &status, argv[0]))
         status = -1;
+#if defined(__VBCC__) || defined(__SASC)
+    /* In shared library context, exit() can't terminate the process.
+     * Call exit() to run atexit handlers (e.g. restore terminal mode),
+     * then throw an uncatchable exception to unwind js_std_loop. */
+    exit(status);
+    return JS_ThrowInternalError(ctx, "exit(%d)", status);
+#else
     exit(status);
     return JS_UNDEFINED;
+#endif
 }
 
 static JSValue js_std_getenv(JSContext *ctx, JSValueConst this_val,
