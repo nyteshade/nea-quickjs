@@ -1107,20 +1107,6 @@ import * as bjson from "qjs:bjson";
                     refs.push(stack[n]);
                     break;
                 }
-                /* Check for custom inspect function via Symbol.for('qjs.inspect').
-                 * Object can override how it appears in the REPL by defining
-                 * a function at this symbol that returns a string. */
-                try {
-                    var inspectSym = Symbol.for('qjs.inspect');
-                    var customInspect = a[inspectSym];
-                    if (typeof customInspect === 'function') {
-                        var result = customInspect.call(a);
-                        if (typeof result === 'string') {
-                            push_token(result);
-                            break;
-                        }
-                    }
-                } catch (e) { /* fall through to default handling */ }
                 var obj_index = tokens.length;
                 var tag = class_tag(a);
                 stack.push(a);
