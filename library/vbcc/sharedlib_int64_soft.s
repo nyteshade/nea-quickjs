@@ -17,6 +17,10 @@
 ; Stack: a_hi(sp), a_lo(4,sp), b_hi(8,sp), b_lo(12,sp)
 ; ============================================================
 	xdef	__mulint64_020
+	xdef	__mulint64_040
+	xdef	__mulint64_060
+__mulint64_060:
+__mulint64_040:
 __mulint64_020:
 	movem.l	d2-d5,-(sp)	; save regs
 	; load args (offset by 16 for saved regs + 4 for return addr = 20)
@@ -48,6 +52,10 @@ __mulint64_020:
 ; Uses 68020 divul.l for 32-bit fast path, software for full 64-bit
 ; ============================================================
 	xdef	__divuint64_020
+	xdef	__divuint64_040
+	xdef	__divuint64_060
+__divuint64_060:
+__divuint64_040:
 __divuint64_020:
 	movem.l	d2-d7,-(sp)	; save regs (24 bytes)
 	move.l	28(sp),d0	; a_hi
@@ -99,6 +107,10 @@ __divuint64_020:
 ; 64-bit signed divide: d0:d1 = a / b
 ; ============================================================
 	xdef	__divsint64_020
+	xdef	__divsint64_040
+	xdef	__divsint64_060
+__divsint64_060:
+__divsint64_040:
 __divsint64_020:
 	movem.l	d2-d3,-(sp)	; save regs (8 bytes)
 	move.l	12(sp),d0	; a_hi
@@ -139,6 +151,10 @@ __divsint64_020:
 ; 64-bit unsigned modulo: d0:d1 = a % b
 ; ============================================================
 	xdef	__moduint64_020
+	xdef	__moduint64_040
+	xdef	__moduint64_060
+__moduint64_060:
+__moduint64_040:
 __moduint64_020:
 	movem.l	d2-d5,-(sp)	; save regs (16 bytes)
 	move.l	20(sp),d0	; a_hi
@@ -173,6 +189,10 @@ __moduint64_020:
 ; 64-bit signed modulo: d0:d1 = a % b
 ; ============================================================
 	xdef	__modsint64_020
+	xdef	__modsint64_040
+	xdef	__modsint64_060
+__modsint64_060:
+__modsint64_040:
 __modsint64_020:
 	movem.l	d2-d3,-(sp)	; 8 bytes
 	move.l	12(sp),d0	; a_hi

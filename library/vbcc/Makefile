@@ -31,9 +31,13 @@ LIBVBCC  = $(ROOT)/library/vbcc
 SRC      = $(ROOT)/src
 OUTDIR   = $(ROOT)/amiga
 
-# Common compiler flags (no FPU setting — added per target)
+# CPU variant — can be overridden on command line
+# Supported: 68020, 68040, 68060
+CPU ?= 68020
+
+# Common compiler flags
 AMISSL_SDK = $(ROOT)/sdks/AmiSSL-v5.26-SDK/Developer/include
-CFLAGS_COMMON = +aos68k -c -cpu=68020 -O1 \
+CFLAGS_COMMON = +aos68k -c -cpu=$(CPU) -O1 \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
          -I$(AMISSL_SDK) \
@@ -42,11 +46,11 @@ CFLAGS_COMMON = +aos68k -c -cpu=68020 -O1 \
 
 # FPU variant flags
 CFLAGS_FPU  = $(CFLAGS_COMMON) -fpu=68881
-ASMFLAGS_FPU = -Fhunk -nowarn=62 -m68020 -m68881
+ASMFLAGS_FPU = -Fhunk -nowarn=62 -m$(CPU) -m68881
 
 # Soft-float variant flags (no -fpu, uses -amiga-softfloat from aos68k config)
 CFLAGS_SOFT = $(CFLAGS_COMMON)
-ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m68020
+ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m$(CPU)
 
 # Linker flags
 LDFLAGS = -bamigahunk -Bstatic -nostdlib -mrel
@@ -54,9 +58,9 @@ LDFLAGS = -bamigahunk -Bstatic -nostdlib -mrel
 # All POSIX/stdio functions implemented via dos.library in sharedlib_*.c
 LINK_LIBS =
 
-# Object file directories
-OBJDIR_FPU  = /tmp/qjslib
-OBJDIR_SOFT = /tmp/qjslib_soft
+# Object file directories — CPU-specific to avoid collisions
+OBJDIR_FPU  = /tmp/qjslib_$(CPU)
+OBJDIR_SOFT = /tmp/qjslib_$(CPU)_soft
 
 # Engine source files
 ENGINE_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c \
@@ -119,17 +123,47 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
-# Targets
+# Targets — for default build (CPU=68020), produces:
+#   quickjs.library      (FPU)
+#   quickjs_soft.library (soft-float)
+# For other CPU values, produces:
+#   quickjs.NNN.library
+#   quickjs.NNNsoft.library
+ifeq ($(CPU),68020)
 TARGET_FPU  = $(OUTDIR)/quickjs.library
 TARGET_SOFT = $(OUTDIR)/quickjs_soft.library
+else
+TARGET_FPU  = $(OUTDIR)/quickjs.$(CPU).library
+TARGET_SOFT = $(OUTDIR)/quickjs.$(CPU)soft.library
+endif
 
-.PHONY: all fpu soft clean
+.PHONY: all fpu soft clean variants 020 040 060
 
 all: fpu soft
 
 fpu: $(TARGET_FPU)
 
 soft: $(TARGET_SOFT)
+
+# Build all CPU/FPU variants (only soft for 040/060 — see below)
+variants: 020 040 060
+
+# Per-CPU targets
+# Note: 020 builds work for both FPU and soft variants.
+# 040/060 + FPU does NOT work because VBCC's sharedlib_math.c
+# inlines 68881 transcendentals (atan/sin/cos) which the 68040/68060
+# FPU doesn't have — they emit external symbols that need m040.lib
+# (which has stdio dependencies we can't link).
+# Workaround: 020+FPU library runs on 040/060 too (68881 instructions
+# are a subset of 68040/060 FPU).
+020:
+	$(MAKE) CPU=68020 fpu soft
+
+040:
+	$(MAKE) CPU=68040 soft
+
+060:
+	$(MAKE) CPU=68060 soft
 
 # --- FPU variant build rules ---
 
@@ -177,6 +211,14 @@ $(OBJDIR_FPU)/sharedlib_string.o: $(LIBVBCC)/sharedlib_string.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/sharedlib_math.o: $(LIBVBCC)/sharedlib_math.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+# For 040/060 FPU builds: use soft math impl (calls mathieeedoubtrans
+# for transcendentals; basic ops still inline as FPU instructions)
+$(OBJDIR_FPU)/sharedlib_math_soft.o: $(LIBVBCC)/sharedlib_math_soft.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/sharedlib_int64_conv.o: $(LIBVBCC)/sharedlib_int64_conv.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/sharedlib_time.o: $(LIBVBCC)/sharedlib_time.c | $(OBJDIR_FPU)
@@ -287,3 +329,12 @@ $(OBJDIR_SOFT):
 clean:
 	rm -rf $(OBJDIR_FPU) $(OBJDIR_SOFT)
 	rm -f $(TARGET_FPU) $(TARGET_SOFT)
+
+# Clean ALL CPU/FPU variant artifacts
+clean-variants:
+	rm -rf /tmp/qjslib_68020 /tmp/qjslib_68020_soft
+	rm -rf /tmp/qjslib_68040 /tmp/qjslib_68040_soft
+	rm -rf /tmp/qjslib_68060 /tmp/qjslib_68060_soft
+	rm -f $(OUTDIR)/quickjs.library $(OUTDIR)/quickjs_soft.library
+	rm -f $(OUTDIR)/quickjs.68040.library $(OUTDIR)/quickjs.68040soft.library
+	rm -f $(OUTDIR)/quickjs.68060.library $(OUTDIR)/quickjs.68060soft.library
