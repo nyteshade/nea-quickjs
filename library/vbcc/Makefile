@@ -29,7 +29,9 @@ INCLUDE  = $(ROOT)/include
 TEMPLATE = $(ROOT)/vbcc-librarytemplate
 LIBVBCC  = $(ROOT)/library/vbcc
 SRC      = $(ROOT)/src
-OUTDIR   = $(ROOT)/amiga
+OUTDIR     = $(ROOT)/amiga
+LIBSDIR    = $(OUTDIR)/libs
+CDIR       = $(OUTDIR)/c
 
 # CPU variant — can be overridden on command line
 # Supported: 68020, 68040, 68060
@@ -123,30 +125,51 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
-# Targets — for default build (CPU=68020), produces:
-#   quickjs.library      (FPU)
-#   quickjs_soft.library (soft-float)
-# For other CPU values, produces:
-#   quickjs.NNN.library
-#   quickjs.NNNsoft.library
+# Targets — all variants go to amiga/libs/ with consistent naming:
+#   quickjs.020fpu.library   (020 + 68881 FPU)
+#   quickjs.020soft.library  (020 + soft-float)
+#   quickjs.040fpu.library   (040 + FPU — not currently buildable)
+#   quickjs.040soft.library  (040 + soft-float)
+#   quickjs.060fpu.library   (060 + FPU — not currently buildable)
+#   quickjs.060soft.library  (060 + soft-float)
+# Plus a copy of the 020 soft variant as quickjs.library (default for shipping)
 ifeq ($(CPU),68020)
-TARGET_FPU  = $(OUTDIR)/quickjs.library
-TARGET_SOFT = $(OUTDIR)/quickjs_soft.library
-else
-TARGET_FPU  = $(OUTDIR)/quickjs.$(CPU).library
-TARGET_SOFT = $(OUTDIR)/quickjs.$(CPU)soft.library
+CPU_TAG = 020
 endif
+ifeq ($(CPU),68040)
+CPU_TAG = 040
+endif
+ifeq ($(CPU),68060)
+CPU_TAG = 060
+endif
+TARGET_FPU  = $(LIBSDIR)/quickjs.$(CPU_TAG)fpu.library
+TARGET_SOFT = $(LIBSDIR)/quickjs.$(CPU_TAG)soft.library
 
-.PHONY: all fpu soft clean variants 020 040 060
+.PHONY: all fpu soft clean variants 020 040 060 default-library
 
-all: fpu soft
+all: fpu soft default-library
 
 fpu: $(TARGET_FPU)
 
 soft: $(TARGET_SOFT)
 
+# Create LIBSDIR (and CDIR) if they don't exist
+$(LIBSDIR):
+	@mkdir -p $(LIBSDIR)
+
+$(CDIR):
+	@mkdir -p $(CDIR)
+
+# After building, copy 020 soft as the default quickjs.library.
+# This is the universally-compatible variant — runs on any 68020+
+# without needing an FPU. The user can replace it with a CPU-specific
+# variant if they want better performance.
+default-library: $(LIBSDIR)/quickjs.020soft.library | $(LIBSDIR)
+	@cp $(LIBSDIR)/quickjs.020soft.library $(LIBSDIR)/quickjs.library
+	@echo "Default library: quickjs.library = quickjs.020soft.library"
+
 # Build all CPU/FPU variants (only soft for 040/060 — see below)
-variants: 020 040 060
+variants: 020 040 060 default-library
 
 # Per-CPU targets
 # Note: 020 builds work for both FPU and soft variants.
@@ -167,7 +190,7 @@ variants: 020 040 060
 
 # --- FPU variant build rules ---
 
-$(TARGET_FPU): $(FPU_ALL)
+$(TARGET_FPU): $(FPU_ALL) | $(LIBSDIR)
 	$(VLINK) $(LDFLAGS) $(FPU_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
@@ -250,7 +273,7 @@ $(OBJDIR_FPU):
 
 # --- Soft-float variant build rules ---
 
-$(TARGET_SOFT): $(SOFT_ALL)
+$(TARGET_SOFT): $(SOFT_ALL) | $(LIBSDIR)
 	$(VLINK) $(LDFLAGS) $(SOFT_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
@@ -330,11 +353,12 @@ clean:
 	rm -rf $(OBJDIR_FPU) $(OBJDIR_SOFT)
 	rm -f $(TARGET_FPU) $(TARGET_SOFT)
 
-# Clean ALL CPU/FPU variant artifacts
+# Clean ALL CPU/FPU variant artifacts (object dirs and built libraries)
 clean-variants:
 	rm -rf /tmp/qjslib_68020 /tmp/qjslib_68020_soft
 	rm -rf /tmp/qjslib_68040 /tmp/qjslib_68040_soft
 	rm -rf /tmp/qjslib_68060 /tmp/qjslib_68060_soft
-	rm -f $(OUTDIR)/quickjs.library $(OUTDIR)/quickjs_soft.library
-	rm -f $(OUTDIR)/quickjs.68040.library $(OUTDIR)/quickjs.68040soft.library
-	rm -f $(OUTDIR)/quickjs.68060.library $(OUTDIR)/quickjs.68060soft.library
+	rm -f $(LIBSDIR)/quickjs.library
+	rm -f $(LIBSDIR)/quickjs.020fpu.library $(LIBSDIR)/quickjs.020soft.library
+	rm -f $(LIBSDIR)/quickjs.040fpu.library $(LIBSDIR)/quickjs.040soft.library
+	rm -f $(LIBSDIR)/quickjs.060fpu.library $(LIBSDIR)/quickjs.060soft.library
