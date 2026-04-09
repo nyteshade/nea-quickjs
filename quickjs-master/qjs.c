@@ -666,8 +666,15 @@ int main(int argc, char **argv)
             }
 #if defined(__SASC) || defined(__VBCC__)
             if (!strcmp(longopt, "color")) {
-                /* Override NO_COLOR default — enable REPL colors */
+                /* Override NO_COLOR default — enable REPL colors.
+                 * The library and CLI have separate amiga_force_color
+                 * globals (one in each binary). The library reads its
+                 * own copy when std.getenv("NO_COLOR") is called. We
+                 * communicate cross-binary via dos.library SetVar. */
                 amiga_force_color = 1;
+                /* SetVar() from <proto/dos.h> uses inline asm — safe */
+                SetVar((CONST_STRPTR)"NO_COLOR",
+                       (CONST_STRPTR)"0", 1, 0);
                 continue;
             }
 #endif
