@@ -246,9 +246,16 @@ static const JSMallocFunctions amiga_mf = {
 
 /* ---- CustomLibInit / CustomLibCleanup ---- */
 
+/* Global SysBase for code that uses VBCC's <proto/exec.h> inline
+ * library calls (like amiga_ssl_lib.c calling OpenLibrary). */
+extern struct Library *SysBase;
+
 BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
 {
     struct ExecBase *sys = aBase->iSysBase;
+
+    /* Set global SysBase BEFORE any code that might use proto/exec.h */
+    SysBase = (struct Library *)sys;
 
     aBase->iDOSBase = __OpenLibrary(sys, "dos.library", 36);
     if (!aBase->iDOSBase)

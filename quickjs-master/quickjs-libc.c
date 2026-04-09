@@ -1829,10 +1829,11 @@ static JSValue js_std_urlGet(JSContext *ctx, JSValueConst this_val,
         JS_FreeCString(ctx, url);
         return JS_EXCEPTION;
     }
-#if defined(__SASC) || (defined(__VBCC__) && defined(QJS_ENABLE_AMISSL))
+#if defined(__SASC) || defined(__VBCC__)
     /* AmigaOS: use native AmiSSL HTTP client instead of curl.
-     * VBCC: only enabled with -DQJS_ENABLE_AMISSL (currently crashes,
-     * needs more debugging). */
+     * VBCC uses inline assembly stubs (function = "asm";) for SSL
+     * function dispatch, sidestepping the __reg("a6") frame pointer
+     * issue. NEEDS HARDWARE TESTING — previous version crashed. */
     {
         char *body = NULL;
         int body_len = 0, http_status = 0;
