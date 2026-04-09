@@ -36,10 +36,10 @@ struct QJSLibBase {
 /* ---- Steering defines ---- */
 
 #define LIBRARY_NAME "quickjs.library"
-#define LIBRARY_VERSION_STRING "\0$VER: quickjs.library 0.57 (08.4.2026)\r\n"
+#define LIBRARY_VERSION_STRING "\0$VER: quickjs.library 0.58 (08.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
 #define LIBRARY_VERSION 0
-#define LIBRARY_REVISION 57
+#define LIBRARY_REVISION 58
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
 /* ---- Function declarations ---- */
