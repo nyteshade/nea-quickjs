@@ -1641,7 +1641,14 @@ static inline uint64_t js__hrtime_ns(void) {
 }
 #else
 static inline uint64_t js__hrtime_ns(void) {
-#if defined(__DJGPP) || defined(__SASC) || defined(__VBCC__)
+#if defined(__VBCC__)
+  /* VBCC/AmigaOS: call library-specific time function directly.
+   * Avoids potential symbol resolution issues with gettimeofday
+   * when built as a shared library. */
+  extern int64_t _qjs_time_us(void);
+  int64_t us = _qjs_time_us();
+  return (uint64_t)us * 1000;
+#elif defined(__DJGPP) || defined(__SASC)
   struct timeval tv;
   if (gettimeofday(&tv, NULL))
     abort();
@@ -1658,6 +1665,10 @@ static inline uint64_t js__hrtime_ns(void) {
 #endif
 
 static inline int64_t js__gettimeofday_us(void) {
+#if defined(__VBCC__)
+    extern int64_t _qjs_time_us(void);
+    return _qjs_time_us();
+#else
     struct timeval tv;
 #ifdef _WIN32
     gettimeofday_msvc(&tv);
@@ -1665,6 +1676,7 @@ static inline int64_t js__gettimeofday_us(void) {
     gettimeofday(&tv, NULL);
 #endif
     return ((int64_t)tv.tv_sec * 1000000) + tv.tv_usec;
+#endif
 }
 
 #if defined(_WIN32)

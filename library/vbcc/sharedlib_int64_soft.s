@@ -333,6 +333,7 @@ __rshuint64:
 	xdef	__ieeefltud
 __ieeefltud:
 	movem.l	d2-d3/a6,-(sp)
+	move.l	16(sp),d0	; load arg from stack (VBCC pushes it, not in d0)
 	move.l	_MathIeeeDoubBasBase,a6
 	; IEEEDPFlt: signed long d0 → double d0:d1
 	jsr	-36(a6)

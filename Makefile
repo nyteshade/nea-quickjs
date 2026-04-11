@@ -11,17 +11,19 @@
 # Variant-specific builds:
 #   make lib       build 020 FPU + 020 soft (current CPU)
 #   make 020       build 68020 FPU + soft variants
-#   make 040       build 68040 soft variant
-#   make 060       build 68060 soft variant
-#   make variants  build all 4 variants (020 fpu/soft, 040 soft, 060 soft)
+#   make 040       build 68040 FPU + soft variants
+#   make 060       build 68060 FPU + soft variants
+#   make variants  build all 6 variants (020/040/060 × fpu/soft) + default
 #
 # Output layout:
-#   amiga/c/qjs                       — CLI binary (thin shell)
-#   amiga/c/flushlibs                 — utility
-#   amiga/libs/quickjs.library        — default (= 020 soft, runs anywhere)
-#   amiga/libs/quickjs.020fpu.library — 68020 + 68881 FPU
+#   amiga/c/qjs                        — CLI binary (thin shell)
+#   amiga/c/flushlibs                  — utility
+#   amiga/libs/quickjs.library         — default (= 020 soft, runs anywhere)
+#   amiga/libs/quickjs.020fpu.library  — 68020 + 68881 FPU
 #   amiga/libs/quickjs.020soft.library — 68020 software float
+#   amiga/libs/quickjs.040fpu.library  — 68040 + FPU (mathieeedoubtrans wrappers)
 #   amiga/libs/quickjs.040soft.library — 68040 software float
+#   amiga/libs/quickjs.060fpu.library  — 68060 + FPU (mathieeedoubtrans wrappers)
 #   amiga/libs/quickjs.060soft.library — 68060 software float
 #   amiga/tests/                       — test scripts
 #

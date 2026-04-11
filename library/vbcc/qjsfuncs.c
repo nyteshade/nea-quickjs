@@ -244,6 +244,41 @@ static const JSMallocFunctions amiga_mf = {
     a_calloc, a_malloc, a_free, a_realloc, a_usable
 };
 
+/* ---- _qjs_time_us — called from cutils.h for Date.now/os.now ---- */
+
+/* Global DOSBase for time functions. NOT static — avoids BSS issues
+ * that affected sharedlib_time.c's static sl_DOSBase (writes from init
+ * didn't persist to reads from _qjs_time_us due to apparent per-file
+ * BSS relocation problems). Using a global in qjsfuncs.c sidesteps it. */
+struct Library *_qjs_DOSBase;
+
+/* DateStamp — dos.library LVO -192 */
+static struct DateStamp * __qjs_DateStamp(
+    __reg("a6") struct Library *base,
+    __reg("d1") struct DateStamp *ds) = "\tjsr\t-192(a6)";
+
+static struct DateStamp _qjs_ds;
+
+#define QJS_AMIGA_UNIX_EPOCH_DIFF 252460800L
+
+long long _qjs_time_us(void)
+{
+    long sec, usec;
+
+    if (!_qjs_DOSBase)
+        return 0;
+
+    __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
+
+    sec = (long)_qjs_ds.ds_Days * 86400L
+        + (long)_qjs_ds.ds_Minute * 60L
+        + (long)_qjs_ds.ds_Tick / 50L
+        + QJS_AMIGA_UNIX_EPOCH_DIFF;
+    usec = ((long)_qjs_ds.ds_Tick % 50L) * 20000L;
+
+    return (long long)sec * 1000000LL + (long long)usec;
+}
+
 /* ---- CustomLibInit / CustomLibCleanup ---- */
 
 /* Global SysBase for code that uses VBCC's <proto/exec.h> inline
@@ -260,6 +295,9 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
     aBase->iDOSBase = __OpenLibrary(sys, "dos.library", 36);
     if (!aBase->iDOSBase)
         return TRUE;
+
+    /* Set global DOSBase for _qjs_time_us (Date.now/os.now) */
+    _qjs_DOSBase = aBase->iDOSBase;
 
     /* Init time subsystem with DOSBase for gettimeofday/DateStamp */
     sharedlib_time_init(aBase->iDOSBase);

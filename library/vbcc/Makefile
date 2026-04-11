@@ -1,17 +1,27 @@
 # Makefile for quickjs.library — VBCC build
 #
-# Builds two variants:
-#   quickjs.library      — requires 68020 + 68881/68882 FPU
-#   quickjs_soft.library — requires 68020 only (software float)
+# Builds CPU-specific variants of the QuickJS shared library.
+# Default CPU is 68020; override with CPU=68040 or CPU=68060.
 #
-# The soft-float variant uses AmigaOS mathieeedoubbas.library and
+# Variants per CPU:
+#   quickjs.<cpu>fpu.library   — uses 68881/68882 FPU instructions
+#   quickjs.<cpu>soft.library  — software float (no FPU required)
+#
+# 040/060 FPU builds use sharedlib_math_fpu_aux.c to provide the
+# transcendentals (atan/sin/cos/etc.) that the 68040/68060 FPU lacks
+# as native instructions. Those calls go to mathieeedoubtrans.library.
+#
+# Soft-float variants use mathieeedoubbas.library and
 # mathieeedoubtrans.library for all floating point operations.
 #
 # Usage:
-#   make              — build both variants
+#   make              — build FPU + soft for current CPU + default-library
 #   make fpu          — build FPU variant only
 #   make soft         — build soft-float variant only
-#   make clean        — remove all object files
+#   make variants     — build all 6 (020/040/060 × fpu/soft) + default-library
+#   make 020/040/060  — build both variants for one CPU
+#   make clean        — remove object files for current CPU
+#   make clean-variants — remove ALL object files and built libraries
 #
 # Requirements:
 #   VBCC installed at $VBCC (default: ~/vbcc)
@@ -80,9 +90,20 @@ SHARED_SRC = $(LIBVBCC)/sharedlib_mem.c \
 FPU_ENGINE  = $(OBJDIR_FPU)/quickjs.o $(OBJDIR_FPU)/dtoa.o \
               $(OBJDIR_FPU)/libregexp.o $(OBJDIR_FPU)/libunicode.o
 
+# For 040/060 FPU builds, add sharedlib_math_fpu_aux.o which provides
+# transcendentals (atan, sin, cos, etc.) via mathieeedoubtrans.library.
+# These are inlined as FPU instructions on 020 but emitted as external
+# calls by VBCC on 040/060 because those FPUs lack the instructions.
+ifeq ($(CPU),68020)
+FPU_AUX_OBJ =
+else
+FPU_AUX_OBJ = $(OBJDIR_FPU)/sharedlib_math_fpu_aux.o
+endif
+
 FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
               $(OBJDIR_FPU)/sharedlib_string.o \
               $(OBJDIR_FPU)/sharedlib_math.o \
+              $(FPU_AUX_OBJ) \
               $(OBJDIR_FPU)/sharedlib_time.o \
               $(OBJDIR_FPU)/sharedlib_strtod.o \
               $(OBJDIR_FPU)/sharedlib_printf.o \
@@ -126,11 +147,11 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
 # Targets — all variants go to amiga/libs/ with consistent naming:
-#   quickjs.020fpu.library   (020 + 68881 FPU)
+#   quickjs.020fpu.library   (020 + 68881 FPU, transcendentals inlined)
 #   quickjs.020soft.library  (020 + soft-float)
-#   quickjs.040fpu.library   (040 + FPU — not currently buildable)
+#   quickjs.040fpu.library   (040 + FPU, transcendentals via mathieeedoubtrans)
 #   quickjs.040soft.library  (040 + soft-float)
-#   quickjs.060fpu.library   (060 + FPU — not currently buildable)
+#   quickjs.060fpu.library   (060 + FPU, transcendentals via mathieeedoubtrans)
 #   quickjs.060soft.library  (060 + soft-float)
 # Plus a copy of the 020 soft variant as quickjs.library (default for shipping)
 ifeq ($(CPU),68020)
@@ -171,22 +192,19 @@ default-library: $(LIBSDIR)/quickjs.020soft.library | $(LIBSDIR)
 # Build all CPU/FPU variants (only soft for 040/060 — see below)
 variants: 020 040 060 default-library
 
-# Per-CPU targets
-# Note: 020 builds work for both FPU and soft variants.
-# 040/060 + FPU does NOT work because VBCC's sharedlib_math.c
-# inlines 68881 transcendentals (atan/sin/cos) which the 68040/68060
-# FPU doesn't have — they emit external symbols that need m040.lib
-# (which has stdio dependencies we can't link).
-# Workaround: 020+FPU library runs on 040/060 too (68881 instructions
-# are a subset of 68040/060 FPU).
+# Per-CPU targets — build both FPU and soft variants for each
+# 040/060 FPU builds use sharedlib_math_fpu_aux.c which provides
+# the missing transcendentals (atan/sin/cos/etc.) via
+# mathieeedoubtrans.library, since the 040/060 FPU doesn't have
+# them as native instructions.
 020:
 	$(MAKE) CPU=68020 fpu soft
 
 040:
-	$(MAKE) CPU=68040 soft
+	$(MAKE) CPU=68040 fpu soft
 
 060:
-	$(MAKE) CPU=68060 soft
+	$(MAKE) CPU=68060 fpu soft
 
 # --- FPU variant build rules ---
 
@@ -234,6 +252,10 @@ $(OBJDIR_FPU)/sharedlib_string.o: $(LIBVBCC)/sharedlib_string.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/sharedlib_math.o: $(LIBVBCC)/sharedlib_math.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+# 040/060 FPU only: provides atan/sin/cos/etc. via mathieeedoubtrans.library
+$(OBJDIR_FPU)/sharedlib_math_fpu_aux.o: $(LIBVBCC)/sharedlib_math_fpu_aux.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 # For 040/060 FPU builds: use soft math impl (calls mathieeedoubtrans

@@ -85,143 +85,111 @@ void sharedlib_math_soft_cleanup(void)
     MathIeeeDoubTransBase = (void *)0;
 }
 
-/* ---- LVO call macro ---- */
-#define MATH_LVO(base, offset, type) ((type)((char *)(base) - (offset)))
-
-/* __ieeefltud is provided by sharedlib_int64_soft.s (assembly) to avoid
- * recursive softfloat calls that VBCC would generate in C code. */
+/* ---- LVO wrappers using VBCC inline assembly syntax ----
+ *
+ * Uses `function = "asm";` which embeds the jsr directly at the call
+ * site, sidestepping the __reg("a6") frame pointer issue that can
+ * affect function-pointer dispatch (the MATH_LVO macro pattern).
+ * This matches the proven-good pattern in sharedlib_posix.c.
+ *
+ * __ieeefltud is provided by sharedlib_int64_soft.s (assembly) to
+ * avoid recursive softfloat calls that VBCC would generate in C code.
+ */
 
 /* ---- mathieeedoubbas.library LVOs ---- */
 
-static double sl_Floor(double x)
-{
-    return MATH_LVO(MathIeeeDoubBasBase, 90,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubBasBase, x);
-}
+/* IEEEDPAbs -54 */
+static double __sl_Abs(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-54(a6)";
+#define sl_Abs(x) __sl_Abs(MathIeeeDoubBasBase, (x))
 
-static double sl_Ceil(double x)
-{
-    return MATH_LVO(MathIeeeDoubBasBase, 96,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubBasBase, x);
-}
+/* IEEEDPNeg -60 */
+static double __sl_Neg(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-60(a6)";
+#define sl_Neg(x) __sl_Neg(MathIeeeDoubBasBase, (x))
 
-static double sl_Abs(double x)
-{
-    return MATH_LVO(MathIeeeDoubBasBase, 54,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubBasBase, x);
-}
+/* IEEEDPFloor -90 */
+static double __sl_Floor(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-90(a6)";
+#define sl_Floor(x) __sl_Floor(MathIeeeDoubBasBase, (x))
 
-static double sl_Neg(double x)
-{
-    return MATH_LVO(MathIeeeDoubBasBase, 60,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubBasBase, x);
-}
+/* IEEEDPCeil -96 */
+static double __sl_Ceil(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-96(a6)";
+#define sl_Ceil(x) __sl_Ceil(MathIeeeDoubBasBase, (x))
 
 /* ---- mathieeedoubtrans.library LVOs ---- */
 
-static double sl_Sin(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 36,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPAtan -30 */
+static double __sl_Atan(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-30(a6)";
+#define sl_Atan(x) __sl_Atan(MathIeeeDoubTransBase, (x))
 
-static double sl_Cos(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 42,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPSin -36 */
+static double __sl_Sin(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-36(a6)";
+#define sl_Sin(x) __sl_Sin(MathIeeeDoubTransBase, (x))
 
-static double sl_Tan(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 48,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPCos -42 */
+static double __sl_Cos(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-42(a6)";
+#define sl_Cos(x) __sl_Cos(MathIeeeDoubTransBase, (x))
 
-static double sl_Atan(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 30,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPTan -48 */
+static double __sl_Tan(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-48(a6)";
+#define sl_Tan(x) __sl_Tan(MathIeeeDoubTransBase, (x))
 
-static double sl_Asin(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 114,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPSinh -60 */
+static double __sl_Sinh(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-60(a6)";
+#define sl_Sinh(x) __sl_Sinh(MathIeeeDoubTransBase, (x))
 
-static double sl_Acos(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 120,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPCosh -66 */
+static double __sl_Cosh(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-66(a6)";
+#define sl_Cosh(x) __sl_Cosh(MathIeeeDoubTransBase, (x))
 
-static double sl_Sinh(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 60,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPTanh -72 */
+static double __sl_Tanh(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-72(a6)";
+#define sl_Tanh(x) __sl_Tanh(MathIeeeDoubTransBase, (x))
 
-static double sl_Cosh(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 66,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPExp -78 */
+static double __sl_Exp(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-78(a6)";
+#define sl_Exp(x) __sl_Exp(MathIeeeDoubTransBase, (x))
 
-static double sl_Tanh(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 72,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPLog -84 */
+static double __sl_Log(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-84(a6)";
+#define sl_Log(x) __sl_Log(MathIeeeDoubTransBase, (x))
 
-static double sl_Exp(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 78,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPPow -90: IEEEDPPow(exp,arg)(d2/d3,d0/d1) computes arg^exp */
+static double __sl_Pow(__reg("a6") struct Library *base,
+    __reg("d2/d3") double exponent,
+    __reg("d0/d1") double arg) = "\tjsr\t-90(a6)";
+#define sl_Pow(base_val, exp_val) __sl_Pow(MathIeeeDoubTransBase, (exp_val), (base_val))
 
-static double sl_Log(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 84,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPSqrt -96 */
+static double __sl_Sqrt(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-96(a6)";
+#define sl_Sqrt(x) __sl_Sqrt(MathIeeeDoubTransBase, (x))
 
-static double sl_Log10(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 126,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPAsin -114 */
+static double __sl_Asin(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-114(a6)";
+#define sl_Asin(x) __sl_Asin(MathIeeeDoubTransBase, (x))
 
-static double sl_Sqrt(double x)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 96,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, x);
-}
+/* IEEEDPAcos -120 */
+static double __sl_Acos(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-120(a6)";
+#define sl_Acos(x) __sl_Acos(MathIeeeDoubTransBase, (x))
 
-/* IEEEDPPow: d2/d3=base, d0/d1=exponent */
-static double sl_Pow(double base, double exponent)
-{
-    return MATH_LVO(MathIeeeDoubTransBase, 90,
-        double (*)(__reg("a6") struct Library *,
-                   __reg("d2/d3") double,
-                   __reg("d0/d1") double))(MathIeeeDoubTransBase, base, exponent);
-}
+/* IEEEDPLog10 -126 */
+static double __sl_Log10(__reg("a6") struct Library *base,
+    __reg("d0/d1") double x) = "\tjsr\t-126(a6)";
+#define sl_Log10(x) __sl_Log10(MathIeeeDoubTransBase, (x))
 
 /* Forward declarations for functions used before definition */
 double fmod(double x, double y);

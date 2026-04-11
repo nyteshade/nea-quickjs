@@ -25,48 +25,48 @@
 /* sys/time.h from our include/ stub */
 #include <sys/time.h>
 
-/* DOSBase — set via sharedlib_time_init() from CustomLibInit.
- * dos.library DateStamp LVO: -192 */
-static struct Library *sl_DOSBase;
+/* DOSBase — use the global from qjsfuncs.c which is known to work.
+ * sharedlib_time.c's own static BSS had relocation issues (writes from
+ * init didn't persist to reads). Using the qjsfuncs.c global sidesteps it. */
+extern struct Library *_qjs_DOSBase;
 
+/* Keep init/cleanup for backward compat but they're now no-ops
+ * (_qjs_DOSBase is set directly in CustomLibInit). */
 void sharedlib_time_init(struct Library *dosBase)
 {
-    sl_DOSBase = dosBase;
+    (void)dosBase;
 }
 
 void sharedlib_time_cleanup(void)
 {
-    sl_DOSBase = NULL;
 }
 
-/* DateStamp — dos.library LVO -192
- * Uses VBCC inline assembly syntax which embeds `jsr -192(a6)` directly
- * at the call site, sidestepping the __reg("a6") frame pointer issue
- * that affects function-pointer dispatch. */
+/* DateStamp — dos.library LVO -192 */
 static struct DateStamp * __sl_DateStamp(
     __reg("a6") struct Library *base,
     __reg("d1") struct DateStamp *ds) = "\tjsr\t-192(a6)";
-
-#define sl_DateStamp(ds) __sl_DateStamp(sl_DOSBase, (ds))
 
 /* AmigaOS epoch: Jan 1, 1978. Unix epoch: Jan 1, 1970.
  * 8 years = 2922 days (includes leap years 72, 76) */
 #define AMIGA_UNIX_EPOCH_DIFF 252460800L
 
+/* Static DateStamp slot — avoids stack-local &ds in LVO context. */
+static struct DateStamp _sl_ds;
+
+/* _qjs_time_us is in qjsfuncs.c — called from cutils.h for Date.now/os.now */
+
 int gettimeofday(struct timeval *tv, void *tz)
 {
-    struct DateStamp ds;
-
-    if (!tv || !sl_DOSBase)
+    if (!tv || !_qjs_DOSBase)
         return -1;
 
-    sl_DateStamp(&ds);
+    __sl_DateStamp(_qjs_DOSBase, &_sl_ds);
 
-    tv->tv_sec = (long)ds.ds_Days * 86400L
-               + (long)ds.ds_Minute * 60L
-               + (long)ds.ds_Tick / 50L
+    tv->tv_sec = (long)_sl_ds.ds_Days * 86400L
+               + (long)_sl_ds.ds_Minute * 60L
+               + (long)_sl_ds.ds_Tick / 50L
                + AMIGA_UNIX_EPOCH_DIFF;
-    tv->tv_usec = ((long)ds.ds_Tick % 50L) * 20000L;
+    tv->tv_usec = ((long)_sl_ds.ds_Tick % 50L) * 20000L;
     return 0;
 }
 

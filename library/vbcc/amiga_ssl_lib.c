@@ -379,7 +379,7 @@ int amiga_http_get(const char *url,
     snprintf(request, sizeof(request),
              "GET %s HTTP/1.0\r\n"
              "Host: %s\r\n"
-             "User-Agent: qjs/0.58\r\n"
+             "User-Agent: qjs/0.64\r\n"
              "Connection: close\r\n"
              "\r\n",
              path, host);

@@ -9,6 +9,7 @@
  */
 
 #include <math.h>
+#include <exec/types.h>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -17,10 +18,24 @@
 #define M_LN2 0.69314718055994530942
 #endif
 
-/* No-op stubs — soft-float build sets these up with real values.
- * FPU build doesn't need math library bases. */
-void sharedlib_math_soft_init(void *basBase, void *transBase) { }
-void sharedlib_math_soft_cleanup(void) { }
+/* On 020 FPU: VBCC inlines all transcendentals as 68881 instructions,
+ * so we don't need the math library bases. No-op stubs.
+ *
+ * On 040/060 FPU: VBCC emits external calls (atan, sin, etc.) because
+ * the FPU lacks those instructions. sharedlib_math_fpu_aux.c provides
+ * the wrappers, which need MathIeeeDoubTransBase as a global. We
+ * declare and set it here for ALL FPU builds (it's harmless on 020). */
+struct Library *MathIeeeDoubTransBase = 0;
+
+void sharedlib_math_soft_init(void *basBase, void *transBase)
+{
+    (void)basBase;
+    MathIeeeDoubTransBase = (struct Library *)transBase;
+}
+void sharedlib_math_soft_cleanup(void)
+{
+    MathIeeeDoubTransBase = 0;
+}
 
 double atan2(double y, double x)
 {
