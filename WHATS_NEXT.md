@@ -125,22 +125,75 @@ nea-quickjs/
 
 ### Bugs to Fix
 
-- **DateStamp returns near-1970 timestamps in amiberry** despite the
-  AmigaOS clock showing 2026. This is a clock sync issue between the
-  emulator RTC and dos.library DateStamp. Needs investigation.
+- ~~FPU build int64 conversion TODOs~~ -- Fixed. All four functions in
+  sharedlib_int64.s now handle the full 64-bit range using hi*2^32+lo
+  decomposition with FPU instructions.
 
-- **Leading zeros in `print(Date.now())` output** -- cosmetic snprintf
-  issue in sharedlib_printf.c.
+### Resolved / Not Bugs
 
-- **setTimeout timing bug** -- logged in memory (project_settimeout_bug.md).
-  Timer granularity is 20ms (AmigaOS 50Hz ticks). test_timing.js exists
-  as a diagnostic.
+- **DateStamp returns near-1970 timestamps in amiberry** -- Amiberry IS
+  synced with the host clock, so this may be a real bug. The conversion
+  math in sharedlib_time.c looks correct (epoch offset, tick math). The
+  __ieeefltud bug (fixed in v0.64) was masking this on soft-float builds.
+  Needs re-testing on current v0.64 to see if it still reproduces.
 
-- **FPU build int64 conversion TODOs** -- sharedlib_int64.s has four TODO
-  comments at lines ~341, ~353, ~365, ~385 for `__flt64tosint64` and
-  `__sint64toflt64`. They only handle values fitting in 32 bits. This
-  WILL break for large int64 values (>2^31 or >2^32) on FPU builds.
-  The soft-float assembly (sharedlib_int64_soft.s) may have the same issue.
+- ~~Leading zeros in `print(Date.now())` output~~ -- Fixed in commit
+  f1aacd0 (sprintf %d formatting fix in sharedlib_printf.c).
+
+- ~~AmiSSL HTTPS crashes~~ -- Fixed in v0.64. Both HTTP and HTTPS
+  urlGet work via AmiSSL.
+
+- **setTimeout granularity is 20ms** -- This is inherent to AmigaOS.
+  DateStamp ticks are always 50Hz (TICKS_PER_SECOND=50 in dos/dos.h),
+  regardless of PAL/NTSC video standard. Not a bug, just a platform
+  limitation. test_timing.js exists as a diagnostic.
+
+### New: fetch() API (v0.65)
+
+Async `fetch()` implemented as a global function. Uses AmigaOS
+`CreateNewProc()` to spawn a dedicated worker process for each
+request. Worker does blocking HTTP/HTTPS in parallel; main task
+polls completion via 20ms timer + MsgPort. Returns Promises that
+integrate naturally with async/await.
+
+**Architecture:**
+1. Main task: `fetch(url)` creates FetchContext + MsgPort, spawns
+   worker via `CreateNewProc()`, returns Promise immediately
+2. Worker process (32KB stack, own task): DNS, connect, TLS
+   handshake, send, recv — all blocking, all in its own process
+3. Worker posts completion message to main's reply port + exits
+4. Main task's 20ms timer calls `fetch_step()` → `GetMsg()`
+   (non-blocking); when message arrives, resolves Promise
+
+**Why processes, not setReadHandler:** bsdsocket.library's fd
+namespace can return fd 0 for the first socket, colliding with
+stdin in the QuickJS event loop's handler table. Spawning a
+separate process gives each fetch its own task/fd context.
+
+```javascript
+// Basic usage (requires -m flag for async/await):
+const response = await fetch("https://httpbin.org/get");
+const data = await response.json();
+print(data.origin);
+```
+
+**Supported:** GET, POST, PUT, DELETE with custom headers and body.
+**Response class:** status, statusText, ok, url, headers properties;
+  text(), json(), arrayBuffer() methods (all return Promises).
+**Headers class:** get(name), has(name), forEach(callback).
+
+**v1 Limitations:**
+- DNS lookup blocks (gethostbyname is synchronous)
+- One fetch at a time (second concurrent fetch rejects)
+- No automatic redirect following (3xx returned as-is)
+- No streaming (body fully buffered)
+- HTTP/1.0 (no chunked transfer)
+
+**Files:** sharedlib_fetch.c (state machine), sharedlib_posix.c
+(poll extension with WaitSelect), quickjs-libc.c (JS classes + binding).
+**Test:** amiga/tests/test_fetch.js
+
+**Needs testing on amiberry with TCP/IP stack.**
 
 ### Pending Feature Work
 
@@ -148,17 +201,19 @@ nea-quickjs/
   for all QJS_* library functions. This is standard Amiga practice for
   shared libraries.
 
-- **qjs.inspect API** (project_qjs_inspect_api.md) -- Re-enable
-  qjs_inspect custom display and pass a context/helper object to the
-  qjs.inspect callback. Future enhancement.
+- **qjs.inspect API** (project_qjs_inspect_api.md) -- Pass a
+  context/helper object to the qjs.inspect callback. Future enhancement.
 
 - **`.foo` dot-symbol syntax** (project_dot_symbol_syntax.md) -- Planned
   syntax extension where `.foo` means `Symbol.for('foo')`, inspired by
   Ruby. Future enhancement.
 
-- **Optimization** -- User has mentioned this is high priority once the
-  library is stable. Profile hot paths, reduce library size, improve
+- **Optimization** -- Profile hot paths, reduce library size, improve
   startup time.
+
+- **fetch() v2 improvements** -- Automatic redirect following, multiple
+  concurrent fetches, headers object from JS object (not just string),
+  streaming body, HTTP/1.1 with chunked transfer encoding.
 
 ---
 

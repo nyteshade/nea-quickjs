@@ -192,7 +192,7 @@ struct Library *AmiSSLBase = NULL;
 struct Library *AmiSSLExtBase = NULL;
 struct Library *SocketBase = NULL;
 
-static SSL_CTX *ssl_ctx = NULL;
+SSL_CTX *ssl_ctx = NULL;
 static int ssl_initialized = 0;
 
 int amiga_ssl_init(void)

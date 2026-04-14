@@ -37,8 +37,13 @@
 #include "quickjs-libc.h"
 
 #ifdef __VBCC__
+/* AmigaOS port version — bump when adding features or fixing bugs */
+#define AMIGA_PORT_VERSION "0.65"
+#define AMIGA_PORT_DATE    "13.4.2026"
+#define AMIGA_PORT_DATE_US "04/13/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
-static const char amiga_ver[] = "$VER: qjs 0.58 (8.4.2026)";
+static const char amiga_ver[] =
+    "$VER: qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE ")";
 extern int amiga_force_color;
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
@@ -501,8 +506,14 @@ static const JSMallocFunctions mi_mf = {
 
 void help(void)
 {
+#ifdef __VBCC__
+    printf("QuickJS-ng version %s (Amiga port " AMIGA_PORT_VERSION
+           " " AMIGA_PORT_DATE_US ")\n"
+           "usage: " PROG_NAME " [options] [file [args]]\n"
+#else
     printf("QuickJS-ng version %s\n"
            "usage: " PROG_NAME " [options] [file [args]]\n"
+#endif
            "-h  --help         list options\n"
            "-e  --eval EXPR    evaluate EXPR\n"
            "-i  --interactive  go to interactive mode\n"

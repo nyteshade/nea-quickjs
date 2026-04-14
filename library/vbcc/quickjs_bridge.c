@@ -315,3 +315,13 @@ uint64_t js__hrtime_ns(void) {
     gettimeofday(&tv, NULL);
     return (uint64_t)tv.tv_sec * 1000000000ULL + (uint64_t)tv.tv_usec * 1000ULL;
 }
+
+/* cutils.h references _qjs_time_us via `extern int64_t _qjs_time_us(void);`
+ * inside static-inline timing helpers. When VBCC emits those helpers
+ * (even from static inline) the symbol must resolve at link time.
+ * The library provides this function; the CLI needs its own stub. */
+int64_t _qjs_time_us(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (int64_t)tv.tv_sec * 1000000LL + (int64_t)tv.tv_usec;
+}

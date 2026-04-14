@@ -324,21 +324,65 @@ __rshuint64:
 
 ; ============================================================
 ; double -> signed int64: d0:d1 = (long long)double
-; Stack: double as hi(sp), lo(4,sp)
-; Uses FPU: fmove.d to load, fintrz to truncate, then extract
+; Stack: double as hi(4,sp), lo(8,sp) [+4 for return addr]
+; Algorithm: if fits in 32 bits, use fmove.l directly.
+;   Otherwise decompose: hi = (long)(x / 2^32), lo = (ulong)(x - hi*2^32)
+;   Handle negative via two's complement.
 ; ============================================================
 	xdef	__flt64tosint64
 __flt64tosint64:
-	move.l	d2,-(sp)
-	fmove.d	8(sp),fp0	; load double (+4 for saved d2)
+	movem.l	d2-d3,-(sp)
+	fmove.d	12(sp),fp0	; load double (+8 for saved d2-d3, +4 ret)
 	fintrz.x fp0,fp0	; truncate to integer
-	fmove.l	fp0,d1		; get as 32-bit int (low part)
-	; For values fitting in 32 bits, high = sign extension
+	; Check if value fits in signed 32-bit range
+	fcmp.d	#-2147483648.0,fp0
+	fbolt	.s64_big
+	fcmp.d	#2147483648.0,fp0
+	fboge	.s64_big
+	; Fits in 32 bits — fast path
+	fmove.l	fp0,d1
 	move.l	d1,d0
 	moveq	#31,d2
 	asr.l	d2,d0		; sign-extend to high word
-	move.l	(sp)+,d2
-	; TODO: handle values > 2^31 properly
+	movem.l	(sp)+,d2-d3
+	rts
+.s64_big:
+	; Large value — decompose into hi:lo
+	; Save sign and work with absolute value
+	fmove.x	fp0,fp1		; fp1 = original
+	ftst.x	fp0
+	fboge	.s64_pos
+	fneg.x	fp0,fp0		; fp0 = |x|
+.s64_pos:
+	; hi = (ulong)(|x| / 2^32)
+	fmove.x	fp0,fp2		; fp2 = |x|
+	fdiv.d	#4294967296.0,fp2
+	fintrz.x fp2,fp2	; fp2 = floor(|x| / 2^32)
+	fmove.l	fp2,d0		; d0 = hi (as signed, but value is positive)
+	; lo = (ulong)(|x| - hi * 2^32)
+	fmul.d	#4294967296.0,fp2  ; fp2 = hi * 2^32
+	fmove.x	fp0,fp3
+	fsub.x	fp2,fp3		; fp3 = |x| - hi * 2^32
+	; fmove.l is signed — handle unsigned low word
+	fmove.l	fp3,d1		; works if remainder < 2^31
+	fcmp.d	#2147483648.0,fp3
+	fbolt	.s64_got_lo
+	; remainder >= 2^31: subtract 2^31, convert, add back
+	fsub.d	#2147483648.0,fp3
+	fmove.l	fp3,d1
+	add.l	#$80000000,d1
+.s64_got_lo:
+	; Now d0:d1 = |x| as unsigned hi:lo
+	; If original was negative, negate via two's complement
+	ftst.x	fp1
+	fboge	.s64_done
+	not.l	d1
+	not.l	d0
+	addq.l	#1,d1
+	bcc.s	.s64_done
+	addq.l	#1,d0		; carry into high word
+.s64_done:
+	movem.l	(sp)+,d2-d3
 	rts
 
 ; ============================================================
@@ -348,41 +392,128 @@ __flt64tosint64:
 __flt64touint64:
 	fmove.d	4(sp),fp0
 	fintrz.x fp0,fp0
-	fmove.l	fp0,d1		; low 32 bits
-	moveq	#0,d0		; high 32 bits = 0 for values < 2^32
-	; TODO: handle values > 2^32
+	; Negative -> 0
+	ftst.x	fp0
+	fbolt	.u64_zero
+	; Check if fits in 32 bits
+	fcmp.d	#4294967296.0,fp0
+	fboge	.u64_big
+	; Fits in 32 bits — but fmove.l is signed, handle > 2^31
+	fcmp.d	#2147483648.0,fp0
+	fboge	.u64_hi31
+	fmove.l	fp0,d1
+	moveq	#0,d0
+	rts
+.u64_hi31:
+	fsub.d	#2147483648.0,fp0
+	fmove.l	fp0,d1
+	add.l	#$80000000,d1
+	moveq	#0,d0
+	rts
+.u64_zero:
+	moveq	#0,d0
+	moveq	#0,d1
+	rts
+.u64_big:
+	; hi = (ulong)(x / 2^32)
+	fmove.x	fp0,fp1		; fp1 = x
+	fdiv.d	#4294967296.0,fp0
+	fintrz.x fp0,fp0
+	fmove.l	fp0,d0		; d0 = hi (fits since max double < 2^53)
+	tst.l	d0
+	bpl.s	.u64_hi_ok
+	; hi > 2^31 as signed — shouldn't happen for valid doubles
+	; but handle defensively
+	moveq	#0,d0
+.u64_hi_ok:
+	; lo = (ulong)(x - hi * 2^32)
+	fmul.d	#4294967296.0,fp0
+	fsub.x	fp0,fp1		; fp1 = x - hi * 2^32
+	fcmp.d	#2147483648.0,fp1
+	fboge	.u64_lo_hi31
+	fmove.l	fp1,d1
+	rts
+.u64_lo_hi31:
+	fsub.d	#2147483648.0,fp1
+	fmove.l	fp1,d1
+	add.l	#$80000000,d1
 	rts
 
 ; ============================================================
 ; signed int64 -> double: fp0 = (double)(long long)
 ; Result returned in d0:d1 as double bit pattern
-; Stack: hi(sp), lo(4,sp)
+; Stack: hi(4,sp), lo(8,sp) [+4 for return addr]
+; Algorithm: result = (double)hi * 2^32 + (double)(unsigned)lo
 ; ============================================================
 	xdef	__sint64toflt64
 __sint64toflt64:
-	fmove.l	8(sp),fp0	; load low 32 bits as integer
-	; For full 64-bit: high * 2^32 + low
-	; TODO: handle high word properly
-	fmove.d	fp0,-(sp)	; push double onto stack
-	move.l	(sp)+,d0	; high word of double
-	move.l	(sp)+,d1	; low word of double
+	move.l	4(sp),d0	; hi word
+	move.l	8(sp),d1	; lo word
+	; Check if hi is just sign extension of lo (32-bit value)
+	move.l	d1,-(sp)	; save lo
+	moveq	#31,d0
+	asr.l	d0,d1		; sign-extend lo -> what hi should be
+	cmp.l	4+4(sp),d1	; compare with actual hi (+4 for pushed lo)
+	move.l	(sp)+,d1	; restore lo
+	bne.s	.s2f_big
+	; Fits in 32 bits — fast path
+	fmove.l	d1,fp0
+	fmove.d	fp0,-(sp)
+	move.l	(sp)+,d0
+	move.l	(sp)+,d1
+	rts
+.s2f_big:
+	; Full 64-bit conversion: (double)hi * 2^32 + (double)(unsigned)lo
+	move.l	4(sp),d0	; reload hi
+	fmove.l	d0,fp0		; fp0 = (double)(signed)hi
+	fmul.d	#4294967296.0,fp0  ; fp0 = hi * 2^32
+	; Convert unsigned lo to double
+	fmove.l	d1,fp1		; fp1 = (double)(signed)lo
+	tst.l	d1
+	bpl.s	.s2f_lo_pos
+	fadd.d	#4294967296.0,fp1  ; fix unsigned: add 2^32 if sign bit set
+.s2f_lo_pos:
+	fadd.x	fp1,fp0		; fp0 = hi * 2^32 + lo
+	fmove.d	fp0,-(sp)
+	move.l	(sp)+,d0
+	move.l	(sp)+,d1
 	rts
 
 ; ============================================================
 ; unsigned int64 -> double: same but unsigned
+; Stack: hi(4,sp), lo(8,sp) [+4 for return addr]
 ; ============================================================
 	xdef	__uint64toflt64
 __uint64toflt64:
-	; Load low 32 bits as unsigned (via fmove.l which is signed,
-	; so handle the sign bit)
-	move.l	8(sp),d0	; low 32 bits
+	move.l	4(sp),d0	; hi word
+	tst.l	d0
+	bne.s	.u2f_big
+	; hi == 0, just convert lo as unsigned
+	move.l	8(sp),d0	; lo word
 	fmove.l	d0,fp0
 	tst.l	d0
-	bpl.s	.u2f_pos
-	; Value was negative as signed — add 2^32
-	fadd.d	#4294967296.0,fp0
-.u2f_pos:
-	; TODO: handle high word
+	bpl.s	.u2f_small_pos
+	fadd.d	#4294967296.0,fp0  ; fix unsigned
+.u2f_small_pos:
+	fmove.d	fp0,-(sp)
+	move.l	(sp)+,d0
+	move.l	(sp)+,d1
+	rts
+.u2f_big:
+	; Full 64-bit: (double)(unsigned)hi * 2^32 + (double)(unsigned)lo
+	fmove.l	d0,fp0		; fp0 = (signed)hi
+	tst.l	d0
+	bpl.s	.u2f_hi_pos
+	fadd.d	#4294967296.0,fp0  ; fix unsigned hi
+.u2f_hi_pos:
+	fmul.d	#4294967296.0,fp0  ; fp0 = hi * 2^32
+	move.l	8(sp),d0	; lo word
+	fmove.l	d0,fp1
+	tst.l	d0
+	bpl.s	.u2f_lo_pos
+	fadd.d	#4294967296.0,fp1  ; fix unsigned lo
+.u2f_lo_pos:
+	fadd.x	fp1,fp0
 	fmove.d	fp0,-(sp)
 	move.l	(sp)+,d0
 	move.l	(sp)+,d1

@@ -21,4 +21,9 @@ typedef unsigned int nfds_t;
 /* AmigaOS impl: uses WaitForChar for fd 0; see amiga_compat.c */
 int poll(struct pollfd *fds, nfds_t nfds, int timeout);
 
+/* Socket FD registry for poll() -- call these when creating/closing
+ * bsdsocket.library sockets so poll() knows to use WaitSelect(). */
+void poll_register_socket(int fd);
+void poll_unregister_socket(int fd);
+
 #endif /* _AMIGA_POLL_H */

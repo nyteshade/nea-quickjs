@@ -111,7 +111,8 @@ FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
               $(OBJDIR_FPU)/sharedlib_int64.o \
               $(OBJDIR_FPU)/sharedlib_posix.o \
               $(OBJDIR_FPU)/sharedlib_stdio.o \
-              $(OBJDIR_FPU)/sharedlib_clib.o
+              $(OBJDIR_FPU)/sharedlib_clib.o \
+              $(OBJDIR_FPU)/sharedlib_fetch.o
 
 FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/qjsfuncs_asm_all.o \
@@ -136,7 +137,8 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
                $(OBJDIR_SOFT)/sharedlib_int64_conv.o \
                $(OBJDIR_SOFT)/sharedlib_posix.o \
                $(OBJDIR_SOFT)/sharedlib_stdio.o \
-               $(OBJDIR_SOFT)/sharedlib_clib.o
+               $(OBJDIR_SOFT)/sharedlib_clib.o \
+               $(OBJDIR_SOFT)/sharedlib_fetch.o
 
 SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/qjsfuncs_asm_all.o \
@@ -287,6 +289,9 @@ $(OBJDIR_FPU)/sharedlib_stdio.o: $(LIBVBCC)/sharedlib_stdio.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/sharedlib_clib.o: $(LIBVBCC)/sharedlib_clib.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/sharedlib_fetch.o: $(LIBVBCC)/sharedlib_fetch.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
 $(OBJDIR_FPU)/sharedlib_int64.o: $(LIBVBCC)/sharedlib_int64.s | $(OBJDIR_FPU)
 	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
@@ -363,6 +368,9 @@ $(OBJDIR_SOFT)/sharedlib_stdio.o: $(LIBVBCC)/sharedlib_stdio.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_clib.o: $(LIBVBCC)/sharedlib_clib.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_fetch.o: $(LIBVBCC)/sharedlib_fetch.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_int64_conv.o: $(LIBVBCC)/sharedlib_int64_conv.c | $(OBJDIR_SOFT)

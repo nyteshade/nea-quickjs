@@ -5124,6 +5124,598 @@ static JSValue js_console_log(JSContext *ctx, JSValueConst this_val,
     return ret;
 }
 
+/**********************************************************/
+/* fetch() API — async HTTP/HTTPS with Response/Headers   */
+/**********************************************************/
+
+#if defined(__VBCC__)
+
+#include "amiga_fetch.h"
+
+/* ---- Headers class ---- */
+
+typedef struct {
+    char *raw;
+    int raw_len;
+} JSHeadersData;
+
+static JSClassID js_headers_class_id;
+
+static void js_headers_finalizer(JSRuntime *rt, JSValue val)
+{
+    JSHeadersData *h = JS_GetOpaque(val, js_headers_class_id);
+    if (h) {
+        if (h->raw) js_free_rt(rt, h->raw);
+        js_free_rt(rt, h);
+    }
+}
+
+static JSClassDef js_headers_class = {
+    "Headers", js_headers_finalizer, NULL, NULL, NULL,
+};
+
+static JSValue js_headers_get(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    JSHeadersData *h = JS_GetOpaque2(ctx, this_val, js_headers_class_id);
+    const char *name, *p, *end, *colon, *val_start, *val_end;
+    size_t name_len;
+    if (!h || !h->raw) return JS_NULL;
+    name = JS_ToCString(ctx, argv[0]);
+    if (!name) return JS_EXCEPTION;
+    name_len = strlen(name);
+    p = h->raw;
+    end = h->raw + h->raw_len;
+    while (p < end) {
+        colon = memchr(p, ':', end - p);
+        if (!colon) break;
+        if ((int)(colon - p) == (int)name_len) {
+            int match = 1;
+            int i;
+            for (i = 0; i < (int)name_len; i++) {
+                char a = p[i], b = name[i];
+                if (a >= 'A' && a <= 'Z') a += 32;
+                if (b >= 'A' && b <= 'Z') b += 32;
+                if (a != b) { match = 0; break; }
+            }
+            if (match) {
+                val_start = colon + 1;
+                while (val_start < end && *val_start == ' ') val_start++;
+                val_end = memchr(val_start, '\r', end - val_start);
+                if (!val_end) val_end = memchr(val_start, '\n', end - val_start);
+                if (!val_end) val_end = end;
+                JS_FreeCString(ctx, name);
+                return JS_NewStringLen(ctx, val_start, val_end - val_start);
+            }
+        }
+        /* Skip to next line */
+        p = memchr(p, '\n', end - p);
+        if (!p) break;
+        p++;
+    }
+    JS_FreeCString(ctx, name);
+    return JS_NULL;
+}
+
+static JSValue js_headers_has(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    JSValue v = js_headers_get(ctx, this_val, argc, argv);
+    int has = !JS_IsNull(v);
+    JS_FreeValue(ctx, v);
+    return JS_NewBool(ctx, has);
+}
+
+static JSValue js_headers_forEach(JSContext *ctx, JSValueConst this_val,
+                                  int argc, JSValueConst *argv)
+{
+    JSHeadersData *h = JS_GetOpaque2(ctx, this_val, js_headers_class_id);
+    JSValueConst func = argv[0];
+    const char *p, *end, *colon, *val_start, *val_end, *nl;
+    if (!h || !h->raw) return JS_UNDEFINED;
+    if (!JS_IsFunction(ctx, func))
+        return JS_ThrowTypeError(ctx, "not a function");
+    p = h->raw;
+    end = h->raw + h->raw_len;
+    while (p < end) {
+        colon = memchr(p, ':', end - p);
+        if (!colon) break;
+        val_start = colon + 1;
+        while (val_start < end && *val_start == ' ') val_start++;
+        nl = memchr(val_start, '\r', end - val_start);
+        if (!nl) nl = memchr(val_start, '\n', end - val_start);
+        val_end = nl ? nl : end;
+        {
+            JSValue args[2];
+            JSValue ret;
+            args[0] = JS_NewStringLen(ctx, val_start, val_end - val_start);
+            args[1] = JS_NewStringLen(ctx, p, colon - p);
+            ret = JS_Call(ctx, func, JS_UNDEFINED, 2, args);
+            JS_FreeValue(ctx, args[0]);
+            JS_FreeValue(ctx, args[1]);
+            if (JS_IsException(ret)) return JS_EXCEPTION;
+            JS_FreeValue(ctx, ret);
+        }
+        p = nl ? nl + 1 : end;
+        if (p < end && *p == '\n') p++;
+    }
+    return JS_UNDEFINED;
+}
+
+static const JSCFunctionListEntry js_headers_proto_funcs[] = {
+    JS_CFUNC_DEF("get", 1, js_headers_get),
+    JS_CFUNC_DEF("has", 1, js_headers_has),
+    JS_CFUNC_DEF("forEach", 1, js_headers_forEach),
+};
+
+static JSValue js_new_headers(JSContext *ctx, const char *raw, int raw_len)
+{
+    JSValue obj;
+    JSHeadersData *h;
+    obj = JS_NewObjectClass(ctx, js_headers_class_id);
+    if (JS_IsException(obj)) return obj;
+    h = js_mallocz(ctx, sizeof(*h));
+    if (!h) { JS_FreeValue(ctx, obj); return JS_EXCEPTION; }
+    if (raw && raw_len > 0) {
+        h->raw = js_malloc(ctx, raw_len + 1);
+        if (!h->raw) { js_free(ctx, h); JS_FreeValue(ctx, obj); return JS_EXCEPTION; }
+        memcpy(h->raw, raw, raw_len);
+        h->raw[raw_len] = '\0';
+        h->raw_len = raw_len;
+    }
+    JS_SetOpaque(obj, h);
+    /* Attach methods directly to instance (workaround for prototype issues) */
+    JS_SetPropertyStr(ctx, obj, "get",
+                      JS_NewCFunction(ctx, js_headers_get, "get", 1));
+    JS_SetPropertyStr(ctx, obj, "has",
+                      JS_NewCFunction(ctx, js_headers_has, "has", 1));
+    JS_SetPropertyStr(ctx, obj, "forEach",
+                      JS_NewCFunction(ctx, js_headers_forEach, "forEach", 1));
+    return obj;
+}
+
+/* ---- Response class ---- */
+
+typedef struct {
+    int status;
+    char *status_text;
+    char *url;
+    char *body;
+    int body_len;
+    JSValue headers_obj; /* cached Headers instance */
+} JSResponseData;
+
+static JSClassID js_response_class_id;
+
+static void js_response_finalizer(JSRuntime *rt, JSValue val)
+{
+    JSResponseData *r = JS_GetOpaque(val, js_response_class_id);
+    if (r) {
+        if (r->status_text) js_free_rt(rt, r->status_text);
+        if (r->url) js_free_rt(rt, r->url);
+        if (r->body) js_free_rt(rt, r->body);
+        JS_FreeValueRT(rt, r->headers_obj);
+        js_free_rt(rt, r);
+    }
+}
+
+static void js_response_gc_mark(JSRuntime *rt, JSValueConst val,
+                                JS_MarkFunc *mark_func)
+{
+    JSResponseData *r = JS_GetOpaque(val, js_response_class_id);
+    if (r) JS_MarkValue(rt, r->headers_obj, mark_func);
+}
+
+static JSClassDef js_response_class = {
+    "Response", js_response_finalizer, js_response_gc_mark, NULL, NULL,
+};
+
+static JSValue js_response_get_status(JSContext *ctx, JSValueConst this_val)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    if (!r) return JS_EXCEPTION;
+    return JS_NewInt32(ctx, r->status);
+}
+
+static JSValue js_response_get_ok(JSContext *ctx, JSValueConst this_val)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    if (!r) return JS_EXCEPTION;
+    return JS_NewBool(ctx, r->status >= 200 && r->status <= 299);
+}
+
+static JSValue js_response_get_statusText(JSContext *ctx, JSValueConst this_val)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    if (!r) return JS_EXCEPTION;
+    return r->status_text ? JS_NewString(ctx, r->status_text) : JS_NewString(ctx, "");
+}
+
+static JSValue js_response_get_url(JSContext *ctx, JSValueConst this_val)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    if (!r) return JS_EXCEPTION;
+    return r->url ? JS_NewString(ctx, r->url) : JS_NewString(ctx, "");
+}
+
+static JSValue js_response_get_headers(JSContext *ctx, JSValueConst this_val)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    if (!r) return JS_EXCEPTION;
+    if (JS_IsUndefined(r->headers_obj) || JS_IsNull(r->headers_obj))
+        return JS_NULL;
+    return JS_DupValue(ctx, r->headers_obj);
+}
+
+static JSValue js_response_text(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    JSValue resolving[2], promise, val;
+    if (!r) return JS_EXCEPTION;
+    promise = JS_NewPromiseCapability(ctx, resolving);
+    if (JS_IsException(promise)) return promise;
+    val = r->body ? JS_NewStringLen(ctx, r->body, r->body_len)
+                  : JS_NewString(ctx, "");
+    {
+        JSValue ret = JS_Call(ctx, resolving[0], JS_UNDEFINED, 1, &val);
+        JS_FreeValue(ctx, ret);
+    }
+    JS_FreeValue(ctx, val);
+    JS_FreeValue(ctx, resolving[0]);
+    JS_FreeValue(ctx, resolving[1]);
+    return promise;
+}
+
+static JSValue js_response_json(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    JSValue resolving[2], promise, str_val, parsed, ret;
+    if (!r) return JS_EXCEPTION;
+    promise = JS_NewPromiseCapability(ctx, resolving);
+    if (JS_IsException(promise)) return promise;
+    str_val = r->body ? JS_NewStringLen(ctx, r->body, r->body_len)
+                      : JS_NewString(ctx, "");
+    parsed = JS_ParseJSON(ctx, r->body ? r->body : "", r->body ? r->body_len : 0, "<fetch>");
+    JS_FreeValue(ctx, str_val);
+    if (JS_IsException(parsed)) {
+        JSValue err = JS_GetException(ctx);
+        ret = JS_Call(ctx, resolving[1], JS_UNDEFINED, 1, &err);
+        JS_FreeValue(ctx, ret);
+        JS_FreeValue(ctx, err);
+    } else {
+        ret = JS_Call(ctx, resolving[0], JS_UNDEFINED, 1, &parsed);
+        JS_FreeValue(ctx, ret);
+    }
+    JS_FreeValue(ctx, parsed);
+    JS_FreeValue(ctx, resolving[0]);
+    JS_FreeValue(ctx, resolving[1]);
+    return promise;
+}
+
+static JSValue js_response_arrayBuffer(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv)
+{
+    JSResponseData *r = JS_GetOpaque2(ctx, this_val, js_response_class_id);
+    JSValue resolving[2], promise, buf, ret;
+    if (!r) return JS_EXCEPTION;
+    promise = JS_NewPromiseCapability(ctx, resolving);
+    if (JS_IsException(promise)) return promise;
+    buf = JS_NewArrayBufferCopy(ctx, (const uint8_t *)(r->body ? r->body : ""),
+                                r->body ? r->body_len : 0);
+    ret = JS_Call(ctx, resolving[0], JS_UNDEFINED, 1, &buf);
+    JS_FreeValue(ctx, ret);
+    JS_FreeValue(ctx, buf);
+    JS_FreeValue(ctx, resolving[0]);
+    JS_FreeValue(ctx, resolving[1]);
+    return promise;
+}
+
+static const JSCFunctionListEntry js_response_proto_funcs[] = {
+    JS_CGETSET_DEF("status", js_response_get_status, NULL),
+    JS_CGETSET_DEF("ok", js_response_get_ok, NULL),
+    JS_CGETSET_DEF("statusText", js_response_get_statusText, NULL),
+    JS_CGETSET_DEF("url", js_response_get_url, NULL),
+    JS_CGETSET_DEF("headers", js_response_get_headers, NULL),
+    JS_CFUNC_DEF("text", 0, js_response_text),
+    JS_CFUNC_DEF("json", 0, js_response_json),
+    JS_CFUNC_DEF("arrayBuffer", 0, js_response_arrayBuffer),
+};
+
+static JSValue js_new_response(JSContext *ctx, int status,
+                               const char *status_text, const char *url,
+                               const char *headers_raw, int headers_len,
+                               const char *body, int body_len)
+{
+    JSValue obj;
+    JSResponseData *r;
+    obj = JS_NewObjectClass(ctx, js_response_class_id);
+    if (JS_IsException(obj)) return obj;
+    r = js_mallocz(ctx, sizeof(*r));
+    if (!r) { JS_FreeValue(ctx, obj); return JS_EXCEPTION; }
+    r->status = status;
+    r->headers_obj = js_new_headers(ctx, headers_raw, headers_len);
+    if (JS_IsException(r->headers_obj))
+        r->headers_obj = JS_NULL;
+    if (status_text) {
+        r->status_text = js_malloc(ctx, strlen(status_text) + 1);
+        if (r->status_text) strcpy(r->status_text, status_text);
+    }
+    if (url) {
+        r->url = js_malloc(ctx, strlen(url) + 1);
+        if (r->url) strcpy(r->url, url);
+    }
+    if (body && body_len > 0) {
+        r->body = js_malloc(ctx, body_len + 1);
+        if (r->body) {
+            memcpy(r->body, body, body_len);
+            r->body[body_len] = '\0';
+        }
+        r->body_len = body_len;
+    }
+    JS_SetOpaque(obj, r);
+    return obj;
+}
+
+/* ---- fetch() binding ---- */
+
+typedef struct {
+    FetchContext *fc;
+    JSValue resolving_funcs[2];
+    JSContext *ctx;
+    int fd;
+} JSFetchState;
+
+/* Only one fetch at a time (single data segment constraint) */
+static JSFetchState *active_fetch = NULL;
+
+static void js_fetch_cleanup(JSContext *ctx)
+{
+    if (!active_fetch) return;
+    /* NOTE: Do NOT use os.setReadHandler/setWriteHandler for sockets.
+     * bsdsocket.library can return fd 0 (same as stdin), which would
+     * clobber the REPL's stdin handler. We drive the state machine
+     * via setTimeout instead. */
+    if (active_fetch->fc) fetch_destroy(active_fetch->fc);
+    JS_FreeValue(ctx, active_fetch->resolving_funcs[0]);
+    JS_FreeValue(ctx, active_fetch->resolving_funcs[1]);
+    js_free(ctx, active_fetch);
+    active_fetch = NULL;
+}
+
+/* Schedule js_fetch_callback to fire in delay_ms milliseconds via
+ * the timer subsystem. Avoids fd collisions with stdin. */
+static void js_fetch_schedule(JSContext *ctx, int delay_ms, JSValue callback)
+{
+    JSRuntime *rt = JS_GetRuntime(ctx);
+    JSThreadState *ts = js_get_thread_state(rt);
+    JSOSTimer *th;
+    if (delay_ms < 1) delay_ms = 20; /* min 1 AmigaOS tick */
+    th = js_mallocz(ctx, sizeof(*th));
+    if (!th) return;
+    th->timer_id = ts->next_timer_id++;
+    th->repeats = 0;
+    th->timeout = js__hrtime_ms() + delay_ms;
+    th->delay = delay_ms;
+    th->func = JS_DupValue(ctx, callback);
+    list_add_tail(&th->link, &ts->os_timers);
+}
+
+static JSValue js_fetch_callback(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv)
+{
+    int want_read = 0, want_write = 0;
+    int rc;
+
+    if (!active_fetch || !active_fetch->fc) return JS_UNDEFINED;
+
+    rc = fetch_step(active_fetch->fc, &want_read, &want_write);
+
+    if (rc == 0) {
+        /* Still in progress — reschedule via timer.
+         * want_read/want_write tell us what events we're waiting for,
+         * but since we're polling, we just check again after a short delay. */
+        JSValue self = JS_NewCFunction(ctx, js_fetch_callback, "fetchCallback", 0);
+        js_fetch_schedule(ctx, 20, self);
+        JS_FreeValue(ctx, self);
+        (void)want_read; (void)want_write;
+        return JS_UNDEFINED;
+    }
+
+    /* Completed — resolve or reject the promise */
+    if (fetch_get_state(active_fetch->fc) == FETCH_STATE_DONE) {
+        int body_len = 0, hdr_len = 0;
+        const char *body = fetch_get_body(active_fetch->fc, &body_len);
+        const char *hdrs = fetch_get_headers(active_fetch->fc, &hdr_len);
+        int status = fetch_get_status(active_fetch->fc);
+        const char *url = fetch_get_url(active_fetch->fc);
+        /* Infer status text from the FetchContext */
+        const char *status_text = "";
+        JSValue response;
+
+        /* Build status text from the state machine's parsed data */
+        {
+            /* Access internal field — fetch_get_error returns NULL on success */
+            FetchContext *fc = active_fetch->fc;
+            /* status_text is stored internally; access via a small hack:
+             * the FetchContext struct has status_text at a known offset.
+             * Instead of exposing it, construct a generic one. */
+            if (status == 200) status_text = "OK";
+            else if (status == 201) status_text = "Created";
+            else if (status == 204) status_text = "No Content";
+            else if (status == 301) status_text = "Moved Permanently";
+            else if (status == 302) status_text = "Found";
+            else if (status == 304) status_text = "Not Modified";
+            else if (status == 400) status_text = "Bad Request";
+            else if (status == 401) status_text = "Unauthorized";
+            else if (status == 403) status_text = "Forbidden";
+            else if (status == 404) status_text = "Not Found";
+            else if (status == 500) status_text = "Internal Server Error";
+        }
+
+        response = js_new_response(ctx, status, status_text, url,
+                                   hdrs, hdr_len, body, body_len);
+        if (JS_IsException(response)) {
+            JSValue err = JS_GetException(ctx);
+            JSValue ret = JS_Call(ctx, active_fetch->resolving_funcs[1],
+                                  JS_UNDEFINED, 1, &err);
+            JS_FreeValue(ctx, ret);
+            JS_FreeValue(ctx, err);
+        } else {
+            JSValue ret = JS_Call(ctx, active_fetch->resolving_funcs[0],
+                                  JS_UNDEFINED, 1, &response);
+            JS_FreeValue(ctx, ret);
+        }
+        JS_FreeValue(ctx, response);
+    } else {
+        /* Error */
+        const char *err_msg = fetch_get_error(active_fetch->fc);
+        JSValue err = JS_NewError(ctx);
+        JSValue ret;
+        JS_DefinePropertyValueStr(ctx, err, "message",
+                                  JS_NewString(ctx, err_msg ? err_msg : "fetch failed"),
+                                  JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+        ret = JS_Call(ctx, active_fetch->resolving_funcs[1],
+                      JS_UNDEFINED, 1, &err);
+        JS_FreeValue(ctx, ret);
+        JS_FreeValue(ctx, err);
+    }
+
+    js_fetch_cleanup(ctx);
+    return JS_UNDEFINED;
+}
+
+JSValue js_fetch(JSContext *ctx, JSValueConst this_val,
+                 int argc, JSValueConst *argv)
+{
+    const char *url;
+    const char *method = NULL;
+    const char *body_str = NULL;
+    const char *custom_headers = NULL;
+    size_t body_len = 0;
+    JSValue options = JS_UNDEFINED;
+    JSValue promise;
+    FetchContext *fc;
+    int fd, want_read = 0, want_write = 0;
+    JSValue callback;
+
+    if (active_fetch)
+        return JS_ThrowTypeError(ctx, "fetch already in progress");
+
+    url = JS_ToCString(ctx, argv[0]);
+    if (!url) return JS_EXCEPTION;
+
+    /* Parse options */
+    if (argc > 1 && JS_IsObject(argv[1])) {
+        JSValue v;
+        options = argv[1];
+
+        v = JS_GetPropertyStr(ctx, options, "method");
+        if (JS_IsString(v)) method = JS_ToCString(ctx, v);
+        JS_FreeValue(ctx, v);
+
+        v = JS_GetPropertyStr(ctx, options, "body");
+        if (JS_IsString(v)) body_str = JS_ToCStringLen(ctx, &body_len, v);
+        JS_FreeValue(ctx, v);
+
+        v = JS_GetPropertyStr(ctx, options, "headers");
+        if (JS_IsObject(v)) {
+            /* Convert headers object to raw string */
+            /* For v1, accept a plain string of headers */
+            /* TODO: support Headers object or plain object with key/value pairs */
+        }
+        if (JS_IsString(v)) custom_headers = JS_ToCString(ctx, v);
+        JS_FreeValue(ctx, v);
+    }
+
+    /* Create the fetch state machine */
+    fc = fetch_create(url, method ? method : "GET", custom_headers,
+                      body_str, (int)body_len);
+
+    /* Free temporary strings */
+    JS_FreeCString(ctx, url);
+    if (method) JS_FreeCString(ctx, method);
+    if (body_str) JS_FreeCString(ctx, body_str);
+    if (custom_headers) JS_FreeCString(ctx, custom_headers);
+
+    if (!fc)
+        return JS_ThrowTypeError(ctx, "Failed to create fetch context");
+
+    /* Check for immediate error (bad URL, DNS failure, etc.) */
+    if (fetch_get_state(fc) == FETCH_STATE_ERROR) {
+        const char *err_msg = fetch_get_error(fc);
+        JSValue err;
+        fetch_destroy(fc);
+        err = JS_ThrowTypeError(ctx, "%s", err_msg ? err_msg : "fetch failed");
+        return err;
+    }
+
+    /* Create promise */
+    active_fetch = js_mallocz(ctx, sizeof(JSFetchState));
+    if (!active_fetch) {
+        fetch_destroy(fc);
+        return JS_EXCEPTION;
+    }
+    active_fetch->fc = fc;
+    active_fetch->ctx = ctx;
+    active_fetch->fd = fetch_get_fd(fc);
+
+    promise = JS_NewPromiseCapability(ctx, active_fetch->resolving_funcs);
+    if (JS_IsException(promise)) {
+        fetch_destroy(fc);
+        js_free(ctx, active_fetch);
+        active_fetch = NULL;
+        return promise;
+    }
+
+    /* Initial step to see what I/O we need */
+    fetch_step(fc, &want_read, &want_write);
+
+    /* Check if already done (immediate connect + small response) */
+    if (fetch_get_state(fc) == FETCH_STATE_DONE ||
+        fetch_get_state(fc) == FETCH_STATE_ERROR) {
+        /* Fire the callback directly */
+        callback = JS_NewCFunction(ctx, js_fetch_callback, "fetchCallback", 0);
+        JS_FreeValue(ctx, JS_Call(ctx, callback, JS_UNDEFINED, 0, NULL));
+        JS_FreeValue(ctx, callback);
+        return promise;
+    }
+
+    /* Schedule the state machine via timer (not setReadHandler,
+     * to avoid fd collision with stdin on AmigaOS bsdsocket.library) */
+    callback = JS_NewCFunction(ctx, js_fetch_callback, "fetchCallback", 0);
+    js_fetch_schedule(ctx, 20, callback);
+    JS_FreeValue(ctx, callback);
+    (void)want_read; (void)want_write;
+
+    return promise;
+}
+
+void js_fetch_init_classes(JSContext *ctx)
+{
+    JSRuntime *rt = JS_GetRuntime(ctx);
+    JSValue proto;
+
+    /* Headers class */
+    JS_NewClassID(rt, &js_headers_class_id);
+    JS_NewClass(rt, js_headers_class_id, &js_headers_class);
+    proto = JS_NewObject(ctx);
+    JS_SetPropertyFunctionList(ctx, proto, js_headers_proto_funcs,
+                               countof(js_headers_proto_funcs));
+    JS_SetClassProto(ctx, js_headers_class_id, proto);
+
+    /* Response class */
+    JS_NewClassID(rt, &js_response_class_id);
+    JS_NewClass(rt, js_response_class_id, &js_response_class);
+    proto = JS_NewObject(ctx);
+    JS_SetPropertyFunctionList(ctx, proto, js_response_proto_funcs,
+                               countof(js_response_proto_funcs));
+    JS_SetClassProto(ctx, js_response_class_id, proto);
+}
+
+#endif /* __VBCC__ */
+
 void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
 {
     JSValue global_obj, console, args;
@@ -5148,7 +5740,13 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
 
     JS_SetPropertyStr(ctx, global_obj, "print",
                       JS_NewCFunction(ctx, js_print, "print", 1));
-    }
+
+#if defined(__VBCC__)
+    /* Initialize fetch() API — Response and Headers classes + global fetch */
+    js_fetch_init_classes(ctx);
+    JS_SetPropertyStr(ctx, global_obj, "fetch",
+                      JS_NewCFunction(ctx, js_fetch, "fetch", 1));
+#endif
 
     JS_FreeValue(ctx, global_obj);
 }

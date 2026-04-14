@@ -1146,10 +1146,81 @@ int tcsetattr(int fd, int action, const struct termios *t)
 }
 
 /* ================================================================
- * poll
+ * bsdsocket.library -- LVO stubs for socket polling (WaitSelect)
  *
- * Simple implementation: for stdin (fd 0), use WaitForChar.
- * For all other fds, report them as ready immediately.
+ * SocketBase is defined in amiga_ssl_lib.c as a non-static global.
+ * We only call these when SocketBase is non-NULL (sockets in use).
+ * ================================================================ */
+extern struct Library *SocketBase;
+
+static LONG __sl_WaitSelect(__reg("a6") struct Library *base,
+                            __reg("d0") LONG nfds,
+                            __reg("a0") void *read_fds,
+                            __reg("a1") void *write_fds,
+                            __reg("a2") void *except_fds,
+                            __reg("a3") void *_timeout,
+                            __reg("d1") unsigned long *signals)
+                            = "\tjsr\t-126(a6)";
+#define sl_WaitSelect(n,r,w,e,t,s) \
+    __sl_WaitSelect(SocketBase, (n), (r), (w), (e), (t), (s))
+
+/* ================================================================
+ * Socket FD registry
+ *
+ * Tracks which FDs are bsdsocket.library sockets so poll() can
+ * use WaitSelect() instead of treating them as always-ready.
+ * ================================================================ */
+#define MAX_TRACKED_SOCKETS 8
+static int tracked_sockets[MAX_TRACKED_SOCKETS];
+static int num_tracked_sockets = 0;
+
+void poll_register_socket(int fd)
+{
+    int i;
+    if (num_tracked_sockets >= MAX_TRACKED_SOCKETS) return;
+    for (i = 0; i < num_tracked_sockets; i++) {
+        if (tracked_sockets[i] == fd) return;
+    }
+    tracked_sockets[num_tracked_sockets++] = fd;
+}
+
+void poll_unregister_socket(int fd)
+{
+    int i;
+    for (i = 0; i < num_tracked_sockets; i++) {
+        if (tracked_sockets[i] == fd) {
+            tracked_sockets[i] = tracked_sockets[--num_tracked_sockets];
+            return;
+        }
+    }
+}
+
+static int is_tracked_socket(int fd)
+{
+    int i;
+    for (i = 0; i < num_tracked_sockets; i++) {
+        if (tracked_sockets[i] == fd) return 1;
+    }
+    return 0;
+}
+
+/* Minimal fd_set for WaitSelect -- supports up to 256 socket FDs */
+typedef struct { unsigned long fds_bits[8]; } amiga_fd_set;
+
+#define AMIGA_FD_ZERO(set)      memset((set), 0, sizeof(amiga_fd_set))
+#define AMIGA_FD_SET(fd, set)   ((set)->fds_bits[(fd)/32] |= (1UL << ((fd) % 32)))
+#define AMIGA_FD_CLR(fd, set)   ((set)->fds_bits[(fd)/32] &= ~(1UL << ((fd) % 32)))
+#define AMIGA_FD_ISSET(fd, set) ((set)->fds_bits[(fd)/32] & (1UL << ((fd) % 32)))
+
+/* WaitSelect timeval -- matches AmigaOS struct timeval layout */
+struct ws_timeval { long tv_sec; long tv_usec; };
+
+/* ================================================================
+ * poll -- event loop polling for stdin + sockets
+ *
+ * For stdin (fd 0): uses dos.library WaitForChar.
+ * For tracked sockets: uses bsdsocket.library WaitSelect.
+ * For other fds: POLLOUT always ready, POLLIN ignored.
  * ================================================================ */
 
 int poll(struct pollfd *fds, nfds_t nfds, int timeout)
@@ -1157,26 +1228,91 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
     unsigned int i;
     int ready = 0;
     BPTR fh;
+    int have_sockets = 0;
+    int max_sock_fd = -1;
+    amiga_fd_set read_set, write_set;
 
     if (!fds || nfds == 0) return 0;
     if (!sl_DOSBase) return 0;
 
+    /* First pass: identify socket FDs and build fd_sets */
+    if (SocketBase && num_tracked_sockets > 0) {
+        AMIGA_FD_ZERO(&read_set);
+        AMIGA_FD_ZERO(&write_set);
+
+        for (i = 0; i < nfds; i++) {
+            if (is_tracked_socket(fds[i].fd)) {
+                have_sockets = 1;
+                if (fds[i].events & POLLIN)
+                    AMIGA_FD_SET(fds[i].fd, &read_set);
+                if (fds[i].events & POLLOUT)
+                    AMIGA_FD_SET(fds[i].fd, &write_set);
+                if (fds[i].fd > max_sock_fd)
+                    max_sock_fd = fds[i].fd;
+            }
+        }
+    }
+
+    /* If we have sockets, call WaitSelect */
+    if (have_sockets) {
+        struct ws_timeval tv;
+        LONG ws_result;
+
+        if (timeout < 0) {
+            /* Block, but cap at 100ms to let stdin checks happen */
+            tv.tv_sec = 0;
+            tv.tv_usec = 100000;
+        } else if (timeout == 0) {
+            tv.tv_sec = 0;
+            tv.tv_usec = 0;
+        } else {
+            tv.tv_sec = timeout / 1000;
+            tv.tv_usec = (timeout % 1000) * 1000L;
+        }
+
+        ws_result = sl_WaitSelect(max_sock_fd + 1,
+                                  &read_set, &write_set, NULL,
+                                  &tv, NULL);
+
+        /* Map WaitSelect results back to pollfd revents */
+        if (ws_result > 0) {
+            for (i = 0; i < nfds; i++) {
+                if (!is_tracked_socket(fds[i].fd)) continue;
+                fds[i].revents = 0;
+                if ((fds[i].events & POLLIN) &&
+                    AMIGA_FD_ISSET(fds[i].fd, &read_set)) {
+                    fds[i].revents |= POLLIN;
+                    ready++;
+                }
+                if ((fds[i].events & POLLOUT) &&
+                    AMIGA_FD_ISSET(fds[i].fd, &write_set)) {
+                    fds[i].revents |= POLLOUT;
+                    ready++;
+                }
+            }
+        }
+    }
+
+    /* Handle non-socket FDs */
     for (i = 0; i < nfds; i++) {
+        if (is_tracked_socket(fds[i].fd)) continue;
         fds[i].revents = 0;
 
         if (fds[i].fd == 0 && (fds[i].events & POLLIN)) {
             /* Check stdin with WaitForChar */
             fh = sl_Input();
             if (fh) {
-                /* timeout: -1 = block, 0 = poll, >0 = ms wait.
-                 * WaitForChar takes microseconds. */
                 LONG us_timeout;
-                if (timeout < 0)
-                    us_timeout = 100000; /* 100ms max block per iteration */
-                else if (timeout == 0)
+                if (have_sockets) {
+                    /* Sockets handled above, just quick-poll stdin */
                     us_timeout = 0;
-                else
+                } else if (timeout < 0) {
+                    us_timeout = 100000; /* 100ms max block */
+                } else if (timeout == 0) {
+                    us_timeout = 0;
+                } else {
                     us_timeout = (LONG)timeout * 1000L;
+                }
 
                 if (sl_WaitForChar(fh, us_timeout)) {
                     fds[i].revents |= POLLIN;
@@ -1184,7 +1320,7 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
                 }
             }
         } else if (fds[i].events & POLLOUT) {
-            /* Output is always ready */
+            /* Non-socket output is always ready */
             fds[i].revents |= POLLOUT;
             ready++;
         }
