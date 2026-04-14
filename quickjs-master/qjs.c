@@ -147,6 +147,11 @@ extern const uint8_t qjsc_repl[];
 extern const uint32_t qjsc_repl_size;
 extern const uint8_t qjsc_standalone[];
 extern const uint32_t qjsc_standalone_size;
+#ifdef __VBCC__
+extern const uint8_t qjsc_extended[];
+extern const uint32_t qjsc_extended_size;
+static int extended_mode = 0;
+#endif
 
 /* Must match standalone.js */
 #define TRAILER_SIZE 12
@@ -530,7 +535,13 @@ void help(void)
            "    --memory-limit n       limit the memory usage to 'n' Kbytes\n"
            "    --stack-size n         limit the stack size to 'n' Kbytes\n"
            "-q  --quit         just instantiate the interpreter and quit\n"
-           "    --color        enable colored REPL output (AmigaOS default: off)\n", JS_GetVersion());
+           "    --color        enable colored REPL output (AmigaOS default: off)\n"
+#ifdef __VBCC__
+           "-x  --extended     enable Amiga-port extended APIs\n"
+           "                   (URL, TextEncoder/Decoder, path, process, \n"
+           "                   console.*, AbortController, structuredClone, ...)\n"
+#endif
+           , JS_GetVersion());
     exit(1);
 }
 
@@ -689,6 +700,12 @@ int main(int argc, char **argv)
                 continue;
             }
 #endif
+#if defined(__VBCC__)
+            if (opt == 'x' || !strcmp(longopt, "extended")) {
+                extended_mode = 1;
+                continue;
+            }
+#endif
             if (opt == 'q' || !strcmp(longopt, "quit")) {
                 empty_run++;
                 continue;
@@ -816,6 +833,15 @@ start:
                 "globalThis.os = os;\n";
             eval_buf(ctx, str, strlen(str), "<input>", JS_EVAL_TYPE_MODULE);
         }
+
+#ifdef __VBCC__
+        /* -x/--extended: install Node/web-style APIs via precompiled
+         * bytecode.  The bytecode imports qjs:std and qjs:os, so we
+         * must run it AFTER js_std_add_helpers and the std/os init. */
+        if (extended_mode) {
+            js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
+        }
+#endif
 
         for(i = 0; i < include_count; i++) {
             if (eval_file(ctx, include_list[i], 0))
