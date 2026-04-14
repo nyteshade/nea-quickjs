@@ -1,0 +1,6540 @@
+TABLE OF CONTENTS
+
+quickjs.library/--background--
+quickjs.library/--calling_conventions--
+quickjs.library/--overview--
+quickjs.library/QJS_AddBaseObjects
+quickjs.library/QJS_AddBigInt
+quickjs.library/QJS_AddDate
+quickjs.library/QJS_AddDOMException
+quickjs.library/QJS_AddEval
+quickjs.library/QJS_AddJSON
+quickjs.library/QJS_AddMapSet
+quickjs.library/QJS_AddModuleExport
+quickjs.library/QJS_AddModuleExportList
+quickjs.library/QJS_AddPerformance
+quickjs.library/QJS_AddPromise
+quickjs.library/QJS_AddProxy
+quickjs.library/QJS_AddRegExp
+quickjs.library/QJS_AddRegExpCompiler
+quickjs.library/QJS_AddRuntimeFinalizer
+quickjs.library/QJS_AddTypedArrays
+quickjs.library/QJS_AddWeakRef
+quickjs.library/QJS_AtomToCStringLen
+quickjs.library/QJS_AtomToString
+quickjs.library/QJS_AtomToValue
+quickjs.library/QJS_Call
+quickjs.library/QJS_CallConstructor
+quickjs.library/QJS_Calloc
+quickjs.library/QJS_ComputeMemoryUsage
+quickjs.library/QJS_DefinePropertyValue
+quickjs.library/QJS_DefinePropertyValueStr
+quickjs.library/QJS_DefinePropertyValueUint32
+quickjs.library/QJS_DeleteProperty
+quickjs.library/QJS_DetachArrayBuffer
+quickjs.library/QJS_DetectModule
+quickjs.library/QJS_DupAtom
+quickjs.library/QJS_DupContext
+quickjs.library/QJS_DupValue
+quickjs.library/QJS_DupValueRT
+quickjs.library/QJS_Eval
+quickjs.library/QJS_EvalBuf
+quickjs.library/QJS_EvalFunction
+quickjs.library/QJS_EvalSimple
+quickjs.library/QJS_ExecutePendingJob
+quickjs.library/QJS_Free
+quickjs.library/QJS_FreeAtom
+quickjs.library/QJS_FreeContext
+quickjs.library/QJS_FreeCString
+quickjs.library/QJS_FreePropertyEnum
+quickjs.library/QJS_FreeRuntime
+quickjs.library/QJS_FreeValue
+quickjs.library/QJS_FreeValueRT
+quickjs.library/QJS_FreezeObject
+quickjs.library/QJS_GetArrayBuffer
+quickjs.library/QJS_GetClassID
+quickjs.library/QJS_GetClassProto
+quickjs.library/QJS_GetContextOpaque
+quickjs.library/QJS_GetDumpFlags
+quickjs.library/QJS_GetException
+quickjs.library/QJS_GetFunctionProto
+quickjs.library/QJS_GetGCThreshold
+quickjs.library/QJS_GetGlobalObject
+quickjs.library/QJS_GetImportMeta
+quickjs.library/QJS_GetLength
+quickjs.library/QJS_GetLibcOpaque
+quickjs.library/QJS_GetModuleName
+quickjs.library/QJS_GetModuleNamespace
+quickjs.library/QJS_GetOpaque
+quickjs.library/QJS_GetOpaque2
+quickjs.library/QJS_GetOwnPropertyNames
+quickjs.library/QJS_GetPrototype
+quickjs.library/QJS_GetProperty
+quickjs.library/QJS_GetPropertyInt64
+quickjs.library/QJS_GetPropertyStr
+quickjs.library/QJS_GetPropertyUint32
+quickjs.library/QJS_GetRuntime
+quickjs.library/QJS_GetRuntimeOpaque
+quickjs.library/QJS_GetScriptOrModuleName
+quickjs.library/QJS_GetUint8Array
+quickjs.library/QJS_GetVersion
+quickjs.library/QJS_HasException
+quickjs.library/QJS_HasProperty
+quickjs.library/QJS_InitModuleBJSON
+quickjs.library/QJS_InitModuleOS
+quickjs.library/QJS_InitModuleStd
+quickjs.library/QJS_Invoke
+quickjs.library/QJS_IsArray
+quickjs.library/QJS_IsArrayBuffer
+quickjs.library/QJS_IsConstructor
+quickjs.library/QJS_IsDate
+quickjs.library/QJS_IsEqual
+quickjs.library/QJS_IsError
+quickjs.library/QJS_IsExtensible
+quickjs.library/QJS_IsFunction
+quickjs.library/QJS_IsInstanceOf
+quickjs.library/QJS_IsJobPending
+quickjs.library/QJS_IsLiveObject
+quickjs.library/QJS_IsMap
+quickjs.library/QJS_IsPromise
+quickjs.library/QJS_IsRegExp
+quickjs.library/QJS_IsRegisteredClass
+quickjs.library/QJS_IsSameValue
+quickjs.library/QJS_IsSameValueZero
+quickjs.library/QJS_IsSet
+quickjs.library/QJS_IsStrictEqual
+quickjs.library/QJS_JSONStringify
+quickjs.library/QJS_LoadFile
+quickjs.library/QJS_LoadModule
+quickjs.library/QJS_Malloc
+quickjs.library/QJS_Mallocz
+quickjs.library/QJS_NewArray
+quickjs.library/QJS_NewArrayBufferCopy
+quickjs.library/QJS_NewAtom
+quickjs.library/QJS_NewAtomLen
+quickjs.library/QJS_NewAtomString
+quickjs.library/QJS_NewAtomUInt32
+quickjs.library/QJS_NewBigInt64
+quickjs.library/QJS_NewBigUint64
+quickjs.library/QJS_NewCFunction2
+quickjs.library/QJS_NewCModule
+quickjs.library/QJS_NewClass
+quickjs.library/QJS_NewClassID
+quickjs.library/QJS_NewContext
+quickjs.library/QJS_NewContextRaw
+quickjs.library/QJS_NewDate
+quickjs.library/QJS_NewError
+quickjs.library/QJS_NewNumber
+quickjs.library/QJS_NewObject
+quickjs.library/QJS_NewObjectClass
+quickjs.library/QJS_NewObjectProto
+quickjs.library/QJS_NewPromiseCapability
+quickjs.library/QJS_NewRuntime
+quickjs.library/QJS_NewStringLen
+quickjs.library/QJS_NewSymbol
+quickjs.library/QJS_NewUint8ArrayCopy
+quickjs.library/QJS_ParseJSON
+quickjs.library/QJS_PreventExtensions
+quickjs.library/QJS_PromiseResult
+quickjs.library/QJS_PromiseState
+quickjs.library/QJS_ReadObject
+quickjs.library/QJS_Realloc
+quickjs.library/QJS_ResolveModule
+quickjs.library/QJS_RunGC
+quickjs.library/QJS_SealObject
+quickjs.library/QJS_SetCanBlock
+quickjs.library/QJS_SetClassProto
+quickjs.library/QJS_SetConstructor
+quickjs.library/QJS_SetConstructorBit
+quickjs.library/QJS_SetContextOpaque
+quickjs.library/QJS_SetDumpFlags
+quickjs.library/QJS_SetGCThreshold
+quickjs.library/QJS_SetHostPromiseRejectionTracker
+quickjs.library/QJS_SetInterruptHandler
+quickjs.library/QJS_SetIsHTMLDDA
+quickjs.library/QJS_SetLength
+quickjs.library/QJS_SetLibcOpaque
+quickjs.library/QJS_SetMaxStackSize
+quickjs.library/QJS_SetMemoryLimit
+quickjs.library/QJS_SetModuleExport
+quickjs.library/QJS_SetModuleExportList
+quickjs.library/QJS_SetModuleLoader
+quickjs.library/QJS_SetModuleLoaderFunc
+quickjs.library/QJS_SetOpaque
+quickjs.library/QJS_SetProperty
+quickjs.library/QJS_SetPropertyFunctionList
+quickjs.library/QJS_SetPropertyStr
+quickjs.library/QJS_SetPropertyUint32
+quickjs.library/QJS_SetPrototype
+quickjs.library/QJS_SetRuntimeInfo
+quickjs.library/QJS_SetRuntimeOpaque
+quickjs.library/QJS_StdAddHelpers
+quickjs.library/QJS_StdDumpError
+quickjs.library/QJS_StdEvalBinary
+quickjs.library/QJS_StdFreeHandlers
+quickjs.library/QJS_StdInitHandlers
+quickjs.library/QJS_StdLoop
+quickjs.library/QJS_Strdup
+quickjs.library/QJS_Throw
+quickjs.library/QJS_ThrowOutOfMemory
+quickjs.library/QJS_ToBool
+quickjs.library/QJS_ToCStringLen2
+quickjs.library/QJS_ToFloat64
+quickjs.library/QJS_ToInt32
+quickjs.library/QJS_ToInt64
+quickjs.library/QJS_ToNumber
+quickjs.library/QJS_ToObject
+quickjs.library/QJS_ToPropertyKey
+quickjs.library/QJS_ToString
+quickjs.library/QJS_UpdateStackTop
+quickjs.library/QJS_ValueToAtom
+quickjs.library/QJS_WriteObject
+
+
+quickjs.library/--background--                  quickjs.library/--background--
+
+    NAME
+	quickjs.library -- QuickJS-ng JavaScript engine as an AmigaOS
+	    shared library
+
+    PURPOSE
+	quickjs.library exposes the QuickJS-ng JavaScript engine
+	(v0.12.1) through the standard AmigaOS shared library mechanism.
+	Any Amiga program can OpenLibrary() it and get a full ES2020+
+	JavaScript interpreter -- including async/await, modules,
+	TypedArrays, Promises, Map, Set, BigInt, Proxy, WeakRef, and all
+	the standard built-ins -- without having to statically link the
+	500+ KB engine into every binary.
+
+    AUTHOR
+	Ported to AmigaOS by the nea-quickjs project, based on
+	QuickJS-ng.  QuickJS was originally written by Fabrice Bellard;
+	the -ng fork is community-maintained.
+
+    VERSIONS
+	The library ships in seven variants to match every 68k CPU/FPU
+	combination.  The default file LIBS:quickjs.library is the
+	020-soft build (runs on any 68020+ machine with or without an
+	FPU).  For better math performance on FPU-equipped machines,
+	replace it with one of the CPU-specific FPU variants:
+
+	    quickjs.020fpu.library    68020 + 68881/68882 FPU
+	    quickjs.020soft.library   68020, no FPU (default)
+	    quickjs.040fpu.library    68040 with on-chip FPU
+	    quickjs.040soft.library   68040 without FPU (or LC)
+	    quickjs.060fpu.library    68060 with on-chip FPU
+	    quickjs.060soft.library   68060 without FPU (or LC)
+
+	All variants expose the exact same LVO table and can be swapped
+	in place without recompiling clients.
+
+    REQUIREMENTS
+	AmigaOS 2.04 (V37) or higher.  Opens mathieeedoubbas.library
+	(V34) and mathieeedoubtrans.library (V34) for all numeric work;
+	these are standard on all AmigaOS installs from 2.04 onwards.
+
+	For std.urlGet()/fetch() in JavaScript code, bsdsocket.library
+	(AmiTCP, Miami, Roadshow, ...) must be available.  For HTTPS,
+	AmiSSL must be installed.
+
+    SEE ALSO
+	--overview--, --calling_conventions--, exec.library,
+	dos.library, bsdsocket.library
+
+
+quickjs.library/--overview--                      quickjs.library/--overview--
+
+    NAME
+	--overview-- -- Using quickjs.library from C
+
+    BASIC USAGE
+	#include <proto/quickjs.h>
+
+	struct Library *QuickJSBase;
+
+	QuickJSBase = OpenLibrary("quickjs.library", 0);
+	if (QuickJSBase) {
+	    JSRuntime *rt = QJS_NewRuntime();
+	    JSContext *ctx = QJS_NewContext(rt);
+
+	    JSValue result;
+	    QJS_Eval(&result, ctx, "2 + 2", 5, "<input>", 0);
+
+	    const char *s = QJS_ToCStringLen2(ctx, NULL, &result, 0);
+	    printf("Result: %s\n", s);    /* prints "4" */
+	    QJS_FreeCString(ctx, s);
+
+	    QJS_FreeValue(ctx, &result);
+	    QJS_FreeContext(ctx);
+	    QJS_FreeRuntime(rt);
+	    CloseLibrary(QuickJSBase);
+	}
+
+    ARCHITECTURE
+	The library owns a JSRuntime, which holds the engine's heap,
+	GC, atom table, and class registry.  Inside a runtime you
+	create one or more JSContexts; each context is a separate
+	JavaScript global scope.  A single runtime may have many
+	contexts that share atoms and classes.
+
+	Every JSValue you receive from QJS_* calls is reference-counted.
+	Release it with QJS_FreeValue() when you're done with it or
+	memory will leak.
+
+    FUNCTION CATEGORIES
+	The 186 QJS_* functions fall into these broad groups:
+
+	    Runtime management    --  creation/destruction, GC, memory
+	    Context management    --  global scopes inside a runtime
+	    Intrinsic setup       --  opt-in extra built-ins (Date,
+				      RegExp, Promise, Proxy, Map/Set,
+				      TypedArrays, BigInt, ...)
+	    Evaluation            --  running JS source or bytecode
+	    Value creation        --  wrapping C ints/strings/objects
+				      as JSValue
+	    Value conversion      --  extracting C types from JSValue
+	    Type checking         --  IsArray, IsFunction, IsError, ...
+	    Value lifecycle       --  FreeValue, DupValue
+	    Properties            --  Get/Set/Has/Delete on objects
+	    Object manipulation   --  prototype, freeze, seal, enumerate
+	    Function calling      --  Call, Invoke, NewCFunction
+	    Error handling        --  Throw, GetException
+	    Atoms                 --  interned strings/symbols
+	    JSON                  --  parse/stringify
+	    Serialization         --  binary object format
+	    ArrayBuffer/TypedArray
+	    Promise system        --  creating/inspecting promises
+	    Module system         --  import/export machinery
+	    Class system          --  native class registration
+	    Memory management     --  context-bound malloc/free
+	    Standard library      --  std/os/bjson module init,
+				      event-loop helpers
+
+    SEE ALSO
+	--calling_conventions--, QJS_NewRuntime, QJS_NewContext,
+	QJS_Eval
+
+
+quickjs.library/--calling_conventions-- quickjs.library/--calling_conventions--
+
+    NAME
+	--calling_conventions-- -- How the QJS_* API differs from
+	    upstream quickjs.h
+
+    BACKGROUND
+	quickjs.library mechanically follows the upstream QuickJS-ng
+	C API, but the AmigaOS shared library calling convention forces
+	three systematic adaptations.  These three rules cover every
+	difference between a QJS_* function and the upstream JS_*
+	function with the same name.
+
+    RULE 1: JSValue RETURN -> FIRST-ARGUMENT OUTPUT POINTER
+	JSValue is a 12-byte struct on 68k (union of pointer, int,
+	tag, padding).  AmigaOS library jump tables can only return
+	32-bit values through D0, so any upstream function that
+	returns a JSValue becomes a void function whose first argument
+	is a pointer to caller-allocated JSValue storage.
+
+	Upstream:    JSValue v = JS_NewString(ctx, "hello");
+	Library:     JSValue v;  QJS_NewString(&v, ctx, "hello");
+
+	The pointer must be non-NULL; its previous contents are
+	overwritten without being freed.
+
+    RULE 2: JSValueConst / JSValue PARAMETERS -> POINTERS
+	For the same reason, any function that takes a JSValue or
+	JSValueConst by value becomes one that takes a pointer:
+
+	Upstream:    JS_FreeValue(ctx, val);
+	Library:     QJS_FreeValue(ctx, &val);
+
+	Upstream:    JSValue prop = JS_GetProperty(ctx, obj, atom);
+	Library:     JSValue prop;
+		     QJS_GetProperty(&prop, ctx, &obj, atom);
+
+	The function does not take ownership of the reference; you
+	still own `val` after the call.
+
+    RULE 3: double PARAMETERS -> const double *
+	AmigaOS library pragmas cannot assign a parameter to an FPU
+	register, so double parameters are passed as pointers:
+
+	Upstream:    JSValue n = JS_NewFloat64(ctx, 3.14);
+	Library:     double d = 3.14;
+		     JSValue n;  QJS_NewNumber(&n, ctx, &d);
+
+	The pointer is const -- the callee only reads from it.
+
+    EVERYTHING ELSE IS UNCHANGED
+	Pointers, integers, enums, atoms, class IDs, and strings go
+	through unchanged.  The semantics of every function match
+	upstream QuickJS-ng exactly; only the parameter marshaling
+	differs.
+
+    LIMITATIONS
+	Variadic functions (JS_ThrowTypeError et al with "fmt, ...")
+	cannot cross the library boundary.  Non-variadic alternatives
+	are provided where needed, e.g. throw the error yourself via
+	QJS_Throw() on a pre-built Error object.
+
+	Functions that require a FILE * (JS_DumpMemoryUsage) are not
+	exposed.  Use QJS_ComputeMemoryUsage() and format the result
+	yourself.
+
+    SEE ALSO
+	--overview--, QJS_FreeValue, QJS_NewNumber, QJS_NewStringLen
+
+
+quickjs.library/QJS_NewRuntime               quickjs.library/QJS_NewRuntime
+
+    NAME
+	QJS_NewRuntime -- Create a new JavaScript runtime.
+
+    SYNOPSIS
+	rt = QJS_NewRuntime()
+	D0
+
+	JSRuntime *QJS_NewRuntime(VOID);
+
+    FUNCTION
+	Creates a new JavaScript runtime.  A runtime owns the engine's
+	heap, garbage collector, atom table, and class registry.  You
+	must create at least one JSContext inside it with
+	QJS_NewContext() before you can evaluate any JavaScript.
+
+	The runtime is allocated from the library's memory pool and
+	lives until QJS_FreeRuntime() is called on it.
+
+    INPUTS
+	None.
+
+    RESULT
+	rt - Pointer to the new JSRuntime, or NULL if allocation
+	    failed.  Pass to QJS_NewContext() and most other
+	    runtime-scoped calls.
+
+    EXAMPLE
+	struct Library *QuickJSBase = OpenLibrary("quickjs.library", 0);
+	JSRuntime *rt = QJS_NewRuntime();
+	if (!rt) { CloseLibrary(QuickJSBase); return RETURN_FAIL; }
+	JSContext *ctx = QJS_NewContext(rt);
+	/* ... use ctx ... */
+	QJS_FreeContext(ctx);
+	QJS_FreeRuntime(rt);
+	CloseLibrary(QuickJSBase);
+
+    NOTES
+	A JSRuntime is NOT reentrant.  Only one Task should call into
+	a given runtime at a time.  For parallel JavaScript evaluation,
+	create multiple independent runtimes.
+
+	Default memory limit is unbounded.  Cap it with
+	QJS_SetMemoryLimit() to protect against runaway scripts.
+
+    SEE ALSO
+	QJS_FreeRuntime, QJS_NewContext, QJS_SetMemoryLimit,
+	QJS_RunGC
+
+
+quickjs.library/QJS_FreeRuntime             quickjs.library/QJS_FreeRuntime
+
+    NAME
+	QJS_FreeRuntime -- Destroy a JavaScript runtime.
+
+    SYNOPSIS
+	QJS_FreeRuntime(rt)
+			A0
+
+	VOID QJS_FreeRuntime(JSRuntime *rt);
+
+    FUNCTION
+	Releases all resources held by the runtime: its heap, atoms,
+	classes, pending jobs, registered finalizers, and anything
+	allocated through QJS_Malloc() and friends.  Any JSContexts
+	still alive inside the runtime are freed first.
+
+    INPUTS
+	rt - A runtime pointer previously returned by QJS_NewRuntime().
+	    May be NULL, in which case the call is a no-op.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSRuntime *rt = QJS_NewRuntime();
+	/* ... work ... */
+	QJS_FreeRuntime(rt);
+
+    NOTES
+	After this call, all JSContexts, JSValues, and other engine
+	pointers originating from the runtime become invalid.  Using
+	any of them is undefined behaviour.
+
+    SEE ALSO
+	QJS_NewRuntime, QJS_FreeContext
+
+
+quickjs.library/QJS_GetVersion               quickjs.library/QJS_GetVersion
+
+    NAME
+	QJS_GetVersion -- Return the QuickJS-ng engine version string.
+
+    SYNOPSIS
+	str = QJS_GetVersion()
+	D0
+
+	STRPTR QJS_GetVersion(VOID);
+
+    FUNCTION
+	Returns a pointer to a static, null-terminated ASCII string
+	identifying the QuickJS-ng engine version compiled into this
+	library (currently "0.12.1").
+
+	This is the ENGINE version, not the AmigaOS port version.
+	To see the port version, run AmigaDOS "version quickjs.library"
+	or read LIBRARY_REVISION / LIBRARY_VERSION from the library
+	base.
+
+    INPUTS
+	None.
+
+    RESULT
+	str - Pointer to a static string.  Do not modify or free.
+
+    EXAMPLE
+	printf("Using QuickJS-ng %s\n", QJS_GetVersion());
+
+    SEE ALSO
+	--background--
+
+
+quickjs.library/QJS_SetMemoryLimit         quickjs.library/QJS_SetMemoryLimit
+
+    NAME
+	QJS_SetMemoryLimit -- Cap the heap size of a runtime.
+
+    SYNOPSIS
+	QJS_SetMemoryLimit(rt, limit)
+			   A0  D0
+
+	VOID QJS_SetMemoryLimit(JSRuntime *rt, ULONG limit);
+
+    FUNCTION
+	Limits the total bytes the runtime's garbage-collected heap
+	may allocate.  When the limit is reached, allocation attempts
+	return NULL and the engine throws an "out of memory" error
+	into the current JavaScript context.
+
+	Pass 0 (or a very large value) to disable the limit.
+
+    INPUTS
+	rt    - The runtime to limit.
+	limit - Maximum heap size in bytes, or 0 for unlimited.
+		The limit is applied immediately; if the current
+		heap is already over the limit, the next allocation
+		will fail.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	/* Limit to 4 MB -- plenty for most scripts */
+	QJS_SetMemoryLimit(rt, 4 * 1024 * 1024);
+
+    NOTES
+	The memory limit counts engine-managed allocations only.
+	Native buffers you allocate via AllocMem()/AllocVec() outside
+	the engine are not tracked here.
+
+    SEE ALSO
+	QJS_NewRuntime, QJS_ComputeMemoryUsage, QJS_RunGC
+
+
+quickjs.library/QJS_SetMaxStackSize       quickjs.library/QJS_SetMaxStackSize
+
+    NAME
+	QJS_SetMaxStackSize -- Cap the JavaScript call stack depth.
+
+    SYNOPSIS
+	QJS_SetMaxStackSize(rt, stack_size)
+			    A0  D0
+
+	VOID QJS_SetMaxStackSize(JSRuntime *rt, ULONG stack_size);
+
+    FUNCTION
+	Sets the maximum C stack the engine is allowed to consume
+	during JavaScript evaluation.  When the limit is reached, a
+	RangeError "stack overflow" is thrown.
+
+	The engine samples the current stack pointer to enforce this,
+	so the limit is in bytes of the host C stack, not a count of
+	JS frames.
+
+	The default is a generous value chosen to handle deeply
+	recursive scripts; lower it if you need to guarantee the
+	caller's stack won't blow on a particular AmigaOS Task.
+
+    INPUTS
+	rt         - The runtime to configure.
+	stack_size - Maximum stack usage in bytes; 0 disables the
+		     check (not recommended on AmigaOS).
+
+    RESULT
+	None.
+
+    NOTES
+	Your AmigaDOS Stack setting, AmigaOS Task stack, and the
+	Exec stack of whatever Task opens the library all apply.
+	Deep recursion in JS only works if the underlying Task has
+	enough stack, so "stack 65536" before running your program
+	is often wise.
+
+    SEE ALSO
+	QJS_UpdateStackTop, QJS_NewRuntime
+
+
+quickjs.library/QJS_UpdateStackTop         quickjs.library/QJS_UpdateStackTop
+
+    NAME
+	QJS_UpdateStackTop -- Capture the current stack top for
+	    stack-overflow detection.
+
+    SYNOPSIS
+	QJS_UpdateStackTop(rt)
+			   A0
+
+	VOID QJS_UpdateStackTop(JSRuntime *rt);
+
+    FUNCTION
+	The engine records a stack high-water mark at runtime
+	creation and uses it to detect JS stack overflow.  If you
+	call into the engine from a different AmigaOS Task (or after
+	a long journey through foreign code that consumed a lot of
+	stack), call this to re-synchronize the high-water mark
+	against the current stack pointer.
+
+    INPUTS
+	rt - The runtime to update.
+
+    RESULT
+	None.
+
+    NOTES
+	Not needed in typical single-Task use.
+
+    SEE ALSO
+	QJS_SetMaxStackSize
+
+
+quickjs.library/QJS_RunGC                           quickjs.library/QJS_RunGC
+
+    NAME
+	QJS_RunGC -- Force a garbage collection cycle.
+
+    SYNOPSIS
+	QJS_RunGC(rt)
+		  A0
+
+	VOID QJS_RunGC(JSRuntime *rt);
+
+    FUNCTION
+	Runs a full garbage-collection cycle on the runtime's heap:
+	collects cycles and reclaims memory occupied by unreachable
+	objects.
+
+	QuickJS uses reference counting as its primary strategy, so
+	most garbage is freed immediately.  QJS_RunGC() is only
+	needed to break reference cycles (objects that point at each
+	other but are unreachable from the outside) or to reclaim
+	memory after a burst of allocation before a memory-limit
+	check.
+
+    INPUTS
+	rt - The runtime to collect.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	/* After parsing a big JSON blob, free any temporary cycles */
+	QJS_RunGC(rt);
+
+    NOTES
+	GC is expensive.  Don't call this in tight loops.
+
+    SEE ALSO
+	QJS_SetGCThreshold, QJS_GetGCThreshold,
+	QJS_ComputeMemoryUsage
+
+
+quickjs.library/QJS_GetGCThreshold       quickjs.library/QJS_GetGCThreshold
+
+    NAME
+	QJS_GetGCThreshold -- Read the current GC trigger size.
+
+    SYNOPSIS
+	threshold = QJS_GetGCThreshold(rt)
+	D0                             A0
+
+	ULONG QJS_GetGCThreshold(JSRuntime *rt);
+
+    FUNCTION
+	Returns the number of bytes of allocation that must elapse
+	since the last GC before the engine automatically triggers a
+	new one.
+
+    INPUTS
+	rt - The runtime to query.
+
+    RESULT
+	threshold - Threshold in bytes.  0 means GC is disabled.
+
+    SEE ALSO
+	QJS_SetGCThreshold, QJS_RunGC
+
+
+quickjs.library/QJS_SetGCThreshold       quickjs.library/QJS_SetGCThreshold
+
+    NAME
+	QJS_SetGCThreshold -- Configure when automatic GC triggers.
+
+    SYNOPSIS
+	QJS_SetGCThreshold(rt, threshold)
+			   A0  D0
+
+	VOID QJS_SetGCThreshold(JSRuntime *rt, ULONG threshold);
+
+    FUNCTION
+	Sets the allocation-since-last-GC threshold that triggers an
+	automatic garbage collection.  Raise this to trade memory for
+	speed; lower it to keep peak memory down on tight systems.
+
+	Pass 0 to disable automatic GC entirely (manual QJS_RunGC()
+	calls still work).
+
+    INPUTS
+	rt        - The runtime to configure.
+	threshold - Bytes of allocation that trigger an auto-GC, or
+		    0 to disable.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetGCThreshold, QJS_RunGC, QJS_SetMemoryLimit
+
+
+quickjs.library/QJS_SetRuntimeInfo         quickjs.library/QJS_SetRuntimeInfo
+
+    NAME
+	QJS_SetRuntimeInfo -- Attach a diagnostic string to a runtime.
+
+    SYNOPSIS
+	QJS_SetRuntimeInfo(rt, info)
+			   A0  A1
+
+	VOID QJS_SetRuntimeInfo(JSRuntime *rt, CONST_STRPTR info);
+
+    FUNCTION
+	Stores a human-readable label on the runtime for use in GC
+	dumps and memory-usage reports.  The string is not copied,
+	so it must remain valid for the life of the runtime.
+
+    INPUTS
+	rt   - The runtime to label.
+	info - Pointer to a static null-terminated string, or NULL
+	       to clear.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_ComputeMemoryUsage
+
+
+quickjs.library/QJS_GetRuntimeOpaque     quickjs.library/QJS_GetRuntimeOpaque
+
+    NAME
+	QJS_GetRuntimeOpaque -- Retrieve the user opaque pointer.
+
+    SYNOPSIS
+	ptr = QJS_GetRuntimeOpaque(rt)
+	D0                         A0
+
+	APTR QJS_GetRuntimeOpaque(JSRuntime *rt);
+
+    FUNCTION
+	Returns the opaque pointer previously stored with
+	QJS_SetRuntimeOpaque().  The engine never dereferences this
+	pointer; it is purely for the embedder's use.
+
+    INPUTS
+	rt - The runtime.
+
+    RESULT
+	ptr - The stored opaque, or NULL if none was set.
+
+    SEE ALSO
+	QJS_SetRuntimeOpaque, QJS_GetContextOpaque
+
+
+quickjs.library/QJS_SetRuntimeOpaque     quickjs.library/QJS_SetRuntimeOpaque
+
+    NAME
+	QJS_SetRuntimeOpaque -- Attach an arbitrary pointer to a
+	    runtime.
+
+    SYNOPSIS
+	QJS_SetRuntimeOpaque(rt, opaque)
+			     A0  A1
+
+	VOID QJS_SetRuntimeOpaque(JSRuntime *rt, APTR opaque);
+
+    FUNCTION
+	Stores an opaque pointer on the runtime that can later be
+	retrieved with QJS_GetRuntimeOpaque().  Typical uses:
+
+	    * pointer to your application's state so C-callback
+	      functions registered via QJS_NewCFunction2() can find
+	      it via QJS_GetRuntime(ctx) + QJS_GetRuntimeOpaque();
+	    * pointer to a logger, memory arena, etc.
+
+	The engine treats the pointer as a black box -- it is never
+	dereferenced and is not freed when the runtime is destroyed.
+
+    INPUTS
+	rt     - The runtime.
+	opaque - Any pointer, or NULL.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetRuntimeOpaque, QJS_SetContextOpaque
+
+
+quickjs.library/QJS_AddRuntimeFinalizer QJS_AddRuntimeFinalizer
+
+    NAME
+	QJS_AddRuntimeFinalizer -- Register a callback that fires
+	    when the runtime is destroyed.
+
+    SYNOPSIS
+	QJS_AddRuntimeFinalizer(rt, finalizer, arg)
+				A0  A1         A2
+
+	VOID QJS_AddRuntimeFinalizer(JSRuntime *rt,
+				     JSRuntimeFinalizer *finalizer,
+				     APTR arg);
+
+    FUNCTION
+	Installs a finalizer function that will be invoked from
+	inside QJS_FreeRuntime() just before the runtime's resources
+	are released.  Use this to clean up state you attached via
+	QJS_SetRuntimeOpaque() or any other per-runtime resources.
+
+	Multiple finalizers can be registered; they fire in
+	registration order.
+
+    INPUTS
+	rt        - The runtime.
+	finalizer - Callback of type
+			void (*)(JSRuntime *rt, void *arg);
+		    Must not create new JSValues or call GC.
+	arg       - User pointer passed verbatim to the callback.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_FreeRuntime, QJS_SetRuntimeOpaque
+
+
+quickjs.library/QJS_ComputeMemoryUsage   quickjs.library/QJS_ComputeMemoryUsage
+
+    NAME
+	QJS_ComputeMemoryUsage -- Fill a structure with current
+	    memory statistics.
+
+    SYNOPSIS
+	QJS_ComputeMemoryUsage(rt, s)
+			       A0  A1
+
+	VOID QJS_ComputeMemoryUsage(JSRuntime *rt, JSMemoryUsage *s);
+
+    FUNCTION
+	Walks the runtime's heap and fills the caller-supplied
+	JSMemoryUsage structure with counts and sizes of each
+	allocation category (objects, strings, atoms, shapes, ...).
+
+	You can dump these fields directly or roll up your own report.
+
+    INPUTS
+	rt - The runtime to measure.
+	s  - Pointer to a JSMemoryUsage structure (see <quickjs.h>
+	     for layout).  The structure is overwritten entirely.
+
+    RESULT
+	None.  All values land in *s.
+
+    NOTES
+	Cheap enough to call per frame for a live memory display.
+
+    SEE ALSO
+	QJS_SetMemoryLimit, QJS_RunGC
+
+
+quickjs.library/QJS_SetDumpFlags           quickjs.library/QJS_SetDumpFlags
+
+    NAME
+	QJS_SetDumpFlags -- Enable/disable engine debug dumps.
+
+    SYNOPSIS
+	QJS_SetDumpFlags(rt, flags_ptr)
+			 A0  A1
+
+	VOID QJS_SetDumpFlags(JSRuntime *rt, const uint64_t *flags_ptr);
+
+    FUNCTION
+	Configures which engine internals are dumped to stderr during
+	execution: bytecode, GC activity, parse tree, atom table,
+	etc.  The flag bits are the DUMP_* constants in <quickjs.h>.
+
+	The flags are passed as a pointer because they live in a
+	64-bit word that the AmigaOS calling convention cannot carry
+	directly.
+
+    INPUTS
+	rt	  - The runtime.
+	flags_ptr - Pointer to a uint64_t holding the OR-ed DUMP_*
+		    constants.  Pass a pointer to zero to disable all
+		    dumps.
+
+    RESULT
+	None.
+
+    NOTES
+	Useful only for engine debugging.  Normal applications should
+	leave flags at zero.
+
+    SEE ALSO
+	QJS_GetDumpFlags
+
+
+quickjs.library/QJS_GetDumpFlags           quickjs.library/QJS_GetDumpFlags
+
+    NAME
+	QJS_GetDumpFlags -- Read the current engine dump flags.
+
+    SYNOPSIS
+	QJS_GetDumpFlags(rt, result_ptr)
+			 A0  A1
+
+	VOID QJS_GetDumpFlags(JSRuntime *rt, uint64_t *result_ptr);
+
+    FUNCTION
+	Writes the currently-configured DUMP_* flag mask into the
+	64-bit word pointed to by `result_ptr`.
+
+    INPUTS
+	rt	   - The runtime.
+	result_ptr - Pointer to a uint64_t to receive the current
+		     flags.
+
+    RESULT
+	None.  Flags land in *result_ptr.
+
+    SEE ALSO
+	QJS_SetDumpFlags
+
+
+quickjs.library/QJS_IsLiveObject           quickjs.library/QJS_IsLiveObject
+
+    NAME
+	QJS_IsLiveObject -- Check whether a given JSObject pointer
+	    is still valid.
+
+    SYNOPSIS
+	live = QJS_IsLiveObject(rt, obj_ptr)
+	D0                      A0  A1
+
+	BOOL QJS_IsLiveObject(JSRuntime *rt, const JSValue *obj_ptr);
+
+    FUNCTION
+	Returns TRUE if the object referenced by *obj_ptr has not
+	been garbage-collected yet, FALSE otherwise.  Intended for
+	diagnostic/debugging tooling; regular code should use
+	reference counts rather than liveness checks.
+
+    INPUTS
+	rt	- The runtime.
+	obj_ptr - Pointer to a JSValue containing an object.
+
+    RESULT
+	live - TRUE (non-zero) if still alive, FALSE otherwise.
+
+    NOTES
+	Do not use this to "repair" dangling references -- if a
+	value might be dead, you've already lost the reference and
+	need to fix the refcount handling.
+
+    SEE ALSO
+	QJS_DupValue, QJS_FreeValue
+
+
+quickjs.library/QJS_NewContext               quickjs.library/QJS_NewContext
+
+    NAME
+	QJS_NewContext -- Create a new JavaScript context (global
+	    scope) inside a runtime.
+
+    SYNOPSIS
+	ctx = QJS_NewContext(rt)
+	D0                   A0
+
+	JSContext *QJS_NewContext(JSRuntime *rt);
+
+    FUNCTION
+	Creates a context with all standard intrinsics preinstalled
+	(Object, Array, Function, Error, Math, JSON, RegExp, Date,
+	Promise, Map/Set, TypedArrays, BigInt, Proxy, Reflect,
+	performance, DOMException).  This is the normal entry point
+	for most programs.
+
+	If you need a context with only a subset of intrinsics, use
+	QJS_NewContextRaw() instead and call individual QJS_Add*()
+	functions for only the features you want.
+
+	Multiple contexts in the same runtime share atoms and classes
+	but have independent global objects; they cannot directly see
+	each other's values without explicit transfer via
+	QJS_WriteObject() / QJS_ReadObject().
+
+    INPUTS
+	rt - The host runtime.
+
+    RESULT
+	ctx - New context pointer, or NULL on allocation failure.
+
+    EXAMPLE
+	JSRuntime *rt = QJS_NewRuntime();
+	JSContext *ctx = QJS_NewContext(rt);
+	JSValue r;
+	QJS_Eval(&r, ctx, "Math.PI", 7, "<input>", 0);
+	/* ... */
+	QJS_FreeContext(ctx);
+	QJS_FreeRuntime(rt);
+
+    SEE ALSO
+	QJS_NewContextRaw, QJS_FreeContext, QJS_DupContext,
+	QJS_GetRuntime
+
+
+quickjs.library/QJS_NewContextRaw         quickjs.library/QJS_NewContextRaw
+
+    NAME
+	QJS_NewContextRaw -- Create a context with no intrinsics
+	    installed.
+
+    SYNOPSIS
+	ctx = QJS_NewContextRaw(rt)
+	D0                      A0
+
+	JSContext *QJS_NewContextRaw(JSRuntime *rt);
+
+    FUNCTION
+	Like QJS_NewContext() but no intrinsic objects are created.
+	The returned context can evaluate plain expressions and
+	function literals but has no global Object, Array, or Math
+	unless you explicitly install them with QJS_AddBaseObjects()
+	and the other QJS_Add*() functions.
+
+	Use this to reduce memory footprint in applications that
+	only need a minimal subset of JS, or to build sandboxed
+	environments with a custom set of globals.
+
+    INPUTS
+	rt - The host runtime.
+
+    RESULT
+	ctx - New context pointer, or NULL on allocation failure.
+
+    EXAMPLE
+	JSContext *ctx = QJS_NewContextRaw(rt);
+	/* Add only what we need */
+	QJS_AddBaseObjects(ctx);
+	QJS_AddJSON(ctx);
+
+    SEE ALSO
+	QJS_NewContext, QJS_AddBaseObjects, QJS_AddJSON,
+	QJS_AddEval
+
+
+quickjs.library/QJS_FreeContext             quickjs.library/QJS_FreeContext
+
+    NAME
+	QJS_FreeContext -- Destroy a JavaScript context.
+
+    SYNOPSIS
+	QJS_FreeContext(ctx)
+			A0
+
+	VOID QJS_FreeContext(JSContext *ctx);
+
+    FUNCTION
+	Releases all resources held by the context: its global
+	object, loaded modules, pending jobs, and any JSValues that
+	still reference it.  The parent JSRuntime is unaffected and
+	can continue to host other contexts.
+
+    INPUTS
+	ctx - A context pointer previously returned by
+	    QJS_NewContext() or QJS_NewContextRaw().  May be NULL.
+
+    RESULT
+	None.
+
+    NOTES
+	After this call, all JSValues bound to the context are
+	invalid.  Free them with QJS_FreeValue() BEFORE calling
+	QJS_FreeContext(), or the refcount updates will write into
+	freed memory.
+
+    SEE ALSO
+	QJS_NewContext, QJS_DupContext, QJS_FreeRuntime
+
+
+quickjs.library/QJS_DupContext               quickjs.library/QJS_DupContext
+
+    NAME
+	QJS_DupContext -- Increment a context's reference count.
+
+    SYNOPSIS
+	ctx2 = QJS_DupContext(ctx)
+	D0                    A0
+
+	JSContext *QJS_DupContext(JSContext *ctx);
+
+    FUNCTION
+	Adds one to the context's reference count and returns the
+	same pointer.  Used when multiple owners need to keep a
+	context alive; each owner must eventually call
+	QJS_FreeContext() when done.
+
+    INPUTS
+	ctx - The context to retain.
+
+    RESULT
+	ctx2 - Same pointer as `ctx`, for chaining convenience.
+
+    SEE ALSO
+	QJS_NewContext, QJS_FreeContext
+
+
+quickjs.library/QJS_GetContextOpaque     quickjs.library/QJS_GetContextOpaque
+
+    NAME
+	QJS_GetContextOpaque -- Retrieve the context's user opaque
+	    pointer.
+
+    SYNOPSIS
+	ptr = QJS_GetContextOpaque(ctx)
+	D0                         A0
+
+	APTR QJS_GetContextOpaque(JSContext *ctx);
+
+    FUNCTION
+	Returns whatever was stored via QJS_SetContextOpaque().
+	Engine never reads this pointer.
+
+    INPUTS
+	ctx - The context.
+
+    RESULT
+	ptr - Stored pointer, or NULL if none.
+
+    SEE ALSO
+	QJS_SetContextOpaque, QJS_GetRuntimeOpaque
+
+
+quickjs.library/QJS_SetContextOpaque     quickjs.library/QJS_SetContextOpaque
+
+    NAME
+	QJS_SetContextOpaque -- Attach an arbitrary pointer to a
+	    context.
+
+    SYNOPSIS
+	QJS_SetContextOpaque(ctx, opaque)
+			     A0   A1
+
+	VOID QJS_SetContextOpaque(JSContext *ctx, APTR opaque);
+
+    FUNCTION
+	Stores an opaque pointer on the context.  Common uses:
+
+	    * per-context state for C callbacks registered with
+	      QJS_NewCFunction2();
+	    * the parent application pointer when multiple contexts
+	      represent independent windows/tasks/plugins.
+
+	The engine never dereferences the pointer.
+
+    INPUTS
+	ctx    - The context.
+	opaque - Any pointer, or NULL.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetContextOpaque, QJS_SetRuntimeOpaque
+
+
+quickjs.library/QJS_GetRuntime               quickjs.library/QJS_GetRuntime
+
+    NAME
+	QJS_GetRuntime -- Find the runtime that owns a context.
+
+    SYNOPSIS
+	rt = QJS_GetRuntime(ctx)
+	D0                  A0
+
+	JSRuntime *QJS_GetRuntime(JSContext *ctx);
+
+    FUNCTION
+	Returns the JSRuntime that hosts the given context.  Useful
+	in C callbacks where you only received a JSContext but need
+	to call runtime-scoped functions such as QJS_RunGC() or
+	QJS_GetRuntimeOpaque().
+
+    INPUTS
+	ctx - A context pointer.
+
+    RESULT
+	rt - The owning runtime.  Never NULL for a valid context.
+
+    SEE ALSO
+	QJS_NewContext, QJS_GetRuntimeOpaque
+
+
+quickjs.library/QJS_Eval                               quickjs.library/QJS_Eval
+
+    NAME
+	QJS_Eval -- Evaluate a JavaScript source string.
+
+    SYNOPSIS
+	QJS_Eval(result, ctx, input, input_len, filename, eval_flags)
+		 A0      A1   A2     D0         A3        D1
+
+	VOID QJS_Eval(JSValue *result, JSContext *ctx,
+		      CONST_STRPTR input, ULONG input_len,
+		      CONST_STRPTR filename, ULONG eval_flags);
+
+    FUNCTION
+	Parses and executes a JavaScript source buffer, storing the
+	result (or an exception) in *result.  The eval flags control
+	parsing behaviour:
+
+	    JS_EVAL_TYPE_GLOBAL (0)  -- classic-script mode
+	    JS_EVAL_TYPE_MODULE (1)  -- ES module mode
+	    JS_EVAL_FLAG_STRICT      -- force strict mode
+	    JS_EVAL_FLAG_COMPILE_ONLY -- return the compiled function
+					instead of executing it
+
+	See <quickjs.h> for all JS_EVAL_* constants.
+
+    INPUTS
+	result	   - Output JSValue (see RULE 1 in calling_conventions).
+	ctx	   - Target context.
+	input	   - Source text (UTF-8).
+	input_len  - Length of source in bytes, not counting a final
+		     NUL.
+	filename   - Name shown in stack traces.  Typically a filename
+		     or "<input>".
+	eval_flags - OR of JS_EVAL_* flags.
+
+    RESULT
+	None directly.  On success, *result holds the value of the
+	last expression.  On failure, QJS_IsException(&*result) is
+	true; retrieve the exception with QJS_GetException().
+
+    EXAMPLE
+	JSValue v;
+	const char *src = "1 + 2 * 3";
+	QJS_Eval(&v, ctx, src, strlen(src), "<input>", 0);
+	if (!QJS_IsException(&v)) {
+	    int n;
+	    QJS_ToInt32(ctx, &n, &v);
+	    printf("%d\n", n);   /* 7 */
+	}
+	QJS_FreeValue(ctx, &v);
+
+    SEE ALSO
+	QJS_EvalSimple, QJS_EvalBuf, QJS_EvalFunction,
+	QJS_DetectModule
+
+
+quickjs.library/QJS_EvalSimple                   quickjs.library/QJS_EvalSimple
+
+    NAME
+	QJS_EvalSimple -- Evaluate a JavaScript expression with
+	    default flags and no caller-managed result.
+
+    SYNOPSIS
+	rc = QJS_EvalSimple(ctx, input, input_len)
+	D0                  A0   A1     D0
+
+	LONG QJS_EvalSimple(JSContext *ctx, CONST_STRPTR input,
+			    ULONG input_len);
+
+    FUNCTION
+	Convenience wrapper around QJS_Eval() that discards the
+	result value and returns only a pass/fail indication.  The
+	filename is "<input>" and flags are 0 (classic script mode).
+
+    INPUTS
+	ctx	  - Target context.
+	input	  - Source text (UTF-8).
+	input_len - Length in bytes.
+
+    RESULT
+	rc - 0 on success, non-zero if an exception was thrown.
+	     The exception stays on the context; call
+	     QJS_GetException() to retrieve it.
+
+    EXAMPLE
+	if (QJS_EvalSimple(ctx, "globalThis.counter = 0", 21) != 0) {
+	    QJS_StdDumpError(ctx);
+	}
+
+    SEE ALSO
+	QJS_Eval, QJS_StdDumpError
+
+
+quickjs.library/QJS_EvalBuf                         quickjs.library/QJS_EvalBuf
+
+    NAME
+	QJS_EvalBuf -- Evaluate JavaScript with std/os error handling.
+
+    SYNOPSIS
+	rc = QJS_EvalBuf(ctx, input, input_len, filename, eval_flags)
+	D0               A0   A1     D0         A2        D1
+
+	LONG QJS_EvalBuf(JSContext *ctx, CONST_STRPTR input,
+			 ULONG input_len, CONST_STRPTR filename,
+			 ULONG eval_flags);
+
+    FUNCTION
+	Like QJS_Eval() but intended for stand-alone tools: on
+	exception it automatically dumps the error via
+	QJS_StdDumpError() and returns -1.  The evaluated value is
+	discarded.
+
+	Used by qjs.c for --eval and command-line scripts.
+
+    INPUTS
+	ctx	   - Target context.
+	input	   - Source text.
+	input_len  - Length in bytes.
+	filename   - Name for stack traces.
+	eval_flags - JS_EVAL_TYPE_* / JS_EVAL_FLAG_* mask.
+
+    RESULT
+	rc - 0 on success, -1 on exception (already printed).
+
+    SEE ALSO
+	QJS_Eval, QJS_StdDumpError, QJS_StdEvalBinary
+
+
+quickjs.library/QJS_EvalFunction               quickjs.library/QJS_EvalFunction
+
+    NAME
+	QJS_EvalFunction -- Execute a previously-compiled function.
+
+    SYNOPSIS
+	QJS_EvalFunction(result, ctx, fun_ptr)
+			 A0      A1   A2
+
+	VOID QJS_EvalFunction(JSValue *result, JSContext *ctx,
+			      const JSValue *fun_ptr);
+
+    FUNCTION
+	Runs a function object that was produced by QJS_Eval() with
+	the JS_EVAL_FLAG_COMPILE_ONLY flag, or deserialized via
+	QJS_ReadObject().  This separates parsing from execution,
+	allowing the same compiled code to be run in different
+	contexts or stored in a file for later loading.
+
+    INPUTS
+	result	- Output JSValue for the return value.
+	ctx	- Context to execute in.
+	fun_ptr - Pointer to the compiled function JSValue.
+
+    RESULT
+	None.  *result holds the return value or an exception.
+
+    SEE ALSO
+	QJS_Eval, QJS_ReadObject, QJS_WriteObject
+
+
+quickjs.library/QJS_DetectModule                 quickjs.library/QJS_DetectModule
+
+    NAME
+	QJS_DetectModule -- Heuristic check for ES module syntax.
+
+    SYNOPSIS
+	is_module = QJS_DetectModule(input, input_len)
+	D0                           A0     D0
+
+	BOOL QJS_DetectModule(CONST_STRPTR input, ULONG input_len);
+
+    FUNCTION
+	Scans the source for top-level `import` or `export` keywords.
+	Returns TRUE if present, indicating the source should be
+	evaluated with JS_EVAL_TYPE_MODULE.  FALSE means classic
+	script mode is likely appropriate.
+
+    INPUTS
+	input	  - Source text.
+	input_len - Length in bytes.
+
+    RESULT
+	is_module - TRUE if module syntax detected, else FALSE.
+
+    NOTES
+	Not a full parser; intended for the "autodetect" default used
+	by qjs when the --script / --module flags are absent.
+
+    SEE ALSO
+	QJS_Eval
+
+
+quickjs.library/QJS_NewNumber                       quickjs.library/QJS_NewNumber
+
+    NAME
+	QJS_NewNumber -- Wrap a C double as a JSValue.
+
+    SYNOPSIS
+	QJS_NewNumber(result, ctx, d_ptr)
+		      A0      A1   A2
+
+	VOID QJS_NewNumber(JSValue *result, JSContext *ctx,
+			   const double *d_ptr);
+
+    FUNCTION
+	Creates a JS number value holding the double pointed to by
+	`d_ptr`.  The double is passed by pointer per RULE 3 of the
+	calling conventions: AmigaOS library pragmas cannot assign a
+	parameter to an FPU register.
+
+	The engine chooses the most compact representation: small
+	integer values are stored as JS_TAG_INT, larger or
+	fractional values become JS_TAG_FLOAT64.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	d_ptr  - Pointer to the double to wrap.  The pointer must
+		 be non-NULL and the pointee remains the caller's
+		 (not copied anywhere long-term).
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue pi;  double d = 3.14159265358979;
+	QJS_NewNumber(&pi, ctx, &d);
+	QJS_SetPropertyStr(ctx, global, "PI", &pi);
+
+    SEE ALSO
+	QJS_NewBigInt64, QJS_ToFloat64, QJS_ToNumber
+
+
+quickjs.library/QJS_NewBigInt64                   quickjs.library/QJS_NewBigInt64
+
+    NAME
+	QJS_NewBigInt64 -- Create a BigInt from a signed 64-bit
+	    integer.
+
+    SYNOPSIS
+	QJS_NewBigInt64(result, ctx, v_ptr)
+			A0      A1   A2
+
+	VOID QJS_NewBigInt64(JSValue *result, JSContext *ctx,
+			     const int64_t *v_ptr);
+
+    FUNCTION
+	Creates a BigInt JSValue from the 64-bit signed integer at
+	`*v_ptr`.  Requires QJS_AddBigInt() to have been called on
+	the context (automatic in QJS_NewContext()).
+
+	Passed by pointer because an int64_t cannot fit in a single
+	register on 68k.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	v_ptr  - Pointer to the 64-bit value.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewBigUint64, QJS_AddBigInt
+
+
+quickjs.library/QJS_NewBigUint64                 quickjs.library/QJS_NewBigUint64
+
+    NAME
+	QJS_NewBigUint64 -- Create a BigInt from an unsigned 64-bit
+	    integer.
+
+    SYNOPSIS
+	QJS_NewBigUint64(result, ctx, v_ptr)
+			 A0      A1   A2
+
+	VOID QJS_NewBigUint64(JSValue *result, JSContext *ctx,
+			      const uint64_t *v_ptr);
+
+    FUNCTION
+	Like QJS_NewBigInt64() but for unsigned values.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	v_ptr  - Pointer to the 64-bit unsigned value.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewBigInt64, QJS_AddBigInt
+
+
+quickjs.library/QJS_NewStringLen                 quickjs.library/QJS_NewStringLen
+
+    NAME
+	QJS_NewStringLen -- Create a JS string from a byte buffer.
+
+    SYNOPSIS
+	QJS_NewStringLen(result, ctx, str, len)
+			 A0      A1   A2   D0
+
+	VOID QJS_NewStringLen(JSValue *result, JSContext *ctx,
+			      CONST_STRPTR str, ULONG len);
+
+    FUNCTION
+	Creates a JS string containing `len` bytes starting at `str`.
+	The bytes are interpreted as UTF-8 and converted to the
+	engine's internal string representation.
+
+	This is the preferred primitive for strings that may contain
+	embedded NULs or are not NUL-terminated.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	str    - Pointer to the UTF-8 bytes.  May contain NULs.
+	len    - Number of bytes to read.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue greeting;
+	QJS_NewStringLen(&greeting, ctx, "hello", 5);
+	/* equivalent to QJS_NewString(&greeting, ctx, "hello") */
+
+    NOTES
+	For a NUL-terminated C string the upstream convenience wrapper
+	JS_NewString() does not exist in the library interface;
+	strlen() and call QJS_NewStringLen() yourself, or use
+	QJS_NewAtomString() if you want an interned form.
+
+    SEE ALSO
+	QJS_NewAtomString, QJS_ToCStringLen2, QJS_FreeCString
+
+
+quickjs.library/QJS_NewAtomString               quickjs.library/QJS_NewAtomString
+
+    NAME
+	QJS_NewAtomString -- Create an interned string value.
+
+    SYNOPSIS
+	QJS_NewAtomString(result, ctx, str)
+			  A0      A1   A2
+
+	VOID QJS_NewAtomString(JSValue *result, JSContext *ctx,
+			       CONST_STRPTR str);
+
+    FUNCTION
+	Creates a JS string from a NUL-terminated C string, passing
+	through the atom table.  If the same string has been used
+	before in this runtime the existing atom is reused, saving
+	memory and making equality comparisons O(1).
+
+	Prefer this over QJS_NewStringLen() for short, repeated
+	strings like property keys.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	str    - NUL-terminated UTF-8 string.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue kind;
+	QJS_NewAtomString(&kind, ctx, "mouse");
+	QJS_SetPropertyStr(ctx, event, "kind", &kind);
+
+    SEE ALSO
+	QJS_NewStringLen, QJS_NewAtom
+
+
+quickjs.library/QJS_NewObject                       quickjs.library/QJS_NewObject
+
+    NAME
+	QJS_NewObject -- Create an empty plain object.
+
+    SYNOPSIS
+	QJS_NewObject(result, ctx)
+		      A0      A1
+
+	VOID QJS_NewObject(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Creates a new object with Object.prototype as its prototype,
+	equivalent to JavaScript's `{}`.  Populate it with
+	QJS_SetPropertyStr() or QJS_DefinePropertyValue().
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue point, x, y;  double dx = 1.0, dy = 2.0;
+	QJS_NewObject(&point, ctx);
+	QJS_NewNumber(&x, ctx, &dx);
+	QJS_NewNumber(&y, ctx, &dy);
+	QJS_SetPropertyStr(ctx, &point, "x", &x);
+	QJS_SetPropertyStr(ctx, &point, "y", &y);
+	/* QJS_SetPropertyStr took ownership of x and y */
+
+    SEE ALSO
+	QJS_NewObjectClass, QJS_NewObjectProto, QJS_NewArray
+
+
+quickjs.library/QJS_NewObjectClass           quickjs.library/QJS_NewObjectClass
+
+    NAME
+	QJS_NewObjectClass -- Create an object instance of a native
+	    class.
+
+    SYNOPSIS
+	QJS_NewObjectClass(result, ctx, class_id)
+			   A0      A1   D0
+
+	VOID QJS_NewObjectClass(JSValue *result, JSContext *ctx,
+				JSClassID class_id);
+
+    FUNCTION
+	Creates an object whose internal class is `class_id` and
+	whose prototype is the class prototype previously installed
+	with QJS_SetClassProto().  Used to implement native classes
+	that pair a C struct (attached via QJS_SetOpaque()) with a
+	JavaScript wrapper object.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	class_id - Class ID previously registered with
+		   QJS_NewClassID() + QJS_NewClass().
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue handle;
+	QJS_NewObjectClass(&handle, ctx, my_file_class_id);
+	QJS_SetOpaque(&handle, my_FILE_ptr);
+
+    SEE ALSO
+	QJS_NewClassID, QJS_NewClass, QJS_SetClassProto,
+	QJS_SetOpaque
+
+
+quickjs.library/QJS_NewObjectProto           quickjs.library/QJS_NewObjectProto
+
+    NAME
+	QJS_NewObjectProto -- Create an object with a specific
+	    prototype.
+
+    SYNOPSIS
+	QJS_NewObjectProto(result, ctx, proto_ptr)
+			   A0      A1   A2
+
+	VOID QJS_NewObjectProto(JSValue *result, JSContext *ctx,
+				const JSValue *proto_ptr);
+
+    FUNCTION
+	Creates an object whose [[Prototype]] is the value pointed
+	to by `proto_ptr`.  Pass JS_NULL as *proto_ptr to create a
+	prototype-less object (equivalent to
+	`Object.create(null)`).
+
+    INPUTS
+	result	  - Output JSValue.
+	ctx	  - Host context.
+	proto_ptr - Pointer to the prototype JSValue.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewObject, QJS_SetPrototype, QJS_GetPrototype
+
+
+quickjs.library/QJS_NewArray                         quickjs.library/QJS_NewArray
+
+    NAME
+	QJS_NewArray -- Create an empty array.
+
+    SYNOPSIS
+	QJS_NewArray(result, ctx)
+		     A0      A1
+
+	VOID QJS_NewArray(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Creates a new Array object with length 0.  Use
+	QJS_SetPropertyUint32() to append elements, or
+	QJS_SetPropertyStr(ctx, &arr, "0", &v) / index strings for
+	sparse arrays.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue arr, s;  int i;
+	const char *names[] = {"red", "green", "blue"};
+	QJS_NewArray(&arr, ctx);
+	for (i = 0; i < 3; i++) {
+	    QJS_NewAtomString(&s, ctx, names[i]);
+	    QJS_SetPropertyUint32(ctx, &arr, i, &s);
+	}
+
+    SEE ALSO
+	QJS_NewObject, QJS_SetPropertyUint32, QJS_GetLength
+
+
+quickjs.library/QJS_NewSymbol                       quickjs.library/QJS_NewSymbol
+
+    NAME
+	QJS_NewSymbol -- Create a JS Symbol.
+
+    SYNOPSIS
+	QJS_NewSymbol(result, ctx, description, is_global)
+		      A0      A1   A2           D0
+
+	VOID QJS_NewSymbol(JSValue *result, JSContext *ctx,
+			   CONST_STRPTR description, BOOL is_global);
+
+    FUNCTION
+	Creates a new Symbol.  If `is_global` is TRUE, the symbol is
+	placed in (or fetched from) the global symbol registry --
+	equivalent to `Symbol.for(description)`.  If FALSE, a unique
+	local symbol is created -- equivalent to `Symbol(description)`.
+
+    INPUTS
+	result	    - Output JSValue.
+	ctx	    - Host context.
+	description - Description string for debugging, or NULL.
+	is_global   - TRUE for Symbol.for(), FALSE for Symbol().
+
+    RESULT
+	None.
+
+    EXAMPLE
+	/* Look up Symbol.for('qjs.inspect') */
+	JSValue sym;
+	QJS_NewSymbol(&sym, ctx, "qjs.inspect", TRUE);
+
+    SEE ALSO
+	QJS_NewAtomString
+
+
+quickjs.library/QJS_NewDate                           quickjs.library/QJS_NewDate
+
+    NAME
+	QJS_NewDate -- Create a Date object from a millisecond epoch.
+
+    SYNOPSIS
+	QJS_NewDate(result, ctx, epoch_ms_ptr)
+		    A0      A1   A2
+
+	VOID QJS_NewDate(JSValue *result, JSContext *ctx,
+			 const double *epoch_ms_ptr);
+
+    FUNCTION
+	Creates a JavaScript Date object representing the given
+	milliseconds since the Unix epoch (1970-01-01 UTC).  The
+	value is passed as a double pointer (RULE 3).
+
+	Requires QJS_AddDate() to have been called on the context
+	(automatic in QJS_NewContext()).
+
+    INPUTS
+	result	     - Output JSValue.
+	ctx	     - Host context.
+	epoch_ms_ptr - Pointer to milliseconds-since-epoch as double.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_AddDate, QJS_IsDate
+
+
+quickjs.library/QJS_ToString                         quickjs.library/QJS_ToString
+
+    NAME
+	QJS_ToString -- Convert any JSValue to its string form.
+
+    SYNOPSIS
+	QJS_ToString(result, ctx, val_ptr)
+		     A0      A1   A2
+
+	VOID QJS_ToString(JSValue *result, JSContext *ctx,
+			  const JSValue *val_ptr);
+
+    FUNCTION
+	Invokes ECMAScript ToString() on the given value, producing
+	a new string JSValue.  Numbers become their decimal form,
+	objects invoke their toString() method, etc.
+
+	To get the resulting bytes as a C string, call
+	QJS_ToCStringLen2() on *result after this.  If you just want
+	the C string form of the value, QJS_ToCStringLen2() can be
+	called on the original value directly -- it performs the
+	ToString conversion internally.
+
+    INPUTS
+	result	- Output JSValue holding the string.
+	ctx	- Host context.
+	val_ptr - Pointer to the value to convert.
+
+    RESULT
+	None.  On exception *result is an exception value.
+
+    SEE ALSO
+	QJS_ToCStringLen2, QJS_ToNumber, QJS_ToPropertyKey
+
+
+quickjs.library/QJS_ToPropertyKey               quickjs.library/QJS_ToPropertyKey
+
+    NAME
+	QJS_ToPropertyKey -- Convert a value to a property key form.
+
+    SYNOPSIS
+	QJS_ToPropertyKey(result, ctx, val_ptr)
+			  A0      A1   A2
+
+	VOID QJS_ToPropertyKey(JSValue *result, JSContext *ctx,
+			       const JSValue *val_ptr);
+
+    FUNCTION
+	Applies ECMAScript ToPropertyKey() to the value, producing
+	either a string or a Symbol.  Intended for use before
+	QJS_GetProperty() / QJS_SetProperty() if you're working with
+	values that could be either form.
+
+    INPUTS
+	result	- Output JSValue.
+	ctx	- Host context.
+	val_ptr - Pointer to the value to convert.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_ToString, QJS_ValueToAtom
+
+
+quickjs.library/QJS_ToCStringLen2               quickjs.library/QJS_ToCStringLen2
+
+    NAME
+	QJS_ToCStringLen2 -- Extract a NUL-terminated C string from
+	    a JSValue, with optional length.
+
+    SYNOPSIS
+	str = QJS_ToCStringLen2(ctx, plen, val_ptr, cesu8)
+	D0                      A0   A2    A1       D0
+
+	CONST_STRPTR QJS_ToCStringLen2(JSContext *ctx, size_t *plen,
+				       const JSValue *val_ptr,
+				       BOOL cesu8);
+
+    FUNCTION
+	Converts the value to a string via ECMAScript ToString() and
+	returns a pointer to engine-owned UTF-8 bytes.  If `plen` is
+	non-NULL, *plen receives the byte length (not counting the
+	NUL terminator).
+
+	The returned pointer is valid until you call
+	QJS_FreeCString() with the SAME ctx and pointer.  You MUST
+	eventually free every non-NULL result or memory leaks.
+
+	The `cesu8` flag controls surrogate pair encoding: FALSE for
+	standard UTF-8, TRUE to emit CESU-8 (encodes surrogate pairs
+	as two 3-byte sequences instead of one 4-byte sequence).
+	Use FALSE for virtually all AmigaOS work.
+
+    INPUTS
+	ctx	- Host context.
+	plen	- Optional pointer to receive byte length, or NULL.
+	val_ptr - Pointer to the value to stringify.
+	cesu8	- TRUE for CESU-8 encoding, FALSE for strict UTF-8.
+
+    RESULT
+	str - Pointer to engine-owned UTF-8 bytes, or NULL on
+	      conversion error (exception pending).  Caller must
+	      release with QJS_FreeCString().
+
+    EXAMPLE
+	JSValue v;
+	QJS_Eval(&v, ctx, "Math.PI", 7, "<input>", 0);
+	const char *s = QJS_ToCStringLen2(ctx, NULL, &v, FALSE);
+	if (s) {
+	    printf("%s\n", s);
+	    QJS_FreeCString(ctx, s);
+	}
+	QJS_FreeValue(ctx, &v);
+
+    SEE ALSO
+	QJS_FreeCString, QJS_NewStringLen, QJS_ToString
+
+
+quickjs.library/QJS_FreeCString                   quickjs.library/QJS_FreeCString
+
+    NAME
+	QJS_FreeCString -- Release a string returned by
+	    QJS_ToCStringLen2().
+
+    SYNOPSIS
+	QJS_FreeCString(ctx, ptr)
+			A0   A1
+
+	VOID QJS_FreeCString(JSContext *ctx, CONST_STRPTR ptr);
+
+    FUNCTION
+	Decrements the reference count on the string buffer handed
+	back by QJS_ToCStringLen2().  Once the last user releases
+	its reference, the bytes are freed.
+
+    INPUTS
+	ctx - Context that produced the string.  MUST match the
+	      context passed to QJS_ToCStringLen2().
+	ptr - Pointer previously returned; NULL is accepted and
+	      ignored.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_ToCStringLen2
+
+
+quickjs.library/QJS_ToBool                             quickjs.library/QJS_ToBool
+
+    NAME
+	QJS_ToBool -- Test a value's truthiness.
+
+    SYNOPSIS
+	result = QJS_ToBool(ctx, val_ptr)
+	D0                  A0   A1
+
+	LONG QJS_ToBool(JSContext *ctx, const JSValue *val_ptr);
+
+    FUNCTION
+	Applies ECMAScript ToBoolean() to the value.  Falsy values
+	(undefined, null, 0, -0, NaN, "", false) return 0; all
+	others return 1.  Returns -1 if an exception was thrown
+	during the conversion (rare -- usually only for values that
+	invoke user code).
+
+    INPUTS
+	ctx	- Host context.
+	val_ptr - Pointer to the value.
+
+    RESULT
+	result - 0 (falsy), 1 (truthy), or -1 (exception).
+
+    SEE ALSO
+	QJS_ToInt32, QJS_ToFloat64
+
+
+quickjs.library/QJS_ToInt32                           quickjs.library/QJS_ToInt32
+
+    NAME
+	QJS_ToInt32 -- Extract a signed 32-bit integer from a
+	    JSValue.
+
+    SYNOPSIS
+	rc = QJS_ToInt32(ctx, pres, val_ptr)
+	D0               A0   A2    A1
+
+	LONG QJS_ToInt32(JSContext *ctx, int32_t *pres,
+			 const JSValue *val_ptr);
+
+    FUNCTION
+	Applies ECMAScript ToInt32() to the value and stores the
+	result in *pres.  Fractional parts are truncated toward
+	zero; out-of-range values are reduced mod 2^32.
+
+    INPUTS
+	ctx	- Host context.
+	pres	- Output pointer for the 32-bit integer.
+	val_ptr - Pointer to the value to convert.
+
+    RESULT
+	rc - 0 on success, non-zero if an exception was thrown.
+
+    EXAMPLE
+	int n;
+	JSValue v;
+	QJS_Eval(&v, ctx, "2 + 2", 5, "<>", 0);
+	if (QJS_ToInt32(ctx, &n, &v) == 0) printf("%d\n", n);
+	QJS_FreeValue(ctx, &v);
+
+    SEE ALSO
+	QJS_ToInt64, QJS_ToFloat64, QJS_ToNumber
+
+
+quickjs.library/QJS_ToInt64                           quickjs.library/QJS_ToInt64
+
+    NAME
+	QJS_ToInt64 -- Extract a signed 64-bit integer from a
+	    JSValue.
+
+    SYNOPSIS
+	rc = QJS_ToInt64(ctx, pres, val_ptr)
+	D0               A0   A2    A1
+
+	LONG QJS_ToInt64(JSContext *ctx, int64_t *pres,
+			 const JSValue *val_ptr);
+
+    FUNCTION
+	Converts the value to an int64_t using ECMAScript
+	ToIntegerOrInfinity() then clamping to the 64-bit range.
+	BigInt values are accepted and converted losslessly if they
+	fit.
+
+    INPUTS
+	ctx	- Host context.
+	pres	- Output pointer for the 64-bit integer.
+	val_ptr - Pointer to the value to convert.
+
+    RESULT
+	rc - 0 on success, non-zero on exception.
+
+    SEE ALSO
+	QJS_ToInt32, QJS_ToFloat64, QJS_NewBigInt64
+
+
+quickjs.library/QJS_ToFloat64                       quickjs.library/QJS_ToFloat64
+
+    NAME
+	QJS_ToFloat64 -- Extract a double from a JSValue.
+
+    SYNOPSIS
+	rc = QJS_ToFloat64(ctx, pres, val_ptr)
+	D0                 A0   A2    A1
+
+	LONG QJS_ToFloat64(JSContext *ctx, double *pres,
+			   const JSValue *val_ptr);
+
+    FUNCTION
+	Applies ECMAScript ToNumber() and stores the IEEE-754
+	double in *pres.  String values are parsed; objects invoke
+	their valueOf() / toString() methods.
+
+    INPUTS
+	ctx	- Host context.
+	pres	- Output pointer for the double.
+	val_ptr - Pointer to the value to convert.
+
+    RESULT
+	rc - 0 on success, non-zero on exception.
+
+    NOTES
+	On soft-float library builds, the resulting double is
+	written to memory via mathieeedoubbas.library.  On FPU
+	builds the compiler uses direct FPU stores.  Either way the
+	caller never needs to involve an FPU register in the call.
+
+    SEE ALSO
+	QJS_ToInt32, QJS_ToNumber, QJS_NewNumber
+
+
+quickjs.library/QJS_ToNumber                         quickjs.library/QJS_ToNumber
+
+    NAME
+	QJS_ToNumber -- Convert a value to a Number JSValue.
+
+    SYNOPSIS
+	QJS_ToNumber(result, ctx, val_ptr)
+		     A0      A1   A2
+
+	VOID QJS_ToNumber(JSValue *result, JSContext *ctx,
+			  const JSValue *val_ptr);
+
+    FUNCTION
+	Like QJS_ToFloat64() but returns the result as a fresh
+	JSValue instead of a C double.  Useful when the next step
+	is another JSValue-taking API.
+
+    INPUTS
+	result	- Output JSValue.
+	ctx	- Host context.
+	val_ptr - Pointer to the value.
+
+    RESULT
+	None.  *result holds the number or an exception.
+
+    SEE ALSO
+	QJS_ToFloat64, QJS_NewNumber
+
+
+quickjs.library/QJS_ToObject                         quickjs.library/QJS_ToObject
+
+    NAME
+	QJS_ToObject -- Apply ECMAScript ToObject() to a value.
+
+    SYNOPSIS
+	QJS_ToObject(result, ctx, val_ptr)
+		     A0      A1   A2
+
+	VOID QJS_ToObject(JSValue *result, JSContext *ctx,
+			  const JSValue *val_ptr);
+
+    FUNCTION
+	Wraps primitive values in their corresponding wrapper
+	objects: Number() for numbers, String() for strings, etc.
+	Object values are returned unchanged (with a retained
+	reference).  null and undefined throw a TypeError.
+
+    INPUTS
+	result	- Output JSValue.
+	ctx	- Host context.
+	val_ptr - Pointer to the value to convert.
+
+    RESULT
+	None.  *result holds the object form or an exception.
+
+    SEE ALSO
+	QJS_NewObject
+
+
+quickjs.library/QJS_GetGlobalObject             quickjs.library/QJS_GetGlobalObject
+
+    NAME
+	QJS_GetGlobalObject -- Retrieve the context's globalThis.
+
+    SYNOPSIS
+	QJS_GetGlobalObject(result, ctx)
+			    A0      A1
+
+	VOID QJS_GetGlobalObject(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Stores in *result the global object for the context --
+	equivalent to the `globalThis` keyword in ES2020+.  All
+	top-level declarations and intrinsic objects live as
+	properties of this object.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+
+    RESULT
+	None.  *result holds a reference to the global object;
+	release it with QJS_FreeValue() when done.
+
+    EXAMPLE
+	/* Install a native function as a global */
+	JSValue global, fn;
+	QJS_GetGlobalObject(&global, ctx);
+	QJS_NewCFunction2(&fn, ctx, my_cfunc, "myFunc", 1,
+			  JS_CFUNC_generic, 0);
+	QJS_SetPropertyStr(ctx, &global, "myFunc", &fn);
+	QJS_FreeValue(ctx, &global);
+
+    SEE ALSO
+	QJS_SetPropertyStr, QJS_NewCFunction2
+
+
+quickjs.library/QJS_FreeValue                       quickjs.library/QJS_FreeValue
+
+    NAME
+	QJS_FreeValue -- Release a reference to a JSValue.
+
+    SYNOPSIS
+	QJS_FreeValue(ctx, val_ptr)
+		      A0   A1
+
+	VOID QJS_FreeValue(JSContext *ctx, const JSValue *val_ptr);
+
+    FUNCTION
+	Decrements the reference count of the value pointed to by
+	`val_ptr`.  When the count hits zero the value is reclaimed
+	(strings are freed, objects are finalized, etc.).
+
+	Every JSValue produced by a QJS_* function must eventually
+	be released exactly once via QJS_FreeValue() (or
+	QJS_FreeValueRT() if no context is available), or memory
+	will leak.
+
+    INPUTS
+	ctx	- Host context.
+	val_ptr - Pointer to the value to release.  Value must be
+		  owned by the caller; after this call the caller
+		  must not touch the JSValue again.
+
+    RESULT
+	None.
+
+    NOTES
+	Primitives (undefined, null, small ints, booleans) carry no
+	refcount; calling this on them is a no-op.  You still should,
+	so that conversion from a refcounted value is source-local.
+
+    SEE ALSO
+	QJS_FreeValueRT, QJS_DupValue
+
+
+quickjs.library/QJS_FreeValueRT                   quickjs.library/QJS_FreeValueRT
+
+    NAME
+	QJS_FreeValueRT -- Release a JSValue via runtime (no context
+	    needed).
+
+    SYNOPSIS
+	QJS_FreeValueRT(rt, val_ptr)
+			A0  A1
+
+	VOID QJS_FreeValueRT(JSRuntime *rt, const JSValue *val_ptr);
+
+    FUNCTION
+	Same as QJS_FreeValue() but takes a JSRuntime instead of a
+	JSContext.  Use this in contexts where you only have a
+	runtime pointer -- typically inside runtime-level finalizers
+	registered via QJS_AddRuntimeFinalizer() or class GC hooks.
+
+    INPUTS
+	rt	- The runtime.
+	val_ptr - Pointer to the value to release.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_FreeValue, QJS_DupValueRT
+
+
+quickjs.library/QJS_DupValue                         quickjs.library/QJS_DupValue
+
+    NAME
+	QJS_DupValue -- Increment the reference count of a JSValue.
+
+    SYNOPSIS
+	QJS_DupValue(result, ctx, val_ptr)
+		     A0      A1   A2
+
+	VOID QJS_DupValue(JSValue *result, JSContext *ctx,
+			  const JSValue *val_ptr);
+
+    FUNCTION
+	Produces a new JSValue that shares the same underlying
+	object as *val_ptr and adds one to its reference count.
+	Used when you need to hand a value to two owners (e.g.
+	stashing a callback in a struct and returning it up the
+	call chain).
+
+    INPUTS
+	result	- Output JSValue (the duplicate).
+	ctx	- Host context.
+	val_ptr - Pointer to the value to duplicate.
+
+    RESULT
+	None.  Both *val_ptr and *result must eventually be released
+	via QJS_FreeValue().
+
+    EXAMPLE
+	/* Remember a user callback in our struct */
+	my->cb_dup = JS_UNDEFINED;
+	{
+	    JSValue dup;
+	    QJS_DupValue(&dup, ctx, &user_cb);
+	    my->cb_dup = dup;
+	}
+
+    SEE ALSO
+	QJS_FreeValue, QJS_DupValueRT
+
+
+quickjs.library/QJS_DupValueRT                     quickjs.library/QJS_DupValueRT
+
+    NAME
+	QJS_DupValueRT -- Duplicate a JSValue via runtime.
+
+    SYNOPSIS
+	QJS_DupValueRT(result, rt, val_ptr)
+		       A0      A1  A2
+
+	VOID QJS_DupValueRT(JSValue *result, JSRuntime *rt,
+			    const JSValue *val_ptr);
+
+    FUNCTION
+	Runtime-scoped variant of QJS_DupValue() for use in
+	finalizers and class GC hooks.
+
+    INPUTS
+	result	- Output JSValue.
+	rt	- The runtime.
+	val_ptr - Pointer to the value to duplicate.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_DupValue, QJS_FreeValueRT
+
+
+quickjs.library/QJS_IsArray                           quickjs.library/QJS_IsArray
+
+    NAME
+	QJS_IsArray -- Test if a value is a JavaScript Array.
+
+    SYNOPSIS
+	result = QJS_IsArray(val_ptr)
+	D0                   A0
+
+	BOOL QJS_IsArray(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is an Array instance (including
+	arrays that inherit from Array.prototype and Proxy wrappers
+	around arrays), FALSE otherwise.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    EXAMPLE
+	if (QJS_IsArray(&v)) {
+	    int64_t len;
+	    QJS_GetLength(ctx, &v, &len);
+	    /* ... iterate ... */
+	}
+
+    SEE ALSO
+	QJS_NewArray, QJS_GetLength
+
+
+quickjs.library/QJS_IsFunction                     quickjs.library/QJS_IsFunction
+
+    NAME
+	QJS_IsFunction -- Test if a value is callable.
+
+    SYNOPSIS
+	result = QJS_IsFunction(ctx, val_ptr)
+	D0                      A0   A1
+
+	BOOL QJS_IsFunction(JSContext *ctx, const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is a function object (ordinary,
+	arrow, generator, async, or native C function), FALSE
+	otherwise.
+
+    INPUTS
+	ctx	- Host context.
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_Call, QJS_IsConstructor, QJS_NewCFunction2
+
+
+quickjs.library/QJS_IsConstructor               quickjs.library/QJS_IsConstructor
+
+    NAME
+	QJS_IsConstructor -- Test if a value can be called with
+	    `new`.
+
+    SYNOPSIS
+	result = QJS_IsConstructor(ctx, val_ptr)
+	D0                         A0   A1
+
+	BOOL QJS_IsConstructor(JSContext *ctx,
+			       const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value has a [[Construct]] internal
+	method (ordinary functions, classes, some built-ins).
+	Arrow functions are NOT constructors.
+
+    INPUTS
+	ctx	- Host context.
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_CallConstructor, QJS_IsFunction
+
+
+quickjs.library/QJS_IsError                           quickjs.library/QJS_IsError
+
+    NAME
+	QJS_IsError -- Test if a value is an Error instance.
+
+    SYNOPSIS
+	result = QJS_IsError(val_ptr)
+	D0                   A0
+
+	BOOL QJS_IsError(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is an Error or one of its
+	subclasses (TypeError, RangeError, SyntaxError, etc.).
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    NOTES
+	A thrown exception is typically but not always an Error.
+	Code like `throw "boom"` yields a thrown string, which is
+	NOT an Error.
+
+    SEE ALSO
+	QJS_Throw, QJS_GetException, QJS_NewError
+
+
+quickjs.library/QJS_IsArrayBuffer               quickjs.library/QJS_IsArrayBuffer
+
+    NAME
+	QJS_IsArrayBuffer -- Test if a value is an ArrayBuffer.
+
+    SYNOPSIS
+	result = QJS_IsArrayBuffer(val_ptr)
+	D0                         A0
+
+	BOOL QJS_IsArrayBuffer(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE for an ArrayBuffer or SharedArrayBuffer, FALSE
+	for typed-array views over a buffer or any other value.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_NewArrayBufferCopy, QJS_GetArrayBuffer
+
+
+quickjs.library/QJS_IsDate                             quickjs.library/QJS_IsDate
+
+    NAME
+	QJS_IsDate -- Test if a value is a Date.
+
+    SYNOPSIS
+	result = QJS_IsDate(val_ptr)
+	D0                  A0
+
+	BOOL QJS_IsDate(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is a Date instance.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_NewDate, QJS_AddDate
+
+
+quickjs.library/QJS_IsRegExp                         quickjs.library/QJS_IsRegExp
+
+    NAME
+	QJS_IsRegExp -- Test if a value is a RegExp.
+
+    SYNOPSIS
+	result = QJS_IsRegExp(val_ptr)
+	D0                    A0
+
+	BOOL QJS_IsRegExp(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is a RegExp instance.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_AddRegExp
+
+
+quickjs.library/QJS_IsMap                               quickjs.library/QJS_IsMap
+
+    NAME
+	QJS_IsMap -- Test if a value is a Map.
+
+    SYNOPSIS
+	result = QJS_IsMap(val_ptr)
+	D0                 A0
+
+	BOOL QJS_IsMap(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is a Map instance.  WeakMap
+	instances also return TRUE; distinguish via the prototype
+	chain if needed.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_IsSet, QJS_AddMapSet
+
+
+quickjs.library/QJS_IsSet                               quickjs.library/QJS_IsSet
+
+    NAME
+	QJS_IsSet -- Test if a value is a Set.
+
+    SYNOPSIS
+	result = QJS_IsSet(val_ptr)
+	D0                 A0
+
+	BOOL QJS_IsSet(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is a Set instance.  WeakSet
+	instances also return TRUE.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_IsMap, QJS_AddMapSet
+
+
+quickjs.library/QJS_IsPromise                       quickjs.library/QJS_IsPromise
+
+    NAME
+	QJS_IsPromise -- Test if a value is a Promise.
+
+    SYNOPSIS
+	result = QJS_IsPromise(val_ptr)
+	D0                     A0
+
+	BOOL QJS_IsPromise(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns TRUE if the value is a genuine Promise instance
+	(checks for the internal [[PromiseState]] slot).  Thenable
+	objects that merely have a .then method are NOT promises
+	by this test.
+
+    INPUTS
+	val_ptr - Pointer to the value to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_NewPromiseCapability, QJS_PromiseState,
+	QJS_PromiseResult
+
+
+quickjs.library/QJS_IsExtensible                 quickjs.library/QJS_IsExtensible
+
+    NAME
+	QJS_IsExtensible -- Check whether new properties can be
+	    added to an object.
+
+    SYNOPSIS
+	result = QJS_IsExtensible(ctx, obj_ptr)
+	D0                        A0   A1
+
+	LONG QJS_IsExtensible(JSContext *ctx,
+			      const JSValue *obj_ptr);
+
+    FUNCTION
+	Returns 1 if the object is extensible, 0 if sealed or
+	frozen, -1 on exception.  Non-objects return 0.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object to test.
+
+    RESULT
+	result - 1 (extensible), 0 (not), or -1 (exception).
+
+    SEE ALSO
+	QJS_PreventExtensions, QJS_SealObject, QJS_FreezeObject
+
+
+quickjs.library/QJS_IsInstanceOf                 quickjs.library/QJS_IsInstanceOf
+
+    NAME
+	QJS_IsInstanceOf -- Check prototype-chain membership.
+
+    SYNOPSIS
+	result = QJS_IsInstanceOf(ctx, val_ptr, obj_ptr)
+	D0                        A0   A1       A2
+
+	LONG QJS_IsInstanceOf(JSContext *ctx,
+			      const JSValue *val_ptr,
+			      const JSValue *obj_ptr);
+
+    FUNCTION
+	Equivalent to `val instanceof obj` in JavaScript: returns
+	1 if val's prototype chain contains obj's prototype (or if
+	obj has a [[HasInstance]] method that returns true), 0
+	otherwise, -1 on exception.
+
+    INPUTS
+	ctx	- Host context.
+	val_ptr - Pointer to the value to test.
+	obj_ptr - Pointer to the constructor (or object with
+		  Symbol.hasInstance).
+
+    RESULT
+	result - 1, 0, or -1.
+
+    SEE ALSO
+	QJS_GetPrototype, QJS_SetPrototype
+
+
+quickjs.library/QJS_IsEqual                           quickjs.library/QJS_IsEqual
+
+    NAME
+	QJS_IsEqual -- Loose equality (`==`) comparison.
+
+    SYNOPSIS
+	result = QJS_IsEqual(ctx, op1_ptr, op2_ptr)
+	D0                   A0   A1       A2
+
+	LONG QJS_IsEqual(JSContext *ctx,
+			 const JSValue *op1_ptr,
+			 const JSValue *op2_ptr);
+
+    FUNCTION
+	Applies ECMAScript Abstract Equality (== operator) to the
+	two values.  Performs type coercion between numbers, strings
+	and booleans; special cases for null/undefined.
+
+    INPUTS
+	ctx	- Host context.
+	op1_ptr - Pointer to the left operand.
+	op2_ptr - Pointer to the right operand.
+
+    RESULT
+	result - 1 if equal, 0 if not, -1 on exception (coercion
+	         may invoke user code).
+
+    SEE ALSO
+	QJS_IsStrictEqual, QJS_IsSameValue
+
+
+quickjs.library/QJS_IsStrictEqual               quickjs.library/QJS_IsStrictEqual
+
+    NAME
+	QJS_IsStrictEqual -- Strict equality (`===`) comparison.
+
+    SYNOPSIS
+	result = QJS_IsStrictEqual(ctx, op1_ptr, op2_ptr)
+	D0                         A0   A1       A2
+
+	BOOL QJS_IsStrictEqual(JSContext *ctx,
+			       const JSValue *op1_ptr,
+			       const JSValue *op2_ptr);
+
+    FUNCTION
+	Applies ECMAScript Strict Equality (=== operator).  No type
+	coercion; NaN is not equal to itself; +0 equals -0.
+
+    INPUTS
+	ctx	- Host context.
+	op1_ptr - Pointer to the left operand.
+	op2_ptr - Pointer to the right operand.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_IsEqual, QJS_IsSameValue, QJS_IsSameValueZero
+
+
+quickjs.library/QJS_IsSameValue                   quickjs.library/QJS_IsSameValue
+
+    NAME
+	QJS_IsSameValue -- Object.is() equality.
+
+    SYNOPSIS
+	result = QJS_IsSameValue(ctx, op1_ptr, op2_ptr)
+	D0                       A0   A1       A2
+
+	BOOL QJS_IsSameValue(JSContext *ctx,
+			     const JSValue *op1_ptr,
+			     const JSValue *op2_ptr);
+
+    FUNCTION
+	Applies the SameValue algorithm, equivalent to JavaScript
+	Object.is().  Unlike `===`, NaN IS equal to NaN and +0 is
+	NOT equal to -0.
+
+    INPUTS
+	ctx	- Host context.
+	op1_ptr - Pointer to the left operand.
+	op2_ptr - Pointer to the right operand.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_IsStrictEqual, QJS_IsSameValueZero
+
+
+quickjs.library/QJS_IsSameValueZero           quickjs.library/QJS_IsSameValueZero
+
+    NAME
+	QJS_IsSameValueZero -- SameValueZero equality (used by
+	    Map/Set).
+
+    SYNOPSIS
+	result = QJS_IsSameValueZero(ctx, op1_ptr, op2_ptr)
+	D0                           A0   A1       A2
+
+	BOOL QJS_IsSameValueZero(JSContext *ctx,
+				 const JSValue *op1_ptr,
+				 const JSValue *op2_ptr);
+
+    FUNCTION
+	Like QJS_IsSameValue() but treats +0 and -0 as equal.  This
+	is the equality used by Map keys, Set elements and
+	Array.prototype.includes().
+
+    INPUTS
+	ctx	- Host context.
+	op1_ptr - Pointer to the left operand.
+	op2_ptr - Pointer to the right operand.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_IsStrictEqual, QJS_IsSameValue
+
+
+quickjs.library/QJS_GetProperty                   quickjs.library/QJS_GetProperty
+
+    NAME
+	QJS_GetProperty -- Read a property by atom key.
+
+    SYNOPSIS
+	QJS_GetProperty(result, ctx, this_ptr, prop)
+			A0      A1   A2        D0
+
+	VOID QJS_GetProperty(JSValue *result, JSContext *ctx,
+			     const JSValue *this_ptr, JSAtom prop);
+
+    FUNCTION
+	Reads `this[prop]` where `prop` is a pre-interned JSAtom.
+	Honours getters, proxy traps and the prototype chain.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	this_ptr - Pointer to the object to read from.
+	prop	 - Atom key.
+
+    RESULT
+	None.  *result is undefined if the property does not exist,
+	the value if it does, or an exception on error.
+
+    EXAMPLE
+	JSAtom name = QJS_NewAtom(ctx, "length");
+	JSValue len;
+	QJS_GetProperty(&len, ctx, &arr, name);
+	QJS_FreeAtom(ctx, name);
+
+    SEE ALSO
+	QJS_GetPropertyStr, QJS_GetPropertyUint32, QJS_SetProperty
+
+
+quickjs.library/QJS_GetPropertyUint32       quickjs.library/QJS_GetPropertyUint32
+
+    NAME
+	QJS_GetPropertyUint32 -- Read an array element by numeric
+	    index.
+
+    SYNOPSIS
+	QJS_GetPropertyUint32(result, ctx, this_ptr, idx)
+			      A0      A1   A2        D0
+
+	VOID QJS_GetPropertyUint32(JSValue *result, JSContext *ctx,
+				   const JSValue *this_ptr,
+				   ULONG idx);
+
+    FUNCTION
+	Reads `this[idx]` as an indexed access.  Optimized for
+	Array and typed-array paths.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	this_ptr - Pointer to the object.
+	idx	 - Unsigned 32-bit index.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_SetPropertyUint32, QJS_GetLength
+
+
+quickjs.library/QJS_GetPropertyStr             quickjs.library/QJS_GetPropertyStr
+
+    NAME
+	QJS_GetPropertyStr -- Read a property by C-string key.
+
+    SYNOPSIS
+	QJS_GetPropertyStr(result, ctx, this_ptr, prop_str)
+			   A0      A1   A2        A3
+
+	VOID QJS_GetPropertyStr(JSValue *result, JSContext *ctx,
+				const JSValue *this_ptr,
+				CONST_STRPTR prop_str);
+
+    FUNCTION
+	Convenience wrapper that creates an atom from the
+	NUL-terminated C string, calls QJS_GetProperty(), then
+	releases the atom.  Good for one-shot lookups; cache an
+	atom yourself if you'll read the same key many times.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	this_ptr - Pointer to the object.
+	prop_str - NUL-terminated property name (UTF-8).
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue status;
+	QJS_GetPropertyStr(&status, ctx, &response, "status");
+
+    SEE ALSO
+	QJS_GetProperty, QJS_SetPropertyStr
+
+
+quickjs.library/QJS_GetPropertyInt64         quickjs.library/QJS_GetPropertyInt64
+
+    NAME
+	QJS_GetPropertyInt64 -- Read an array element by 64-bit
+	    index.
+
+    SYNOPSIS
+	QJS_GetPropertyInt64(result, ctx, this_ptr, idx)
+			     A0      A1   A2        D0
+
+	VOID QJS_GetPropertyInt64(JSValue *result, JSContext *ctx,
+				  const JSValue *this_ptr,
+				  LONG idx);
+
+    FUNCTION
+	Like QJS_GetPropertyUint32() but accepts a 64-bit signed
+	index.  Useful for very large TypedArrays and BigInt-indexed
+	structures.
+
+	Note: the index is passed through D0 truncated to 32 bits in
+	the AmigaOS calling convention; indices above 2^31-1 are not
+	reachable via this LVO.  Use QJS_GetProperty() with an atom
+	for truly 64-bit indices.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	this_ptr - Pointer to the object.
+	idx	 - Signed index (effectively 32-bit on 68k).
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetPropertyUint32, QJS_GetProperty
+
+
+quickjs.library/QJS_SetProperty                   quickjs.library/QJS_SetProperty
+
+    NAME
+	QJS_SetProperty -- Write a property by atom key.
+
+    SYNOPSIS
+	rc = QJS_SetProperty(ctx, this_ptr, prop, val_ptr)
+	D0                   A0   A1        D0    A2
+
+	LONG QJS_SetProperty(JSContext *ctx,
+			     const JSValue *this_ptr,
+			     JSAtom prop, const JSValue *val_ptr);
+
+    FUNCTION
+	Writes `this[prop] = *val_ptr`.  Honours setters and proxy
+	traps.  Takes ownership of the value reference -- after this
+	call, *val_ptr no longer needs a QJS_FreeValue().
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the target object.
+	prop	 - Atom key.
+	val_ptr  - Pointer to the value to store.
+
+    RESULT
+	rc - 1 on success, 0 if the property could not be set
+	     (e.g. frozen object, strict-mode refusal), -1 on
+	     exception.
+
+    NOTES
+	This differs from other SetProperty APIs in that ownership
+	transfer is the norm, matching upstream QuickJS-ng
+	semantics.
+
+    SEE ALSO
+	QJS_GetProperty, QJS_SetPropertyStr, QJS_DefinePropertyValue
+
+
+quickjs.library/QJS_SetPropertyUint32       quickjs.library/QJS_SetPropertyUint32
+
+    NAME
+	QJS_SetPropertyUint32 -- Write an array element by numeric
+	    index.
+
+    SYNOPSIS
+	rc = QJS_SetPropertyUint32(ctx, this_ptr, idx, val_ptr)
+	D0                         A0   A1        D0   A2
+
+	LONG QJS_SetPropertyUint32(JSContext *ctx,
+				   const JSValue *this_ptr,
+				   ULONG idx,
+				   const JSValue *val_ptr);
+
+    FUNCTION
+	Stores `this[idx] = *val_ptr`.  Takes ownership of the
+	value reference.  Extends Array length if idx >= current
+	length.
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the array/object.
+	idx	 - Unsigned 32-bit index.
+	val_ptr  - Pointer to the value to store.
+
+    RESULT
+	rc - 1 on success, 0 if refused, -1 on exception.
+
+    SEE ALSO
+	QJS_GetPropertyUint32, QJS_NewArray
+
+
+quickjs.library/QJS_SetPropertyStr             quickjs.library/QJS_SetPropertyStr
+
+    NAME
+	QJS_SetPropertyStr -- Write a property by C-string key.
+
+    SYNOPSIS
+	rc = QJS_SetPropertyStr(ctx, this_ptr, prop_str, val_ptr)
+	D0                      A0   A1        A2        A3
+
+	LONG QJS_SetPropertyStr(JSContext *ctx,
+				const JSValue *this_ptr,
+				CONST_STRPTR prop_str,
+				const JSValue *val_ptr);
+
+    FUNCTION
+	Convenience wrapper around QJS_SetProperty() with a
+	C-string key.  Takes ownership of the value reference.
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the target object.
+	prop_str - NUL-terminated property name.
+	val_ptr  - Pointer to the value to store.
+
+    RESULT
+	rc - 1/0/-1 as QJS_SetProperty().
+
+    EXAMPLE
+	JSValue n;  int v = 42;
+	QJS_NewNumber(&n, ctx, &(double){(double)v});
+	QJS_SetPropertyStr(ctx, &obj, "count", &n);
+	/* Do NOT call QJS_FreeValue(ctx, &n) -- ownership was
+	   transferred. */
+
+    SEE ALSO
+	QJS_GetPropertyStr, QJS_SetProperty
+
+
+quickjs.library/QJS_HasProperty                   quickjs.library/QJS_HasProperty
+
+    NAME
+	QJS_HasProperty -- Test whether a property exists.
+
+    SYNOPSIS
+	rc = QJS_HasProperty(ctx, this_ptr, prop)
+	D0                   A0   A1        D0
+
+	LONG QJS_HasProperty(JSContext *ctx,
+			     const JSValue *this_ptr, JSAtom prop);
+
+    FUNCTION
+	Returns 1 if the property exists on the object or anywhere
+	in its prototype chain, 0 if not, -1 on exception
+	(proxy traps may throw).
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the object.
+	prop	 - Atom key.
+
+    RESULT
+	rc - 1, 0, or -1.
+
+    SEE ALSO
+	QJS_GetProperty, QJS_DeleteProperty
+
+
+quickjs.library/QJS_DeleteProperty             quickjs.library/QJS_DeleteProperty
+
+    NAME
+	QJS_DeleteProperty -- Remove a property from an object.
+
+    SYNOPSIS
+	rc = QJS_DeleteProperty(ctx, obj_ptr, prop, flags)
+	D0                      A0   A1       D0    D1
+
+	LONG QJS_DeleteProperty(JSContext *ctx,
+				const JSValue *obj_ptr,
+				JSAtom prop, ULONG flags);
+
+    FUNCTION
+	Deletes `obj[prop]`.  The `flags` argument controls strict
+	behaviour: pass JS_PROP_THROW to raise a TypeError if the
+	property exists but cannot be deleted (i.e. is
+	non-configurable), or 0 for the default silent refusal.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object.
+	prop	- Atom key.
+	flags	- 0 or JS_PROP_THROW.
+
+    RESULT
+	rc - 1 on success, 0 if refused without throwing, -1 on
+	     exception.
+
+    SEE ALSO
+	QJS_HasProperty, QJS_FreezeObject
+
+
+quickjs.library/QJS_SetPrototype                   quickjs.library/QJS_SetPrototype
+
+    NAME
+	QJS_SetPrototype -- Change an object's [[Prototype]].
+
+    SYNOPSIS
+	rc = QJS_SetPrototype(ctx, obj_ptr, proto_ptr)
+	D0                    A0   A1       A2
+
+	LONG QJS_SetPrototype(JSContext *ctx,
+			      const JSValue *obj_ptr,
+			      const JSValue *proto_ptr);
+
+    FUNCTION
+	Sets the [[Prototype]] of `*obj_ptr` to `*proto_ptr`
+	(or null if *proto_ptr is JS_NULL).  Equivalent to
+	Object.setPrototypeOf().
+
+    INPUTS
+	ctx	  - Host context.
+	obj_ptr	  - Pointer to the object.
+	proto_ptr - Pointer to the new prototype.
+
+    RESULT
+	rc - 1 on success, 0 if refused (non-extensible object),
+	     -1 on exception.
+
+    SEE ALSO
+	QJS_GetPrototype, QJS_NewObjectProto
+
+
+quickjs.library/QJS_GetPrototype                   quickjs.library/QJS_GetPrototype
+
+    NAME
+	QJS_GetPrototype -- Read an object's [[Prototype]].
+
+    SYNOPSIS
+	QJS_GetPrototype(result, ctx, val_ptr)
+			 A0      A1   A2
+
+	VOID QJS_GetPrototype(JSValue *result, JSContext *ctx,
+			      const JSValue *val_ptr);
+
+    FUNCTION
+	Equivalent to Object.getPrototypeOf(*val_ptr).  Returns
+	JS_NULL for prototype-less objects.
+
+    INPUTS
+	result	- Output JSValue (the prototype).
+	ctx	- Host context.
+	val_ptr - Pointer to the object.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_SetPrototype, QJS_NewObjectProto
+
+
+quickjs.library/QJS_GetLength                       quickjs.library/QJS_GetLength
+
+    NAME
+	QJS_GetLength -- Read an object's `length` property as
+	    int64.
+
+    SYNOPSIS
+	rc = QJS_GetLength(ctx, obj_ptr, pres)
+	D0                 A0   A1       A2
+
+	LONG QJS_GetLength(JSContext *ctx,
+			   const JSValue *obj_ptr, int64_t *pres);
+
+    FUNCTION
+	Reads `obj.length` and converts it to a 64-bit signed
+	integer via ToLength().  Commonly used with arrays and
+	array-like objects.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object.
+	pres	- Output pointer for the length.
+
+    RESULT
+	rc - 0 on success, non-zero on exception.
+
+    SEE ALSO
+	QJS_SetLength, QJS_GetPropertyStr
+
+
+quickjs.library/QJS_SetLength                       quickjs.library/QJS_SetLength
+
+    NAME
+	QJS_SetLength -- Set an object's `length` property.
+
+    SYNOPSIS
+	rc = QJS_SetLength(ctx, obj_ptr, len)
+	D0                 A0   A1       D0
+
+	LONG QJS_SetLength(JSContext *ctx,
+			   const JSValue *obj_ptr, LONG len);
+
+    FUNCTION
+	Sets `obj.length = len`.  For Arrays this truncates or
+	extends the array; for other objects it simply assigns the
+	property.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object.
+	len	- New length.
+
+    RESULT
+	rc - 0 on success, non-zero on exception.
+
+    SEE ALSO
+	QJS_GetLength, QJS_NewArray
+
+
+quickjs.library/QJS_PreventExtensions         quickjs.library/QJS_PreventExtensions
+
+    NAME
+	QJS_PreventExtensions -- Prevent new properties from being
+	    added to an object.
+
+    SYNOPSIS
+	rc = QJS_PreventExtensions(ctx, obj_ptr)
+	D0                         A0   A1
+
+	LONG QJS_PreventExtensions(JSContext *ctx,
+				   const JSValue *obj_ptr);
+
+    FUNCTION
+	Equivalent to Object.preventExtensions().  After this call,
+	attempts to add new properties fail (silently or throw
+	depending on strict mode).  Existing properties can still
+	be modified or deleted.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object.
+
+    RESULT
+	rc - 1 on success, -1 on exception.
+
+    SEE ALSO
+	QJS_IsExtensible, QJS_SealObject, QJS_FreezeObject
+
+
+quickjs.library/QJS_SealObject                     quickjs.library/QJS_SealObject
+
+    NAME
+	QJS_SealObject -- Seal an object (prevent extensions +
+	    mark all properties non-configurable).
+
+    SYNOPSIS
+	rc = QJS_SealObject(ctx, obj_ptr)
+	D0                  A0   A1
+
+	LONG QJS_SealObject(JSContext *ctx,
+			    const JSValue *obj_ptr);
+
+    FUNCTION
+	Equivalent to Object.seal().  Properties can still be
+	written but not added, removed, or reconfigured.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object.
+
+    RESULT
+	rc - 1 on success, -1 on exception.
+
+    SEE ALSO
+	QJS_FreezeObject, QJS_PreventExtensions
+
+
+quickjs.library/QJS_FreezeObject                 quickjs.library/QJS_FreezeObject
+
+    NAME
+	QJS_FreezeObject -- Freeze an object (seal + mark all
+	    properties read-only).
+
+    SYNOPSIS
+	rc = QJS_FreezeObject(ctx, obj_ptr)
+	D0                    A0   A1
+
+	LONG QJS_FreezeObject(JSContext *ctx,
+			      const JSValue *obj_ptr);
+
+    FUNCTION
+	Equivalent to Object.freeze().  The object becomes fully
+	immutable: no new properties, no deletions, no writes to
+	existing properties.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object.
+
+    RESULT
+	rc - 1 on success, -1 on exception.
+
+    SEE ALSO
+	QJS_SealObject, QJS_PreventExtensions
+
+
+quickjs.library/QJS_DefinePropertyValue     quickjs.library/QJS_DefinePropertyValue
+
+    NAME
+	QJS_DefinePropertyValue -- Define a data property with
+	    explicit attributes.
+
+    SYNOPSIS
+	rc = QJS_DefinePropertyValue(ctx, this_ptr, prop, val_ptr,
+				     flags)
+	D0                           A0   A1        D0    A2
+				     D1
+
+	LONG QJS_DefinePropertyValue(JSContext *ctx,
+				     const JSValue *this_ptr,
+				     JSAtom prop,
+				     const JSValue *val_ptr,
+				     ULONG flags);
+
+    FUNCTION
+	Equivalent to Object.defineProperty() with a data
+	descriptor.  The `flags` combine JS_PROP_WRITABLE,
+	JS_PROP_ENUMERABLE, JS_PROP_CONFIGURABLE and
+	JS_PROP_THROW.  Takes ownership of *val_ptr.
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the target object.
+	prop	 - Atom key.
+	val_ptr  - Pointer to the value.
+	flags	 - OR of JS_PROP_* constants.
+
+    RESULT
+	rc - 1 on success, 0 if refused, -1 on exception.
+
+    SEE ALSO
+	QJS_DefinePropertyValueStr, QJS_DefinePropertyValueUint32,
+	QJS_SetProperty
+
+
+quickjs.library/QJS_DefinePropertyValueStr QJS_DefinePropertyValueStr
+
+    NAME
+	QJS_DefinePropertyValueStr -- defineProperty with a
+	    C-string key.
+
+    SYNOPSIS
+	rc = QJS_DefinePropertyValueStr(ctx, this_ptr, val_ptr,
+					prop_str, flags)
+	D0                              A0   A1        A2
+					A3        D0
+
+	LONG QJS_DefinePropertyValueStr(JSContext *ctx,
+					const JSValue *this_ptr,
+					const JSValue *val_ptr,
+					CONST_STRPTR prop_str,
+					ULONG flags);
+
+    FUNCTION
+	Same as QJS_DefinePropertyValue() but takes a C-string key
+	for convenience.  Note the argument order: the value comes
+	before the property name.
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the target object.
+	val_ptr  - Pointer to the value.
+	prop_str - NUL-terminated property name.
+	flags	 - OR of JS_PROP_* constants.
+
+    RESULT
+	rc - 1/0/-1.
+
+    EXAMPLE
+	/* Install a non-enumerable, read-only property */
+	QJS_DefinePropertyValueStr(ctx, &obj, &val, "kind",
+	    JS_PROP_CONFIGURABLE);
+
+    SEE ALSO
+	QJS_DefinePropertyValue, QJS_SetPropertyStr
+
+
+quickjs.library/QJS_DefinePropertyValueUint32 QJS_DefinePropertyValueUint32
+
+    NAME
+	QJS_DefinePropertyValueUint32 -- defineProperty with a
+	    numeric index key.
+
+    SYNOPSIS
+	rc = QJS_DefinePropertyValueUint32(ctx, this_ptr, idx,
+					   val_ptr, flags)
+	D0                                 A0   A1        D0
+					   A2       D1
+
+	LONG QJS_DefinePropertyValueUint32(JSContext *ctx,
+					const JSValue *this_ptr,
+					ULONG idx,
+					const JSValue *val_ptr,
+					ULONG flags);
+
+    FUNCTION
+	Same as QJS_DefinePropertyValue() but with a numeric index
+	key.
+
+    INPUTS
+	ctx	 - Host context.
+	this_ptr - Pointer to the target object.
+	idx	 - Unsigned 32-bit index.
+	val_ptr  - Pointer to the value.
+	flags	 - OR of JS_PROP_* constants.
+
+    RESULT
+	rc - 1/0/-1.
+
+    SEE ALSO
+	QJS_DefinePropertyValue, QJS_SetPropertyUint32
+
+
+quickjs.library/QJS_SetOpaque                       quickjs.library/QJS_SetOpaque
+
+    NAME
+	QJS_SetOpaque -- Attach a C pointer to a class instance.
+
+    SYNOPSIS
+	QJS_SetOpaque(obj_ptr, opaque)
+		      A1       A0
+
+	VOID QJS_SetOpaque(const JSValue *obj_ptr, APTR opaque);
+
+    FUNCTION
+	Stores a C pointer inside the JS object's opaque slot.
+	Used to bind a native struct to a JavaScript wrapper
+	created with QJS_NewObjectClass().
+
+	The object must be an instance of a class registered via
+	QJS_NewClass().  Retrieve the pointer later with
+	QJS_GetOpaque() or QJS_GetOpaque2().
+
+    INPUTS
+	obj_ptr - Pointer to the object value.
+	opaque	- Arbitrary C pointer, or NULL.
+
+    RESULT
+	None.
+
+    NOTES
+	Note the register assignment: the object pointer is in A1,
+	the opaque pointer is in A0.  The function takes the
+	arguments in reverse of the C signature order.
+
+    SEE ALSO
+	QJS_GetOpaque, QJS_GetOpaque2, QJS_NewClass
+
+
+quickjs.library/QJS_GetOpaque                       quickjs.library/QJS_GetOpaque
+
+    NAME
+	QJS_GetOpaque -- Retrieve the class-opaque pointer without
+	    type checking.
+
+    SYNOPSIS
+	ptr = QJS_GetOpaque(obj_ptr, class_id)
+	D0                  A0       D0
+
+	APTR QJS_GetOpaque(const JSValue *obj_ptr,
+			   JSClassID class_id);
+
+    FUNCTION
+	Returns the opaque pointer set via QJS_SetOpaque() if the
+	object IS an instance of the given class; NULL otherwise
+	(including when the object does not match the class).
+
+	No exception is thrown; prefer QJS_GetOpaque2() when you
+	want an automatic TypeError on mismatch.
+
+    INPUTS
+	obj_ptr  - Pointer to the object.
+	class_id - Expected class ID.
+
+    RESULT
+	ptr - Opaque pointer, or NULL.
+
+    SEE ALSO
+	QJS_GetOpaque2, QJS_SetOpaque
+
+
+quickjs.library/QJS_GetOpaque2                     quickjs.library/QJS_GetOpaque2
+
+    NAME
+	QJS_GetOpaque2 -- Retrieve the class-opaque pointer with
+	    type checking.
+
+    SYNOPSIS
+	ptr = QJS_GetOpaque2(ctx, obj_ptr, class_id)
+	D0                   A0   A1       D0
+
+	APTR QJS_GetOpaque2(JSContext *ctx,
+			    const JSValue *obj_ptr,
+			    JSClassID class_id);
+
+    FUNCTION
+	Like QJS_GetOpaque() but if the object is NOT an instance
+	of the expected class, throws a TypeError into the context
+	and returns NULL.  Canonical check at the top of C methods
+	on native classes.
+
+    INPUTS
+	ctx	 - Host context.
+	obj_ptr  - Pointer to the object (typically `this_val`).
+	class_id - Expected class ID.
+
+    RESULT
+	ptr - Opaque pointer, or NULL (with exception pending).
+
+    EXAMPLE
+	static JSValue my_method(JSContext *ctx, JSValueConst this_v,
+				 int argc, JSValueConst *argv) {
+	    MyData *s = QJS_GetOpaque2(ctx, &this_v, my_class_id);
+	    if (!s) return JS_EXCEPTION;
+	    /* use s... */
+	}
+
+    SEE ALSO
+	QJS_GetOpaque, QJS_SetOpaque
+
+
+quickjs.library/QJS_GetOwnPropertyNames     QJS_GetOwnPropertyNames
+
+    NAME
+	QJS_GetOwnPropertyNames -- Enumerate an object's own
+	    property keys.
+
+    SYNOPSIS
+	rc = QJS_GetOwnPropertyNames(ctx, ptab, plen, obj_ptr, flags)
+	D0                           A0   A1    A2    A3       D0
+
+	LONG QJS_GetOwnPropertyNames(JSContext *ctx,
+				     JSPropertyEnum **ptab,
+				     ULONG *plen,
+				     const JSValue *obj_ptr,
+				     ULONG flags);
+
+    FUNCTION
+	Allocates an array of JSPropertyEnum structures, one per
+	own property of the object, and returns it through *ptab
+	plus *plen.  The `flags` control what is included:
+
+	    JS_GPN_STRING_MASK     -- string keys
+	    JS_GPN_SYMBOL_MASK     -- symbol keys
+	    JS_GPN_PRIVATE_MASK    -- private fields
+	    JS_GPN_ENUM_ONLY       -- enumerable only
+	    JS_GPN_SET_ENUM        -- mark the enum field
+
+	The caller must release the array with
+	QJS_FreePropertyEnum() when done.
+
+    INPUTS
+	ctx	- Host context.
+	ptab	- Output pointer for the allocated array.
+	plen	- Output pointer for the count.
+	obj_ptr - Pointer to the object.
+	flags	- JS_GPN_* mask.
+
+    RESULT
+	rc - 0 on success, non-zero on exception.
+
+    SEE ALSO
+	QJS_FreePropertyEnum, QJS_GetProperty
+
+
+quickjs.library/QJS_FreePropertyEnum       quickjs.library/QJS_FreePropertyEnum
+
+    NAME
+	QJS_FreePropertyEnum -- Release an array returned by
+	    QJS_GetOwnPropertyNames().
+
+    SYNOPSIS
+	QJS_FreePropertyEnum(ctx, tab, len)
+			     A0   A1   D0
+
+	VOID QJS_FreePropertyEnum(JSContext *ctx,
+				  JSPropertyEnum *tab, ULONG len);
+
+    FUNCTION
+	Frees every atom in the enumeration and the array itself.
+	Must be called with the same ctx that produced the enum.
+
+    INPUTS
+	ctx - Host context.
+	tab - Array previously returned through *ptab.
+	len - Count previously returned through *plen.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetOwnPropertyNames
+
+
+quickjs.library/QJS_Call                               quickjs.library/QJS_Call
+
+    NAME
+	QJS_Call -- Call a JavaScript function.
+
+    SYNOPSIS
+	QJS_Call(result, ctx, func_ptr, this_ptr, argc, argv_addr)
+		 A0      A1   A2        A3        D0    D1
+
+	VOID QJS_Call(JSValue *result, JSContext *ctx,
+		      const JSValue *func_ptr,
+		      const JSValue *this_ptr,
+		      int argc, const JSValue *argv_addr);
+
+    FUNCTION
+	Calls the function `*func_ptr` with `*this_ptr` as the
+	`this` binding and `argc` arguments from the `argv_addr`
+	array.  Stores the return value (or an exception) in
+	*result.
+
+	The argv_addr array holds JSValues (not pointers), packed
+	consecutively.  QJS_Call() reads them in place; the values
+	remain the caller's property.
+
+    INPUTS
+	result	  - Output JSValue (return value or exception).
+	ctx	  - Host context.
+	func_ptr  - Pointer to the function to call.
+	this_ptr  - Pointer to the `this` binding.  Pass a pointer
+		    to JS_UNDEFINED for no `this`.
+	argc	  - Number of arguments.
+	argv_addr - Pointer to the first of `argc` contiguous
+		    JSValues, or NULL if argc is 0.
+
+    RESULT
+	None.  On exception *result has its IS_EXCEPTION flag set.
+
+    EXAMPLE
+	JSValue args[2], ret;
+	QJS_NewNumber(&args[0], ctx, &(double){1.0});
+	QJS_NewNumber(&args[1], ctx, &(double){2.0});
+	QJS_Call(&ret, ctx, &sum_fn, &global, 2, args);
+	QJS_FreeValue(ctx, &args[0]);
+	QJS_FreeValue(ctx, &args[1]);
+
+    SEE ALSO
+	QJS_Invoke, QJS_CallConstructor, QJS_NewCFunction2
+
+
+quickjs.library/QJS_Invoke                           quickjs.library/QJS_Invoke
+
+    NAME
+	QJS_Invoke -- Call a method on an object by atom.
+
+    SYNOPSIS
+	QJS_Invoke(result, ctx, this_ptr, argv, atom, argc)
+		   A0      A1   A2        A3    D0    D1
+
+	VOID QJS_Invoke(JSValue *result, JSContext *ctx,
+			const JSValue *this_ptr,
+			const JSValue *argv,
+			JSAtom atom, int argc);
+
+    FUNCTION
+	Convenience wrapper that looks up the method `atom` on
+	`*this_ptr`, then calls it with `*this_ptr` as receiver
+	and `argc` arguments from `argv`.  Equivalent to the JS
+	expression `this[method](...args)`.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	this_ptr - Pointer to the object holding the method.
+	argv	 - Pointer to argument array.
+	atom	 - Method name as a JSAtom.
+	argc	 - Number of arguments.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSAtom slice = QJS_NewAtom(ctx, "slice");
+	JSValue args[2], result;
+	QJS_NewNumber(&args[0], ctx, &(double){0});
+	QJS_NewNumber(&args[1], ctx, &(double){5});
+	QJS_Invoke(&result, ctx, &str, args, slice, 2);
+	QJS_FreeAtom(ctx, slice);
+
+    SEE ALSO
+	QJS_Call, QJS_GetProperty
+
+
+quickjs.library/QJS_CallConstructor           quickjs.library/QJS_CallConstructor
+
+    NAME
+	QJS_CallConstructor -- Call a constructor with `new`.
+
+    SYNOPSIS
+	QJS_CallConstructor(result, ctx, func_ptr, argv, argc)
+			    A0      A1   A2        A3    D0
+
+	VOID QJS_CallConstructor(JSValue *result, JSContext *ctx,
+				 const JSValue *func_ptr,
+				 const JSValue *argv, int argc);
+
+    FUNCTION
+	Equivalent to the JS expression `new func(...args)`.
+	The function must have a [[Construct]] slot (see
+	QJS_IsConstructor).
+
+    INPUTS
+	result	 - Output JSValue for the new instance.
+	ctx	 - Host context.
+	func_ptr - Pointer to the constructor.
+	argv	 - Pointer to argument array.
+	argc	 - Number of arguments.
+
+    RESULT
+	None.  *result holds the new instance or an exception.
+
+    EXAMPLE
+	JSValue args[1], instance;
+	QJS_NewStringLen(&args[0], ctx, "hello", 5);
+	QJS_CallConstructor(&instance, ctx, &String_ctor, args, 1);
+
+    SEE ALSO
+	QJS_Call, QJS_IsConstructor
+
+
+quickjs.library/QJS_NewCFunction2               quickjs.library/QJS_NewCFunction2
+
+    NAME
+	QJS_NewCFunction2 -- Register a C function as a JS value.
+
+    SYNOPSIS
+	QJS_NewCFunction2(result, ctx, func, name, length, cproto,
+			  magic)
+	                  A0      A1   A2    A3    D0      D1
+			  D2
+
+	VOID QJS_NewCFunction2(JSValue *result, JSContext *ctx,
+			       JSCFunction *func, CONST_STRPTR name,
+			       int length, JSCFunctionEnum cproto,
+			       int magic);
+
+    FUNCTION
+	Wraps a native C function pointer as a JavaScript
+	function.  The `cproto` selects the signature expected by
+	the C function:
+
+	    JS_CFUNC_generic     - int argc, JSValueConst *argv
+	    JS_CFUNC_constructor - same, but callable with `new`
+	    JS_CFUNC_getter      - no args
+	    JS_CFUNC_setter      - one arg
+	    JS_CFUNC_f_f         - one double -> double
+	    JS_CFUNC_f_f_f       - two doubles -> double
+	    ... (see <quickjs.h>)
+
+	The `magic` field is an integer passed to the C function,
+	letting several JS names share a single C implementation
+	that switches on magic.
+
+    INPUTS
+	result	- Output JSValue.
+	ctx	- Host context.
+	func	- C function pointer.
+	name	- Name used by Function.prototype.name and
+		  stack traces.
+	length	- Number reported by the function's .length
+		  property.
+	cproto	- Signature enum.
+	magic	- User-supplied integer.
+
+    RESULT
+	None.  *result is the callable function value.
+
+    EXAMPLE
+	static JSValue js_my_fn(JSContext *ctx, JSValueConst this_v,
+				int argc, JSValueConst *argv) {
+	    return JS_NewInt32(ctx, 42);
+	}
+	JSValue fn;
+	QJS_NewCFunction2(&fn, ctx, js_my_fn, "answer", 0,
+			  JS_CFUNC_generic, 0);
+	QJS_SetPropertyStr(ctx, &global, "answer", &fn);
+
+    SEE ALSO
+	QJS_Call, QJS_SetConstructor, QJS_SetPropertyFunctionList
+
+
+quickjs.library/QJS_NewClassID                     quickjs.library/QJS_NewClassID
+
+    NAME
+	QJS_NewClassID -- Allocate a fresh class ID.
+
+    SYNOPSIS
+	id = QJS_NewClassID(rt, pclass_id)
+	D0                  A0  A1
+
+	JSClassID QJS_NewClassID(JSRuntime *rt, JSClassID *pclass_id);
+
+    FUNCTION
+	Allocates a new, unused JSClassID within the runtime.  If
+	*pclass_id is already non-zero on entry, the existing ID is
+	returned unchanged; otherwise a new ID is assigned and
+	stored in *pclass_id and returned.
+
+	This idempotent behaviour lets you safely call it during
+	module init from multiple contexts -- the first call does
+	the allocation, later calls are no-ops.
+
+    INPUTS
+	rt	  - The runtime.
+	pclass_id - Pointer to storage for the class ID.  Typically
+		    a static file-scope variable initialized to zero.
+
+    RESULT
+	id - The class ID (also stored in *pclass_id).
+
+    EXAMPLE
+	static JSClassID my_class_id;
+	QJS_NewClassID(rt, &my_class_id);
+
+    SEE ALSO
+	QJS_NewClass, QJS_IsRegisteredClass
+
+
+quickjs.library/QJS_NewClass                         quickjs.library/QJS_NewClass
+
+    NAME
+	QJS_NewClass -- Register a native class with the runtime.
+
+    SYNOPSIS
+	rc = QJS_NewClass(rt, class_def, class_id)
+	D0                A0  A1         D0
+
+	LONG QJS_NewClass(JSRuntime *rt, const JSClassDef *class_def,
+			  JSClassID class_id);
+
+    FUNCTION
+	Installs a JSClassDef (name, finalizer, GC-mark callback,
+	call hook, exotic-behaviour table) under the given
+	`class_id`.  Afterwards, QJS_NewObjectClass() can create
+	instances of the class.
+
+	Must be called once per runtime, typically during the
+	module init function.
+
+    INPUTS
+	rt	  - The runtime.
+	class_def - Pointer to a JSClassDef (must remain valid for
+		    the life of the runtime -- pass a static const).
+	class_id  - The ID allocated by QJS_NewClassID().
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    EXAMPLE
+	static const JSClassDef my_class_def = {
+	    "MyWidget",
+	    js_my_widget_finalizer,
+	    NULL, NULL, NULL,
+	};
+	QJS_NewClassID(rt, &my_class_id);
+	QJS_NewClass(rt, &my_class_def, my_class_id);
+
+    SEE ALSO
+	QJS_NewClassID, QJS_SetClassProto, QJS_NewObjectClass
+
+
+quickjs.library/QJS_IsRegisteredClass         quickjs.library/QJS_IsRegisteredClass
+
+    NAME
+	QJS_IsRegisteredClass -- Check whether a class ID is in use.
+
+    SYNOPSIS
+	result = QJS_IsRegisteredClass(rt, class_id)
+	D0                             A0  D0
+
+	BOOL QJS_IsRegisteredClass(JSRuntime *rt, JSClassID class_id);
+
+    FUNCTION
+	Returns TRUE if the class ID has been registered with
+	QJS_NewClass() in this runtime, FALSE otherwise.
+
+    INPUTS
+	rt	 - The runtime.
+	class_id - The class ID to test.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_NewClass, QJS_GetClassID
+
+
+quickjs.library/QJS_GetClassID                     quickjs.library/QJS_GetClassID
+
+    NAME
+	QJS_GetClassID -- Return the class ID of an object.
+
+    SYNOPSIS
+	id = QJS_GetClassID(val_ptr)
+	D0                  A0
+
+	JSClassID QJS_GetClassID(const JSValue *val_ptr);
+
+    FUNCTION
+	Returns the JSClassID of the object pointed to by
+	`val_ptr`, or JS_CLASS_OBJECT for plain objects,
+	or 0 for non-objects.
+
+    INPUTS
+	val_ptr - Pointer to a value.
+
+    RESULT
+	id - The class ID.
+
+    SEE ALSO
+	QJS_NewObjectClass, QJS_GetOpaque2
+
+
+quickjs.library/QJS_SetClassProto                 quickjs.library/QJS_SetClassProto
+
+    NAME
+	QJS_SetClassProto -- Install the prototype object for a
+	    native class.
+
+    SYNOPSIS
+	QJS_SetClassProto(ctx, class_id, obj_ptr)
+			  A0   D0        A2
+
+	VOID QJS_SetClassProto(JSContext *ctx, JSClassID class_id,
+			       const JSValue *obj_ptr);
+
+    FUNCTION
+	Sets the prototype used by QJS_NewObjectClass() when
+	creating instances of `class_id`.  Normally called once per
+	context during module init, after QJS_NewClass().
+
+	Takes ownership of *obj_ptr.
+
+    INPUTS
+	ctx	 - Host context.
+	class_id - The class.
+	obj_ptr  - Pointer to the prototype object (typically
+		   created with QJS_NewObject() then populated via
+		   QJS_SetPropertyFunctionList()).
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetClassProto, QJS_NewClass, QJS_NewObjectClass,
+	QJS_SetPropertyFunctionList
+
+
+quickjs.library/QJS_GetClassProto                 quickjs.library/QJS_GetClassProto
+
+    NAME
+	QJS_GetClassProto -- Retrieve the prototype for a native
+	    class.
+
+    SYNOPSIS
+	QJS_GetClassProto(result, ctx, class_id)
+			  A0      A1   D0
+
+	VOID QJS_GetClassProto(JSValue *result, JSContext *ctx,
+			       JSClassID class_id);
+
+    FUNCTION
+	Returns (with an added reference) the prototype previously
+	installed with QJS_SetClassProto().  Returns JS_NULL if no
+	prototype was set.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	class_id - The class.
+
+    RESULT
+	None.  Release *result with QJS_FreeValue() when done.
+
+    SEE ALSO
+	QJS_SetClassProto, QJS_NewObjectClass
+
+
+quickjs.library/QJS_GetFunctionProto             quickjs.library/QJS_GetFunctionProto
+
+    NAME
+	QJS_GetFunctionProto -- Return Function.prototype.
+
+    SYNOPSIS
+	QJS_GetFunctionProto(result, ctx)
+			     A0      A1
+
+	VOID QJS_GetFunctionProto(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Returns (with an added reference) the context's
+	Function.prototype object.  Useful when constructing
+	native callables whose prototype chain must match
+	JS-defined functions.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+
+    RESULT
+	None.  Release with QJS_FreeValue().
+
+    SEE ALSO
+	QJS_NewCFunction2
+
+
+quickjs.library/QJS_SetConstructor               quickjs.library/QJS_SetConstructor
+
+    NAME
+	QJS_SetConstructor -- Pair a constructor function with its
+	    prototype.
+
+    SYNOPSIS
+	QJS_SetConstructor(ctx, func_ptr, proto_ptr)
+			   A0   A1        A2
+
+	VOID QJS_SetConstructor(JSContext *ctx,
+				const JSValue *func_ptr,
+				const JSValue *proto_ptr);
+
+    FUNCTION
+	Sets `func.prototype = proto` and `proto.constructor =
+	func`, wiring up the standard constructor/prototype
+	relationship.  Called during class setup after creating
+	the constructor with QJS_NewCFunction2(JS_CFUNC_constructor).
+
+    INPUTS
+	ctx	  - Host context.
+	func_ptr  - Pointer to the constructor function.
+	proto_ptr - Pointer to the prototype object.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue proto, ctor;
+	QJS_NewObject(&proto, ctx);
+	QJS_SetPropertyFunctionList(ctx, &proto, proto_funcs, n);
+	QJS_NewCFunction2(&ctor, ctx, my_ctor, "My", 1,
+			  JS_CFUNC_constructor, 0);
+	QJS_SetConstructor(ctx, &ctor, &proto);
+	QJS_SetClassProto(ctx, my_class_id, &proto);
+
+    SEE ALSO
+	QJS_NewCFunction2, QJS_SetClassProto,
+	QJS_SetPropertyFunctionList
+
+
+quickjs.library/QJS_SetConstructorBit         quickjs.library/QJS_SetConstructorBit
+
+    NAME
+	QJS_SetConstructorBit -- Flip the [[Construct]] bit on a
+	    function.
+
+    SYNOPSIS
+	rc = QJS_SetConstructorBit(ctx, func_ptr, val)
+	D0                         A0   A1        D0
+
+	LONG QJS_SetConstructorBit(JSContext *ctx,
+				   const JSValue *func_ptr, BOOL val);
+
+    FUNCTION
+	Marks or unmarks a function as a constructor.  Rarely
+	needed: normally constructors are created as such via
+	QJS_NewCFunction2(..., JS_CFUNC_constructor, ...).
+
+    INPUTS
+	ctx	 - Host context.
+	func_ptr - Pointer to the function.
+	val	 - TRUE to make constructable, FALSE otherwise.
+
+    RESULT
+	rc - 1 on success, 0 on failure.
+
+    SEE ALSO
+	QJS_NewCFunction2, QJS_IsConstructor
+
+
+quickjs.library/QJS_SetPropertyFunctionList QJS_SetPropertyFunctionList
+
+    NAME
+	QJS_SetPropertyFunctionList -- Bulk-install methods/accessors
+	    on an object.
+
+    SYNOPSIS
+	QJS_SetPropertyFunctionList(ctx, obj_ptr, tab, len)
+				    A0   A1       A2   D0
+
+	VOID QJS_SetPropertyFunctionList(JSContext *ctx,
+					const JSValue *obj_ptr,
+					const JSCFunctionListEntry *tab,
+					int len);
+
+    FUNCTION
+	Installs an array of JSCFunctionListEntry structures as
+	properties of the object.  Each entry can describe a
+	method, getter/setter, constant, or string property.
+
+	This is the primary way to populate a class prototype with
+	many methods at once.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the target object (usually a prototype).
+	tab	- Pointer to the entry array (must remain valid
+		  during the call; typically static const).
+	len	- Number of entries.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	static const JSCFunctionListEntry my_proto_funcs[] = {
+	    JS_CFUNC_DEF("getName", 0, js_get_name),
+	    JS_CFUNC_DEF("setName", 1, js_set_name),
+	    JS_CGETSET_DEF("age", js_get_age, js_set_age),
+	};
+	QJS_SetPropertyFunctionList(ctx, &proto, my_proto_funcs,
+	    sizeof(my_proto_funcs) / sizeof(my_proto_funcs[0]));
+
+    SEE ALSO
+	QJS_SetPropertyStr, QJS_NewCFunction2
+
+
+quickjs.library/QJS_Throw                             quickjs.library/QJS_Throw
+
+    NAME
+	QJS_Throw -- Install a value as the current exception.
+
+    SYNOPSIS
+	QJS_Throw(result, ctx, obj_ptr)
+		  A0      A1   A2
+
+	VOID QJS_Throw(JSValue *result, JSContext *ctx,
+		       const JSValue *obj_ptr);
+
+    FUNCTION
+	Stores the value `*obj_ptr` as the active exception for
+	the context and sets *result to the "exception indicator"
+	JSValue, which you return up the call stack.  Takes
+	ownership of the reference in *obj_ptr.
+
+    INPUTS
+	result	- Output JSValue (the exception indicator).
+	ctx	- Host context.
+	obj_ptr - Pointer to the value to throw.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	/* In a C native method, on error: */
+	JSValue err, indicator;
+	QJS_NewError(&err, ctx);
+	QJS_DefinePropertyValueStr(ctx, &err,
+	    &(JSValue){JS_NewString(ctx, "bad arg")},
+	    "message", JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+	QJS_Throw(&indicator, ctx, &err);
+	return indicator;
+
+    SEE ALSO
+	QJS_GetException, QJS_NewError, QJS_HasException
+
+
+quickjs.library/QJS_GetException                 quickjs.library/QJS_GetException
+
+    NAME
+	QJS_GetException -- Retrieve and clear the pending exception.
+
+    SYNOPSIS
+	QJS_GetException(result, ctx)
+			 A0      A1
+
+	VOID QJS_GetException(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Stores the active exception in *result and clears it from
+	the context, so subsequent code no longer sees one pending.
+	If no exception is pending, *result is JS_UNDEFINED.
+
+	The caller owns the returned reference and must release it
+	with QJS_FreeValue().
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	if (QJS_IsException(&v)) {
+	    JSValue ex;
+	    QJS_GetException(&ex, ctx);
+	    const char *s = QJS_ToCStringLen2(ctx, NULL, &ex, FALSE);
+	    fprintf(stderr, "error: %s\n", s ? s : "(unknown)");
+	    if (s) QJS_FreeCString(ctx, s);
+	    QJS_FreeValue(ctx, &ex);
+	}
+
+    SEE ALSO
+	QJS_HasException, QJS_Throw
+
+
+quickjs.library/QJS_HasException                 quickjs.library/QJS_HasException
+
+    NAME
+	QJS_HasException -- Test whether an exception is pending.
+
+    SYNOPSIS
+	result = QJS_HasException(ctx)
+	D0                        A0
+
+	BOOL QJS_HasException(JSContext *ctx);
+
+    FUNCTION
+	Returns TRUE if an exception is currently pending on the
+	context, FALSE otherwise.  Does NOT consume the exception.
+
+    INPUTS
+	ctx - Host context.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_GetException, QJS_Throw
+
+
+quickjs.library/QJS_NewError                         quickjs.library/QJS_NewError
+
+    NAME
+	QJS_NewError -- Create a new Error object.
+
+    SYNOPSIS
+	QJS_NewError(result, ctx)
+		     A0      A1
+
+	VOID QJS_NewError(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Creates a plain Error object.  Populate its .message
+	property via QJS_DefinePropertyValueStr() or
+	QJS_SetPropertyStr() before throwing.
+
+	For typed errors (TypeError, RangeError, etc.) the
+	library does not expose dedicated constructors because
+	the upstream JS_ThrowTypeError variants are variadic
+	and cannot cross the library boundary.  Use:
+
+	    JSValue err;
+	    QJS_Eval(&err, ctx, "new TypeError(msg)", ..., 0);
+
+	or build an Error and set .name yourself.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_Throw, QJS_ThrowOutOfMemory
+
+
+quickjs.library/QJS_ThrowOutOfMemory           quickjs.library/QJS_ThrowOutOfMemory
+
+    NAME
+	QJS_ThrowOutOfMemory -- Signal an OOM condition.
+
+    SYNOPSIS
+	QJS_ThrowOutOfMemory(result, ctx)
+			     A0      A1
+
+	VOID QJS_ThrowOutOfMemory(JSValue *result, JSContext *ctx);
+
+    FUNCTION
+	Installs the engine's canonical "out of memory" error as
+	the pending exception and returns an exception indicator
+	in *result.  Intended for allocation-failure paths in
+	native code.
+
+	Does not allocate (unlike a generic QJS_NewError() +
+	QJS_Throw() sequence), so it is safe to call when the
+	heap is truly exhausted.
+
+    INPUTS
+	result - Output JSValue (exception indicator).
+	ctx    - Host context.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	void *p = malloc(size);
+	if (!p) {
+	    JSValue ex;
+	    QJS_ThrowOutOfMemory(&ex, ctx);
+	    return ex;
+	}
+
+    SEE ALSO
+	QJS_NewError, QJS_Throw
+
+
+quickjs.library/QJS_NewAtom                           quickjs.library/QJS_NewAtom
+
+    NAME
+	QJS_NewAtom -- Intern a C string into an atom.
+
+    SYNOPSIS
+	atom = QJS_NewAtom(ctx, str)
+	D0                 A0   A1
+
+	JSAtom QJS_NewAtom(JSContext *ctx, CONST_STRPTR str);
+
+    FUNCTION
+	Returns an interned atom representing the given
+	NUL-terminated UTF-8 string.  Atoms are 32-bit handles
+	used for fast property-key comparisons; identical strings
+	always produce the same atom within a runtime.
+
+	Every atom returned must eventually be released with
+	QJS_FreeAtom() or atoms will leak.
+
+    INPUTS
+	ctx - Host context.
+	str - NUL-terminated string.
+
+    RESULT
+	atom - New atom (or existing if the string was already
+	       interned).  JS_ATOM_NULL on OOM.
+
+    SEE ALSO
+	QJS_NewAtomLen, QJS_FreeAtom, QJS_AtomToString
+
+
+quickjs.library/QJS_NewAtomLen                     quickjs.library/QJS_NewAtomLen
+
+    NAME
+	QJS_NewAtomLen -- Intern a byte buffer into an atom.
+
+    SYNOPSIS
+	atom = QJS_NewAtomLen(ctx, str, len)
+	D0                    A0   A1   D0
+
+	JSAtom QJS_NewAtomLen(JSContext *ctx, CONST_STRPTR str,
+			      ULONG len);
+
+    FUNCTION
+	Like QJS_NewAtom() but for strings that are not
+	NUL-terminated or may contain embedded NULs.
+
+    INPUTS
+	ctx - Host context.
+	str - Pointer to the bytes.
+	len - Number of bytes.
+
+    RESULT
+	atom - New atom.
+
+    SEE ALSO
+	QJS_NewAtom
+
+
+quickjs.library/QJS_NewAtomUInt32               quickjs.library/QJS_NewAtomUInt32
+
+    NAME
+	QJS_NewAtomUInt32 -- Create an atom from an integer index.
+
+    SYNOPSIS
+	atom = QJS_NewAtomUInt32(ctx, n)
+	D0                       A0   D0
+
+	JSAtom QJS_NewAtomUInt32(JSContext *ctx, ULONG n);
+
+    FUNCTION
+	Creates an atom whose string form is the decimal
+	representation of `n`.  Equivalent to QJS_NewAtomLen()
+	with a formatted buffer, but faster and always
+	canonical.
+
+    INPUTS
+	ctx - Host context.
+	n   - Unsigned 32-bit index.
+
+    RESULT
+	atom - New atom.
+
+    SEE ALSO
+	QJS_NewAtom, QJS_ValueToAtom
+
+
+quickjs.library/QJS_DupAtom                           quickjs.library/QJS_DupAtom
+
+    NAME
+	QJS_DupAtom -- Add one reference to an atom.
+
+    SYNOPSIS
+	atom2 = QJS_DupAtom(ctx, v)
+	D0                  A0   D0
+
+	JSAtom QJS_DupAtom(JSContext *ctx, JSAtom v);
+
+    FUNCTION
+	Increments the atom's reference count and returns the
+	same atom value.  Used when storing an atom in a long-
+	lived structure while the original owner also keeps it.
+
+    INPUTS
+	ctx - Host context.
+	v   - The atom.
+
+    RESULT
+	atom2 - Same atom value as `v`.
+
+    SEE ALSO
+	QJS_NewAtom, QJS_FreeAtom
+
+
+quickjs.library/QJS_FreeAtom                         quickjs.library/QJS_FreeAtom
+
+    NAME
+	QJS_FreeAtom -- Release one reference to an atom.
+
+    SYNOPSIS
+	QJS_FreeAtom(ctx, v)
+		     A0   D0
+
+	VOID QJS_FreeAtom(JSContext *ctx, JSAtom v);
+
+    FUNCTION
+	Decrements the atom's reference count.  The underlying
+	string is freed when the count hits zero.
+
+    INPUTS
+	ctx - Host context.
+	v   - The atom.
+
+    RESULT
+	None.
+
+    NOTES
+	Calling with JS_ATOM_NULL is a safe no-op.
+
+    SEE ALSO
+	QJS_NewAtom, QJS_DupAtom
+
+
+quickjs.library/QJS_AtomToValue                   quickjs.library/QJS_AtomToValue
+
+    NAME
+	QJS_AtomToValue -- Convert an atom to its string JSValue
+	    form (or Symbol).
+
+    SYNOPSIS
+	QJS_AtomToValue(result, ctx, atom)
+			A0      A1   D0
+
+	VOID QJS_AtomToValue(JSValue *result, JSContext *ctx,
+			     JSAtom atom);
+
+    FUNCTION
+	Returns the JSValue whose atom-form is `atom`.  For
+	string atoms this yields a JS string; for symbol atoms,
+	the Symbol itself.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	atom   - The atom.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_AtomToString, QJS_ValueToAtom
+
+
+quickjs.library/QJS_AtomToString                 quickjs.library/QJS_AtomToString
+
+    NAME
+	QJS_AtomToString -- Convert an atom to a string JSValue.
+
+    SYNOPSIS
+	QJS_AtomToString(result, ctx, atom)
+			 A0      A1   D0
+
+	VOID QJS_AtomToString(JSValue *result, JSContext *ctx,
+			      JSAtom atom);
+
+    FUNCTION
+	Like QJS_AtomToValue() but always returns a string,
+	converting Symbols via their description.
+
+    INPUTS
+	result - Output JSValue (a string).
+	ctx    - Host context.
+	atom   - The atom.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_AtomToValue, QJS_AtomToCStringLen
+
+
+quickjs.library/QJS_AtomToCStringLen         quickjs.library/QJS_AtomToCStringLen
+
+    NAME
+	QJS_AtomToCStringLen -- Obtain a C-string view of an atom.
+
+    SYNOPSIS
+	str = QJS_AtomToCStringLen(ctx, plen, atom)
+	D0                         A0   A1    D0
+
+	CONST_STRPTR QJS_AtomToCStringLen(JSContext *ctx,
+					  size_t *plen, JSAtom atom);
+
+    FUNCTION
+	Returns a pointer to engine-owned UTF-8 bytes representing
+	the atom's string form.  If `plen` is non-NULL, *plen
+	receives the byte length.
+
+	Release the pointer with QJS_FreeCString() when done.
+
+    INPUTS
+	ctx  - Host context.
+	plen - Optional output for length, or NULL.
+	atom - The atom.
+
+    RESULT
+	str - Pointer to bytes, or NULL on error.  Caller must
+	      free via QJS_FreeCString().
+
+    SEE ALSO
+	QJS_FreeCString, QJS_AtomToString
+
+
+quickjs.library/QJS_ValueToAtom                   quickjs.library/QJS_ValueToAtom
+
+    NAME
+	QJS_ValueToAtom -- Intern a JSValue as an atom.
+
+    SYNOPSIS
+	atom = QJS_ValueToAtom(ctx, val_ptr)
+	D0                     A0   A1
+
+	JSAtom QJS_ValueToAtom(JSContext *ctx,
+			       const JSValue *val_ptr);
+
+    FUNCTION
+	Converts *val_ptr to a property key (via ToPropertyKey)
+	and returns the corresponding atom.  Both strings and
+	Symbols are supported.
+
+	The returned atom carries a reference; release with
+	QJS_FreeAtom().
+
+    INPUTS
+	ctx	- Host context.
+	val_ptr - Pointer to the source value.
+
+    RESULT
+	atom - New atom, or JS_ATOM_NULL on error.
+
+    SEE ALSO
+	QJS_FreeAtom, QJS_AtomToValue
+
+
+quickjs.library/QJS_ParseJSON                       quickjs.library/QJS_ParseJSON
+
+    NAME
+	QJS_ParseJSON -- Parse a JSON document into a JSValue.
+
+    SYNOPSIS
+	QJS_ParseJSON(result, ctx, buf, filename, buf_len)
+		      A0      A1   A2   A3        D0
+
+	VOID QJS_ParseJSON(JSValue *result, JSContext *ctx,
+			   CONST_STRPTR buf, CONST_STRPTR filename,
+			   ULONG buf_len);
+
+    FUNCTION
+	Equivalent to `JSON.parse(buf)` called from JavaScript.
+	On syntax errors, *result is an exception value whose
+	message identifies the problem; `filename` is included in
+	stack traces.
+
+    INPUTS
+	result	 - Output JSValue.
+	ctx	 - Host context.
+	buf	 - JSON source bytes.
+	filename - Name shown in error messages.
+	buf_len  - Length of buf in bytes.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue parsed;
+	const char *text = "{\"x\":1,\"y\":2}";
+	QJS_ParseJSON(&parsed, ctx, text, "<in>", strlen(text));
+
+    SEE ALSO
+	QJS_JSONStringify
+
+
+quickjs.library/QJS_JSONStringify             quickjs.library/QJS_JSONStringify
+
+    NAME
+	QJS_JSONStringify -- Serialize a JSValue to JSON text.
+
+    SYNOPSIS
+	QJS_JSONStringify(result, ctx, obj_ptr)
+			  A0      A1   A2
+
+	VOID QJS_JSONStringify(JSValue *result, JSContext *ctx,
+			       const JSValue *obj_ptr);
+
+    FUNCTION
+	Equivalent to `JSON.stringify(obj)`.  Returns a string
+	JSValue; convert to C string with QJS_ToCStringLen2().
+
+	Note: the upstream JS_JSONStringify() supports replacer
+	and indent arguments; the library exposes only the
+	common no-args form.  For custom formatting, use
+	QJS_Eval() to run JS code that calls JSON.stringify
+	directly.
+
+    INPUTS
+	result	- Output JSValue (a string).
+	ctx	- Host context.
+	obj_ptr - Pointer to the value to serialize.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_ParseJSON, QJS_ToCStringLen2
+
+
+quickjs.library/QJS_WriteObject                   quickjs.library/QJS_WriteObject
+
+    NAME
+	QJS_WriteObject -- Serialize a value to QuickJS binary
+	    format.
+
+    SYNOPSIS
+	buf = QJS_WriteObject(ctx, psize, obj_ptr, flags)
+	D0                    A0   A1     A2       D0
+
+	APTR QJS_WriteObject(JSContext *ctx, size_t *psize,
+			     const JSValue *obj_ptr, ULONG flags);
+
+    FUNCTION
+	Produces a binary representation of the value suitable
+	for later QJS_ReadObject().  The format handles objects,
+	arrays, strings, numbers, TypedArrays, and compiled
+	functions (for bytecode caching).
+
+	The returned buffer is allocated with QJS_Malloc(); caller
+	must free with QJS_Free().
+
+	Flags:
+	    JS_WRITE_OBJ_BYTECODE -- allow compiled functions
+	    JS_WRITE_OBJ_REFERENCE -- allow object references
+	    JS_WRITE_OBJ_SAB	  -- allow SharedArrayBuffer
+	    JS_WRITE_OBJ_STRIP_SOURCE -- drop source text
+
+    INPUTS
+	ctx	- Host context.
+	psize	- Output for the buffer length.
+	obj_ptr - Pointer to the value to serialize.
+	flags	- JS_WRITE_OBJ_* mask.
+
+    RESULT
+	buf - Newly-allocated byte buffer (caller frees via
+	      QJS_Free()), or NULL on error.  *psize receives the
+	      length.
+
+    EXAMPLE
+	/* Compile once, run many times: */
+	JSValue fn;
+	QJS_Eval(&fn, ctx, src, len, "<in>", JS_EVAL_FLAG_COMPILE_ONLY);
+	size_t sz;
+	UBYTE *blob = QJS_WriteObject(ctx, &sz, &fn,
+				      JS_WRITE_OBJ_BYTECODE);
+	/* ... save blob to disk ... */
+	QJS_Free(ctx, blob);
+	QJS_FreeValue(ctx, &fn);
+
+    SEE ALSO
+	QJS_ReadObject, QJS_EvalFunction
+
+
+quickjs.library/QJS_ReadObject                     quickjs.library/QJS_ReadObject
+
+    NAME
+	QJS_ReadObject -- Deserialize a value from QuickJS binary
+	    format.
+
+    SYNOPSIS
+	QJS_ReadObject(result, ctx, buf, buf_len, flags)
+		       A0      A1   A2   D0       D1
+
+	VOID QJS_ReadObject(JSValue *result, JSContext *ctx,
+			    const UBYTE *buf, ULONG buf_len,
+			    ULONG flags);
+
+    FUNCTION
+	Reads a buffer produced by QJS_WriteObject() and
+	reconstructs the original value.  Flags must match those
+	used at write time.
+
+    INPUTS
+	result	- Output JSValue.
+	ctx	- Host context.
+	buf	- Input buffer.
+	buf_len - Input length.
+	flags	- JS_READ_OBJ_* mask (same semantics as
+		  JS_WRITE_OBJ_* above).
+
+    RESULT
+	None.  On failure *result is an exception.
+
+    SEE ALSO
+	QJS_WriteObject, QJS_EvalFunction
+
+
+quickjs.library/QJS_NewArrayBufferCopy       QJS_NewArrayBufferCopy
+
+    NAME
+	QJS_NewArrayBufferCopy -- Create an ArrayBuffer from a
+	    copy of host memory.
+
+    SYNOPSIS
+	QJS_NewArrayBufferCopy(result, ctx, buf, len)
+			       A0      A1   A2   D0
+
+	VOID QJS_NewArrayBufferCopy(JSValue *result, JSContext *ctx,
+				    const UBYTE *buf, ULONG len);
+
+    FUNCTION
+	Allocates a fresh ArrayBuffer of `len` bytes, copies the
+	contents of `buf` into it, and stores the resulting
+	JSValue in *result.  The copy is owned by the engine;
+	after this call the caller can reuse or free `buf`.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	buf    - Source bytes (may be NULL if len is 0).
+	len    - Number of bytes to copy.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	UBYTE header[16];
+	Read(fh, header, 16);
+	JSValue ab;
+	QJS_NewArrayBufferCopy(&ab, ctx, header, 16);
+
+    SEE ALSO
+	QJS_GetArrayBuffer, QJS_NewUint8ArrayCopy
+
+
+quickjs.library/QJS_GetArrayBuffer             quickjs.library/QJS_GetArrayBuffer
+
+    NAME
+	QJS_GetArrayBuffer -- Get a pointer to an ArrayBuffer's
+	    data.
+
+    SYNOPSIS
+	buf = QJS_GetArrayBuffer(ctx, psize, obj_ptr)
+	D0                       A0   A1     A2
+
+	UBYTE *QJS_GetArrayBuffer(JSContext *ctx, size_t *psize,
+				  const JSValue *obj_ptr);
+
+    FUNCTION
+	If *obj_ptr is an ArrayBuffer, returns a pointer to its
+	internal byte storage and stores the byte length in
+	*psize.  Returns NULL and sets an exception otherwise.
+
+	The returned pointer is valid until the ArrayBuffer is
+	detached or garbage-collected.  Do NOT free it.
+
+    INPUTS
+	ctx	- Host context.
+	psize	- Output for buffer length, or NULL to skip.
+	obj_ptr - Pointer to the ArrayBuffer.
+
+    RESULT
+	buf - Pointer to internal bytes, or NULL on error.
+
+    SEE ALSO
+	QJS_NewArrayBufferCopy, QJS_DetachArrayBuffer,
+	QJS_GetUint8Array
+
+
+quickjs.library/QJS_DetachArrayBuffer         QJS_DetachArrayBuffer
+
+    NAME
+	QJS_DetachArrayBuffer -- Detach an ArrayBuffer's storage.
+
+    SYNOPSIS
+	QJS_DetachArrayBuffer(ctx, obj_ptr)
+			      A0   A1
+
+	VOID QJS_DetachArrayBuffer(JSContext *ctx,
+				   const JSValue *obj_ptr);
+
+    FUNCTION
+	Releases the ArrayBuffer's backing memory and marks the
+	buffer detached.  Any further access through the buffer
+	or typed-array views on it throws TypeError.
+
+	Used when the host needs to reclaim the memory before
+	the GC would run.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the ArrayBuffer.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetArrayBuffer
+
+
+quickjs.library/QJS_GetUint8Array               quickjs.library/QJS_GetUint8Array
+
+    NAME
+	QJS_GetUint8Array -- Access a Uint8Array as host bytes.
+
+    SYNOPSIS
+	buf = QJS_GetUint8Array(ctx, psize, obj_ptr)
+	D0                      A0   A1     A2
+
+	UBYTE *QJS_GetUint8Array(JSContext *ctx, size_t *psize,
+				 const JSValue *obj_ptr);
+
+    FUNCTION
+	Like QJS_GetArrayBuffer() but accepts a Uint8Array view
+	and returns a pointer to its visible bytes (accounting
+	for byteOffset and byteLength).  Useful when JS code
+	passes binary data as Uint8Array rather than ArrayBuffer.
+
+    INPUTS
+	ctx	- Host context.
+	psize	- Output for visible length.
+	obj_ptr - Pointer to the Uint8Array.
+
+    RESULT
+	buf - Pointer to bytes, or NULL on error.
+
+    SEE ALSO
+	QJS_NewUint8ArrayCopy, QJS_GetArrayBuffer
+
+
+quickjs.library/QJS_NewUint8ArrayCopy       QJS_NewUint8ArrayCopy
+
+    NAME
+	QJS_NewUint8ArrayCopy -- Create a Uint8Array from a copy
+	    of host memory.
+
+    SYNOPSIS
+	QJS_NewUint8ArrayCopy(result, ctx, buf, len)
+			      A0      A1   A2   D0
+
+	VOID QJS_NewUint8ArrayCopy(JSValue *result, JSContext *ctx,
+				   const UBYTE *buf, ULONG len);
+
+    FUNCTION
+	Allocates a Uint8Array of `len` bytes backed by a fresh
+	ArrayBuffer, copies `buf` into it.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	buf    - Source bytes.
+	len    - Number of bytes.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetUint8Array, QJS_NewArrayBufferCopy
+
+
+quickjs.library/QJS_NewPromiseCapability     QJS_NewPromiseCapability
+
+    NAME
+	QJS_NewPromiseCapability -- Create a new Promise plus its
+	    resolve/reject callbacks.
+
+    SYNOPSIS
+	QJS_NewPromiseCapability(result, ctx, resolving_funcs)
+				 A0      A1   A2
+
+	VOID QJS_NewPromiseCapability(JSValue *result,
+				      JSContext *ctx,
+				      JSValue *resolving_funcs);
+
+    FUNCTION
+	Creates a new pending Promise and two JSValue callbacks --
+	its resolve function at resolving_funcs[0] and reject
+	function at resolving_funcs[1].  Call one of the callbacks
+	via QJS_Call() to settle the promise.
+
+	The caller is responsible for:
+	    * releasing both resolving_funcs[] values with
+	      QJS_FreeValue() after settling the promise or
+	      storing them durably;
+	    * releasing the returned *result with QJS_FreeValue()
+	      when handing it back to JS code.
+
+    INPUTS
+	result		- Output JSValue (the new Promise).
+	ctx		- Host context.
+	resolving_funcs - Caller-provided array of 2 JSValues
+			  to receive the resolve/reject callbacks.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue resolving[2], promise;
+	QJS_NewPromiseCapability(&promise, ctx, resolving);
+	/* later, when we have the result: */
+	QJS_Call(&ret, ctx, &resolving[0], &(JSValue){JS_UNDEFINED},
+		 1, &final_value);
+	QJS_FreeValue(ctx, &resolving[0]);
+	QJS_FreeValue(ctx, &resolving[1]);
+	return promise;
+
+    SEE ALSO
+	QJS_PromiseState, QJS_PromiseResult, QJS_IsPromise
+
+
+quickjs.library/QJS_PromiseState                 quickjs.library/QJS_PromiseState
+
+    NAME
+	QJS_PromiseState -- Query a promise's current state.
+
+    SYNOPSIS
+	state = QJS_PromiseState(ctx, promise_ptr)
+	D0                       A0   A1
+
+	JSPromiseStateEnum QJS_PromiseState(JSContext *ctx,
+					    const JSValue *promise_ptr);
+
+    FUNCTION
+	Returns one of:
+
+	    JS_PROMISE_PENDING    (0) - not yet settled
+	    JS_PROMISE_FULFILLED  (1) - resolved successfully
+	    JS_PROMISE_REJECTED   (2) - rejected
+
+	Returns -1 if *promise_ptr is not a promise.
+
+    INPUTS
+	ctx	    - Host context.
+	promise_ptr - Pointer to the promise.
+
+    RESULT
+	state - Promise state enum, or -1.
+
+    SEE ALSO
+	QJS_PromiseResult, QJS_IsPromise
+
+
+quickjs.library/QJS_PromiseResult               quickjs.library/QJS_PromiseResult
+
+    NAME
+	QJS_PromiseResult -- Retrieve a settled promise's value
+	    or rejection reason.
+
+    SYNOPSIS
+	QJS_PromiseResult(result, ctx, promise_ptr)
+			  A0      A1   A2
+
+	VOID QJS_PromiseResult(JSValue *result, JSContext *ctx,
+			       const JSValue *promise_ptr);
+
+    FUNCTION
+	For a fulfilled promise, stores the resolved value in
+	*result.  For a rejected promise, stores the rejection
+	reason.  Behaviour is undefined for pending promises --
+	check QJS_PromiseState() first.
+
+    INPUTS
+	result	    - Output JSValue.
+	ctx	    - Host context.
+	promise_ptr - Pointer to the settled promise.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_PromiseState, QJS_NewPromiseCapability
+
+
+quickjs.library/QJS_SetInterruptHandler     QJS_SetInterruptHandler
+
+    NAME
+	QJS_SetInterruptHandler -- Register a callback invoked
+	    periodically during script execution.
+
+    SYNOPSIS
+	QJS_SetInterruptHandler(rt, cb, opaque)
+				A0  A1  A2
+
+	VOID QJS_SetInterruptHandler(JSRuntime *rt,
+				     JSInterruptHandler *cb,
+				     APTR opaque);
+
+    FUNCTION
+	The engine calls `cb(rt, opaque)` at safe points during
+	evaluation.  If the callback returns non-zero, the engine
+	throws a "interrupted" exception and unwinds the current
+	call.
+
+	Typical use: watchdog timer, Ctrl-C detection, or quota
+	enforcement.
+
+    INPUTS
+	rt     - The runtime.
+	cb     - Callback (VOID (*)(JSRuntime *, APTR) returning
+		 LONG), or NULL to disable.
+	opaque - User pointer passed to the callback.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	static int check_ctrl_c(JSRuntime *rt, void *op) {
+	    return (SetSignal(0, 0) & SIGBREAKF_CTRL_C) ? 1 : 0;
+	}
+	QJS_SetInterruptHandler(rt, check_ctrl_c, NULL);
+
+    SEE ALSO
+	QJS_RunGC
+
+
+quickjs.library/QJS_SetHostPromiseRejectionTracker QJS_SetHostPromiseRejectionTracker
+
+    NAME
+	QJS_SetHostPromiseRejectionTracker -- Register a callback
+	    invoked when promise rejections go unhandled.
+
+    SYNOPSIS
+	QJS_SetHostPromiseRejectionTracker(rt, cb, opaque)
+					   A0  A1  A2
+
+	VOID QJS_SetHostPromiseRejectionTracker(JSRuntime *rt,
+		JSHostPromiseRejectionTracker *cb, APTR opaque);
+
+    FUNCTION
+	The engine calls `cb(ctx, promise, reason, is_handled,
+	opaque)` whenever a rejection is (un)handled.  The host
+	typically uses this to log unhandled rejections.
+
+    INPUTS
+	rt     - The runtime.
+	cb     - Callback, or NULL to disable.
+	opaque - User pointer.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewPromiseCapability
+
+
+quickjs.library/QJS_IsJobPending                 quickjs.library/QJS_IsJobPending
+
+    NAME
+	QJS_IsJobPending -- Test whether microtasks are waiting to
+	    run.
+
+    SYNOPSIS
+	result = QJS_IsJobPending(rt)
+	D0                        A0
+
+	BOOL QJS_IsJobPending(JSRuntime *rt);
+
+    FUNCTION
+	Returns TRUE if there is at least one pending microtask
+	(promise reaction, finalizer) queued on the runtime.
+	FALSE means the event loop can safely sleep.
+
+    INPUTS
+	rt - The runtime.
+
+    RESULT
+	result - TRUE or FALSE.
+
+    SEE ALSO
+	QJS_ExecutePendingJob, QJS_StdLoop
+
+
+quickjs.library/QJS_ExecutePendingJob         QJS_ExecutePendingJob
+
+    NAME
+	QJS_ExecutePendingJob -- Run one pending microtask.
+
+    SYNOPSIS
+	rc = QJS_ExecutePendingJob(rt, pctx)
+	D0                         A0  A1
+
+	LONG QJS_ExecutePendingJob(JSRuntime *rt,
+				   JSContext **pctx);
+
+    FUNCTION
+	Pulls the next queued microtask and runs it.  On entry
+	*pctx may be anything; on return it holds the context in
+	which the job ran (useful for dumping errors with
+	QJS_StdDumpError()).
+
+    INPUTS
+	rt   - The runtime.
+	pctx - Output pointer for the job's context.
+
+    RESULT
+	rc - 1 if a job ran, 0 if the queue was empty, -1 if the
+	     job threw an exception (check *pctx for the
+	     exception).
+
+    EXAMPLE
+	JSContext *ctx1;
+	int err;
+	do {
+	    err = QJS_ExecutePendingJob(rt, &ctx1);
+	    if (err < 0) QJS_StdDumpError(ctx1);
+	} while (err != 0);
+
+    SEE ALSO
+	QJS_IsJobPending, QJS_StdLoop
+
+
+quickjs.library/QJS_SetCanBlock                   quickjs.library/QJS_SetCanBlock
+
+    NAME
+	QJS_SetCanBlock -- Configure whether Atomics.wait() is
+	    allowed.
+
+    SYNOPSIS
+	QJS_SetCanBlock(rt, can_block)
+			A0  D0
+
+	VOID QJS_SetCanBlock(JSRuntime *rt, BOOL can_block);
+
+    FUNCTION
+	When FALSE, calls to Atomics.wait() throw a TypeError.
+	The default is FALSE on AmigaOS since the library is
+	single-tasked.
+
+    INPUTS
+	rt	  - The runtime.
+	can_block - TRUE to allow Atomics.wait(), FALSE to forbid.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_AddTypedArrays
+
+
+quickjs.library/QJS_SetModuleLoaderFunc       QJS_SetModuleLoaderFunc
+
+    NAME
+	QJS_SetModuleLoaderFunc -- Install module resolver/loader.
+
+    SYNOPSIS
+	QJS_SetModuleLoaderFunc(rt, normalize_func, loader_func,
+				opaque)
+				A0  A1              A2
+				A3
+
+	VOID QJS_SetModuleLoaderFunc(JSRuntime *rt,
+		JSModuleNormalizeFunc *normalize_func,
+		JSModuleLoaderFunc *loader_func, APTR opaque);
+
+    FUNCTION
+	Registers callbacks that locate and load modules.  The
+	normalizer converts a relative module name into a
+	canonical form; the loader reads the module source and
+	returns it.
+
+	By default, the library supplies loaders that read
+	modules from disk using AmigaOS path conventions
+	(incl. "RAM:main.js" volume-relative paths).  Call this
+	only to override them.
+
+    INPUTS
+	rt	       - The runtime.
+	normalize_func - Normalizer callback, or NULL for default.
+	loader_func    - Loader callback, or NULL for default.
+	opaque	       - Passed to both callbacks.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_LoadModule, QJS_SetModuleLoader
+
+
+quickjs.library/QJS_SetModuleLoader             QJS_SetModuleLoader
+
+    NAME
+	QJS_SetModuleLoader -- Install the library's default
+	    module loader.
+
+    SYNOPSIS
+	QJS_SetModuleLoader(rt)
+			    A0
+
+	VOID QJS_SetModuleLoader(JSRuntime *rt);
+
+    FUNCTION
+	Convenience wrapper that calls QJS_SetModuleLoaderFunc()
+	with the library's built-in AmigaOS-aware loader.  This
+	loader understands volume-relative paths like
+	"RAM:foo.js" and uses dos.library Open() for file reads.
+
+	Normally called once per runtime during init.
+
+    INPUTS
+	rt - The runtime.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_SetModuleLoaderFunc, QJS_LoadModule
+
+
+quickjs.library/QJS_LoadModule                     quickjs.library/QJS_LoadModule
+
+    NAME
+	QJS_LoadModule -- Load and evaluate a module by name.
+
+    SYNOPSIS
+	QJS_LoadModule(result, ctx, basename, filename)
+		       A0      A1   A2        A3
+
+	VOID QJS_LoadModule(JSValue *result, JSContext *ctx,
+			    CONST_STRPTR basename,
+			    CONST_STRPTR filename);
+
+    FUNCTION
+	Runs the module-loader pipeline on `filename`, resolving
+	relative paths against `basename`.  Stores the resulting
+	module namespace object in *result.  Equivalent to
+	`import()` from JavaScript code.
+
+    INPUTS
+	result	 - Output JSValue (module namespace).
+	ctx	 - Host context.
+	basename - Path of the importing module, or "." for the
+		   working directory.
+	filename - Module specifier.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	JSValue mod;
+	QJS_LoadModule(&mod, ctx, ".", "./mymodule.js");
+	JSValue hello;
+	QJS_GetPropertyStr(&hello, ctx, &mod, "hello");
+	/* call hello... */
+
+    SEE ALSO
+	QJS_SetModuleLoader, QJS_GetModuleNamespace
+
+
+quickjs.library/QJS_GetImportMeta               quickjs.library/QJS_GetImportMeta
+
+    NAME
+	QJS_GetImportMeta -- Retrieve a module's import.meta
+	    object.
+
+    SYNOPSIS
+	QJS_GetImportMeta(result, ctx, m)
+			  A0      A1   A2
+
+	VOID QJS_GetImportMeta(JSValue *result, JSContext *ctx,
+			       JSModuleDef *m);
+
+    FUNCTION
+	Returns the `import.meta` object of the given module.
+	Typically used by a module loader to populate
+	`import.meta.url` before the module evaluates.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	m      - Module definition.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_SetModuleLoaderFunc, QJS_NewCModule
+
+
+quickjs.library/QJS_GetModuleName               quickjs.library/QJS_GetModuleName
+
+    NAME
+	QJS_GetModuleName -- Get a module's canonical name as an
+	    atom.
+
+    SYNOPSIS
+	atom = QJS_GetModuleName(ctx, m)
+	D0                       A0   A1
+
+	JSAtom QJS_GetModuleName(JSContext *ctx, JSModuleDef *m);
+
+    FUNCTION
+	Returns the atom holding the module's resolved file name.
+	Caller must release with QJS_FreeAtom().
+
+    INPUTS
+	ctx - Host context.
+	m   - Module definition.
+
+    RESULT
+	atom - Module name atom.
+
+    SEE ALSO
+	QJS_AtomToString, QJS_FreeAtom
+
+
+quickjs.library/QJS_GetModuleNamespace       QJS_GetModuleNamespace
+
+    NAME
+	QJS_GetModuleNamespace -- Get a module's namespace object.
+
+    SYNOPSIS
+	QJS_GetModuleNamespace(result, ctx, m)
+			       A0      A1   A2
+
+	VOID QJS_GetModuleNamespace(JSValue *result, JSContext *ctx,
+				    JSModuleDef *m);
+
+    FUNCTION
+	Returns the namespace object (the one you get from
+	`import * as NS from ...`) that exposes the module's
+	exports.  The module must already be evaluated.
+
+    INPUTS
+	result - Output JSValue.
+	ctx    - Host context.
+	m      - Module definition.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_LoadModule, QJS_GetModuleName
+
+
+quickjs.library/QJS_NewCModule                     quickjs.library/QJS_NewCModule
+
+    NAME
+	QJS_NewCModule -- Register a native C module.
+
+    SYNOPSIS
+	m = QJS_NewCModule(ctx, name_str, func)
+	D0                 A0   A1        A2
+
+	JSModuleDef *QJS_NewCModule(JSContext *ctx,
+				    CONST_STRPTR name_str,
+				    JSModuleInitFunc *func);
+
+    FUNCTION
+	Declares a module named `name_str` whose exports are
+	installed by the C function `func` when the module is
+	evaluated.  After this call, register exports via
+	QJS_AddModuleExport() / QJS_AddModuleExportList(),
+	then set their values inside `func` via
+	QJS_SetModuleExport() / QJS_SetModuleExportList().
+
+    INPUTS
+	ctx	 - Host context.
+	name_str - Module name (used by `import` specifiers).
+	func	 - Init callback of type
+		     int (*)(JSContext *, JSModuleDef *).
+
+    RESULT
+	m - Opaque module pointer (caller does not free).
+
+    EXAMPLE
+	static int my_module_init(JSContext *ctx, JSModuleDef *m) {
+	    QJS_SetModuleExport(ctx, m, "answer", &answer_val);
+	    return 0;
+	}
+	JSModuleDef *m = QJS_NewCModule(ctx, "mymodule",
+					 my_module_init);
+	QJS_AddModuleExport(ctx, m, "answer");
+
+    SEE ALSO
+	QJS_AddModuleExport, QJS_SetModuleExport
+
+
+quickjs.library/QJS_AddModuleExport           QJS_AddModuleExport
+
+    NAME
+	QJS_AddModuleExport -- Declare a single module export.
+
+    SYNOPSIS
+	rc = QJS_AddModuleExport(ctx, m, name_str)
+	D0                       A0   A1 A2
+
+	LONG QJS_AddModuleExport(JSContext *ctx, JSModuleDef *m,
+				 CONST_STRPTR name_str);
+
+    FUNCTION
+	Adds `name_str` to the list of names exported by the
+	module.  Must be called (for every export) between
+	QJS_NewCModule() and the module's evaluation.  Set the
+	value later via QJS_SetModuleExport().
+
+    INPUTS
+	ctx	 - Host context.
+	m	 - Module from QJS_NewCModule().
+	name_str - Exported name.
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    SEE ALSO
+	QJS_AddModuleExportList, QJS_SetModuleExport
+
+
+quickjs.library/QJS_AddModuleExportList     QJS_AddModuleExportList
+
+    NAME
+	QJS_AddModuleExportList -- Declare many module exports
+	    at once.
+
+    SYNOPSIS
+	rc = QJS_AddModuleExportList(ctx, m, tab, len)
+	D0                           A0   A1 A2   D0
+
+	LONG QJS_AddModuleExportList(JSContext *ctx, JSModuleDef *m,
+				     const JSCFunctionListEntry *tab,
+				     int len);
+
+    FUNCTION
+	Bulk-declares exports using the same JSCFunctionListEntry
+	array that you later pass to QJS_SetModuleExportList().
+
+    INPUTS
+	ctx - Host context.
+	m   - Module.
+	tab - Entry array.
+	len - Count.
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    SEE ALSO
+	QJS_AddModuleExport, QJS_SetModuleExportList
+
+
+quickjs.library/QJS_SetModuleExport           QJS_SetModuleExport
+
+    NAME
+	QJS_SetModuleExport -- Set the value of a module export.
+
+    SYNOPSIS
+	rc = QJS_SetModuleExport(ctx, m, export_name, val_ptr)
+	D0                       A0   A1 A2           A3
+
+	LONG QJS_SetModuleExport(JSContext *ctx, JSModuleDef *m,
+				 CONST_STRPTR export_name,
+				 const JSValue *val_ptr);
+
+    FUNCTION
+	Sets the value of the previously-declared export
+	`export_name`.  Takes ownership of *val_ptr.  Called from
+	the module init function registered with
+	QJS_NewCModule().
+
+    INPUTS
+	ctx	    - Host context.
+	m	    - Module.
+	export_name - Name declared via QJS_AddModuleExport().
+	val_ptr	    - Pointer to the value.
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    SEE ALSO
+	QJS_AddModuleExport, QJS_SetModuleExportList
+
+
+quickjs.library/QJS_SetModuleExportList     QJS_SetModuleExportList
+
+    NAME
+	QJS_SetModuleExportList -- Set many module export values
+	    at once.
+
+    SYNOPSIS
+	rc = QJS_SetModuleExportList(ctx, m, tab, len)
+	D0                           A0   A1 A2   D0
+
+	LONG QJS_SetModuleExportList(JSContext *ctx, JSModuleDef *m,
+				     const JSCFunctionListEntry *tab,
+				     int len);
+
+    FUNCTION
+	Bulk-sets values using the same JSCFunctionListEntry
+	array previously passed to
+	QJS_AddModuleExportList().
+
+    INPUTS
+	ctx - Host context.
+	m   - Module.
+	tab - Entry array.
+	len - Count.
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    SEE ALSO
+	QJS_AddModuleExportList
+
+
+quickjs.library/QJS_ResolveModule               quickjs.library/QJS_ResolveModule
+
+    NAME
+	QJS_ResolveModule -- Force module resolution for a
+	    compiled module value.
+
+    SYNOPSIS
+	rc = QJS_ResolveModule(ctx, obj_ptr)
+	D0                     A0   A1
+
+	LONG QJS_ResolveModule(JSContext *ctx,
+			       const JSValue *obj_ptr);
+
+    FUNCTION
+	Runs the module resolution phase on a value returned by
+	QJS_Eval() with JS_EVAL_FLAG_COMPILE_ONLY (i.e. a
+	compiled-but-not-yet-linked module).  Needed only for
+	pre-compiled bytecode workflows; normal use doesn't
+	require this.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the compiled module value.
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    SEE ALSO
+	QJS_Eval, QJS_EvalFunction
+
+
+quickjs.library/QJS_GetScriptOrModuleName   QJS_GetScriptOrModuleName
+
+    NAME
+	QJS_GetScriptOrModuleName -- Walk the call stack and
+	    return the filename of an enclosing script/module.
+
+    SYNOPSIS
+	atom = QJS_GetScriptOrModuleName(ctx, n_stack_levels)
+	D0                               A0   D0
+
+	JSAtom QJS_GetScriptOrModuleName(JSContext *ctx,
+					 int n_stack_levels);
+
+    FUNCTION
+	Returns the filename atom of the N'th enclosing call
+	frame's script/module (0 = current, 1 = caller, etc.).
+	Useful for implementing `import.meta.url`-style
+	reflection in native code.
+
+	Release with QJS_FreeAtom().
+
+    INPUTS
+	ctx	       - Host context.
+	n_stack_levels - Depth to walk (0-based).
+
+    RESULT
+	atom - Filename atom, or JS_ATOM_NULL if the requested
+	       level is outside the current call chain.
+
+    SEE ALSO
+	QJS_GetImportMeta, QJS_AtomToCStringLen
+
+
+quickjs.library/QJS_Malloc                           quickjs.library/QJS_Malloc
+
+    NAME
+	QJS_Malloc -- Allocate memory tracked by the engine.
+
+    SYNOPSIS
+	ptr = QJS_Malloc(ctx, size)
+	D0                A0   D0
+
+	APTR QJS_Malloc(JSContext *ctx, ULONG size);
+
+    FUNCTION
+	Allocates `size` bytes from the engine's pool.  The
+	allocation counts toward the runtime's memory limit, so
+	it can fail if QJS_SetMemoryLimit() would be exceeded.
+
+	Use this (rather than AmigaOS AllocMem) for buffers that
+	are conceptually engine-owned, so the memory limit and
+	OOM behaviour stay accurate.
+
+    INPUTS
+	ctx  - Host context.
+	size - Bytes to allocate.
+
+    RESULT
+	ptr - Pointer to the buffer, or NULL on OOM.  Free with
+	      QJS_Free().
+
+    SEE ALSO
+	QJS_Free, QJS_Realloc, QJS_Calloc, QJS_Mallocz
+
+
+quickjs.library/QJS_Mallocz                         quickjs.library/QJS_Mallocz
+
+    NAME
+	QJS_Mallocz -- Allocate zero-initialized memory.
+
+    SYNOPSIS
+	ptr = QJS_Mallocz(ctx, size)
+	D0                 A0   D0
+
+	APTR QJS_Mallocz(JSContext *ctx, ULONG size);
+
+    FUNCTION
+	Like QJS_Malloc() but the buffer is zero-filled before
+	being returned.
+
+    INPUTS
+	ctx  - Host context.
+	size - Bytes to allocate.
+
+    RESULT
+	ptr - Pointer to the buffer, or NULL on OOM.
+
+    SEE ALSO
+	QJS_Malloc, QJS_Calloc
+
+
+quickjs.library/QJS_Calloc                           quickjs.library/QJS_Calloc
+
+    NAME
+	QJS_Calloc -- Allocate an array of zero-initialized items.
+
+    SYNOPSIS
+	ptr = QJS_Calloc(ctx, count, size)
+	D0                A0   D0     D1
+
+	APTR QJS_Calloc(JSContext *ctx, ULONG count, ULONG size);
+
+    FUNCTION
+	Allocates `count * size` bytes, zero-filled.  Equivalent
+	to QJS_Mallocz(count * size) but performs the
+	multiplication safely (returns NULL on overflow).
+
+    INPUTS
+	ctx   - Host context.
+	count - Number of items.
+	size  - Size of each item.
+
+    RESULT
+	ptr - Pointer to the buffer, or NULL.
+
+    SEE ALSO
+	QJS_Malloc, QJS_Mallocz
+
+
+quickjs.library/QJS_Realloc                         quickjs.library/QJS_Realloc
+
+    NAME
+	QJS_Realloc -- Resize an engine-tracked allocation.
+
+    SYNOPSIS
+	ptr2 = QJS_Realloc(ctx, ptr, size)
+	D0                 A0   A1   D0
+
+	APTR QJS_Realloc(JSContext *ctx, APTR ptr, ULONG size);
+
+    FUNCTION
+	Resizes `ptr` to `size` bytes.  May move the allocation;
+	always use the returned pointer thereafter and discard
+	the old one.
+
+	Passing NULL `ptr` is equivalent to QJS_Malloc().
+	Passing 0 `size` is equivalent to QJS_Free() and returns
+	NULL.
+
+    INPUTS
+	ctx  - Host context.
+	ptr  - Existing pointer or NULL.
+	size - New size in bytes, or 0.
+
+    RESULT
+	ptr2 - Pointer to the (possibly moved) buffer, or NULL on
+	       OOM (in which case the original ptr is unchanged).
+
+    SEE ALSO
+	QJS_Malloc, QJS_Free
+
+
+quickjs.library/QJS_Free                                 quickjs.library/QJS_Free
+
+    NAME
+	QJS_Free -- Release memory allocated with QJS_Malloc() or
+	    friends.
+
+    SYNOPSIS
+	QJS_Free(ctx, ptr)
+		 A0   A1
+
+	VOID QJS_Free(JSContext *ctx, APTR ptr);
+
+    FUNCTION
+	Frees a buffer previously returned by QJS_Malloc(),
+	QJS_Mallocz(), QJS_Calloc(), QJS_Realloc(),
+	QJS_Strdup(), or QJS_WriteObject().  NULL is accepted
+	and ignored.
+
+    INPUTS
+	ctx - Host context.
+	ptr - Pointer to free, or NULL.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_Malloc, QJS_Strdup, QJS_WriteObject
+
+
+quickjs.library/QJS_Strdup                           quickjs.library/QJS_Strdup
+
+    NAME
+	QJS_Strdup -- Duplicate a C string into engine memory.
+
+    SYNOPSIS
+	str2 = QJS_Strdup(ctx, str)
+	D0                A0   A1
+
+	STRPTR QJS_Strdup(JSContext *ctx, CONST_STRPTR str);
+
+    FUNCTION
+	Allocates a copy of the NUL-terminated string `str` via
+	QJS_Malloc().  Useful for stashing user-supplied strings
+	in long-lived structures.
+
+    INPUTS
+	ctx - Host context.
+	str - Source string.
+
+    RESULT
+	str2 - Newly-allocated copy, or NULL on OOM.  Release
+	       with QJS_Free().
+
+    SEE ALSO
+	QJS_Malloc, QJS_Free
+
+
+quickjs.library/QJS_AddBaseObjects             quickjs.library/QJS_AddBaseObjects
+
+    NAME
+	QJS_AddBaseObjects -- Install Object, Array, Function,
+	    Error, Math, etc.
+
+    SYNOPSIS
+	rc = QJS_AddBaseObjects(ctx)
+	D0                      A0
+
+	LONG QJS_AddBaseObjects(JSContext *ctx);
+
+    FUNCTION
+	Installs the foundational ECMAScript intrinsics on the
+	context: Object, Array, Function, Error,
+	{TypeError, RangeError, ...}, Math, JSON (the namespace
+	object), Number, String, Boolean, Symbol primitives,
+	plus their prototypes.
+
+	Required if you started with QJS_NewContextRaw(); already
+	called for you by QJS_NewContext().
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	rc - 0 on success, non-zero on failure.
+
+    SEE ALSO
+	QJS_NewContextRaw, QJS_AddJSON, QJS_AddDate
+
+
+quickjs.library/QJS_AddEval                         quickjs.library/QJS_AddEval
+
+    NAME
+	QJS_AddEval -- Install the eval() global function.
+
+    SYNOPSIS
+	QJS_AddEval(ctx)
+		    A0
+
+	VOID QJS_AddEval(JSContext *ctx);
+
+    FUNCTION
+	Adds the global `eval()` function.  Required if you
+	want JS code to run dynamically-constructed source.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewContextRaw, QJS_AddBaseObjects
+
+
+quickjs.library/QJS_AddDate                         quickjs.library/QJS_AddDate
+
+    NAME
+	QJS_AddDate -- Install the Date constructor.
+
+    SYNOPSIS
+	QJS_AddDate(ctx)
+		    A0
+
+	VOID QJS_AddDate(JSContext *ctx);
+
+    FUNCTION
+	Adds the Date constructor and its prototype.  Date.now(),
+	Date.parse(), instance methods like .toISOString() all
+	become available.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewDate, QJS_IsDate
+
+
+quickjs.library/QJS_AddRegExp                       quickjs.library/QJS_AddRegExp
+
+    NAME
+	QJS_AddRegExp -- Install RegExp runtime support.
+
+    SYNOPSIS
+	QJS_AddRegExp(ctx)
+		      A0
+
+	VOID QJS_AddRegExp(JSContext *ctx);
+
+    FUNCTION
+	Installs the RegExp constructor and runtime evaluator.
+	Does not by itself enable the literal /.../ syntax in
+	parsed code -- combine with QJS_AddRegExpCompiler() for
+	that.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_AddRegExpCompiler, QJS_IsRegExp
+
+
+quickjs.library/QJS_AddRegExpCompiler         QJS_AddRegExpCompiler
+
+    NAME
+	QJS_AddRegExpCompiler -- Install the RegExp parser/
+	    compiler.
+
+    SYNOPSIS
+	QJS_AddRegExpCompiler(ctx)
+			      A0
+
+	VOID QJS_AddRegExpCompiler(JSContext *ctx);
+
+    FUNCTION
+	Adds the compiler that processes regex literals at parse
+	time.  Without it, any /.../ in your source produces a
+	SyntaxError.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_AddRegExp
+
+
+quickjs.library/QJS_AddJSON                         quickjs.library/QJS_AddJSON
+
+    NAME
+	QJS_AddJSON -- Install the JSON namespace object.
+
+    SYNOPSIS
+	QJS_AddJSON(ctx)
+		    A0
+
+	VOID QJS_AddJSON(JSContext *ctx);
+
+    FUNCTION
+	Adds the JSON.parse() and JSON.stringify() methods on a
+	`JSON` global namespace.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_ParseJSON, QJS_JSONStringify
+
+
+quickjs.library/QJS_AddProxy                         quickjs.library/QJS_AddProxy
+
+    NAME
+	QJS_AddProxy -- Install Proxy and Reflect.
+
+    SYNOPSIS
+	QJS_AddProxy(ctx)
+		     A0
+
+	VOID QJS_AddProxy(JSContext *ctx);
+
+    FUNCTION
+	Installs the Proxy constructor and the Reflect namespace
+	with all standard methods.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+
+quickjs.library/QJS_AddMapSet                       quickjs.library/QJS_AddMapSet
+
+    NAME
+	QJS_AddMapSet -- Install Map, Set, WeakMap, WeakSet.
+
+    SYNOPSIS
+	QJS_AddMapSet(ctx)
+		      A0
+
+	VOID QJS_AddMapSet(JSContext *ctx);
+
+    FUNCTION
+	Installs the Map, Set, WeakMap and WeakSet constructors
+	and prototypes.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_IsMap, QJS_IsSet
+
+
+quickjs.library/QJS_AddTypedArrays             quickjs.library/QJS_AddTypedArrays
+
+    NAME
+	QJS_AddTypedArrays -- Install ArrayBuffer + TypedArrays
+	    + DataView + Atomics.
+
+    SYNOPSIS
+	QJS_AddTypedArrays(ctx)
+			   A0
+
+	VOID QJS_AddTypedArrays(JSContext *ctx);
+
+    FUNCTION
+	Installs ArrayBuffer, SharedArrayBuffer, DataView,
+	Atomics, and all the typed-array views (Int8Array,
+	Uint8Array, Uint8ClampedArray, Int16Array, Uint16Array,
+	Int32Array, Uint32Array, BigInt64Array, BigUint64Array,
+	Float32Array, Float64Array).
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewArrayBufferCopy, QJS_NewUint8ArrayCopy,
+	QJS_AddBigInt
+
+
+quickjs.library/QJS_AddPromise                     quickjs.library/QJS_AddPromise
+
+    NAME
+	QJS_AddPromise -- Install Promise + async/await machinery.
+
+    SYNOPSIS
+	QJS_AddPromise(ctx)
+		       A0
+
+	VOID QJS_AddPromise(JSContext *ctx);
+
+    FUNCTION
+	Installs the Promise constructor, all static methods
+	(Promise.all, allSettled, any, race, resolve, reject,
+	withResolvers), and the async/await runtime support.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewPromiseCapability, QJS_IsPromise,
+	QJS_StdLoop
+
+
+quickjs.library/QJS_AddWeakRef                     quickjs.library/QJS_AddWeakRef
+
+    NAME
+	QJS_AddWeakRef -- Install WeakRef and FinalizationRegistry.
+
+    SYNOPSIS
+	QJS_AddWeakRef(ctx)
+		       A0
+
+	VOID QJS_AddWeakRef(JSContext *ctx);
+
+    FUNCTION
+	Installs ES2021 WeakRef and FinalizationRegistry, useful
+	for caches that should not prevent GC.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+
+quickjs.library/QJS_AddDOMException           quickjs.library/QJS_AddDOMException
+
+    NAME
+	QJS_AddDOMException -- Install the DOMException class.
+
+    SYNOPSIS
+	QJS_AddDOMException(ctx)
+			    A0
+
+	VOID QJS_AddDOMException(JSContext *ctx);
+
+    FUNCTION
+	Installs the DOMException constructor used by web-style
+	APIs (fetch, AbortController, etc.) when reporting
+	platform errors.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+
+quickjs.library/QJS_AddPerformance             quickjs.library/QJS_AddPerformance
+
+    NAME
+	QJS_AddPerformance -- Install the performance global.
+
+    SYNOPSIS
+	QJS_AddPerformance(ctx)
+			   A0
+
+	VOID QJS_AddPerformance(JSContext *ctx);
+
+    FUNCTION
+	Installs the `performance` namespace with .now() and
+	.timeOrigin (millisecond-resolution monotonic clock).
+	Backed by AmigaOS DateStamp() which has 50Hz (20ms)
+	granularity.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+
+quickjs.library/QJS_AddBigInt                       quickjs.library/QJS_AddBigInt
+
+    NAME
+	QJS_AddBigInt -- Install BigInt support.
+
+    SYNOPSIS
+	QJS_AddBigInt(ctx)
+		      A0
+
+	VOID QJS_AddBigInt(JSContext *ctx);
+
+    FUNCTION
+	Installs the BigInt primitive constructor and its
+	prototype.  Required for arbitrary-precision integer
+	arithmetic and the `1n` literal syntax.
+
+    INPUTS
+	ctx - Target context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_NewBigInt64, QJS_NewBigUint64
+
+
+quickjs.library/QJS_SetIsHTMLDDA                 quickjs.library/QJS_SetIsHTMLDDA
+
+    NAME
+	QJS_SetIsHTMLDDA -- Mark an object as the HTML
+	    "all" pseudo-undefined.
+
+    SYNOPSIS
+	QJS_SetIsHTMLDDA(ctx, obj_ptr)
+			 A0   A1
+
+	VOID QJS_SetIsHTMLDDA(JSContext *ctx,
+			      const JSValue *obj_ptr);
+
+    FUNCTION
+	Marks an object as a "default-default attribute" object
+	(IsHTMLDDA), giving it the strange ECMAScript-defined
+	behaviour where it compares == to undefined and to null.
+	Originally specified to support the legacy
+	`document.all` browser quirk.
+
+	Almost no code outside the test suite needs this.
+
+    INPUTS
+	ctx	- Host context.
+	obj_ptr - Pointer to the object to mark.
+
+    RESULT
+	None.
+
+
+quickjs.library/QJS_GetLibcOpaque               quickjs.library/QJS_GetLibcOpaque
+
+    NAME
+	QJS_GetLibcOpaque -- Read the std/os module's opaque
+	    pointer.
+
+    SYNOPSIS
+	ptr = QJS_GetLibcOpaque(rt)
+	D0                      A0
+
+	APTR QJS_GetLibcOpaque(JSRuntime *rt);
+
+    FUNCTION
+	Returns whatever was stored via QJS_SetLibcOpaque().
+	Used internally by the std/os modules to keep per-runtime
+	state (file-handle table, signal handlers, etc.).
+
+    INPUTS
+	rt - The runtime.
+
+    RESULT
+	ptr - Stored pointer, or NULL.
+
+    SEE ALSO
+	QJS_SetLibcOpaque
+
+
+quickjs.library/QJS_SetLibcOpaque               quickjs.library/QJS_SetLibcOpaque
+
+    NAME
+	QJS_SetLibcOpaque -- Store the std/os module's opaque
+	    pointer.
+
+    SYNOPSIS
+	QJS_SetLibcOpaque(rt, opaque)
+			  A0  A1
+
+	VOID QJS_SetLibcOpaque(JSRuntime *rt, APTR opaque);
+
+    FUNCTION
+	Stashes a pointer for use by the std/os modules.  Set
+	automatically by QJS_StdInitHandlers(); rarely useful
+	for application code.
+
+    INPUTS
+	rt     - The runtime.
+	opaque - Pointer to store.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetLibcOpaque, QJS_StdInitHandlers
+
+
+quickjs.library/QJS_InitModuleStd               quickjs.library/QJS_InitModuleStd
+
+    NAME
+	QJS_InitModuleStd -- Register the "qjs:std" module.
+
+    SYNOPSIS
+	m = QJS_InitModuleStd(ctx, module_name)
+	D0                    A0   A1
+
+	JSModuleDef *QJS_InitModuleStd(JSContext *ctx,
+				       CONST_STRPTR module_name);
+
+    FUNCTION
+	Registers the standard "qjs:std" module which exposes
+	std.printf, std.open, std.urlGet, std.exit, etc.
+
+	Call this if your application wants the std module
+	available for `import * as std from 'qjs:std'`.
+
+    INPUTS
+	ctx	    - Host context.
+	module_name - Name to register the module as.  Pass
+		      "qjs:std" for compatibility with the qjs CLI.
+
+    RESULT
+	m - Module def, or NULL on failure.
+
+    SEE ALSO
+	QJS_InitModuleOS, QJS_InitModuleBJSON,
+	QJS_StdAddHelpers
+
+
+quickjs.library/QJS_InitModuleOS                 quickjs.library/QJS_InitModuleOS
+
+    NAME
+	QJS_InitModuleOS -- Register the "qjs:os" module.
+
+    SYNOPSIS
+	m = QJS_InitModuleOS(ctx, module_name)
+	D0                   A0   A1
+
+	JSModuleDef *QJS_InitModuleOS(JSContext *ctx,
+				      CONST_STRPTR module_name);
+
+    FUNCTION
+	Registers the "qjs:os" module: file system access,
+	process control, timers, signal handling, environment
+	variables.
+
+    INPUTS
+	ctx	    - Host context.
+	module_name - Module name (typically "qjs:os").
+
+    RESULT
+	m - Module def, or NULL on failure.
+
+    SEE ALSO
+	QJS_InitModuleStd, QJS_InitModuleBJSON
+
+
+quickjs.library/QJS_InitModuleBJSON           quickjs.library/QJS_InitModuleBJSON
+
+    NAME
+	QJS_InitModuleBJSON -- Register the "qjs:bjson" binary
+	    JSON module.
+
+    SYNOPSIS
+	m = QJS_InitModuleBJSON(ctx, module_name)
+	D0                      A0   A1
+
+	JSModuleDef *QJS_InitModuleBJSON(JSContext *ctx,
+					 CONST_STRPTR module_name);
+
+    FUNCTION
+	Registers the binary-JSON serialization module
+	(bjson.read / bjson.write).  More compact and faster than
+	JSON.parse/stringify for round-tripping JS values.
+
+    INPUTS
+	ctx	    - Host context.
+	module_name - Module name.
+
+    RESULT
+	m - Module def, or NULL on failure.
+
+    SEE ALSO
+	QJS_InitModuleStd, QJS_InitModuleOS
+
+
+quickjs.library/QJS_StdInitHandlers             QJS_StdInitHandlers
+
+    NAME
+	QJS_StdInitHandlers -- Set up the runtime for std/os.
+
+    SYNOPSIS
+	QJS_StdInitHandlers(rt)
+			    A0
+
+	VOID QJS_StdInitHandlers(JSRuntime *rt);
+
+    FUNCTION
+	Initializes per-runtime state used by the std and os
+	modules: opens file descriptors 0/1/2, sets up the
+	timer queue, registers the standard interrupt handler
+	(Ctrl-C detection).
+
+	Call once after QJS_NewRuntime() if your application
+	intends to use std/os.  Pair with
+	QJS_StdFreeHandlers() before QJS_FreeRuntime().
+
+    INPUTS
+	rt - The runtime.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_StdFreeHandlers, QJS_StdAddHelpers, QJS_StdLoop
+
+
+quickjs.library/QJS_StdFreeHandlers             QJS_StdFreeHandlers
+
+    NAME
+	QJS_StdFreeHandlers -- Tear down std/os runtime state.
+
+    SYNOPSIS
+	QJS_StdFreeHandlers(rt)
+			    A0
+
+	VOID QJS_StdFreeHandlers(JSRuntime *rt);
+
+    FUNCTION
+	Releases anything QJS_StdInitHandlers() allocated.
+	Must be called before QJS_FreeRuntime() if
+	QJS_StdInitHandlers() was used.
+
+    INPUTS
+	rt - The runtime.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_StdInitHandlers, QJS_FreeRuntime
+
+
+quickjs.library/QJS_StdAddHelpers               QJS_StdAddHelpers
+
+    NAME
+	QJS_StdAddHelpers -- Install global helpers (print,
+	    console.log, scriptArgs, fetch).
+
+    SYNOPSIS
+	QJS_StdAddHelpers(ctx, argc, argv)
+			  A0   D0    A1
+
+	VOID QJS_StdAddHelpers(JSContext *ctx, int argc,
+			       STRPTR *argv);
+
+    FUNCTION
+	Installs convenience globals on the context:
+
+	    print()       -- write args to stdout
+	    console.log() -- alias for print
+	    scriptArgs    -- array of command-line arguments
+	    fetch()       -- async HTTP/HTTPS (Amiga port)
+
+	Required for typical script execution; safely no-op
+	if called twice.
+
+    INPUTS
+	ctx  - Host context.
+	argc - Argument count for scriptArgs.
+	argv - Argument strings, or NULL if argc <= 0.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_StdInitHandlers, QJS_StdLoop
+
+
+quickjs.library/QJS_StdLoop                         quickjs.library/QJS_StdLoop
+
+    NAME
+	QJS_StdLoop -- Run the event loop until idle.
+
+    SYNOPSIS
+	rc = QJS_StdLoop(ctx)
+	D0               A0
+
+	LONG QJS_StdLoop(JSContext *ctx);
+
+    FUNCTION
+	Drives the runtime's event loop: drains the microtask
+	queue, fires expired setTimeout/setInterval timers,
+	dispatches I/O on registered file descriptors, and
+	repeats until everything is idle.
+
+	Returns when:
+	    * no more pending jobs / timers / handlers, OR
+	    * an unhandled exception bubbled up.
+
+    INPUTS
+	ctx - Host context.
+
+    RESULT
+	rc - 0 on clean exit, non-zero if an exception bubbled
+	     out (already printed via QJS_StdDumpError if it
+	     reached top level).
+
+    EXAMPLE
+	/* Standard CLI lifecycle: */
+	QJS_EvalBuf(ctx, src, len, "main.js", JS_EVAL_TYPE_MODULE);
+	QJS_StdLoop(ctx);
+
+    SEE ALSO
+	QJS_IsJobPending, QJS_ExecutePendingJob
+
+
+quickjs.library/QJS_StdEvalBinary               QJS_StdEvalBinary
+
+    NAME
+	QJS_StdEvalBinary -- Evaluate a precompiled bytecode
+	    blob.
+
+    SYNOPSIS
+	QJS_StdEvalBinary(ctx, buf, buf_len, flags)
+			  A0   A1   D0       D1
+
+	VOID QJS_StdEvalBinary(JSContext *ctx, const UBYTE *buf,
+			       ULONG buf_len, ULONG flags);
+
+    FUNCTION
+	Loads a buffer produced by qjsc -e, links references,
+	resolves the global object, and executes.  Used by
+	standalone executables that have JS bytecode embedded
+	in their data segment.
+
+    INPUTS
+	ctx	- Host context.
+	buf	- Bytecode blob.
+	buf_len - Length in bytes.
+	flags	- 0 normally, or JS_LOAD_ONLY to link without
+		  executing.
+
+    RESULT
+	None.  Errors are printed via QJS_StdDumpError.
+
+    SEE ALSO
+	QJS_ReadObject, QJS_StdLoop
+
+
+quickjs.library/QJS_StdDumpError                 QJS_StdDumpError
+
+    NAME
+	QJS_StdDumpError -- Print the pending exception to stderr.
+
+    SYNOPSIS
+	QJS_StdDumpError(ctx)
+			 A0
+
+	VOID QJS_StdDumpError(JSContext *ctx);
+
+    FUNCTION
+	If an exception is pending on the context, fetches it
+	and prints its message and stack trace to stderr in a
+	human-friendly format.  Clears the exception.
+
+	If no exception is pending, prints nothing.
+
+    INPUTS
+	ctx - Host context.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_GetException, QJS_HasException
+
+
+quickjs.library/QJS_LoadFile                         QJS_LoadFile
+
+    NAME
+	QJS_LoadFile -- Read a file into engine-allocated memory.
+
+    SYNOPSIS
+	buf = QJS_LoadFile(ctx, pbuf_len, filename)
+	D0                 A0   A1        A2
+
+	UBYTE *QJS_LoadFile(JSContext *ctx, size_t *pbuf_len,
+			    CONST_STRPTR filename);
+
+    FUNCTION
+	Reads the entire file `filename` into a freshly-allocated
+	buffer (with a trailing NUL byte not counted in *pbuf_len).
+	Uses dos.library Open()/Read() and accepts AmigaOS-style
+	paths (RAM:, S:, volume-rooted, etc.).
+
+	Free the buffer with QJS_Free() when done.
+
+    INPUTS
+	ctx	 - Host context.
+	pbuf_len - Output for byte length, or NULL.
+	filename - Path to the file.
+
+    RESULT
+	buf - Newly-allocated buffer, or NULL on error.
+
+    EXAMPLE
+	size_t len;
+	UBYTE *src = QJS_LoadFile(ctx, &len, "RAM:script.js");
+	if (src) {
+	    QJS_EvalBuf(ctx, (CONST_STRPTR)src, len, "RAM:script.js",
+			JS_EVAL_TYPE_GLOBAL);
+	    QJS_Free(ctx, src);
+	}
+
+    SEE ALSO
+	QJS_Free, QJS_EvalBuf
+
+

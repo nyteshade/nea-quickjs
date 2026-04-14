@@ -1,0 +1,950 @@
+TABLE OF CONTENTS
+
+quickjs-js/--background--
+quickjs-js/--repl--
+quickjs-js/--startup--
+quickjs-js/Headers
+quickjs-js/Headers.forEach
+quickjs-js/Headers.get
+quickjs-js/Headers.has
+quickjs-js/Response
+quickjs-js/Response.arrayBuffer
+quickjs-js/Response.headers
+quickjs-js/Response.json
+quickjs-js/Response.ok
+quickjs-js/Response.status
+quickjs-js/Response.statusText
+quickjs-js/Response.text
+quickjs-js/Response.url
+quickjs-js/Symbol.qjs.inspect
+quickjs-js/bjson.read
+quickjs-js/bjson.write
+quickjs-js/console.log
+quickjs-js/fetch
+quickjs-js/os.chdir
+quickjs-js/os.exec
+quickjs-js/os.getcwd
+quickjs-js/os.getenv
+quickjs-js/os.getvar
+quickjs-js/os.kill
+quickjs-js/os.now
+quickjs-js/os.open
+quickjs-js/os.pipe
+quickjs-js/os.platform
+quickjs-js/os.read
+quickjs-js/os.readdir
+quickjs-js/os.realpath
+quickjs-js/os.remove
+quickjs-js/os.rename
+quickjs-js/os.setReadHandler
+quickjs-js/os.setTimeout
+quickjs-js/os.setvar
+quickjs-js/os.sleep
+quickjs-js/os.stat
+quickjs-js/os.write
+quickjs-js/print
+quickjs-js/std.exit
+quickjs-js/std.gc
+quickjs-js/std.getenv
+quickjs-js/std.in
+quickjs-js/std.loadFile
+quickjs-js/std.open
+quickjs-js/std.out
+quickjs-js/std.printf
+quickjs-js/std.urlGet
+quickjs-js/std.writeFile
+
+
+quickjs-js/--background--                            quickjs-js/--background--
+
+    NAME
+	quickjs.library JavaScript API -- features available to
+	    scripts running under qjs / quickjs.library
+
+    SCOPE
+	This document describes the JavaScript API surface, i.e.
+	what is callable from `.js` files run by qjs (or any
+	program that opens quickjs.library and exposes the std/os
+	modules to its scripts).
+
+	For the C-side library API (the QJS_* LVO functions), see
+	the companion document quickjs.doc.
+
+    LANGUAGE LEVEL
+	Full ES2020+, including:
+
+	    classes, modules, async/await, generators
+	    Promise, Map/Set, WeakMap/WeakSet, WeakRef
+	    BigInt, Symbol, TypedArrays, DataView, ArrayBuffer
+	    Proxy, Reflect, optional chaining, nullish coalescing
+	    Iterator helpers, Promise.withResolvers
+	    JSON modules, import attributes, RegExp v flag
+
+	The engine is QuickJS-ng 0.12.1 -- see the upstream
+	docs for the full ECMAScript surface.
+
+    AMIGA EXTENSIONS
+	Beyond standard ECMAScript, the Amiga port adds:
+
+	    * print() and console.log() globals
+	    * Symbol.for('qjs.inspect') for custom display
+	    * fetch() with Response and Headers (web-style HTTP)
+	    * std and os modules with Amiga-aware file/process/
+	      timer APIs
+	    * S:QJS-Startup.js auto-loaded on REPL/script start
+	    * S:QJS-Config.txt for default CLI flags
+
+    SEE ALSO
+	--repl--, --startup--, fetch, std.urlGet,
+	Symbol.qjs.inspect
+
+
+quickjs-js/--repl--                                          quickjs-js/--repl--
+
+    NAME
+	--repl-- -- Interactive JavaScript shell
+
+    USAGE
+	Run `qjs` with no script argument to enter the REPL:
+
+	    1> qjs
+	    QuickJS-ng - Type ".help" for help
+	    qjs > 1 + 1
+	    2
+	    qjs > await fetch('https://example.com')
+	    Response { ... }
+	    qjs > .quit
+
+    KEYBOARD
+	Most readline-style key bindings work:
+	    Backspace      -- delete char left
+	    Left/Right     -- move cursor
+	    Up/Down        -- history
+	    Home/End       -- start/end of line
+	    Tab            -- completion
+	    Ctrl-C         -- abort current line / exit
+	    Ctrl-D         -- EOF (exit)
+
+    DOT COMMANDS
+	    .help          -- list commands
+	    .quit          -- exit
+	    .clear         -- clear screen
+	    .load FILE     -- evaluate a file
+	    .save FILE     -- save history to file
+
+    DISPLAY
+	The result of each expression is printed using
+	JS_PrintValue, which honours Symbol.for('qjs.inspect')
+	on objects.
+
+    SEE ALSO
+	Symbol.qjs.inspect, --startup--
+
+
+quickjs-js/--startup--                                    quickjs-js/--startup--
+
+    NAME
+	--startup-- -- S:QJS-Startup.js and S:QJS-Config.txt
+
+    S:QJS-CONFIG.TXT
+	A plain-text file with one CLI option per line.  Read
+	BEFORE the user's command-line arguments are parsed.
+	Lines starting with # are comments; blank lines are
+	ignored.
+
+	Example:
+
+	    # default config for qjs
+	    --std
+	    --color
+	    -m
+
+	The user's actual command-line arguments override entries
+	from this file.
+
+    S:QJS-STARTUP.JS
+	If this file exists, it is evaluated AFTER std/os are
+	registered but BEFORE any user code (REPL or script).
+	Errors in the startup file are non-fatal and printed to
+	stderr.
+
+	Use cases:
+	    * register custom REPL helpers
+	    * import frequently-used modules
+	    * apply Symbol.for('qjs.inspect') to your favourite
+	      classes
+	    * set up app-wide globals
+
+	Example:
+
+	    import * as std from 'qjs:std';
+	    globalThis.cat = (path) => {
+		const f = std.open(path, 'r');
+		const buf = f.readAsString();
+		f.close();
+		return buf;
+	    };
+
+    SEE ALSO
+	--repl--
+
+
+quickjs-js/print                                                  quickjs-js/print
+
+    NAME
+	print -- Write values to stdout, then a newline.
+
+    SYNOPSIS
+	print(...args)
+
+    FUNCTION
+	Writes each argument to stdout, separated by spaces, then
+	a newline.  Strings are written verbatim; non-string
+	values go through JS_PrintValue (which honours
+	Symbol.for('qjs.inspect')).
+
+    EXAMPLE
+	print("hello", { x: 1 });
+	// hello { x: 1 }
+
+    SEE ALSO
+	console.log, Symbol.qjs.inspect, std.printf
+
+
+quickjs-js/console.log                                      quickjs-js/console.log
+
+    NAME
+	console.log -- Alias for print(), with stdout flush.
+
+    SYNOPSIS
+	console.log(...args)
+
+    FUNCTION
+	Same as print() but additionally calls fflush(stdout)
+	before returning.  Use this when you need the output
+	visible before the next blocking call (otherwise stdio
+	may buffer the line).
+
+    SEE ALSO
+	print
+
+
+quickjs-js/Symbol.qjs.inspect                          quickjs-js/Symbol.qjs.inspect
+
+    NAME
+	Symbol.for('qjs.inspect') -- Custom display in print()
+	    and the REPL.
+
+    USAGE
+	Define a method on your object (or its prototype) keyed
+	by Symbol.for('qjs.inspect'):
+
+	    class Money {
+		constructor(amount, ccy) {
+		    this.amount = amount;
+		    this.ccy = ccy;
+		}
+		[Symbol.for('qjs.inspect')]() {
+		    return `${this.ccy}${this.amount.toFixed(2)}`;
+		}
+	    }
+	    print(new Money(42.5, '$'));   // $42.50
+
+    BEHAVIOUR
+	When JS_PrintValue encounters an object during print() or
+	REPL display, it looks up Symbol.for('qjs.inspect') on
+	the object via the prototype chain.  If found and
+	callable, it is invoked with no arguments; if it returns
+	a string, that string is emitted instead of the default
+	{ ... } rendering.
+
+	If the method throws or returns a non-string, the default
+	rendering is used.
+
+    NOTES
+	Inspired by Node.js's util.inspect.custom symbol.
+	Amiga-port-only feature; not part of standard ECMAScript.
+
+    SEE ALSO
+	print, --repl--
+
+
+quickjs-js/fetch                                                  quickjs-js/fetch
+
+    NAME
+	fetch -- Async HTTP/HTTPS request, returning Promise<Response>.
+
+    SYNOPSIS
+	const response = await fetch(url, options?);
+
+    PARAMETERS
+	url     - String "http://..." or "https://...".
+	options - Optional object:
+		    method    - "GET" (default), "POST", "PUT",
+				"DELETE", etc.
+		    headers   - String of "Name: Value\r\n" lines
+				to append to the request (object
+				form not yet supported -- v0.65).
+		    body      - String body for POST/PUT.
+
+    RETURN
+	Promise<Response> -- resolves on success, rejects with
+	TypeError on network errors (DNS failure, connection
+	refused, TLS handshake failure, ...).
+
+    REQUIREMENTS
+	* TCP/IP stack running (Roadshow, AmiTCP, Miami, ...).
+	* For HTTPS: AmiSSL installed.
+
+    EXAMPLE
+	// GET
+	const r = await fetch('https://example.com');
+	console.log(r.status);             // 200
+	console.log(await r.text());
+
+	// JSON GET
+	const data =
+	    await (await fetch('https://httpbin.org/json')).json();
+
+	// POST
+	const r = await fetch('https://httpbin.org/post', {
+	    method: 'POST',
+	    body: JSON.stringify({ name: 'Amiga' }),
+	});
+
+    HOW IT WORKS
+	Each fetch() spawns a dedicated worker process via
+	AmigaOS CreateNewProc().  The worker performs the
+	blocking HTTP/HTTPS work (DNS, connect, TLS handshake,
+	send, recv) while the main task remains responsive --
+	the REPL keeps accepting input, timers keep firing.
+
+	When the worker finishes, it posts a message to a reply
+	port.  The main task polls the port every 20ms via
+	setTimeout; the Promise resolves on receipt.
+
+    LIMITATIONS (v0.65)
+	* One concurrent fetch -- a second call while one is in
+	  flight rejects with "fetch already in progress".
+	* No automatic 3xx redirect following.
+	* Body fully buffered (no streaming).
+	* HTTP/1.0 only (no chunked encoding, no keep-alive).
+	* `headers` option must be a raw string, not an object.
+
+    SEE ALSO
+	Response, Headers, std.urlGet
+
+
+quickjs-js/Response                                          quickjs-js/Response
+
+    NAME
+	Response -- HTTP response object, returned by fetch().
+
+    PROPERTIES
+	status      -- HTTP status code (number, e.g. 200, 404)
+	ok          -- boolean: true if status is 200-299
+	statusText  -- short reason phrase (best-effort,
+		       inferred from status code)
+	url         -- final URL string
+	headers     -- Headers object
+
+    METHODS
+	text()        -> Promise<string>
+	json()        -> Promise<any>
+	arrayBuffer() -> Promise<ArrayBuffer>
+
+    EXAMPLE
+	const r = await fetch('https://example.com');
+	if (r.ok) {
+	    const html = await r.text();
+	    console.log(html.length);
+	}
+
+    NOTES
+	The body is fully buffered when the Response is created.
+	The text/json/arrayBuffer methods all operate on the same
+	underlying buffer; calling them does not consume it (you
+	can call multiple times).
+
+    SEE ALSO
+	fetch, Headers
+
+
+quickjs-js/Response.status                              quickjs-js/Response.status
+
+    NAME
+	Response.status -- HTTP status code.
+
+    SYNOPSIS
+	r.status   // number
+
+    EXAMPLE
+	(await fetch('https://example.com')).status   // 200
+	(await fetch('http://httpbin.org/status/404')).status   // 404
+
+    SEE ALSO
+	Response.ok, Response.statusText
+
+
+quickjs-js/Response.ok                                          quickjs-js/Response.ok
+
+    NAME
+	Response.ok -- True if status is 200-299.
+
+    SYNOPSIS
+	r.ok   // boolean
+
+    EXAMPLE
+	if (!r.ok) throw new Error(`HTTP ${r.status}`);
+
+    SEE ALSO
+	Response.status
+
+
+quickjs-js/Response.statusText                           Response.statusText
+
+    NAME
+	Response.statusText -- Reason phrase associated with the
+	    status code.
+
+    SYNOPSIS
+	r.statusText   // string
+
+    NOTES
+	The Amiga port reconstructs this from the status code
+	(e.g. 200 -> "OK", 404 -> "Not Found") rather than from
+	the wire data, since most servers omit the reason phrase
+	in HTTP/1.1 anyway.
+
+    SEE ALSO
+	Response.status
+
+
+quickjs-js/Response.url                                        quickjs-js/Response.url
+
+    NAME
+	Response.url -- The URL that was fetched.
+
+    SYNOPSIS
+	r.url   // string
+
+    NOTES
+	Always equal to the URL passed to fetch().  In future
+	versions, after redirect handling is added, this will be
+	the final URL.
+
+
+quickjs-js/Response.headers                              quickjs-js/Response.headers
+
+    NAME
+	Response.headers -- Response headers as a Headers object.
+
+    SYNOPSIS
+	r.headers   // Headers
+
+    EXAMPLE
+	const r = await fetch('https://example.com');
+	console.log(r.headers.get('Content-Type'));
+
+    SEE ALSO
+	Headers
+
+
+quickjs-js/Response.text                                    quickjs-js/Response.text
+
+    NAME
+	Response.text() -- Body as a string.
+
+    SYNOPSIS
+	const s = await r.text();
+
+    RETURN
+	Promise<string> -- the response body decoded as UTF-8.
+
+    EXAMPLE
+	console.log(await (await fetch(url)).text());
+
+    SEE ALSO
+	Response.json, Response.arrayBuffer
+
+
+quickjs-js/Response.json                                    quickjs-js/Response.json
+
+    NAME
+	Response.json() -- Body parsed as JSON.
+
+    SYNOPSIS
+	const obj = await r.json();
+
+    RETURN
+	Promise<any> -- the parsed JSON value.
+
+    THROWS
+	The promise rejects with SyntaxError if the body is not
+	valid JSON.
+
+    EXAMPLE
+	const data = await (await fetch('/api/info')).json();
+
+    SEE ALSO
+	Response.text
+
+
+quickjs-js/Response.arrayBuffer                       quickjs-js/Response.arrayBuffer
+
+    NAME
+	Response.arrayBuffer() -- Body as a binary buffer.
+
+    SYNOPSIS
+	const buf = await r.arrayBuffer();
+
+    RETURN
+	Promise<ArrayBuffer> -- the raw bytes.
+
+    EXAMPLE
+	const buf = await (await fetch(imageUrl)).arrayBuffer();
+	const bytes = new Uint8Array(buf);
+	std.writeFile('RAM:image.png', bytes);
+
+    SEE ALSO
+	Response.text
+
+
+quickjs-js/Headers                                              quickjs-js/Headers
+
+    NAME
+	Headers -- Read-only HTTP header bag (response headers).
+
+    METHODS
+	get(name)        -> string | null
+	has(name)        -> boolean
+	forEach(cb)      -> calls cb(value, name) per header
+
+    NOTES
+	Created by fetch() and accessed via Response.headers.
+	Cannot be constructed directly in v0.65 (no Headers()
+	constructor exposed yet).  Header lookups are
+	case-insensitive.
+
+    SEE ALSO
+	Headers.get, Headers.has, Headers.forEach, Response
+
+
+quickjs-js/Headers.get                                      quickjs-js/Headers.get
+
+    NAME
+	Headers.get(name) -- Look up a header value.
+
+    SYNOPSIS
+	r.headers.get(name)   // string | null
+
+    PARAMETERS
+	name - Header name (case-insensitive).
+
+    RETURN
+	The header value as a string, or null if absent.
+
+    EXAMPLE
+	const ct = r.headers.get('Content-Type');   // "text/html"
+	r.headers.get('content-type')               // same
+
+
+quickjs-js/Headers.has                                      quickjs-js/Headers.has
+
+    NAME
+	Headers.has(name) -- Test for header presence.
+
+    SYNOPSIS
+	r.headers.has(name)   // boolean
+
+    EXAMPLE
+	if (r.headers.has('Set-Cookie')) {
+	    /* ... */
+	}
+
+
+quickjs-js/Headers.forEach                              quickjs-js/Headers.forEach
+
+    NAME
+	Headers.forEach(cb) -- Iterate over headers.
+
+    SYNOPSIS
+	r.headers.forEach((value, name) => { ... })
+
+    EXAMPLE
+	r.headers.forEach((v, n) => print(`${n}: ${v}`));
+
+    NOTES
+	Argument order matches the Web Fetch spec: value first,
+	name second.
+
+
+quickjs-js/std.in                                                quickjs-js/std.in
+quickjs-js/std.out                                              quickjs-js/std.out
+
+    NAME
+	std.in / std.out / std.err -- Standard FILE objects.
+
+    USAGE
+	import * as std from 'qjs:std';
+	std.out.puts("hello\n");
+	const line = std.in.getline();
+
+    METHODS (on FILE)
+	puts(s)         -- write a string
+	printf(fmt,...) -- formatted write
+	read(buf, off, n) -> bytes read
+	write(buf, off, n) -> bytes written
+	getline()       -> string (one line, sans newline) or null
+	flush()         -- flush buffer
+	close()         -- close handle
+
+    SEE ALSO
+	std.open
+
+
+quickjs-js/std.exit                                            quickjs-js/std.exit
+
+    NAME
+	std.exit(code) -- Exit the program.
+
+    SYNOPSIS
+	std.exit(code)
+
+    PARAMETERS
+	code - Exit status (0 for success).
+
+    NOTES
+	On AmigaOS, returns to the calling shell with the given
+	RC.  Throws inside the engine to unwind cleanly.
+
+
+quickjs-js/std.gc                                                quickjs-js/std.gc
+
+    NAME
+	std.gc() -- Force a GC cycle.
+
+    SEE ALSO
+	-- (C-side: QJS_RunGC)
+
+
+quickjs-js/std.getenv                                        quickjs-js/std.getenv
+
+    NAME
+	std.getenv(name) -- Read an environment variable.
+
+    SYNOPSIS
+	std.getenv(name)   // string | undefined
+
+    NOTES
+	On AmigaOS, reads dos.library variables (GetVar).  Note
+	that NO_COLOR is forced to "1" by default to keep ANSI
+	color codes out of the REPL on bare consoles; override
+	with `setenv NO_COLOR 0` in the shell.
+
+    SEE ALSO
+	os.getvar
+
+
+quickjs-js/std.printf                                        quickjs-js/std.printf
+
+    NAME
+	std.printf(fmt, ...args) -- Formatted write to stdout.
+
+    SYNOPSIS
+	std.printf("%d items\n", n);
+
+    NOTES
+	Subset of C printf supported (%d, %u, %x, %s, %c, %p,
+	%f, %e, %g, %%).  Float formatting goes through the
+	library's custom dtoa.
+
+
+quickjs-js/std.urlGet                                        quickjs-js/std.urlGet
+
+    NAME
+	std.urlGet(url, options?) -- Synchronous HTTP/HTTPS GET.
+
+    SYNOPSIS
+	const body = std.urlGet(url, { full: true, binary: false })
+
+    PARAMETERS
+	url     - "http://..." or "https://..."
+	options -
+	    full   - if true, return { response, responseHeaders, status }
+	    binary - if true, return ArrayBuffer; else string
+
+    RETURN
+	String, ArrayBuffer, or { response, responseHeaders,
+	status } object.  Returns null on non-2xx unless
+	`full: true`.
+
+    NOTES
+	BLOCKS the entire library until complete.  Use fetch()
+	for async behaviour that keeps the REPL/event loop
+	responsive.
+
+    SEE ALSO
+	fetch
+
+
+quickjs-js/std.open                                            quickjs-js/std.open
+
+    NAME
+	std.open(path, mode) -- Open a file.
+
+    SYNOPSIS
+	const f = std.open("RAM:foo.txt", "w");
+
+    PARAMETERS
+	path - File path (Amiga or POSIX-style).
+	mode - "r", "w", "a", "rb", "wb", "ab", with optional "+".
+
+    RETURN
+	FILE object with puts/printf/read/write/getline/flush/close.
+
+    SEE ALSO
+	std.in, std.loadFile, std.writeFile
+
+
+quickjs-js/std.loadFile                                    quickjs-js/std.loadFile
+
+    NAME
+	std.loadFile(path) -- Read entire file as string.
+
+    SYNOPSIS
+	const s = std.loadFile("S:Startup-Sequence");
+
+
+quickjs-js/std.writeFile                                  quickjs-js/std.writeFile
+
+    NAME
+	std.writeFile(path, data) -- Write data to a file.
+
+    SYNOPSIS
+	std.writeFile("RAM:out.txt", "hello\n");
+
+    PARAMETERS
+	data - String or Uint8Array/ArrayBuffer.
+
+
+quickjs-js/os.exec                                              quickjs-js/os.exec
+
+    NAME
+	os.exec(args, options?) -- Run a shell command.
+
+    SYNOPSIS
+	const rc = os.exec(["dir", "RAM:"]);
+
+    NOTES
+	On AmigaOS, uses dos.library SystemTagList() to launch
+	the command synchronously and return its exit code.
+
+    SEE ALSO
+	os.pipe
+
+
+quickjs-js/os.pipe                                              quickjs-js/os.pipe
+
+    NAME
+	os.pipe() -- Create a pipe.
+
+    NOTES
+	Uses the AmigaOS PIPE: device.  Returns [readFd, writeFd].
+	Requires PIPE: handler installed (standard since OS 3.0).
+
+
+quickjs-js/os.kill                                              quickjs-js/os.kill
+
+    NAME
+	os.kill(pid, sig) -- Send a signal to a task.
+
+    NOTES
+	Uses Signal() with AmigaOS break flags.  Limited use on
+	classic AmigaOS without process IDs in the POSIX sense.
+
+
+quickjs-js/os.now                                                quickjs-js/os.now
+
+    NAME
+	os.now() -- Microseconds since the Unix epoch.
+
+    NOTES
+	Resolution is 20ms (50Hz tick).  Returns 0 on systems
+	whose RTC has not been set.
+
+    SEE ALSO
+	os.setTimeout
+
+
+quickjs-js/os.sleep                                            quickjs-js/os.sleep
+
+    NAME
+	os.sleep(ms) -- Block for `ms` milliseconds.
+
+    NOTES
+	Resolution 20ms.  Uses dos.library Delay().
+
+
+quickjs-js/os.setTimeout                                  quickjs-js/os.setTimeout
+
+    NAME
+	os.setTimeout(fn, ms) -- Schedule a function.
+
+    NOTES
+	Resolution 20ms.  Returns a timer id usable with
+	os.clearTimeout().
+
+
+quickjs-js/os.setReadHandler                            os.setReadHandler
+
+    NAME
+	os.setReadHandler(fd, fn) -- Register an FD callback.
+
+    NOTES
+	On AmigaOS, only fd 0 (stdin) is meaningful.  Network
+	sockets do NOT integrate (use fetch() instead).
+
+
+quickjs-js/os.platform                                      quickjs-js/os.platform
+
+    NAME
+	os.platform -- String identifying the host OS.
+
+    VALUE
+	"amigaos"
+
+
+quickjs-js/os.open                                              quickjs-js/os.open
+
+    NAME
+	os.open(path, flags, mode?) -- POSIX-style open.
+
+    SEE ALSO
+	std.open (FILE-based equivalent)
+
+
+quickjs-js/os.read                                              quickjs-js/os.read
+
+    NAME
+	os.read(fd, buf, off, n) -- Read bytes into buffer.
+
+
+quickjs-js/os.write                                            quickjs-js/os.write
+
+    NAME
+	os.write(fd, buf, off, n) -- Write bytes from buffer.
+
+
+quickjs-js/os.stat                                              quickjs-js/os.stat
+
+    NAME
+	os.stat(path) -- File metadata.
+
+
+quickjs-js/os.readdir                                        quickjs-js/os.readdir
+
+    NAME
+	os.readdir(path) -- List directory entries.
+
+
+quickjs-js/os.realpath                                      quickjs-js/os.realpath
+
+    NAME
+	os.realpath(path) -- Resolve a path.
+
+    NOTES
+	Uses dos.library Lock()/NameFromLock() for canonical form.
+
+
+quickjs-js/os.remove                                          quickjs-js/os.remove
+
+    NAME
+	os.remove(path) -- Delete a file.
+
+
+quickjs-js/os.rename                                          quickjs-js/os.rename
+
+    NAME
+	os.rename(old, new) -- Rename a file.
+
+
+quickjs-js/os.chdir                                            quickjs-js/os.chdir
+
+    NAME
+	os.chdir(path) -- Change working directory.
+
+    NOTES
+	Uses CurrentDir().
+
+
+quickjs-js/os.getcwd                                          quickjs-js/os.getcwd
+
+    NAME
+	os.getcwd() -- Get the current working directory.
+
+
+quickjs-js/os.getenv                                          quickjs-js/os.getenv
+
+    NAME
+	os.getenv(name) -- Read an env variable.
+
+    SEE ALSO
+	std.getenv, os.getvar
+
+
+quickjs-js/os.getvar                                          quickjs-js/os.getvar
+
+    NAME
+	os.getvar(name, flags?) -- Read an AmigaOS dos variable.
+
+    NOTES
+	Uses dos.library GetVar().  More flexible than getenv()
+	for AmigaOS-specific variable scopes.
+
+    SEE ALSO
+	os.setvar
+
+
+quickjs-js/os.setvar                                          quickjs-js/os.setvar
+
+    NAME
+	os.setvar(name, value, flags?) -- Set a dos variable.
+
+    NOTES
+	Uses dos.library SetVar().
+
+
+quickjs-js/bjson.read                                        quickjs-js/bjson.read
+
+    NAME
+	bjson.read(buf, offset?, length?) -- Decode a binary JSON
+	    buffer.
+
+    USAGE
+	import * as bjson from 'qjs:bjson';
+	const value = bjson.read(buf);
+
+    NOTES
+	Reads the QuickJS native binary serialization format.
+	Faster and smaller than JSON.parse for round-tripping
+	JS values; not interoperable with other languages.
+
+    SEE ALSO
+	bjson.write
+
+
+quickjs-js/bjson.write                                      quickjs-js/bjson.write
+
+    NAME
+	bjson.write(value) -- Encode a JS value to binary.
+
+    USAGE
+	const buf = bjson.write({ a: [1, 2, 3] });
+
+    RETURN
+	ArrayBuffer.
+
+    SEE ALSO
+	bjson.read
+
