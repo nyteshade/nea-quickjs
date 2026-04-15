@@ -89,42 +89,47 @@ struct hostent_stub {
 #define SOCK_STREAM 1
 #define FIONBIO 0x8004667E  /* from bsdsocket — unused in blocking path */
 
+/* LVO offsets from sdks/NDK3.2R4/SANA+RoadshowTCP-IP/sfd/bsdsocket_lib.sfd
+ * (bias=30, 6-byte entries). These match the values used in the
+ * proven-working amiga_ssl_lib.c (urlGet path). Any deviation triggers
+ * a call to the wrong function — e.g. connect at -36 is actually bind,
+ * producing EADDRNOTAVAIL when you "bind" to a remote IP. */
 static long __fc_socket(__reg("a6") struct Library *base,
                         __reg("d0") long domain,
                         __reg("d1") long type,
                         __reg("d2") long protocol)
-    = "\tjsr\t-30(a6)";
+    = "\tjsr\t-30(a6)";     /* socket */
 
 static long __fc_connect(__reg("a6") struct Library *base,
                          __reg("d0") long s,
                          __reg("a0") struct sockaddr_in_stub *name,
                          __reg("d1") long namelen)
-    = "\tjsr\t-36(a6)";
+    = "\tjsr\t-54(a6)";     /* connect (was -36=bind, my bug) */
 
 static long __fc_send(__reg("a6") struct Library *base,
                       __reg("d0") long s,
                       __reg("a0") const void *buf,
                       __reg("d1") long len,
                       __reg("d2") long flags)
-    = "\tjsr\t-48(a6)";
+    = "\tjsr\t-66(a6)";     /* send (was -48=accept) */
 
 static long __fc_recv(__reg("a6") struct Library *base,
                       __reg("d0") long s,
                       __reg("a0") void *buf,
                       __reg("d1") long len,
                       __reg("d2") long flags)
-    = "\tjsr\t-60(a6)";
+    = "\tjsr\t-78(a6)";     /* recv (was -60=sendto) */
 
 static long __fc_CloseSocket(__reg("a6") struct Library *base,
                              __reg("d0") long s)
-    = "\tjsr\t-108(a6)";
+    = "\tjsr\t-120(a6)";    /* CloseSocket (was -108=getpeername) */
 
 static long __fc_Errno(__reg("a6") struct Library *base)
-    = "\tjsr\t-162(a6)";
+    = "\tjsr\t-162(a6)";    /* Errno */
 
 static struct hostent_stub *__fc_gethostbyname(__reg("a6") struct Library *base,
                                                __reg("a0") const char *name)
-    = "\tjsr\t-210(a6)";
+    = "\tjsr\t-210(a6)";    /* gethostbyname */
 
 /* Use a per-scope socket base: `struct Library *_sb` expected in scope */
 #define fc_socket(d,t,p)     __fc_socket(_sb, (d), (t), (p))
@@ -136,7 +141,10 @@ static struct hostent_stub *__fc_gethostbyname(__reg("a6") struct Library *base,
 #define fc_gethostbyname(n) __fc_gethostbyname(_sb, (n))
 
 /* ================================================================
- * AmiSSL LVO stubs (offsets from sdks/AmiSSL-v5.26-SDK/Developer/fd)
+ * AmiSSL LVO stubs — offsets MUST match library/vbcc/amiga_ssl_lib.c
+ * (the proven-working urlGet path). Values in the AmiSSL fd file vary
+ * across SSL builds; we use what's known to work on this port's AmiSSL
+ * v5.26 SDK.
  * ================================================================ */
 static SSL_CTX *__fc_SSL_CTX_new(__reg("a6") struct Library *base,
                                  __reg("a0") const SSL_METHOD *meth)
@@ -144,35 +152,35 @@ static SSL_CTX *__fc_SSL_CTX_new(__reg("a6") struct Library *base,
 static void __fc_SSL_CTX_free(__reg("a6") struct Library *base,
                               __reg("a0") SSL_CTX *a)
     = "\tjsr\t-8214(a6)";
-static SSL *__fc_SSL_new(__reg("a6") struct Library *base,
-                         __reg("a0") SSL_CTX *ctx)
-    = "\tjsr\t-8286(a6)";
-static void __fc_SSL_free(__reg("a6") struct Library *base,
-                          __reg("a0") SSL *s)
-    = "\tjsr\t-8322(a6)";
 static int __fc_SSL_set_fd(__reg("a6") struct Library *base,
                            __reg("a0") SSL *s,
                            __reg("d0") int fd)
-    = "\tjsr\t-8508(a6)";
+    = "\tjsr\t-8358(a6)";
+static SSL *__fc_SSL_new(__reg("a6") struct Library *base,
+                         __reg("a0") SSL_CTX *ctx)
+    = "\tjsr\t-8784(a6)";
+static void __fc_SSL_free(__reg("a6") struct Library *base,
+                          __reg("a0") SSL *s)
+    = "\tjsr\t-8820(a6)";
 static int __fc_SSL_connect(__reg("a6") struct Library *base,
                             __reg("a0") SSL *s)
-    = "\tjsr\t-8580(a6)";
+    = "\tjsr\t-8832(a6)";
 static int __fc_SSL_read(__reg("a6") struct Library *base,
                          __reg("a0") SSL *s,
                          __reg("a1") void *buf,
                          __reg("d0") int num)
-    = "\tjsr\t-8688(a6)";
+    = "\tjsr\t-8838(a6)";
 static int __fc_SSL_write(__reg("a6") struct Library *base,
                           __reg("a0") SSL *s,
                           __reg("a1") const void *buf,
                           __reg("d0") int num)
-    = "\tjsr\t-8700(a6)";
+    = "\tjsr\t-8850(a6)";
 static long __fc_SSL_ctrl(__reg("a6") struct Library *base,
                           __reg("a0") SSL *s,
                           __reg("d0") int cmd,
                           __reg("d1") long larg,
                           __reg("a1") void *parg)
-    = "\tjsr\t-8376(a6)";
+    = "\tjsr\t-8856(a6)";
 static int __fc_SSL_shutdown(__reg("a6") struct Library *base,
                              __reg("a0") SSL *s)
     = "\tjsr\t-8994(a6)";
