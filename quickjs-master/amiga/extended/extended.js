@@ -505,6 +505,19 @@ _manifests.push(new LocalManifest({
             _notify() { if (this._url) this._url._syncSearchFromParams(); }
         }
 
+        /* Set the params._url back-link as a non-enumerable, non-
+         * writable property so JS_PrintValue walking url._params
+         * doesn't recurse back into the URL and blow out on
+         * Amiga's cycle-unaware printer (which hangs the REPL). */
+        function _setBackLink(params, url) {
+            Object.defineProperty(params, '_url', {
+                value: url,
+                enumerable: false,
+                writable: true,
+                configurable: true,
+            });
+        }
+
         class URL {
             constructor(url, base) {
                 const parsed = URL._parse(String(url), base ? String(base) : null);
@@ -518,7 +531,7 @@ _manifests.push(new LocalManifest({
                 this._query    = parsed.query;
                 this._fragment = parsed.fragment;
                 this._params   = new URLSearchParams(this._query);
-                this._params._url = this;
+                _setBackLink(this._params, this);
             }
 
             static _parse(str, base) {
@@ -595,7 +608,7 @@ _manifests.push(new LocalManifest({
                     _query: parsed.query, _fragment: parsed.fragment,
                 });
                 this._params = new URLSearchParams(this._query);
-                this._params._url = this;
+                _setBackLink(this._params, this);
             }
 
             get protocol() { return this._scheme + ':'; }
@@ -622,7 +635,7 @@ _manifests.push(new LocalManifest({
                 if (s.startsWith('?')) s = s.substring(1);
                 this._query = s;
                 this._params = new URLSearchParams(s);
-                this._params._url = this;
+                _setBackLink(this._params, this);
             }
             get searchParams() { return this._params; }
             get hash() { return this._fragment ? '#' + this._fragment : ''; }

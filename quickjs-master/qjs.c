@@ -38,7 +38,7 @@
 
 #ifdef __VBCC__
 /* AmigaOS port version — bump when adding features or fixing bugs */
-#define AMIGA_PORT_VERSION "0.66"
+#define AMIGA_PORT_VERSION "0.66.1"
 #define AMIGA_PORT_DATE    "14.4.2026"
 #define AMIGA_PORT_DATE_US "04/14/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */

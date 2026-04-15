@@ -101,6 +101,17 @@ const names = all.map(m => m.name);
 check(names.indexOf('text-encoding') < names.indexOf('url'),
       "dependency order (text-encoding before url)");
 
+/* ---------- URL internal cycle is non-enumerable
+ * Regression test for a REPL hang on Amiga: JS_PrintValue there
+ * does not cycle-detect, so url._params._url must be non-enumerable
+ * or it loops forever. */
+const cycleUrl = new globalThis.URL('https://example.com/?q=1');
+const paramsKeys = Object.keys(cycleUrl._params);
+check(!paramsKeys.includes('_url'),
+      "url._params._url is non-enumerable (cycle break)");
+check(cycleUrl._params._url === cycleUrl,
+      "url._params._url is still accessible (back-link intact)");
+
 /* ---------- Report ---------- */
 console.log(`extended.js bundle: ${pass} passed, ${fail} failed`);
 if (fail > 0) {
