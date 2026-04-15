@@ -178,3 +178,92 @@ int fileno(FILE *stream)
  * but the header guard (_AMIGA_COMPAT_VBCC_H) prevents double inclusion.
  */
 #include "../../quickjs-master/quickjs-libc.c"
+
+/* ==================================================================
+ * W7 — qjs:net module
+ *
+ * Exposes the networking capability probe (done once at library
+ * load in qjsfuncs.c:qjs_probe_net_caps) to JS, plus a reprobe()
+ * for picking up newly-installed libraries at runtime.
+ *
+ *   import * as Networking from "qjs:net";
+ *   Networking.hasTCP()   -> boolean
+ *   Networking.hasTLS()   -> boolean
+ *   Networking.status()   -> { tcp, tls }
+ *   Networking.reprobe()  -> { tcp, tls }  (also updates cached caps)
+ *
+ * fetch() consults the cached caps before attempting any request
+ * and throws a clear TypeError naming the missing library.
+ * ================================================================== */
+
+#include "libraryconfig.h"
+
+extern LIBRARY_BASE_TYPE *_qjs_lib_base;
+extern ULONG qjs_reprobe_net_caps(LIBRARY_BASE_TYPE *aBase);
+
+/* Non-static: js_fetch (inside the upstream include above) declares
+ * this extern and calls it before fetch_create on VBCC builds. */
+ULONG qjs_net_caps_current(void)
+{
+    return _qjs_lib_base ? _qjs_lib_base->iNetCaps : 0;
+}
+
+static JSValue js_net_hasTCP(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv)
+{
+    return JS_NewBool(ctx, (qjs_net_caps_current() & QJS_NET_TCP) ? 1 : 0);
+}
+
+static JSValue js_net_hasTLS(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv)
+{
+    return JS_NewBool(ctx, (qjs_net_caps_current() & QJS_NET_TLS) ? 1 : 0);
+}
+
+static JSValue js_net_build_status(JSContext *ctx, ULONG caps)
+{
+    JSValue obj = JS_NewObject(ctx);
+    if (JS_IsException(obj)) return obj;
+    JS_SetPropertyStr(ctx, obj, "tcp",
+                      JS_NewBool(ctx, (caps & QJS_NET_TCP) ? 1 : 0));
+    JS_SetPropertyStr(ctx, obj, "tls",
+                      JS_NewBool(ctx, (caps & QJS_NET_TLS) ? 1 : 0));
+    return obj;
+}
+
+static JSValue js_net_status(JSContext *ctx, JSValueConst this_val,
+                             int argc, JSValueConst *argv)
+{
+    return js_net_build_status(ctx, qjs_net_caps_current());
+}
+
+static JSValue js_net_reprobe(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    ULONG caps = 0;
+    if (_qjs_lib_base)
+        caps = qjs_reprobe_net_caps(_qjs_lib_base);
+    return js_net_build_status(ctx, caps);
+}
+
+static const JSCFunctionListEntry js_net_funcs[] = {
+    JS_CFUNC_DEF("hasTCP",  0, js_net_hasTCP),
+    JS_CFUNC_DEF("hasTLS",  0, js_net_hasTLS),
+    JS_CFUNC_DEF("status",  0, js_net_status),
+    JS_CFUNC_DEF("reprobe", 0, js_net_reprobe),
+};
+
+static int js_net_init(JSContext *ctx, JSModuleDef *m)
+{
+    return JS_SetModuleExportList(ctx, m, js_net_funcs,
+                                  countof(js_net_funcs));
+}
+
+JSModuleDef *js_init_module_net(JSContext *ctx, const char *module_name)
+{
+    JSModuleDef *m;
+    m = JS_NewCModule(ctx, module_name, js_net_init);
+    if (!m) return NULL;
+    JS_AddModuleExportList(ctx, m, js_net_funcs, countof(js_net_funcs));
+    return m;
+}

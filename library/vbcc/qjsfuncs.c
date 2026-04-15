@@ -279,11 +279,67 @@ long long _qjs_time_us(void)
     return (long long)sec * 1000000LL + (long long)usec;
 }
 
+/* ---- W7: networking capability probe ----
+ *
+ * Opens bsdsocket.library v4 and amisslmaster.library (the versioned
+ * version broker, NOT a specific amissl_v*.library — see decision in
+ * Fina / library/vbcc/sharedlib_worker.c) once at library load, closes
+ * them immediately, and records which succeeded in aBase->iNetCaps.
+ * Never fails library load: a system with no networking libs still
+ * gets a usable qjs for non-net scripts.
+ *
+ * AmiSSL master min-version: 5 per the v5.26 SDK
+ * (sdks/AmiSSL-v5.26-SDK/Developer/include/libraries/amisslmaster.h).
+ * Hardcoded to avoid pulling the SDK header into this TU. */
+#define QJS_AMISSL_MASTER_MIN_VERSION 5
+
+static void qjs_probe_net_caps(LIBRARY_BASE_TYPE *aBase)
+{
+    struct ExecBase *sys = aBase->iSysBase;
+    struct Library *probe;
+
+    aBase->iNetCaps = 0;
+
+    probe = __OpenLibrary(sys, "bsdsocket.library", 4);
+    if (probe) {
+        aBase->iNetCaps |= QJS_NET_TCP;
+        __CloseLibrary(sys, probe);
+    }
+
+    probe = __OpenLibrary(sys, "amisslmaster.library",
+                          QJS_AMISSL_MASTER_MIN_VERSION);
+    if (probe) {
+        aBase->iNetCaps |= QJS_NET_TLS;
+        __CloseLibrary(sys, probe);
+    }
+}
+
+/* QJS_GetNetCapabilities_impl — returns the cached iNetCaps bitmask.
+ * Called from the asm trampoline which pushes the library base.
+ * Re-probe is available via Networking.reprobe() in the qjs:net module. */
+ULONG QJS_GetNetCapabilities_impl(LIBRARY_BASE_TYPE *base)
+{
+    if (!base) return 0;
+    return base->iNetCaps;
+}
+
+/* Public helper for qjs:net reprobe — also updates iNetCaps in place. */
+ULONG qjs_reprobe_net_caps(LIBRARY_BASE_TYPE *aBase)
+{
+    qjs_probe_net_caps(aBase);
+    return aBase->iNetCaps;
+}
+
 /* ---- CustomLibInit / CustomLibCleanup ---- */
 
 /* Global SysBase for code that uses VBCC's <proto/exec.h> inline
  * library calls (like amiga_ssl_lib.c calling OpenLibrary). */
 extern struct Library *SysBase;
+
+/* Library base accessible from within-library code that doesn't run
+ * on an LVO entry (e.g. JS-callable C functions in qjs:net, js_fetch).
+ * Set once in CustomLibInit; read-only afterward. */
+LIBRARY_BASE_TYPE *_qjs_lib_base;
 
 BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
 {
@@ -291,6 +347,7 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
 
     /* Set global SysBase BEFORE any code that might use proto/exec.h */
     SysBase = (struct Library *)sys;
+    _qjs_lib_base = aBase;
 
     aBase->iDOSBase = __OpenLibrary(sys, "dos.library", 36);
     if (!aBase->iDOSBase)
@@ -335,6 +392,9 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
 
     /* Save SysBase for debug output */
     g_dbg_sys = sys;
+
+    /* W7: probe networking caps (non-fatal — library loads without them) */
+    qjs_probe_net_caps(aBase);
 
     return FALSE;
 }

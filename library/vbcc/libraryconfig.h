@@ -31,7 +31,16 @@ struct QJSLibBase {
     struct Library *iMathDoubBasBase;
     struct Library *iMathDoubTransBase;
     APTR iMemPool;              /* exec memory pool for allocations */
+    ULONG iNetCaps;             /* W7: bitmask of QJS_NET_* probed at init */
 };
+
+/* Networking capability bits — set by CustomLibInit via probe of
+ * bsdsocket.library (v4) and amisslmaster.library. Queryable via
+ * QJS_GetNetCapabilities LVO and from JS via the "qjs:net" module.
+ * fetch() checks these before attempting a request and throws a
+ * clear TypeError naming the missing library when a cap is absent. */
+#define QJS_NET_TCP  0x01
+#define QJS_NET_TLS  0x02
 
 /* ---- Steering defines ---- */
 
@@ -95,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.075 (15.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.076 (15.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   75   /* packed: major=0, revision=075 (bsdsocket/SSL LVO offsets) */
+#define LIBRARY_VERSION   76   /* packed: major=0, revision=076 (W7 net capability probe) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
@@ -959,6 +968,12 @@ struct Library *QJS_WorkerGetBase(__reg("a6") LIBRARY_BASE_TYPE *base,
                                   __reg("a0") struct QJSWorker *worker,
                                   __reg("d0") unsigned long which);
 
+/* W7 — networking capability probe + qjs:net module registration */
+ULONG QJS_GetNetCapabilities(__reg("a6") LIBRARY_BASE_TYPE *base);
+void *QJS_InitModuleNet(__reg("a6") LIBRARY_BASE_TYPE *base,
+                        __reg("a0") struct JSContext *ctx,
+                        __reg("a1") const char *module_name);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -1170,6 +1185,8 @@ void QJS_Eval(
     (APTR) QJS_WorkerPoll, \
     (APTR) QJS_WorkerJoin, \
     (APTR) QJS_WorkerDestroy, \
-    (APTR) QJS_WorkerGetBase
+    (APTR) QJS_WorkerGetBase, \
+    (APTR) QJS_GetNetCapabilities, \
+    (APTR) QJS_InitModuleNet
 
 #endif /* LIBRARYCONFIG_H */

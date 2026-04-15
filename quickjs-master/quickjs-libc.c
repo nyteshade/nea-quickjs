@@ -5606,6 +5606,32 @@ JSValue js_fetch(JSContext *ctx, JSValueConst this_val,
     url = JS_ToCString(ctx, argv[0]);
     if (!url) return JS_EXCEPTION;
 
+#if defined(__VBCC__)
+    /* W7: gate fetch on probed networking caps. Throws a clear error
+     * naming the missing library rather than letting fetch_create fail
+     * opaquely inside a worker task. */
+    {
+        extern unsigned long qjs_net_caps_current(void);
+        unsigned long caps = qjs_net_caps_current();
+        int needs_tls = (url[0]=='h' && url[1]=='t' && url[2]=='t' &&
+                         url[3]=='p' && url[4]=='s');
+        int needs_tcp = (url[0]=='h' && url[1]=='t' && url[2]=='t' &&
+                         url[3]=='p');
+        if (needs_tls && !(caps & 0x02)) {
+            JS_FreeCString(ctx, url);
+            return JS_ThrowTypeError(ctx,
+                "networking unavailable: amisslmaster.library not installed "
+                "(required for https://)");
+        }
+        if (needs_tcp && !(caps & 0x01)) {
+            JS_FreeCString(ctx, url);
+            return JS_ThrowTypeError(ctx,
+                "networking unavailable: bsdsocket.library not installed "
+                "(required for http://)");
+        }
+    }
+#endif
+
     /* Parse options */
     if (argc > 1 && JS_IsObject(argv[1])) {
         JSValue v;

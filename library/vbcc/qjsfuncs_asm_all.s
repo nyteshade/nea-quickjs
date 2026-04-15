@@ -414,6 +414,10 @@
 	xref	_QJS_WorkerDestroy_impl
 	xdef	_QJS_WorkerGetBase
 	xref	_QJS_WorkerGetBase_impl
+	xdef	_QJS_GetNetCapabilities
+	xref	_QJS_GetNetCapabilities_impl
+	xdef	_QJS_InitModuleNet
+	xref	_js_init_module_net
 
 
 ; ===================================================================
@@ -3654,6 +3658,33 @@ _QJS_WorkerGetBase:
 	jsr	_QJS_WorkerGetBase_impl
 	lea	8(sp),sp
 	move.l	d0,a0			; return in a0
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ===================================================================
+; W7 net capability probe
+; SFD: QJS_GetNetCapabilities()()             -> ULONG in d0
+;      QJS_InitModuleNet(ctx,module_name)(a0/a1) -> JSModuleDef* in d0
+; ===================================================================
+
+; QJS_GetNetCapabilities — () -> d0 (ULONG caps)
+; Impl needs the library base to read iNetCaps; push A6 before movem
+; overwrites it on stack (movem copies — a6 is preserved in a6 too).
+_QJS_GetNetCapabilities:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a6,-(sp)		; base
+	jsr	_QJS_GetNetCapabilities_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InitModuleNet — (ctx, module_name)(a0/a1)
+_QJS_InitModuleNet:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a1,-(sp)
+	move.l	a0,-(sp)
+	jsr	_js_init_module_net
+	lea	8(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 

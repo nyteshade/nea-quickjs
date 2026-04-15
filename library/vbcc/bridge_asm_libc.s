@@ -199,3 +199,23 @@ _bridge_InstallExtended:
 	jsr	(a5)
 	movem.l	(sp)+,d2/a2-a6
 	rts
+
+; ===================================================================
+; W7 — bridges for the networking capability probe
+; Worker LVOs occupy -1152..-1176 (WorkerSpawn..WorkerGetBase).
+; Net LVOs follow at -1182 (GetNetCapabilities) and -1188 (InitModuleNet).
+; ===================================================================
+
+; bridge_InitModuleNet(ctx, module_name) -> void*
+; LVO -1188
+	xdef	_bridge_InitModuleNet
+_bridge_InitModuleNet:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	32(sp),a1
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1188,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
