@@ -1,0 +1,41 @@
+{
+  "author": "Brielle Harrison <nyteshade at gmail.com>",
+  "browser": "dist/@nejs/extension.bundle.2.24.1.js",
+  "description": "A small library for extending existing JavaScript",
+  "devDependencies": {
+    "@nejs/jsdoc-react-theme": "^2.1.2",
+    "esbuild": "^0.25.3",
+    "vitest": "^3.1.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "browser": "./dist/esm/extension.mjs",
+      "import": "./src/index.js",
+      "require": "./dist/cjs/index.cjs"
+    }
+  },
+  "iifeGlobalName": "",
+  "keywords": [
+    "javascript",
+    "browser",
+    "localStorage"
+  ],
+  "license": "MIT",
+  "main": "dist/cjs/index.cjs",
+  "module": "src/index.js",
+  "name": "@nejs/extension",
+  "scripts": {
+    "build": "bin/clean && bin/version patch bump && bin/esbuild",
+    "distribute": "bin/clean && bin/version minor bump && bin/esbuild && npm publish",
+    "docs": "npx jsdoc-react src -o docs",
+    "browser": "bin/esbuild",
+    "clean": "bin/clean",
+    "prepack": "bin/clean && bin/esbuild",
+    "test": "vitest"
+  },
+  "type": "module",
+  "version": "2.24.1"
+}
