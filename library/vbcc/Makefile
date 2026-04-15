@@ -56,12 +56,27 @@ CFLAGS_COMMON = +aos68k -c -cpu=$(CPU) -O1 \
          -I$(INCLUDE) -I$(QJS) \
          -I$(TEMPLATE) -I$(LIBVBCC)
 
-# FPU variant flags
-CFLAGS_FPU  = $(CFLAGS_COMMON) -fpu=68881
+# CPU tag (020, 040, 060) used in $VER string and filenames
+ifeq ($(CPU),68020)
+CPU_TAG_LOCAL = 020
+endif
+ifeq ($(CPU),68040)
+CPU_TAG_LOCAL = 040
+endif
+ifeq ($(CPU),68060)
+CPU_TAG_LOCAL = 060
+endif
+
+# FPU variant flags — inject QJS_VARIANT_NAME as an unquoted token;
+# libraryconfig.h stringifies it via QJS_STR() so the $VER string
+# identifies the specific library instance (e.g. "quickjs.020fpu.library").
+CFLAGS_FPU  = $(CFLAGS_COMMON) -fpu=68881 \
+              -DQJS_VARIANT_NAME=$(CPU_TAG_LOCAL)fpu
 ASMFLAGS_FPU = -Fhunk -nowarn=62 -m$(CPU) -m68881
 
 # Soft-float variant flags (no -fpu, uses -amiga-softfloat from aos68k config)
-CFLAGS_SOFT = $(CFLAGS_COMMON)
+CFLAGS_SOFT = $(CFLAGS_COMMON) \
+              -DQJS_VARIANT_NAME=$(CPU_TAG_LOCAL)soft
 ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m$(CPU)
 
 # Linker flags
@@ -118,7 +133,9 @@ FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/qjsfuncs_asm_all.o \
               $(OBJDIR_FPU)/execinline.o $(OBJDIR_FPU)/qjs_dbg_stub.o \
               $(OBJDIR_FPU)/quickjs_libc_lib.o \
-              $(OBJDIR_FPU)/amiga_ssl_lib.o
+              $(OBJDIR_FPU)/amiga_ssl_lib.o \
+              $(OBJDIR_FPU)/extended.o \
+              $(OBJDIR_FPU)/sharedlib_worker.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
 
@@ -144,7 +161,9 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/qjsfuncs_asm_all.o \
               $(OBJDIR_SOFT)/execinline.o $(OBJDIR_SOFT)/qjs_dbg_stub.o \
               $(OBJDIR_SOFT)/quickjs_libc_lib.o \
-              $(OBJDIR_SOFT)/amiga_ssl_lib.o
+              $(OBJDIR_SOFT)/amiga_ssl_lib.o \
+              $(OBJDIR_SOFT)/extended.o \
+              $(OBJDIR_SOFT)/sharedlib_worker.o
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
@@ -226,7 +245,7 @@ $(OBJDIR_FPU)/libregexp.o: $(QJS)/libregexp.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/libunicode.o: $(QJS)/libunicode.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
-$(OBJDIR_FPU)/library.o: $(TEMPLATE)/library.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/library.o: $(TEMPLATE)/library.c $(LIBVBCC)/libraryconfig.h | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/qjsfuncs.o: $(LIBVBCC)/qjsfuncs.c | $(OBJDIR_FPU)
@@ -245,6 +264,12 @@ $(OBJDIR_FPU)/quickjs_libc_lib.o: $(LIBVBCC)/quickjs_libc_lib.c $(QJS)/quickjs-l
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/amiga_ssl_lib.o: $(LIBVBCC)/amiga_ssl_lib.c $(SRC)/amiga_ssl.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/extended.o: $(QJS)/gen/extended.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_FPU)
@@ -316,7 +341,7 @@ $(OBJDIR_SOFT)/libregexp.o: $(QJS)/libregexp.c | $(OBJDIR_SOFT)
 $(OBJDIR_SOFT)/libunicode.o: $(QJS)/libunicode.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
-$(OBJDIR_SOFT)/library.o: $(TEMPLATE)/library.c | $(OBJDIR_SOFT)
+$(OBJDIR_SOFT)/library.o: $(TEMPLATE)/library.c $(LIBVBCC)/libraryconfig.h | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/qjsfuncs.o: $(LIBVBCC)/qjsfuncs.c | $(OBJDIR_SOFT)
@@ -335,6 +360,12 @@ $(OBJDIR_SOFT)/quickjs_libc_lib.o: $(LIBVBCC)/quickjs_libc_lib.c $(QJS)/quickjs-
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/amiga_ssl_lib.o: $(LIBVBCC)/amiga_ssl_lib.c $(SRC)/amiga_ssl.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/extended.o: $(QJS)/gen/extended.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_SOFT)

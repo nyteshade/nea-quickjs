@@ -148,11 +148,11 @@ extern const uint32_t qjsc_repl_size;
 extern const uint8_t qjsc_standalone[];
 extern const uint32_t qjsc_standalone_size;
 #ifdef __VBCC__
-extern const uint8_t qjsc_extended[];
-extern const uint32_t qjsc_extended_size;
 /* Extended mode is ON by default on Amiga — scripts get URL, TextEncoder,
  * console.*, process, path, AbortController, etc. without needing a flag.
- * Pass --no-extensions (or -nox) to disable for a stock-quickjs-ng env. */
+ * Pass --no-extensions (or -nox) to disable for a stock-quickjs-ng env.
+ * The bytecode lives in quickjs.library; call via the LVO bridge. */
+extern void bridge_InstallExtended(struct JSContext *ctx);
 static int extended_mode = 1;
 #endif
 
@@ -853,7 +853,7 @@ start:
          * bytecode.  The bytecode imports qjs:std and qjs:os, so we
          * must run it AFTER js_std_add_helpers and the std/os init. */
         if (extended_mode) {
-            js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
+            bridge_InstallExtended(ctx);
         }
 #endif
 

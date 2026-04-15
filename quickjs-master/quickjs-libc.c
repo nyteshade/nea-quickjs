@@ -5697,6 +5697,13 @@ void js_fetch_init_classes(JSContext *ctx)
     JSRuntime *rt = JS_GetRuntime(ctx);
     JSValue proto;
 
+    /* Reset stale active_fetch left over from a prior CLI run.
+     * AmigaOS shared-library data persists across opens, so a fetch
+     * that didn't finish cleanly in a previous session would leave
+     * active_fetch pointing at a freed context. Don't call cleanup
+     * (the ctx is stale); just null it out. */
+    active_fetch = NULL;
+
     /* Headers class */
     JS_NewClassID(rt, &js_headers_class_id);
     JS_NewClass(rt, js_headers_class_id, &js_headers_class);

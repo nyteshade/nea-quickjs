@@ -40,9 +40,10 @@ BRIDGE_SRC = $(LIBVBCC)/quickjs_bridge.c
 COMPAT_SRC = $(SRC)/amiga_compat_vbcc.c
 
 # Bytecode modules (compiled by qjsc on host, in gen/)
+# Note: extended.c bytecode lives in quickjs.library, NOT the CLI.
+# The CLI calls bridge_InstallExtended() to run it via LVO.
 REPL_SRC   = $(QJS)/gen/repl.c
 STAND_SRC  = $(QJS)/gen/standalone.c
-EXT_SRC    = $(QJS)/gen/extended.c
 
 # Object files
 VASM = $(VBCC)/vasmm68k_mot
@@ -57,8 +58,7 @@ OBJS = $(OBJDIR)/qjs.o \
        $(OBJDIR)/bridge_asm_libc.o \
        $(OBJDIR)/amiga_compat_vbcc.o \
        $(OBJDIR)/repl.o \
-       $(OBJDIR)/standalone.o \
-       $(OBJDIR)/extended.o
+       $(OBJDIR)/standalone.o
 
 TARGET = $(CDIR)/qjs
 
@@ -86,9 +86,6 @@ $(OBJDIR)/repl.o: $(REPL_SRC) | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
 
 $(OBJDIR)/standalone.o: $(STAND_SRC) | $(OBJDIR)
-	$(VC) $(CFLAGS) $< -o $@
-
-$(OBJDIR)/extended.o: $(EXT_SRC) | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
 
 $(OBJDIR)/bridge_a6.o: $(LIBVBCC)/bridge_a6.s | $(OBJDIR)

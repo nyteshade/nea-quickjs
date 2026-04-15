@@ -488,6 +488,24 @@ void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
         (void *)js_module_loader, NULL);
 }
 
+/* QJS_InstallExtended_impl — runs precompiled extended.js bytecode.
+ * Installs URL, TextEncoder, TextDecoder, console.*, process, path,
+ * AbortController, structuredClone, etc. as globals.  The bytecode
+ * imports qjs:std and qjs:os, so this must be called AFTER
+ * QJS_StdAddHelpers + std/os module init.
+ *
+ * Lives in the library so that every app that opens quickjs.library
+ * — not just the qjs CLI — gets the full extended JS surface. */
+extern const unsigned char qjsc_extended[];
+extern const unsigned long qjsc_extended_size;
+extern void js_std_eval_binary(struct JSContext *ctx, const unsigned char *buf,
+                               unsigned long buf_len, int flags);
+
+void QJS_InstallExtended_impl(struct JSContext *ctx)
+{
+    js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
+}
+
 /* QJS_NewDate_impl — called from assembly, no __reg.
  * Composite function: uses multiple JSValue locals. */
 void QJS_NewDate_impl(

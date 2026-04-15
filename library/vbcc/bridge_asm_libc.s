@@ -184,3 +184,18 @@ _bridge_SetModuleLoader:
 	jsr	(a5)
 	movem.l	(sp)+,d2/a2-a6
 	rts
+
+; ===================================================================
+; bridge_InstallExtended(ctx) -> void
+; LVO -1146
+; ===================================================================
+	xdef	_bridge_InstallExtended
+_bridge_InstallExtended:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1146,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts

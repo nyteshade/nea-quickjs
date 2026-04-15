@@ -36,10 +36,69 @@ struct QJSLibBase {
 /* ---- Steering defines ---- */
 
 #define LIBRARY_NAME "quickjs.library"
-#define LIBRARY_VERSION_STRING "\0$VER: quickjs.library 0.66 (14.4.2026)\r\n"
+
+/* QJS_VARIANT_NAME is injected by the Makefile per CPU/FPU variant
+ * as an UNQUOTED token: 020fpu, 020soft, 040fpu, 040soft, 060fpu, 060soft.
+ * QJS_STR() stringifies it (two-level macro is required for token
+ * concatenation → string literal conversion to work with passed-in defines).
+ *
+ * Appears in the $VER string so each library instance is self-identifying
+ * even after being copied to LIBS:quickjs.library (where the filename
+ * no longer carries the variant info). */
+#ifndef QJS_VARIANT_NAME
+#define QJS_VARIANT_NAME unknown
+#endif
+#define _QJS_STR(x) #x
+#define QJS_STR(x) _QJS_STR(x)
+
+/* ===== Packed-decimal versioning =====
+ *
+ * AmigaOS's lib_Version field is a single UWORD checked by OpenLibrary's
+ * gate. A naive split (major in lib_Version, minor in lib_Revision) has
+ * two failure modes: (1) minor bumps don't evict resident old copies
+ * (lib_Version stays the same), and (2) bumping to "1.0" culturally
+ * signals a release we haven't earned yet.
+ *
+ * Solution: lib_Version holds a PACKED decimal number  M*1000 + R, where
+ *   M = major digit (0..65)    — pre-release while 0, released when ≥1
+ *   R = revision   (000..999)  — monotonic within a major; always displayed
+ *                                as three digits (leading zeros preserved)
+ *
+ * Examples:
+ *   lib_Version = 70   → displays "0.070"  — pre-release, has Worker API
+ *   lib_Version = 120  → displays "0.120"  — future dev state
+ *   lib_Version = 1000 → displays "1.000"  — first real release
+ *   lib_Version = 1005 → displays "1.005"  — first post-release bugfix
+ *   lib_Version = 1050 → displays "1.050"  — NOT "1.05"; always 3-digit rev
+ *
+ * Properties:
+ *   - Integer monotonic: OpenLibrary's version check and exec's resident
+ *     eviction both work correctly — any newer version is strictly greater.
+ *   - No cultural overclaim: we stay under 1000 until genuinely releasing
+ *     v1. The $VER string matches the packed encoding.
+ *   - Consumer API gate: OpenLibrary("quickjs.library", 70) means "I need
+ *     at least the 0.070 API (which has Worker LVOs)". When we add a new
+ *     capability (e.g. child_process at packed 200), consumers who need
+ *     that pass 200.
+ *
+ * Bump rules:
+ *   - Any bugfix, feature, LVO addition → lib_Version += 1
+ *   - Cutting a real v1 release         → lib_Version jumps to 1000
+ *   - v1 post-release patches           → 1001, 1002, ...
+ *   - Next major (v2)                   → 2000
+ *
+ * lib_Revision (the Library struct field) is redundant with the packed
+ * encoding; we mirror the revision part there purely for anything that
+ * naively prints "lib_Version.lib_Revision" (not much does on AmigaOS —
+ * the 'version' command reads $VER).
+ *
+ * Worker API milestone is lib_Version = 70 ("0.070").
+ */
+#define LIBRARY_VERSION_STRING \
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.070 (15.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION 0
-#define LIBRARY_REVISION 66
+#define LIBRARY_VERSION   70   /* packed: major=0, revision=070 */
+#define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
 /* ---- Function declarations ---- */
@@ -881,6 +940,24 @@ void QJS_StdEvalBinary(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct J
 void QJS_StdDumpError(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx);
 void *QJS_LoadFile(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx, __reg("a1") ULONG *pbuf_len, __reg("a2") const char *filename);
 void QJS_SetModuleLoader(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSRuntime *rt);
+void QJS_InstallExtended(__reg("a6") LIBRARY_BASE_TYPE *base, __reg("a0") struct JSContext *ctx);
+
+/* Worker primitive — docs/WORKER_API.md */
+struct QJSWorker;
+typedef int (*QJSWorkerJobFn)(struct QJSWorker *worker, void *user_data);
+struct QJSWorker *QJS_WorkerSpawn(__reg("a6") LIBRARY_BASE_TYPE *base,
+                                  __reg("a0") QJSWorkerJobFn job_fn,
+                                  __reg("a1") void *user_data,
+                                  __reg("d0") unsigned long flags);
+long QJS_WorkerPoll(__reg("a6") LIBRARY_BASE_TYPE *base,
+                    __reg("a0") struct QJSWorker *worker);
+long QJS_WorkerJoin(__reg("a6") LIBRARY_BASE_TYPE *base,
+                    __reg("a0") struct QJSWorker *worker);
+void QJS_WorkerDestroy(__reg("a6") LIBRARY_BASE_TYPE *base,
+                       __reg("a0") struct QJSWorker *worker);
+struct Library *QJS_WorkerGetBase(__reg("a6") LIBRARY_BASE_TYPE *base,
+                                  __reg("a0") struct QJSWorker *worker,
+                                  __reg("d0") unsigned long which);
 
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
@@ -1087,6 +1164,12 @@ void QJS_Eval(
     (APTR) QJS_StdEvalBinary, \
     (APTR) QJS_StdDumpError, \
     (APTR) QJS_LoadFile, \
-    (APTR) QJS_SetModuleLoader
+    (APTR) QJS_SetModuleLoader, \
+    (APTR) QJS_InstallExtended, \
+    (APTR) QJS_WorkerSpawn, \
+    (APTR) QJS_WorkerPoll, \
+    (APTR) QJS_WorkerJoin, \
+    (APTR) QJS_WorkerDestroy, \
+    (APTR) QJS_WorkerGetBase
 
 #endif /* LIBRARYCONFIG_H */

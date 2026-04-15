@@ -1,4 +1,4 @@
-==id quickjs_lib 0.64
+==id quickjs_lib 0.67
 ==base _QJSBase
 ==bias 30
 ==public
@@ -190,4 +190,10 @@ QJS_StdEvalBinary(ctx,buf,buf_len,flags)(a0/a1/d0/d1)
 QJS_StdDumpError(ctx)(a0)
 QJS_LoadFile(ctx,pbuf_len,filename)(a0/a1/a2)
 QJS_SetModuleLoader(rt)(a0)
+QJS_InstallExtended(ctx)(a0)
+QJS_WorkerSpawn(job_fn,user_data,flags)(a0/a1/d0)
+QJS_WorkerPoll(worker)(a0)
+QJS_WorkerJoin(worker)(a0)
+QJS_WorkerDestroy(worker)(a0)
+QJS_WorkerGetBase(worker,which)(a0/d0)
 ==end

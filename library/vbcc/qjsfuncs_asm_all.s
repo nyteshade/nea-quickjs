@@ -402,6 +402,18 @@
 	xdef	_QJS_StdDumpError
 	xdef	_QJS_LoadFile
 	xdef	_QJS_SetModuleLoader
+	xdef	_QJS_InstallExtended
+	xref	_QJS_InstallExtended_impl
+	xdef	_QJS_WorkerSpawn
+	xref	_QJS_WorkerSpawn_impl
+	xdef	_QJS_WorkerPoll
+	xref	_QJS_WorkerPoll_impl
+	xdef	_QJS_WorkerJoin
+	xref	_QJS_WorkerJoin_impl
+	xdef	_QJS_WorkerDestroy
+	xref	_QJS_WorkerDestroy_impl
+	xdef	_QJS_WorkerGetBase
+	xref	_QJS_WorkerGetBase_impl
 
 
 ; ===================================================================
@@ -3573,6 +3585,75 @@ _QJS_SetModuleLoader:
 	move.l	a0,-(sp)
 	jsr	_QJS_SetModuleLoader_impl
 	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InstallExtended — (ctx)(a0)
+; Installs extended.js bytecode (URL, TextEncoder, process, path, console.*, etc.)
+_QJS_InstallExtended:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_InstallExtended_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; ============================================================
+; Worker primitive trampolines
+; SFD: QJS_WorkerSpawn(job_fn,user_data,flags)(a0/a1/d0)
+;      QJS_WorkerPoll(worker)(a0)
+;      QJS_WorkerJoin(worker)(a0)
+;      QJS_WorkerDestroy(worker)(a0)
+;      QJS_WorkerGetBase(worker,which)(a0/d0)
+; ============================================================
+
+; QJS_WorkerSpawn — (job_fn, user_data, flags)(a0/a1/d0)
+_QJS_WorkerSpawn:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)		; flags
+	move.l	a1,-(sp)		; user_data
+	move.l	a0,-(sp)		; job_fn
+	jsr	_QJS_WorkerSpawn_impl
+	lea	12(sp),sp
+	move.l	d0,a0			; return value lives in a0 per SFD
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_WorkerPoll — (worker)(a0) -> d0 (long)
+_QJS_WorkerPoll:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_WorkerPoll_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_WorkerJoin — (worker)(a0) -> d0 (long)
+_QJS_WorkerJoin:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_WorkerJoin_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_WorkerDestroy — (worker)(a0) -> void
+_QJS_WorkerDestroy:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_QJS_WorkerDestroy_impl
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_WorkerGetBase — (worker, which)(a0/d0) -> a0 (struct Library*)
+_QJS_WorkerGetBase:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)		; which
+	move.l	a0,-(sp)		; worker
+	jsr	_QJS_WorkerGetBase_impl
+	lea	8(sp),sp
+	move.l	d0,a0			; return in a0
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 

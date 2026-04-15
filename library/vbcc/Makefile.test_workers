@@ -1,0 +1,54 @@
+# Makefile.test_workers — Native stress test for QJS_Worker* primitive.
+#
+# Links directly against quickjs.library via LVO (no QuickJS runtime).
+# Validates the Worker threading substrate before fetch is migrated
+# onto it (Phase W4).
+#
+# Usage:
+#   make -f Makefile.test_workers        — build test_workers
+#   make -f Makefile.test_workers clean  — remove build artifacts
+#
+# Run on Amiga/amiberry:
+#   amiga/c/test_workers
+
+VBCC ?= $(HOME)/vbcc
+VC   = $(VBCC)/bin/vc
+VASM = $(VBCC)/vasmm68k_mot
+
+ROOT     = ../..
+INCLUDE  = $(ROOT)/include
+QJS      = $(ROOT)/quickjs-master
+SRC_DIR  = $(ROOT)/amiga/c/test_workers_src
+OUTDIR   = $(ROOT)/amiga
+CDIR     = $(OUTDIR)/c
+OBJDIR   = /tmp/qjstest_workers
+
+CFLAGS = +aos68k -c -cpu=68020 -fpu=68881 -O1 \
+         -I$(VBCC)/targets/m68k-amigaos/include \
+         -I$(VBCC)/posixlib/include \
+         -I$(INCLUDE)
+
+LDFLAGS = +aos68k -cpu=68020 -fpu=68881 \
+          -L$(VBCC)/posixlib/AmigaOS3
+
+SRCS = $(SRC_DIR)/test_workers.c
+OBJS = $(OBJDIR)/test_workers.o
+
+TARGET = $(CDIR)/test_workers
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
+
+$(OBJDIR)/test_workers.o: $(SRC_DIR)/test_workers.c | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(TARGET): $(OBJS)
+	$(VC) $(LDFLAGS) $(OBJS) -lamiga -lm881 -o $@
+	@ls -la $@
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
