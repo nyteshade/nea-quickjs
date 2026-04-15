@@ -1,0 +1,44 @@
+# Makefile.flushlibs — Build the flushlibs utility for AmigaOS.
+#
+# flushlibs force-closes libraries related to the quickjs dev workflow
+# (quickjs.library itself + amisslmaster + amissl sub-libraries) so a
+# fresh copy from LIBS: gets loaded on the next OpenLibrary.
+#
+# Usage:
+#   make -f Makefile.flushlibs        — build amiga/c/flushlibs
+#   make -f Makefile.flushlibs clean
+
+VBCC ?= $(HOME)/vbcc
+VC   = $(VBCC)/bin/vc
+
+ROOT     = ../..
+SRC_FILE = $(ROOT)/library/tests/flushlibs.c
+OUTDIR   = $(ROOT)/amiga
+CDIR     = $(OUTDIR)/c
+OBJDIR   = /tmp/qjsflushlibs
+
+CFLAGS = +aos68k -c -cpu=68020 -O1 \
+         -I$(VBCC)/targets/m68k-amigaos/include \
+         -I$(VBCC)/posixlib/include
+
+LDFLAGS = +aos68k -cpu=68020 \
+          -L$(VBCC)/posixlib/AmigaOS3
+
+TARGET = $(CDIR)/flushlibs
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
+
+$(OBJDIR)/flushlibs.o: $(SRC_FILE) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(TARGET): $(OBJDIR)/flushlibs.o
+	$(VC) $(LDFLAGS) $(OBJDIR)/flushlibs.o -lamiga -o $@
+	@ls -la $@
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
