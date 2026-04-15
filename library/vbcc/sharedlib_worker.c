@@ -133,6 +133,11 @@ struct QJSWorker {
     volatile unsigned long state;
     volatile long            result;   /* job_fn's return value (DONE only) */
 
+    /* Framework-level error (e.g. "bsdsocket.library open failed").
+     * Filled by worker_entry before setting state=FAILED. Distinct from
+     * the consumer's own error channel (job_fn writes into user_data). */
+    char  fw_error[96];
+
     /* Per-worker library bases — opened IN the worker task */
     struct Library *socket_base;
     struct Library *ssl_base;          /* amissl_v*.library (selected by master) */
@@ -166,12 +171,25 @@ extern const void *TLS_client_method(void);
 /* These are declared by amissl/openssl headers — resolved by the
  * worker's own AmiSSL base at call time. */
 
+/* Tiny string copy — avoids pulling in string.h */
+static void fw_set_err(struct QJSWorker *w, const char *msg)
+{
+    char *d = w->fw_error;
+    int n = sizeof(w->fw_error) - 1;
+    while (n-- > 0 && *msg) *d++ = *msg++;
+    *d = '\0';
+}
+
 /* Open bsdsocket.library — required for SSL */
 static int worker_open_socket(struct QJSWorker *w)
 {
     if (w->socket_base) return 0;
     w->socket_base = w_OpenLibrary("bsdsocket.library", 4);
-    return w->socket_base ? 0 : -1;
+    if (!w->socket_base) {
+        fw_set_err(w, "OpenLibrary(bsdsocket.library, 4) failed");
+        return -1;
+    }
+    return 0;
 }
 
 /* OpenAmiSSLTagList LVO — master library's version broker.
@@ -234,7 +252,10 @@ static int worker_open_ssl(struct QJSWorker *w)
      * path for consistent behavior. */
     w->ssl_master_base = w_OpenLibrary("amisslmaster.library",
                                        AMISSLMASTER_MIN_VERSION);
-    if (!w->ssl_master_base) return -1;
+    if (!w->ssl_master_base) {
+        fw_set_err(w, "OpenLibrary(amisslmaster.library) failed");
+        return -1;
+    }
 
     /* Let the master pick the newest installed sub-library that
      * satisfies AMISSL_CURRENT_VERSION. Populates &w->ssl_base and
@@ -253,6 +274,7 @@ static int worker_open_ssl(struct QJSWorker *w)
     ssl_tags[5].ti_Data = 0;
 
     if (w_OpenAmiSSLTagList(AMISSL_CURRENT_VERSION, ssl_tags) != 0) {
+        fw_set_err(w, "OpenAmiSSLTagList failed");
         w_CloseLibrary(w->ssl_master_base);
         w->ssl_master_base = NULL;
         return -1;
@@ -315,6 +337,18 @@ static void worker_entry(void)
          * a watchdog or by the consumer's own timeout. */
         return;
     }
+
+    /* Release tc_UserData IMMEDIATELY. Several AmigaOS libraries
+     * (notably bsdsocket.library) stash per-task state in tc_UserData
+     * when the task opens them. If we leave our QJSWorker pointer
+     * parked there, OpenLibrary("bsdsocket.library") either silently
+     * refuses or overwrites our pointer. Read once, then clear.
+     *
+     * We kept it intact up to this point because the atomic handoff
+     * under Forbid/Permit was the only way for the main task to pass
+     * the QJSWorker pointer on AOS 3.x (no NP_UserData tag). Now that
+     * we have the value, the field belongs to whoever wants it. */
+    me->tc_UserData = NULL;
 
     w->state = QJS_WORKER_RUNNING;
 
@@ -480,4 +514,13 @@ struct Library *QJS_WorkerGetBase_impl(QJSWorker *worker, unsigned long which)
         case QJS_WORKER_BASE_DOS:    return worker->dos_base;
         default:                     return NULL;
     }
+}
+
+/* Retrieve the framework-level error message, if any. Only populated
+ * when a per-task library open failed — returns empty string otherwise.
+ * Consumers use this to surface "bsdsocket failed" etc. to users. */
+const char *QJS_WorkerGetError_impl(QJSWorker *worker)
+{
+    if (!worker) return "null worker";
+    return worker->fw_error[0] ? worker->fw_error : "";
 }

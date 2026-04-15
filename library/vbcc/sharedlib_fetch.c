@@ -589,6 +589,7 @@ extern QJSWorker *QJS_WorkerSpawn_impl(QJSWorkerJobFn, void *, unsigned long);
 extern long QJS_WorkerPoll_impl(QJSWorker *);
 extern long QJS_WorkerJoin_impl(QJSWorker *);
 extern void QJS_WorkerDestroy_impl(QJSWorker *);
+extern const char *QJS_WorkerGetError_impl(QJSWorker *);
 
 FetchContext *fetch_create(const char *url, const char *method,
                            const char *custom_headers,
@@ -669,13 +670,26 @@ int fetch_step(FetchContext *ctx, int *want_read, int *want_write)
     if (s == QJS_WORKER_DONE || s == QJS_WORKER_FAILED) {
         /* Job filled ctx->state already. If the Worker framework
          * reported FAILED, upgrade our state to ERROR in case the
-         * job never got far enough to set it. */
+         * job never got far enough to set it. Pull the framework's
+         * specific error message so the caller sees WHY (e.g.
+         * "OpenLibrary(bsdsocket.library, 4) failed" rather than
+         * an opaque "Worker failed"). */
         if (s == QJS_WORKER_FAILED &&
             ctx->state != FETCH_STATE_ERROR &&
             ctx->state != FETCH_STATE_DONE) {
+            const char *fw = QJS_WorkerGetError_impl(ctx->worker);
             ctx->state = FETCH_STATE_ERROR;
-            if (!ctx->error_msg[0])
-                strcpy(ctx->error_msg, "Worker failed");
+            if (!ctx->error_msg[0]) {
+                if (fw && fw[0]) {
+                    int n = strlen(fw);
+                    if (n > (int)sizeof(ctx->error_msg) - 1)
+                        n = sizeof(ctx->error_msg) - 1;
+                    memcpy(ctx->error_msg, fw, n);
+                    ctx->error_msg[n] = '\0';
+                } else {
+                    strcpy(ctx->error_msg, "Worker failed (no reason)");
+                }
+            }
         }
         return 1;
     }
