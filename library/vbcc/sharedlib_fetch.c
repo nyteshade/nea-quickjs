@@ -1,294 +1,201 @@
-/*
- * sharedlib_fetch.c -- Non-blocking HTTP/HTTPS fetch state machine
+/* sharedlib_fetch.c — HTTP/HTTPS fetch implemented on the QJS_Worker
+ * primitive (docs/WORKER_API.md).
  *
- * Provides async HTTP/HTTPS client for quickjs.library's fetch() API.
- * Uses bsdsocket.library with non-blocking sockets and AmiSSL for TLS.
+ * What this file owns:
+ *   - URL parsing, HTTP/1.0 request assembly, response accumulation,
+ *     status-line parsing (pure protocol logic).
+ *   - Per-request SSL_CTX creation in the worker task (AmiSSL requires
+ *     task-local state; see Fina decision decision:w4kd11c0mwdzusbvrjs9).
  *
- * The state machine is driven by the QuickJS event loop via poll().
- * Each call to fetch_step() performs one non-blocking I/O operation
- * and returns what events to wait for next.
+ * What this file NO LONGER owns (was ~900 lines of plumbing):
+ *   - CreateNewProc / MsgPort / Forbid-Permit handoff — now in
+ *     library/vbcc/sharedlib_worker.c via QJS_WorkerSpawn & co.
+ *   - Per-task library-base opening (bsdsocket, AmiSSL, dos) — now
+ *     opened by the Worker framework inside the worker task.
+ *   - Main-task polling via custom state fields — now QJS_WorkerPoll.
+ *
+ * Result: fetch is a straightforward consumer of the Worker primitive.
+ * Every async feature we add next (child_process, crypto.subtle.digest,
+ * async DNS, etc.) gets the same per-task isolation for free.
  */
 
 #ifdef __VBCC__
 
-#include "amiga_fetch.h"
-#include "amiga_ssl.h"
-#include <stddef.h>
-#include <string.h>
-#include <poll.h>
-
 #pragma amiga-align
 #include <exec/types.h>
+#include <exec/libraries.h>
 #include <exec/execbase.h>
-#include <exec/nodes.h>
-#include <exec/lists.h>
 #include <exec/ports.h>
 #include <exec/tasks.h>
 #include <dos/dos.h>
-#include <dos/dosextens.h>
-#include <dos/dostags.h>
 #include <utility/tagitem.h>
-#include <proto/exec.h>
 #pragma default-align
 
-#include "execinline.h"
+#include <string.h>
+#include <stddef.h>
+#include "amiga_fetch.h"
+#include "amiga_worker.h"
 
-/* Forward declare OpenSSL types */
-typedef struct ssl_ctx_st SSL_CTX;
-typedef struct ssl_st SSL;
+/* Forward OpenSSL opaque types */
+typedef struct ssl_ctx_st    SSL_CTX;
+typedef struct ssl_st        SSL;
 typedef struct ssl_method_st SSL_METHOD;
-typedef struct OSSL_LIB_CTX_st OSSL_LIB_CTX;
-typedef struct evp_pkey_st EVP_PKEY;
-typedef struct asn1_string_st ASN1_INTEGER;
-typedef struct ssl_session_st SSL_SESSION;
-typedef struct x509_st X509;
-typedef struct X509_VERIFY_PARAM_st X509_VERIFY_PARAM;
-typedef struct X509_NAME_st X509_NAME;
-typedef struct X509_STORE_st X509_STORE;
-typedef struct stack_st STACK;
-typedef int (*pem_password_cb)(char *buf, int size, int rwflag, void *userdata);
 
-/* SSL error constants */
-#define SSL_ERROR_NONE       0
-#define SSL_ERROR_SSL        1
-#define SSL_ERROR_WANT_READ  2
-#define SSL_ERROR_WANT_WRITE 3
-#define SSL_ERROR_ZERO_RETURN 6
+/* ================================================================
+ * bsdsocket.library LVO stubs
+ *
+ * All take base as __reg("a6"). In the original fetch these used the
+ * library's global SocketBase. In the Worker-based fetch, they use
+ * the worker task's own base (via QJS_WorkerGetBase). The macros below
+ * hand a per-scope `_sb` pointer so the worker's base flows through.
+ * ================================================================ */
 
-/* Socket constants */
-#define AF_INET     2
-#define SOCK_STREAM 1
-#define SOL_SOCKET  0xffff
-#define SO_ERROR    0x1007
-#define FIONBIO     0x8004667eUL
-
-/* Socket structures */
-struct in_addr { unsigned long s_addr; };
-struct sockaddr_in {
-    short          sin_family;
+/* sockaddr for gethostbyname/connect */
+#pragma amiga-align
+struct sockaddr_in_stub {
+    short sin_family;
     unsigned short sin_port;
-    struct in_addr sin_addr;
-    char           sin_zero[8];
+    struct { unsigned long s_addr; } sin_addr;
+    char sin_zero[8];
 };
-struct sockaddr {
-    unsigned short sa_family;
-    char           sa_data[14];
-};
-struct hostent {
-    char  *h_name;
+struct hostent_stub {
+    char *h_name;
     char **h_aliases;
-    int    h_addrtype;
-    int    h_length;
+    short h_addrtype;
+    short h_length;
     char **h_addr_list;
 };
-#define h_addr h_addr_list[0]
+#pragma default-align
 
-/* ================================================================
- * Library bases -- defined in amiga_ssl_lib.c
- * ================================================================ */
-extern struct Library *SocketBase;
-extern struct Library *AmiSSLBase;
-extern SSL_CTX *ssl_ctx;
+#define AF_INET 2
+#define SOCK_STREAM 1
+#define FIONBIO 0x8004667E  /* from bsdsocket — unused in blocking path */
 
-/* ================================================================
- * bsdsocket.library LVO inline stubs
- * ================================================================ */
 static long __fc_socket(__reg("a6") struct Library *base,
                         __reg("d0") long domain,
                         __reg("d1") long type,
-                        __reg("d2") long protocol) = "\tjsr\t-30(a6)";
+                        __reg("d2") long protocol)
+    = "\tjsr\t-30(a6)";
 
 static long __fc_connect(__reg("a6") struct Library *base,
                          __reg("d0") long s,
-                         __reg("a0") const struct sockaddr *name,
-                         __reg("d1") long namelen) = "\tjsr\t-54(a6)";
+                         __reg("a0") struct sockaddr_in_stub *name,
+                         __reg("d1") long namelen)
+    = "\tjsr\t-36(a6)";
 
 static long __fc_send(__reg("a6") struct Library *base,
                       __reg("d0") long s,
-                      __reg("a0") const void *msg,
+                      __reg("a0") const void *buf,
                       __reg("d1") long len,
-                      __reg("d2") long flags) = "\tjsr\t-66(a6)";
+                      __reg("d2") long flags)
+    = "\tjsr\t-48(a6)";
 
 static long __fc_recv(__reg("a6") struct Library *base,
                       __reg("d0") long s,
                       __reg("a0") void *buf,
                       __reg("d1") long len,
-                      __reg("d2") long flags) = "\tjsr\t-78(a6)";
-
-static long __fc_getsockopt(__reg("a6") struct Library *base,
-                            __reg("d0") long sock,
-                            __reg("d1") long level,
-                            __reg("d2") long optname,
-                            __reg("a0") void *optval,
-                            __reg("a1") void *optlen) = "\tjsr\t-96(a6)";
-
-static long __fc_IoctlSocket(__reg("a6") struct Library *base,
-                             __reg("d0") long sock,
-                             __reg("d1") unsigned long req,
-                             __reg("a0") void *argp) = "\tjsr\t-114(a6)";
+                      __reg("d2") long flags)
+    = "\tjsr\t-60(a6)";
 
 static long __fc_CloseSocket(__reg("a6") struct Library *base,
-                             __reg("d0") long d) = "\tjsr\t-120(a6)";
+                             __reg("d0") long s)
+    = "\tjsr\t-108(a6)";
 
-static long __fc_Errno(__reg("a6") struct Library *base) = "\tjsr\t-162(a6)";
+static long __fc_Errno(__reg("a6") struct Library *base)
+    = "\tjsr\t-162(a6)";
 
-static struct hostent *__fc_gethostbyname(__reg("a6") struct Library *base,
-                                          __reg("a0") const char *name)
-                                          = "\tjsr\t-210(a6)";
+static struct hostent_stub *__fc_gethostbyname(__reg("a6") struct Library *base,
+                                               __reg("a0") const char *name)
+    = "\tjsr\t-210(a6)";
 
-static long __fc_WaitSelect(__reg("a6") struct Library *base,
-                            __reg("d0") long nfds,
-                            __reg("a0") void *read_fds,
-                            __reg("a1") void *write_fds,
-                            __reg("a2") void *except_fds,
-                            __reg("a3") void *timeout,
-                            __reg("d1") unsigned long *signals)
-                            = "\tjsr\t-126(a6)";
-
-#define fc_socket(d,t,p)      __fc_socket(SocketBase, (d), (t), (p))
-#define fc_connect(s,a,l)     __fc_connect(SocketBase, (s), (a), (l))
-#define fc_send(s,m,l,f)      __fc_send(SocketBase, (s), (m), (l), (f))
-#define fc_recv(s,b,l,f)      __fc_recv(SocketBase, (s), (b), (l), (f))
-#define fc_getsockopt(s,l,o,v,n) __fc_getsockopt(SocketBase,(s),(l),(o),(v),(n))
-#define fc_IoctlSocket(s,r,a) __fc_IoctlSocket(SocketBase, (s), (r), (a))
-#define fc_CloseSocket(d)     __fc_CloseSocket(SocketBase, (d))
-#define fc_Errno()            __fc_Errno(SocketBase)
-#define fc_gethostbyname(n)   __fc_gethostbyname(SocketBase, (n))
-#define fc_WaitSelect(n,r,w,e,t,s) __fc_WaitSelect(SocketBase,(n),(r),(w),(e),(t),(s))
-
-/* Minimal fd_set for WaitSelect */
-typedef struct { unsigned long fds_bits[8]; } fc_fd_set;
-#define FC_FD_ZERO(set)      memset((set), 0, sizeof(fc_fd_set))
-#define FC_FD_SET(fd, set)   ((set)->fds_bits[(fd)/32] |= (1UL << ((fd) % 32)))
-#define FC_FD_ISSET(fd, set) ((set)->fds_bits[(fd)/32] & (1UL << ((fd) % 32)))
-
-struct fc_timeval { long tv_sec; long tv_usec; };
-
-/* Check if socket is ready for reading/writing (0 timeout, non-blocking).
- * Returns 1 if ready, 0 if not, -1 on error. */
-static int fc_check_ready(long sock, int for_write)
-{
-    fc_fd_set set;
-    struct fc_timeval tv;
-    long result;
-    FC_FD_ZERO(&set);
-    FC_FD_SET(sock, &set);
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    if (for_write)
-        result = fc_WaitSelect(sock + 1, NULL, &set, NULL, &tv, NULL);
-    else
-        result = fc_WaitSelect(sock + 1, &set, NULL, NULL, &tv, NULL);
-    if (result < 0) return -1;
-    if (result == 0) return 0;
-    return FC_FD_ISSET(sock, &set) ? 1 : 0;
-}
+/* Use a per-scope socket base: `struct Library *_sb` expected in scope */
+#define fc_socket(d,t,p)     __fc_socket(_sb, (d), (t), (p))
+#define fc_connect(s,a,l)    __fc_connect(_sb, (s), (a), (l))
+#define fc_send(s,m,l,f)     __fc_send(_sb, (s), (m), (l), (f))
+#define fc_recv(s,b,l,f)     __fc_recv(_sb, (s), (b), (l), (f))
+#define fc_CloseSocket(d)   __fc_CloseSocket(_sb, (d))
+#define fc_Errno()          __fc_Errno(_sb)
+#define fc_gethostbyname(n) __fc_gethostbyname(_sb, (n))
 
 /* ================================================================
- * AmiSSL LVO inline stubs
+ * AmiSSL LVO stubs (offsets from sdks/AmiSSL-v5.26-SDK/Developer/fd)
  * ================================================================ */
+static SSL_CTX *__fc_SSL_CTX_new(__reg("a6") struct Library *base,
+                                 __reg("a0") const SSL_METHOD *meth)
+    = "\tjsr\t-8208(a6)";
+static void __fc_SSL_CTX_free(__reg("a6") struct Library *base,
+                              __reg("a0") SSL_CTX *a)
+    = "\tjsr\t-8214(a6)";
 static SSL *__fc_SSL_new(__reg("a6") struct Library *base,
-                         __reg("a0") SSL_CTX *ctx) = "\tjsr\t-8784(a6)";
-
+                         __reg("a0") SSL_CTX *ctx)
+    = "\tjsr\t-8286(a6)";
 static void __fc_SSL_free(__reg("a6") struct Library *base,
-                          __reg("a0") SSL *ssl) = "\tjsr\t-8820(a6)";
-
+                          __reg("a0") SSL *s)
+    = "\tjsr\t-8322(a6)";
+static int __fc_SSL_set_fd(__reg("a6") struct Library *base,
+                           __reg("a0") SSL *s,
+                           __reg("d0") int fd)
+    = "\tjsr\t-8508(a6)";
 static int __fc_SSL_connect(__reg("a6") struct Library *base,
-                            __reg("a0") SSL *ssl) = "\tjsr\t-8832(a6)";
-
+                            __reg("a0") SSL *s)
+    = "\tjsr\t-8580(a6)";
 static int __fc_SSL_read(__reg("a6") struct Library *base,
-                         __reg("a0") SSL *ssl,
+                         __reg("a0") SSL *s,
                          __reg("a1") void *buf,
-                         __reg("d0") int num) = "\tjsr\t-8838(a6)";
-
+                         __reg("d0") int num)
+    = "\tjsr\t-8688(a6)";
 static int __fc_SSL_write(__reg("a6") struct Library *base,
-                          __reg("a0") SSL *ssl,
+                          __reg("a0") SSL *s,
                           __reg("a1") const void *buf,
-                          __reg("d0") int num) = "\tjsr\t-8850(a6)";
-
+                          __reg("d0") int num)
+    = "\tjsr\t-8700(a6)";
 static long __fc_SSL_ctrl(__reg("a6") struct Library *base,
-                          __reg("a0") SSL *ssl,
+                          __reg("a0") SSL *s,
                           __reg("d0") int cmd,
                           __reg("d1") long larg,
-                          __reg("a1") void *parg) = "\tjsr\t-8856(a6)";
-
+                          __reg("a1") void *parg)
+    = "\tjsr\t-8376(a6)";
 static int __fc_SSL_shutdown(__reg("a6") struct Library *base,
-                             __reg("a0") SSL *s) = "\tjsr\t-8994(a6)";
+                             __reg("a0") SSL *s)
+    = "\tjsr\t-8994(a6)";
+static const SSL_METHOD *__fc_TLS_client_method(__reg("a6") struct Library *base)
+    = "\tjsr\t-26934(a6)";
 
-static int __fc_SSL_set_fd(__reg("a6") struct Library *base,
-                           __reg("a0") SSL *s, __reg("d0") int fd)
-                           = "\tjsr\t-8358(a6)";
+/* Per-scope SSL base: `struct Library *_ssl_base` expected in scope */
+#define fc_SSL_CTX_new(m)    __fc_SSL_CTX_new(_ssl_base, (m))
+#define fc_SSL_CTX_free(c)   __fc_SSL_CTX_free(_ssl_base, (c))
+#define fc_SSL_new(c)        __fc_SSL_new(_ssl_base, (c))
+#define fc_SSL_free(s)       __fc_SSL_free(_ssl_base, (s))
+#define fc_SSL_set_fd(s,f)   __fc_SSL_set_fd(_ssl_base, (s), (f))
+#define fc_SSL_connect(s)    __fc_SSL_connect(_ssl_base, (s))
+#define fc_SSL_read(s,b,n)   __fc_SSL_read(_ssl_base, (s), (b), (n))
+#define fc_SSL_write(s,b,n)  __fc_SSL_write(_ssl_base, (s), (b), (n))
+#define fc_SSL_ctrl(s,c,l,p) __fc_SSL_ctrl(_ssl_base, (s), (c), (l), (p))
+#define fc_SSL_shutdown(s)   __fc_SSL_shutdown(_ssl_base, (s))
+#define fc_TLS_client_method() __fc_TLS_client_method(_ssl_base)
 
-static int __fc_SSL_get_error(__reg("a6") struct Library *base,
-                              __reg("a0") const SSL *s,
-                              __reg("d0") int ret_code)
-                              = "\tjsr\t-8880(a6)";
-
-#define fc_SSL_new(c)        __fc_SSL_new(AmiSSLBase, (c))
-#define fc_SSL_free(s)       __fc_SSL_free(AmiSSLBase, (s))
-#define fc_SSL_connect(s)    __fc_SSL_connect(AmiSSLBase, (s))
-#define fc_SSL_read(s,b,n)   __fc_SSL_read(AmiSSLBase, (s), (b), (n))
-#define fc_SSL_write(s,b,n)  __fc_SSL_write(AmiSSLBase, (s), (b), (n))
-#define fc_SSL_ctrl(s,c,l,p) __fc_SSL_ctrl(AmiSSLBase, (s), (c), (l), (p))
-#define fc_SSL_shutdown(s)   __fc_SSL_shutdown(AmiSSLBase, (s))
-#define fc_SSL_set_fd(s,f)   __fc_SSL_set_fd(AmiSSLBase, (s), (f))
-#define fc_SSL_get_error(s,r) __fc_SSL_get_error(AmiSSLBase, (s), (r))
-
-/* SNI support */
+/* SNI ctrl code */
+#ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
 #define SSL_CTRL_SET_TLSEXT_HOSTNAME 55
+#endif
+#ifndef TLSEXT_NAMETYPE_host_name
 #define TLSEXT_NAMETYPE_host_name 0
+#endif
 #define fc_SSL_set_tlsext_host_name(ssl, name) \
-    fc_SSL_ctrl(ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, \
+    fc_SSL_ctrl((ssl), SSL_CTRL_SET_TLSEXT_HOSTNAME, \
                 TLSEXT_NAMETYPE_host_name, (void *)(name))
 
 /* ================================================================
- * exec.library LVO stubs for process/port/message/signal
- * ================================================================ */
-extern struct ExecBase *SysBase;
-
-static struct MsgPort *__fc_CreateMsgPort(__reg("a6") struct ExecBase *base)
-    = "\tjsr\t-666(a6)"; /* -0x29a */
-#define fc_CreateMsgPort() __fc_CreateMsgPort(SysBase)
-
-static void __fc_DeleteMsgPort(__reg("a6") struct ExecBase *base,
-                               __reg("a0") struct MsgPort *port)
-    = "\tjsr\t-672(a6)"; /* -0x2a0 */
-#define fc_DeleteMsgPort(p) __fc_DeleteMsgPort(SysBase, (p))
-
-static void __fc_PutMsg(__reg("a6") struct ExecBase *base,
-                        __reg("a0") struct MsgPort *port,
-                        __reg("a1") struct Message *msg)
-    = "\tjsr\t-366(a6)"; /* -0x16e */
-#define fc_PutMsg(p, m) __fc_PutMsg(SysBase, (p), (m))
-
-static struct Message *__fc_GetMsg(__reg("a6") struct ExecBase *base,
-                                   __reg("a0") struct MsgPort *port)
-    = "\tjsr\t-372(a6)"; /* -0x174 */
-#define fc_GetMsg(p) __fc_GetMsg(SysBase, (p))
-
-static struct Task *__fc_FindTask(__reg("a6") struct ExecBase *base,
-                                  __reg("a1") const char *name)
-    = "\tjsr\t-294(a6)"; /* -0x126 */
-#define fc_FindTask(n) __fc_FindTask(SysBase, (n))
-
-/* ================================================================
- * dos.library LVO stubs for CreateNewProc
- * ================================================================ */
-extern struct Library *_qjs_DOSBase;  /* set during CustomLibInit */
-
-static struct Process *__fc_CreateNewProc(__reg("a6") struct Library *base,
-                                          __reg("d1") struct TagItem *tags)
-    = "\tjsr\t-498(a6)"; /* -0x1f2 */
-#define fc_CreateNewProc(t) __fc_CreateNewProc(_qjs_DOSBase, (t))
-
-/* ================================================================
- * Memory allocation -- use exec.library pool via sharedlib_mem
+ * Memory (delegated to library's malloc shim)
  * ================================================================ */
 extern void *malloc(size_t);
 extern void *realloc(void *, size_t);
 extern void free(void *);
 extern int snprintf(char *, size_t, const char *, ...);
 
+/* ================================================================
+ * Small parsing helpers
+ * ================================================================ */
 static int fc_atoi(const char *s)
 {
     int n = 0, neg = 0;
@@ -297,65 +204,6 @@ static int fc_atoi(const char *s)
     return neg ? -n : n;
 }
 
-/* ================================================================
- * FetchContext structure
- *
- * Shared between the main task (library client) and the worker
- * process that performs the blocking HTTP transaction. Fields are
- * either "main only" or "worker only" during active work; only
- * `worker_done` and the output result fields cross the boundary
- * after the worker signals completion.
- * ================================================================ */
-struct FetchContext {
-    int state;
-    long sock;
-    int is_https;
-    SSL *ssl;
-
-    /* URL components */
-    char url[1280];
-    char host[256];
-    char path[1024];
-    int port;
-
-    /* Request */
-    char *request_buf;
-    int request_len;
-    int request_sent;
-
-    /* Request metadata (copied, so worker doesn't need external refs) */
-    char method_buf[16];
-    char *custom_headers_copy;
-    char *body_copy;
-    int body_copy_len;
-
-    /* Response accumulation */
-    char *response_buf;
-    int response_len;
-    int response_cap;
-
-    /* Parsed response */
-    int status_code;
-    char status_text[64];
-    char *headers_raw;
-    int headers_len;
-    int body_offset;    /* offset into response_buf where body starts */
-
-    /* Error info */
-    int error_code;
-    char error_msg[128];
-
-    /* Worker process support (for async fetch) */
-    struct MsgPort *reply_port;   /* main task creates; worker PutMsg here */
-    struct Message *reply_msg;    /* static message buffer inside ctx */
-    struct Message _reply_msg_storage; /* actual storage (avoid malloc in worker) */
-    volatile int worker_done;     /* set to 1 by worker when finished */
-    volatile int worker_started;  /* set by worker on entry; main waits briefly */
-};
-
-/* ================================================================
- * URL parsing -- reuses pattern from amiga_ssl_lib.c
- * ================================================================ */
 static int fc_parse_url(const char *url, int *is_https,
                         char *host, int host_size,
                         int *port, char *path, int path_size)
@@ -390,8 +238,7 @@ static int fc_parse_url(const char *url, int *is_https,
     if (*host_end == ':') {
         *port = fc_atoi(host_end + 1);
         host_end++;
-        while (*host_end >= '0' && *host_end <= '9')
-            host_end++;
+        while (*host_end >= '0' && *host_end <= '9') host_end++;
     }
 
     if (*host_end == '/') {
@@ -402,13 +249,9 @@ static int fc_parse_url(const char *url, int *is_https,
     } else {
         strcpy(path, "/");
     }
-
     return 0;
 }
 
-/* ================================================================
- * Build HTTP request string
- * ================================================================ */
 static char *fc_build_request(const char *method, const char *host,
                               const char *path,
                               const char *custom_headers,
@@ -428,7 +271,7 @@ static char *fc_build_request(const char *method, const char *host,
     len = snprintf(buf, size,
                    "%s %s HTTP/1.0\r\n"
                    "Host: %s\r\n"
-                   "User-Agent: qjs/0.65\r\n"
+                   "User-Agent: qjs/0.070\r\n"
                    "Connection: close\r\n",
                    method, path, host);
 
@@ -436,40 +279,79 @@ static char *fc_build_request(const char *method, const char *host,
         len += snprintf(buf + len, size - len,
                         "Content-Length: %d\r\n", body_len);
     }
-
     if (custom_headers) {
         int hlen = strlen(custom_headers);
         memcpy(buf + len, custom_headers, hlen);
         len += hlen;
     }
-
-    /* End of headers */
     memcpy(buf + len, "\r\n", 2);
     len += 2;
-
-    /* Append body if present */
     if (body && body_len > 0) {
         memcpy(buf + len, body, body_len);
         len += body_len;
     }
-
     *req_len_out = len;
     return buf;
 }
 
 /* ================================================================
- * Parse HTTP status line from response
+ * FetchContext — per-request state shared between main and worker
+ *
+ * Most fields are filled by the worker; main only reads them after
+ * QJS_WorkerPoll returns DONE/FAILED. The `worker` pointer is the
+ * primitive's handle; we call QJS_WorkerPoll/Destroy on it.
  * ================================================================ */
-static void fc_parse_status(FetchContext *ctx, const char *data, int len)
+struct FetchContext {
+    int state;
+    long sock;
+    int is_https;
+    SSL *ssl;
+
+    /* URL components */
+    char url[1280];
+    char host[256];
+    char path[1024];
+    int port;
+
+    /* Request buffer + metadata */
+    char *request_buf;
+    int request_len;
+    char method_buf[16];
+    char *custom_headers_copy;
+    char *body_copy;
+    int body_copy_len;
+
+    /* Response accumulation */
+    char *response_buf;
+    int response_len;
+    int response_cap;
+
+    /* Parsed response */
+    int status_code;
+    char status_text[64];
+    char *headers_raw;
+    int headers_len;
+    int body_offset;
+
+    /* Error */
+    char error_msg[128];
+
+    /* Worker handle (created by fetch_create, polled/destroyed later) */
+    QJSWorker *worker;
+};
+
+/* ================================================================
+ * Status-line parser
+ * ================================================================ */
+static void fc_parse_status(struct FetchContext *ctx,
+                            const char *data, int len)
 {
-    const char *sp;
-    const char *sp2;
+    const char *sp, *sp2;
     int i;
 
     ctx->status_code = 0;
     ctx->status_text[0] = '\0';
 
-    /* "HTTP/1.x NNN Reason\r\n" */
     sp = memchr(data, ' ', len);
     if (!sp) return;
     sp++;
@@ -492,48 +374,46 @@ static void fc_parse_status(FetchContext *ctx, const char *data, int len)
 }
 
 /* ================================================================
- * Public API
+ * Worker job — runs ENTIRELY in the worker task.
+ *
+ * Uses per-task bases from QJS_WorkerGetBase, creates its own SSL_CTX,
+ * does the full HTTP/HTTPS transaction blockingly. Never touches the
+ * main task's globals (SocketBase, AmiSSLBase, amiga_ssl_lib's ssl_ctx).
+ *
+ * On completion, writes result fields into the shared FetchContext.
+ * Sets ctx->state to DONE or ERROR; returns 0 on success, -1 on error.
  * ================================================================ */
-
-/* exec.library OpenLibrary via safe inline asm (no frame pointer issue) */
-static struct Library *__fc_OpenLibrary(
-    __reg("a6") struct ExecBase *base,
-    __reg("a1") const char *name,
-    __reg("d0") unsigned long version) = "\tjsr\t-552(a6)";
-
-/* Ensure bsdsocket.library is open.
- * Uses direct exec.library LVO to avoid amiga_ssl_init()
- * dependency (AmiSSL may not be available for plain HTTP). */
-static int fc_ensure_socket_lib(void)
+static int fetch_job(QJSWorker *w, void *user_data)
 {
-    extern struct ExecBase *SysBase;
-    if (SocketBase) return 0;
-    SocketBase = __fc_OpenLibrary(SysBase, "bsdsocket.library", 4);
-    return SocketBase ? 0 : -1;
-}
-
-/* Do the entire HTTP transaction synchronously (blocking).
- * Called from the worker process -- main task is unaffected. */
-static void fetch_do_sync(FetchContext *ctx)
-{
-    struct hostent *he;
-    struct sockaddr_in addr;
+    struct FetchContext *ctx = (struct FetchContext *)user_data;
+    struct Library *_sb       = QJS_WorkerGetBase_impl(w, QJS_WORKER_BASE_SOCKET);
+    struct Library *_ssl_base = ctx->is_https
+                                ? QJS_WorkerGetBase_impl(w, QJS_WORKER_BASE_SSL)
+                                : NULL;
+    SSL_CTX *ssl_ctx = NULL;
+    struct hostent_stub *he;
+    struct sockaddr_in_stub addr;
     long rc;
     int n;
-    long one = 1;
 
-    if (fc_ensure_socket_lib() < 0) {
-        strcpy(ctx->error_msg, "bsdsocket.library unavailable");
+    if (!_sb) {
+        strcpy(ctx->error_msg, "bsdsocket.library not available in worker");
         ctx->state = FETCH_STATE_ERROR;
-        return;
+        return -1;
+    }
+    if (ctx->is_https && !_ssl_base) {
+        strcpy(ctx->error_msg, "AmiSSL not available in worker");
+        ctx->state = FETCH_STATE_ERROR;
+        return -1;
     }
 
-    /* Check HTTPS prerequisites */
+    /* Create our own SSL_CTX (per-task — sharing across tasks is unsafe). */
     if (ctx->is_https) {
-        if (amiga_ssl_init() != 0 || !ssl_ctx) {
-            strcpy(ctx->error_msg, "Failed to initialize AmiSSL");
+        ssl_ctx = fc_SSL_CTX_new(fc_TLS_client_method());
+        if (!ssl_ctx) {
+            strcpy(ctx->error_msg, "SSL_CTX_new failed in worker");
             ctx->state = FETCH_STATE_ERROR;
-            return;
+            return -1;
         }
     }
 
@@ -547,62 +427,61 @@ static void fetch_do_sync(FetchContext *ctx)
             &ctx->request_len);
     }
     if (!ctx->request_buf) {
-        strcpy(ctx->error_msg, "Failed to allocate request buffer");
+        strcpy(ctx->error_msg, "Out of memory building request");
         ctx->state = FETCH_STATE_ERROR;
-        return;
+        goto cleanup_ssl;
     }
-    ctx->request_sent = 0;
 
-    /* DNS lookup (blocking) */
+    /* DNS (blocking in worker — fine, main task unaffected) */
     he = fc_gethostbyname(ctx->host);
     if (!he || !he->h_addr_list || !he->h_addr_list[0]) {
         snprintf(ctx->error_msg, sizeof(ctx->error_msg),
                  "DNS lookup failed: %s", ctx->host);
         ctx->state = FETCH_STATE_ERROR;
-        return;
+        goto cleanup_ssl;
+    }
+    if (he->h_length != 4) {
+        strcpy(ctx->error_msg, "Unsupported address type");
+        ctx->state = FETCH_STATE_ERROR;
+        goto cleanup_ssl;
     }
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = (unsigned short)ctx->port;
-    if (he->h_length != 4) {
-        strcpy(ctx->error_msg, "Unsupported address type");
-        ctx->state = FETCH_STATE_ERROR;
-        return;
-    }
     memcpy(&addr.sin_addr, he->h_addr_list[0], 4);
 
     /* Socket */
     ctx->sock = fc_socket(AF_INET, SOCK_STREAM, 0);
     if (ctx->sock < 0) {
-        strcpy(ctx->error_msg, "Failed to create socket");
+        strcpy(ctx->error_msg, "socket() failed");
         ctx->state = FETCH_STATE_ERROR;
-        return;
+        goto cleanup_ssl;
     }
 
     /* Blocking connect */
-    rc = fc_connect(ctx->sock, (struct sockaddr *)&addr, sizeof(addr));
+    rc = fc_connect(ctx->sock, &addr, sizeof(addr));
     if (rc < 0) {
         snprintf(ctx->error_msg, sizeof(ctx->error_msg),
-                 "Connection failed (errno=%ld)", fc_Errno());
+                 "connect() failed (errno=%ld)", fc_Errno());
         ctx->state = FETCH_STATE_ERROR;
-        return;
+        goto cleanup_sock;
     }
 
-    /* TLS handshake (blocking) */
+    /* TLS handshake */
     if (ctx->is_https) {
         ctx->ssl = fc_SSL_new(ssl_ctx);
         if (!ctx->ssl) {
             strcpy(ctx->error_msg, "SSL_new failed");
             ctx->state = FETCH_STATE_ERROR;
-            return;
+            goto cleanup_sock;
         }
         fc_SSL_set_fd(ctx->ssl, (int)ctx->sock);
         fc_SSL_set_tlsext_host_name(ctx->ssl, ctx->host);
         if (fc_SSL_connect(ctx->ssl) <= 0) {
-            strcpy(ctx->error_msg, "SSL handshake failed");
+            strcpy(ctx->error_msg, "TLS handshake failed");
             ctx->state = FETCH_STATE_ERROR;
-            return;
+            goto cleanup_sock;
         }
     }
 
@@ -612,13 +491,15 @@ static void fetch_do_sync(FetchContext *ctx)
         while (total_sent < ctx->request_len) {
             int remaining = ctx->request_len - total_sent;
             if (ctx->is_https)
-                n = fc_SSL_write(ctx->ssl, ctx->request_buf + total_sent, remaining);
+                n = fc_SSL_write(ctx->ssl,
+                                 ctx->request_buf + total_sent, remaining);
             else
-                n = fc_send(ctx->sock, ctx->request_buf + total_sent, remaining, 0);
+                n = fc_send(ctx->sock,
+                            ctx->request_buf + total_sent, remaining, 0);
             if (n <= 0) {
-                strcpy(ctx->error_msg, "Send failed");
+                strcpy(ctx->error_msg, "send/SSL_write failed");
                 ctx->state = FETCH_STATE_ERROR;
-                return;
+                goto cleanup_sock;
             }
             total_sent += n;
         }
@@ -628,20 +509,19 @@ static void fetch_do_sync(FetchContext *ctx)
     ctx->response_cap = 8192;
     ctx->response_buf = malloc(ctx->response_cap);
     if (!ctx->response_buf) {
-        strcpy(ctx->error_msg, "Failed to allocate response buffer");
+        strcpy(ctx->error_msg, "Out of memory for response buffer");
         ctx->state = FETCH_STATE_ERROR;
-        return;
+        goto cleanup_sock;
     }
     ctx->response_len = 0;
-
     for (;;) {
         if (ctx->response_len + 4096 > ctx->response_cap) {
             int new_cap = ctx->response_cap * 2;
             char *new_buf = realloc(ctx->response_buf, new_cap);
             if (!new_buf) {
-                strcpy(ctx->error_msg, "Out of memory");
+                strcpy(ctx->error_msg, "Out of memory (growing)");
                 ctx->state = FETCH_STATE_ERROR;
-                return;
+                goto cleanup_sock;
             }
             ctx->response_buf = new_buf;
             ctx->response_cap = new_cap;
@@ -678,64 +558,49 @@ static void fetch_do_sync(FetchContext *ctx)
     }
 
     ctx->state = FETCH_STATE_DONE;
-    (void)one;
+
+cleanup_sock:
+    if (ctx->ssl) {
+        fc_SSL_shutdown(ctx->ssl);
+        fc_SSL_free(ctx->ssl);
+        ctx->ssl = NULL;
+    }
+    if (ctx->sock >= 0) {
+        fc_CloseSocket(ctx->sock);
+        ctx->sock = -1;
+    }
+cleanup_ssl:
+    if (ssl_ctx) fc_SSL_CTX_free(ssl_ctx);
+
+    return (ctx->state == FETCH_STATE_DONE) ? 0 : -1;
 }
 
 /* ================================================================
- * Worker process entry point
- *
- * Spawned by fetch_create() via CreateNewProc. Picks up the
- * FetchContext from a global handoff slot, does the full
- * synchronous HTTP transaction, then posts a completion message
- * to the main task's reply port.
- *
- * The worker process shares the library's data segment but runs
- * on its own stack with its own Task context. The main task can
- * continue servicing its event loop while the worker blocks on
- * DNS, TLS, and socket I/O.
+ * Public API (amiga_fetch.h)
  * ================================================================ */
-static volatile FetchContext *fc_pending_worker_ctx = NULL;
 
-static void fetch_worker_entry(void)
-{
-    FetchContext *ctx = (FetchContext *)fc_pending_worker_ctx;
-    fc_pending_worker_ctx = NULL;
-    if (!ctx) return;
-
-    ctx->worker_started = 1;
-
-    /* Perform the full HTTP transaction synchronously */
-    fetch_do_sync(ctx);
-
-    /* Mark done and notify main task */
-    ctx->worker_done = 1;
-    if (ctx->reply_port) {
-        ctx->reply_msg = &ctx->_reply_msg_storage;
-        ctx->reply_msg->mn_Node.ln_Type = NT_MESSAGE;
-        ctx->reply_msg->mn_Length = sizeof(struct Message);
-        ctx->reply_msg->mn_ReplyPort = NULL;
-        fc_PutMsg(ctx->reply_port, ctx->reply_msg);
-    }
-    /* Worker exits when this function returns */
-}
+/* QJS_Worker impl functions — we call them directly since this code
+ * lives INSIDE the library. External consumers use the LVO entries. */
+extern QJSWorker *QJS_WorkerSpawn_impl(QJSWorkerJobFn, void *, unsigned long);
+extern long QJS_WorkerPoll_impl(QJSWorker *);
+extern long QJS_WorkerJoin_impl(QJSWorker *);
+extern void QJS_WorkerDestroy_impl(QJSWorker *);
 
 FetchContext *fetch_create(const char *url, const char *method,
                            const char *custom_headers,
                            const char *body, int body_len)
 {
-    FetchContext *ctx;
-    struct TagItem tags[6];
+    struct FetchContext *ctx;
+    unsigned long flags;
 
-    if (fc_ensure_socket_lib() < 0) return NULL;
-
-    ctx = malloc(sizeof(FetchContext));
+    ctx = malloc(sizeof(struct FetchContext));
     if (!ctx) return NULL;
-    memset(ctx, 0, sizeof(FetchContext));
-
+    memset(ctx, 0, sizeof(*ctx));
     ctx->sock = -1;
     ctx->state = FETCH_STATE_INIT;
 
-    /* Save URL + parse */
+    /* Save URL and parse immediately — fail fast on bad URLs so the
+     * consumer gets a synchronous error without spawning a worker. */
     strncpy(ctx->url, url, sizeof(ctx->url) - 1);
     if (fc_parse_url(url, &ctx->is_https, ctx->host, sizeof(ctx->host),
                      &ctx->port, ctx->path, sizeof(ctx->path)) < 0) {
@@ -745,11 +610,9 @@ FetchContext *fetch_create(const char *url, const char *method,
         return ctx;
     }
 
-    /* Copy method, custom_headers, body into ctx so the worker
-     * doesn't need to touch caller's memory. */
-    if (method) {
-        strncpy(ctx->method_buf, method, sizeof(ctx->method_buf) - 1);
-    }
+    /* Copy method/headers/body so the worker doesn't depend on the
+     * caller's storage lifetime. */
+    if (method) strncpy(ctx->method_buf, method, sizeof(ctx->method_buf) - 1);
     if (custom_headers) {
         int n = strlen(custom_headers);
         ctx->custom_headers_copy = malloc(n + 1);
@@ -766,80 +629,55 @@ FetchContext *fetch_create(const char *url, const char *method,
         }
     }
 
-    /* Create reply port for worker-to-main signaling */
-    ctx->reply_port = fc_CreateMsgPort();
-    if (!ctx->reply_port) {
-        strcpy(ctx->error_msg, "Failed to create MsgPort");
+    /* Spawn worker — framework opens its own bsdsocket and AmiSSL bases. */
+    flags = QJS_WORKER_WANT_SOCKET;
+    if (ctx->is_https) flags |= QJS_WORKER_WANT_SSL;
+    ctx->worker = QJS_WorkerSpawn_impl(fetch_job, ctx, flags);
+    if (!ctx->worker) {
+        strcpy(ctx->error_msg, "Failed to spawn worker task");
         ctx->state = FETCH_STATE_ERROR;
         return ctx;
     }
 
-    /* Hand off context to worker via global slot */
-    fc_pending_worker_ctx = ctx;
-
-    /* Spawn worker process */
-    tags[0].ti_Tag = NP_Entry;
-    tags[0].ti_Data = (ULONG)fetch_worker_entry;
-    tags[1].ti_Tag = NP_Name;
-    tags[1].ti_Data = (ULONG)"qjs_fetch_worker";
-    tags[2].ti_Tag = NP_StackSize;
-    tags[2].ti_Data = 32768;
-    tags[3].ti_Tag = NP_Priority;
-    tags[3].ti_Data = 0;
-    tags[4].ti_Tag = NP_CopyVars;
-    tags[4].ti_Data = FALSE;
-    tags[5].ti_Tag = TAG_END;
-    tags[5].ti_Data = 0;
-
-    if (!fc_CreateNewProc(tags)) {
-        fc_pending_worker_ctx = NULL;
-        fc_DeleteMsgPort(ctx->reply_port);
-        ctx->reply_port = NULL;
-        strcpy(ctx->error_msg, "Failed to spawn worker process");
-        ctx->state = FETCH_STATE_ERROR;
-        return ctx;
-    }
-
-    /* Worker is running; state stays INIT until it finishes.
-     * fetch_step() will poll the reply port. */
-    ctx->state = FETCH_STATE_CONNECTING; /* reuse as "in flight" */
+    ctx->state = FETCH_STATE_CONNECTING; /* "in flight" */
     return ctx;
 }
 
-/* fetch_step -- main task's non-blocking check for worker completion.
- * Polled by the JS timer callback. */
+/* Non-blocking: asks the Worker primitive if the job is done.
+ * Returns 1 if complete (ctx->state is DONE or ERROR), 0 if still running. */
 int fetch_step(FetchContext *ctx, int *want_read, int *want_write)
 {
-    struct Message *msg;
+    long s;
 
-    *want_read = 0;
-    *want_write = 0;
+    if (want_read)  *want_read = 0;
+    if (want_write) *want_write = 0;
 
     if (!ctx) return 1;
-
-    /* Already finished? */
     if (ctx->state == FETCH_STATE_DONE || ctx->state == FETCH_STATE_ERROR)
         return 1;
-
-    /* Check if worker posted its completion message */
-    if (!ctx->reply_port) {
-        /* Shouldn't happen -- no worker was spawned */
+    if (!ctx->worker) {
         ctx->state = FETCH_STATE_ERROR;
-        strcpy(ctx->error_msg, "No reply port");
+        strcpy(ctx->error_msg, "No worker");
         return 1;
     }
 
-    msg = fc_GetMsg(ctx->reply_port);
-    if (!msg) {
-        /* Worker still running -- caller should reschedule */
-        return 0;
+    s = QJS_WorkerPoll_impl(ctx->worker);
+    if (s == QJS_WORKER_DONE || s == QJS_WORKER_FAILED) {
+        /* Job filled ctx->state already. If the Worker framework
+         * reported FAILED, upgrade our state to ERROR in case the
+         * job never got far enough to set it. */
+        if (s == QJS_WORKER_FAILED &&
+            ctx->state != FETCH_STATE_ERROR &&
+            ctx->state != FETCH_STATE_DONE) {
+            ctx->state = FETCH_STATE_ERROR;
+            if (!ctx->error_msg[0])
+                strcpy(ctx->error_msg, "Worker failed");
+        }
+        return 1;
     }
-
-    /* Worker posted its message. The message is storage inside ctx;
-     * we don't need to free it separately. The worker has already set
-     * ctx->state to DONE or ERROR. */
-    return 1;
+    return 0;
 }
+
 int fetch_get_fd(FetchContext *ctx)
 {
     return (ctx && ctx->sock >= 0) ? (int)ctx->sock : -1;
@@ -889,24 +727,23 @@ void fetch_destroy(FetchContext *ctx)
 {
     if (!ctx) return;
 
-    /* Worker is responsible for its own socket/SSL cleanup once it
-     * posts its completion message. Main task only closes the reply
-     * port after the worker's message has been received (indicated
-     * by worker_done == 1). */
+    /* Ensure the worker has finished before we free memory it may
+     * still be writing to. Join is a kernel WaitPort — zero CPU
+     * while waiting, wakes exactly when the worker posts completion.
+     * If already DONE/FAILED, Join returns immediately. */
+    if (ctx->worker) {
+        QJS_WorkerJoin_impl(ctx->worker);
+        QJS_WorkerDestroy_impl(ctx->worker);
+        ctx->worker = NULL;
+    }
 
-    if (ctx->ssl) {
-        fc_SSL_shutdown(ctx->ssl);
-        fc_SSL_free(ctx->ssl);
-    }
-    if (ctx->sock >= 0) {
-        fc_CloseSocket(ctx->sock);
-    }
-    if (ctx->reply_port) fc_DeleteMsgPort(ctx->reply_port);
-    if (ctx->request_buf) free(ctx->request_buf);
-    if (ctx->response_buf) free(ctx->response_buf);
-    if (ctx->headers_raw) free(ctx->headers_raw);
-    if (ctx->custom_headers_copy) free(ctx->custom_headers_copy);
-    if (ctx->body_copy) free(ctx->body_copy);
+    /* Socket/SSL cleanup happened inside fetch_job (worker closed
+     * its own bases). Main task just frees the buffers. */
+    if (ctx->request_buf)          free(ctx->request_buf);
+    if (ctx->response_buf)         free(ctx->response_buf);
+    if (ctx->headers_raw)          free(ctx->headers_raw);
+    if (ctx->custom_headers_copy)  free(ctx->custom_headers_copy);
+    if (ctx->body_copy)            free(ctx->body_copy);
     free(ctx);
 }
 
