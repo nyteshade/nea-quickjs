@@ -300,11 +300,22 @@ static int eval_file(JSContext *ctx, const char *filename, int module)
 }
 
 static int64_t parse_limit(const char *arg) {
-    char *p;
+    /* Integer-only parser — upstream used strtod to accept fractional
+     * values like "1.5m". We drop that to keep the CLI FPU-free so it
+     * runs on no-FPU 68k hardware (A1200). Suffix is required when
+     * the value would otherwise overflow the non-suffixed implied unit. */
+    const char *p = arg;
     unsigned long unit = 1024; /* default to traditional KB */
-    double d = strtod(arg, &p);
+    unsigned long long value = 0;
+    int any = 0;
 
-    if (p == arg) {
+    while (*p >= '0' && *p <= '9') {
+        value = value * 10 + (unsigned long)(*p - '0');
+        p++;
+        any = 1;
+    }
+
+    if (!any) {
         fprintf(stderr, "Invalid limit: %s\n", arg);
         return -1;
     }
@@ -325,7 +336,7 @@ static int64_t parse_limit(const char *arg) {
         }
     }
 
-    return (int64_t)(d * unit);
+    return (int64_t)(value * unit);
 }
 
 static JSValue js_gc(JSContext *ctx, JSValueConst this_val,
@@ -959,6 +970,10 @@ start:
     JS_FreeContext(ctx);
     JS_FreeRuntime(rt);
 
+#if !defined(__VBCC__)
+    /* Microbench path disabled in VBCC CLI build to keep the CLI
+     * FPU-free; doubles here would force a hardware-FPU dependency
+     * even on the 020soft path. */
     if (empty_run && dump_memory) {
         clock_t t[5];
         double best[5] = {0};
@@ -983,6 +998,7 @@ start:
                best[1] + best[2] + best[3] + best[4],
                best[1], best[2], best[3], best[4]);
     }
+#endif
 #ifdef QJS_USE_LIBRARY
     { extern void quickjs_bridge_cleanup(void); quickjs_bridge_cleanup(); }
 #endif

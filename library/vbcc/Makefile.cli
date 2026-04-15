@@ -21,6 +21,11 @@ OUTDIR   = $(ROOT)/amiga
 CDIR     = $(OUTDIR)/c
 
 # Compiler flags
+# NOTE: CLI currently requires an FPU — JSValue boxing and int64↔double
+# conversions in qjs.c/quickjs_bridge.c use softfloat helpers that
+# aren't linked into the CLI yet. Softfloat CLI variant is a follow-up;
+# see tests/test_net.js adjacent notes. For now 020soft *library* works
+# on no-FPU 020 but the CLI still needs a 68881.
 CFLAGS = +aos68k -c -cpu=68020 -fpu=68881 -O1 \
          -DQJS_USE_LIBRARY \
          -I$(VBCC)/targets/m68k-amigaos/include \
