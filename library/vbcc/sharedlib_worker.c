@@ -201,14 +201,14 @@ static void __w_CloseAmiSSL(__reg("a6") struct Library *base)
     = "\tjsr\t-42(a6)";
 #define w_CloseAmiSSL() __w_CloseAmiSSL(w->ssl_master_base)
 
-/* AmiSSL tag IDs — from <amissl/tags.h>, defined here to avoid
- * pulling the full header's type web into this file. */
-#define TAG_USER_BASE       (1L << 31)
-#define AmiSSL_UsesOpenSSLStructs   (TAG_USER_BASE + 0x82)
-#define AmiSSL_GetAmiSSLBase        (TAG_USER_BASE + 0x83)
-#define AmiSSL_GetAmiSSLExtBase     (TAG_USER_BASE + 0x84)
-#define AmiSSL_SocketBase           (TAG_USER_BASE + 0x86)
-#define AmiSSL_ErrNoPtr             (TAG_USER_BASE + 0x88)
+/* AmiSSL tag IDs — MUST match sdks/AmiSSL-v5.26-SDK/Developer/include/amissl/tags.h.
+ * Defined here to avoid pulling the full header's type web into this file.
+ * Base is TAG_USER (from utility/tagitem.h), not some bespoke TAG_USER_BASE. */
+#define AmiSSL_SocketBase           (TAG_USER + 0x01)
+#define AmiSSL_ErrNoPtr             (TAG_USER + 0x0b)
+#define AmiSSL_UsesOpenSSLStructs   (TAG_USER + 0x0c)
+#define AmiSSL_GetAmiSSLBase        (TAG_USER + 0x0d)
+#define AmiSSL_GetAmiSSLExtBase     (TAG_USER + 0x0e)
 
 /* AMISSL_CURRENT_VERSION resolves to whatever the installed SDK's
  * headers declare — for AmiSSL-v5.26-SDK this is the latest OpenSSL
@@ -229,8 +229,11 @@ static int worker_open_ssl(struct QJSWorker *w)
 
     if (worker_open_socket(w) != 0) return -1;
 
-    /* Open master — version 3 is the baseline master API. */
-    w->ssl_master_base = w_OpenLibrary("amisslmaster.library", 3);
+    /* Open master — AMISSLMASTER_MIN_VERSION is 5 per the v5.26 SDK
+     * (libraries/amisslmaster.h). Must match amiga_ssl_lib.c's main-task
+     * path for consistent behavior. */
+    w->ssl_master_base = w_OpenLibrary("amisslmaster.library",
+                                       AMISSLMASTER_MIN_VERSION);
     if (!w->ssl_master_base) return -1;
 
     /* Let the master pick the newest installed sub-library that

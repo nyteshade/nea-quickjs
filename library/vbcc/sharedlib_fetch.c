@@ -50,7 +50,11 @@ typedef struct ssl_method_st SSL_METHOD;
  * hand a per-scope `_sb` pointer so the worker's base flows through.
  * ================================================================ */
 
-/* sockaddr for gethostbyname/connect */
+/* sockaddr / hostent — field layouts MUST match bsdsocket's netdb.h.
+ * On AmigaOS h_addrtype and h_length are LONG (32-bit), not short:
+ *   sdks/NDK3.2R4/SANA+RoadshowTCP-IP/netinclude/netdb.h
+ * Getting this wrong silently returns `h_length != 4` → "Unsupported
+ * address type." Learned that the hard way. */
 #pragma amiga-align
 struct sockaddr_in_stub {
     short sin_family;
@@ -59,10 +63,10 @@ struct sockaddr_in_stub {
     char sin_zero[8];
 };
 struct hostent_stub {
-    char *h_name;
+    char  *h_name;
     char **h_aliases;
-    short h_addrtype;
-    short h_length;
+    long   h_addrtype;
+    long   h_length;
     char **h_addr_list;
 };
 #pragma default-align
