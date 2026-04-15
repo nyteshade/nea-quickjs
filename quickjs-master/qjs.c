@@ -38,9 +38,9 @@
 
 #ifdef __VBCC__
 /* AmigaOS port version — bump when adding features or fixing bugs */
-#define AMIGA_PORT_VERSION "0.65"
-#define AMIGA_PORT_DATE    "13.4.2026"
-#define AMIGA_PORT_DATE_US "04/13/2026"
+#define AMIGA_PORT_VERSION "0.66"
+#define AMIGA_PORT_DATE    "14.4.2026"
+#define AMIGA_PORT_DATE_US "04/14/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] =
     "$VER: qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE ")";
@@ -150,7 +150,10 @@ extern const uint32_t qjsc_standalone_size;
 #ifdef __VBCC__
 extern const uint8_t qjsc_extended[];
 extern const uint32_t qjsc_extended_size;
-static int extended_mode = 0;
+/* Extended mode is ON by default on Amiga — scripts get URL, TextEncoder,
+ * console.*, process, path, AbortController, etc. without needing a flag.
+ * Pass --no-extensions (or -nox) to disable for a stock-quickjs-ng env. */
+static int extended_mode = 1;
 #endif
 
 /* Must match standalone.js */
@@ -514,6 +517,9 @@ void help(void)
 #ifdef __VBCC__
     printf("QuickJS-ng version %s (Amiga port " AMIGA_PORT_VERSION
            " " AMIGA_PORT_DATE_US ")\n"
+           "Written and ported by Brielle Harrison,\n"
+           "co-authored by Anthropic Opus 4.6 in Claude Code\n"
+           "\n"
            "usage: " PROG_NAME " [options] [file [args]]\n"
 #else
     printf("QuickJS-ng version %s\n"
@@ -537,9 +543,9 @@ void help(void)
            "-q  --quit         just instantiate the interpreter and quit\n"
            "    --color        enable colored REPL output (AmigaOS default: off)\n"
 #ifdef __VBCC__
-           "-x  --extended     enable Amiga-port extended APIs\n"
-           "                   (URL, TextEncoder/Decoder, path, process, \n"
-           "                   console.*, AbortController, structuredClone, ...)\n"
+           "    --no-extensions   disable Amiga-port extensions (default: on)\n"
+           "                      (URL, TextEncoder/Decoder, path, process,\n"
+           "                      console.*, AbortController, structuredClone, ...)\n"
 #endif
            , JS_GetVersion());
     exit(1);
@@ -701,8 +707,16 @@ int main(int argc, char **argv)
             }
 #endif
 #if defined(__VBCC__)
+            /* -x / --extended kept as no-op alias (extended mode is now
+             * the default).  Users stuck with old scripts or docs that
+             * pass -x continue to work. */
             if (opt == 'x' || !strcmp(longopt, "extended")) {
                 extended_mode = 1;
+                continue;
+            }
+            /* --no-extensions / -nox disables the default-on extensions. */
+            if (!strcmp(longopt, "no-extensions")) {
+                extended_mode = 0;
                 continue;
             }
 #endif
