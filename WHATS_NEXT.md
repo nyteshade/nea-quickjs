@@ -1,187 +1,285 @@
-# WHATS_NEXT.md — Handoff Document for nea-quickjs
+# WHATS_NEXT.md — Cold-restart handoff for Claude
 
-> **START HERE — then check Fina.**
->
-> The authoritative source for current state, decisions, and task status
-> is the Fina knowledge base (MCP partition `nea-quickjs`). This file is
-> a short reboot guide: read it, then query Fina for the latest before
-> making assumptions.
->
-> Quick Fina commands to get oriented:
->
->     mcp__fina__query_project_context     "what am I working on?"
->     mcp__fina__list_partitions            (confirm nea-quickjs active)
->     mcp__fina__query_knowledge           "module system design"
->     TaskList                              (current roadmap state)
->
-> SO_FAR.md is historical; WORKING_VBCC.md is the VBCC/library memoir.
+This file is written for a future Claude Code session to pick up mid-project
+without context loss. Format is dense and optimized for the LLM, not for
+human readability. The human user (Brielle / "brie") will read the code and
+test on real Amiga; they don't need this file to be polished.
 
 ---
 
-## 1. Project Overview
+## STEP ZERO — BEFORE YOU DO ANYTHING
 
-nea-quickjs is the QuickJS-ng 0.12.1 JavaScript engine ported to
-AmigaOS 3.x, packaged as an Amiga shared library (`quickjs.library`).
-The CLI binary `qjs` is a thin shell (~97 KB) that opens the library
-via LVO. Any Amiga application can OpenLibrary() it and get full
-ES2020+ JS including async/await, modules, fetch, Response, Headers.
+**Fina is the canonical state store for this project.** Everything below is
+a shallow pointer into it. On session start, do this in order:
 
-Toolchain: VBCC cross-compiler, vasmm68k_mot, vlink — all on macOS.
-Testing: amiberry (Amiga emulator).
+1. **Check that Fina is reachable.** `mcp__fina__get_status`. If the MCP
+   server is down, stop and tell the user — nothing below works without it.
 
----
+2. **Query project context from Fina** using `mcp__fina__query_project_context`
+   with partition `nea-quickjs` and query `"handoff next steps Worker fetch
+   current state"`. This returns the session's latest decisions, milestones,
+   and gotchas.
 
-## 2. Current State (v0.65, April 14 2026)
+3. **Pull the handoff memories** with
+   `mcp__fina__query_knowledge(partition="nea-quickjs", query="HANDOFF 2026-04-15")`.
+   Look for memories tagged `handoff`, `next-steps`, `priority`, `scope`,
+   `decisions`, `gotchas`. These capture the state at the end of the
+   previous session (W1–W4 landed, fetch validated 22/0 on real Amiga).
 
-- **222/222 core tests pass**
-- **6 CPU/FPU library variants** (020/040/060 × fpu/soft) + default
-- **Async fetch()** working via CreateNewProc worker processes
-- **Response / Headers** JS classes installed
-- **Symbol.for('qjs.inspect')** custom display (note: Amiga-port
-  addition, not in stock quickjs-ng)
-- **Extended mode** (`-x`/`--extended`) installs console.*, process,
-  TextEncoder/Decoder, URL, URLSearchParams, AbortController,
-  structuredClone, queueMicrotask, path module
-  - **PLANNED CHANGE**: flip polarity — extensions on by default with
-    `--no-extensions` to opt out. See Fina decision record.
-- **Autodocs complete**: 186 QJS_* C functions (amiga/docs/quickjs.doc,
-  ~6500 lines) and JS API reference (amiga/docs/quickjs-js.doc)
-- **Node.js delta doc**: docs/NODEJS-DELTA.md with Tier 1-3 plan
+4. **Check task list** with `TaskList`. The phase labels (W5/W6/W7, D1-D5,
+   E1-E3, F1-F3, G1-G2, B1a/B2, C1/C2) are durable across sessions and
+   link to Fina decisions. Do NOT rewrite the task list from scratch — it
+   exists and is current.
 
----
+5. **Skim recent git log**: `git log --oneline -10`. Last commits will tell
+   you what landed; most recent at time of writing is `d0adb4c` (flushlibs
+   AmiSSL update).
 
-## 3. Active Work — Module System Refactor (Phase A-G Roadmap)
+6. **Read `docs/WORKER_API.md`** if the task involves threading or async.
+   It is the design spec for the native concurrency primitive that fetch
+   and future async features consume.
 
-**The current active track** is refactoring the flat `extended.js` into
-a proper module/plugin system that supports third-party extensions.
-Full plan in Fina; high-level phases:
-
-| Phase | Scope |
-|-------|-------|
-| A     | Vendor ne-enumeration + ne-extension; build qjs:modules + qjs:extension built-in modules |
-| B     | Split extended.js into per-feature modules using Manifest class; add library-core descriptors |
-| C     | Runtime plugin scan from LIBS:quickjs/modules/; native qjs-*.library plugin mechanism |
-| D     | Tier 2 Node APIs: Buffer, EventEmitter, util, fs.promises, child_process |
-| E     | Tier 2 bridges: crypto.subtle.digest (AmiSSL), crypto.getRandomValues, AbortSignal→fetch threading |
-| F     | Documentation (plugin author guide, autodoc expansion per feature) |
-| G     | Example plugins, comprehensive test suite |
-
-**Adopted libraries** (user's own, vendored):
-- `@nejs/enumeration` (/Volumes/Code/JavaScript/ne-enumeration) — Tiers
-  and Providers enums, pattern matching
-- `@nejs/extension` (/Volumes/Code/JavaScript/ne-extension) — Extension,
-  Patch, PatchToggle, SemVer
-- `@nejs/basic-extensions` (/Volumes/Code/JavaScript/ne-basic-extensions)
-  — **deferred to end of roadmap pending user pre-pass**
-
-**Key design decisions** (all in Fina):
-- Tiers enum: `pureJS`, `bridge`, `libraryCore`
-- Providers enum: `upstream`, `neaPort`, `thirdParty`
-- Version: SemVer instances (from ne-extension)
-- Manifest class in `qjs:modules` encapsulates metadata + active
-  apply()/revert() driven by an Extension field
-- Extensions ON by default, `--no-extensions` / `-nox` to opt out
-- Built-in modules stay available even with `--no-extensions` (only
-  auto-apply is gated)
-- Runtime scan of `LIBS:quickjs/modules/*.js` for third-party plugins
+The user has asked me to prefer Fina over re-reading code or restating
+context in this file. Treat the above as the authoritative playbook.
 
 ---
 
-## 4. Directory Layout
+## CURRENT STATE (snapshot at session end, 2026-04-15)
+
+- **Library version:** `0.075` packed-decimal (major=0, revision=075)
+- **Last commit on main:** `d0adb4c` (flushlibs AmiSSL update), pushed
+- **Last Amiga validation:**
+  - `test_workers`: **59/0 pass** (Worker primitive stress test)
+  - `test_fetch.js`: **22/0 pass** (HTTP, HTTPS, JSON, 404, ArrayBuffer, etc.)
+- **Build:** all 6 variants clean. `VBCC=$HOME/vbcc make -C library/vbcc variants`
+- **Push policy:** commit freely, push only after validated on real Amiga.
+  See `~/.claude/projects/-Volumes-Code-Amiga-nea-quickjs/memory/feedback_push_policy.md`.
+
+### Phase W status (this arc)
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| W1 Design | ✓ | `docs/WORKER_API.md` |
+| W2 Impl  | ✓ | `library/vbcc/sharedlib_worker.c` — 5 LVOs |
+| W3 Stress test | ✓ | `amiga/c/test_workers` |
+| W4 fetch rewrite | ✓ | 913 → 750 lines in `sharedlib_fetch.c` |
+| **W5** regression suite | pending (#57) |
+| **W6** autodoc | pending (#58) |
+| **W7** net capability probe | pending (#59) |
+
+---
+
+## YOUR NEXT ACTION — recommended priority
+
+**Do Phase W7 first.** Reasons:
+
+1. Fixes fetch UX when networking libs are missing (currently fetch fails
+   inside a worker with an opaque error; should throw synchronously at
+   the JS layer with a clear message).
+2. Makes `quickjs.library` load unconditionally even without bsdsocket or
+   AmiSSL installed — which is needed to diagnose the A1200 ADF failure
+   the user reported (pre-W7 we don't know if the library load itself
+   depends on those).
+3. Small scope, well-specified, unblocks the A1200 investigation.
+
+**W7 scope** (full detail in Fina: `query_knowledge("nea-quickjs", "PHASE W7 SCOPE")`):
+
+- In `CustomLibInit` (library/vbcc/qjsfuncs.c), probe
+  `OpenLibrary("bsdsocket.library", 4)` and `OpenLibrary("amisslmaster.library",
+  AMISSLMASTER_MIN_VERSION)` once at load time. Set `QJSLibBase->qjs_net_caps`
+  bits (`QJS_NET_TCP=0x01`, `QJS_NET_TLS=0x02`). Close the probes.
+  Print a one-line warning to stdout if a cap is missing, but DO NOT fail
+  library load — user must still be able to run `qjs -e 'print(1+1)'`
+  on a system without any networking.
+- Add field `ULONG qjs_net_caps` to the library base struct in
+  `library/vbcc/libraryconfig.h` (the `LIBRARY_BASE_TYPE` / `struct QJSLibBase`
+  definition).
+- Add new LVO `QJS_GetNetCapabilities() -> ULONG`:
+  - SFD entry in `library/vbcc/quickjs_lib.sfd`
+  - Prototype + LIBRARY_FUNCTIONS entry in `libraryconfig.h`
+  - xdef + trampoline in `qjsfuncs_asm_all.s`
+  - impl in `qjsfuncs.c`: `return base->qjs_net_caps;`
+- Add JS module `qjs:net` in `library/vbcc/quickjs_libc_lib.c` (or wherever
+  the other `qjs:*` modules are registered). Exposes:
+  - `Networking.hasTCP()` → boolean
+  - `Networking.hasTLS()` → boolean
+  - `Networking.status()` → `{ tcp: bool, tls: bool }`
+  - `Networking.reprobe()` → re-run the library opens, returns new status
+- In `quickjs-master/quickjs-libc.c`'s `js_fetch`, check the caps BEFORE
+  calling `fetch_create`. If URL is https:// and TLS bit is 0, throw
+  `JS_ThrowTypeError(ctx, "networking unavailable: amisslmaster.library not installed")`.
+  Same for http:// and TCP bit.
+- `Networking.reprobe()` implementation: re-open the same libraries,
+  update the caps bits, return the new status object. This lets users
+  install AmiSSL while qjs is running and recover without restart.
+
+**After W7 lands and passes a test run on Amiga**, immediately investigate
+the A1200 ADF failure. Per `mcp__fina__query_knowledge("nea-quickjs",
+"A1200 ADF")` there are several theories:
+- (a) File truncation on ADF write — verify MD5 match
+- (b) 4MB fast fragmentation — library is ~1MB, needs contiguous
+- (c) KickStart version mismatch — check what ROM the A1200 has
+- (d) Serial debug output would pinpoint
+
+With W7 done, option (a) is not a networking-lib issue. That alone is
+a useful result.
+
+---
+
+## PHASE ORDERING after W7
+
+Order (my opinion, user agrees broadly):
+
+1. **W7** (as above)
+2. **A1200 investigation** (small, unblocks floppy-distribution story)
+3. **W5** — regression suite wired into variants build. Add
+   `make test-workers` / `make test-fetch` targets. Capture golden
+   outputs. Requires amiberry or equivalent for CI. Low urgency but
+   high value before D-series phases that'll consume the Worker primitive.
+4. **W6** — autodoc the Worker API and add an architecture diagram.
+   Useful for contributors; not blocking anything.
+5. **D1-D5** (Tier 2 Node APIs): Buffer, EventEmitter, util, fs.promises,
+   child_process. **D5 (child_process) is the second real consumer of the
+   Worker primitive** and will stress-test the API's generality. Expect
+   to find places where Worker's surface is too narrow — that's the point.
+6. **E1-E3** (crypto bridges): subtle.digest via AmiSSL, getRandomValues,
+   AbortSignal threaded into fetch. E1 will reveal whether the per-worker
+   AmiSSL init flow extends cleanly to non-network uses.
+7. **B1a, B2, C1, C2** — module system work (fix module-resolution guru,
+   add core-module registry, runtime plugin scan, native qjs-*.library
+   plugins). Can be done in parallel with D/E phases if someone else
+   is driving those.
+8. **F1-F3, G1-G2** — docs + examples + comprehensive test suite. End-game.
+9. **A2b, A3b, F2b** — vendor ne-basic-extensions. User said this is
+   bottom-of-list and needs a pre-pass from them first.
+
+---
+
+## HARD-WON GOTCHAS (do not re-learn)
+
+All recorded in Fina with tags `gotcha,amiga`. Summary so you know what
+to query for:
+
+1. **Never hand-type LVO offsets.** Always copy from working code
+   (`library/vbcc/amiga_ssl_lib.c` has bsdsocket + AmiSSL offsets used in
+   production) or from `.fd` files in `sdks/`. Offset-mismatch silently
+   invokes the wrong function — `connect` at `-36` is actually `bind`,
+   `bind(remote_ip)` returns EADDRNOTAVAIL (errno 49), and you'll chase
+   misleading errors for hours. Already cost 2 cycles this session.
+2. **bsdsocket.library is per-task.** Every task that does sockets must
+   `OpenLibrary("bsdsocket.library", 4)` itself. Don't share a base
+   across tasks — socket calls hang or return garbage errno.
+3. **AmiSSL tag IDs are `(TAG_USER + small_offset)`**, NOT
+   `(TAG_USER_BASE + 0x8X)` — see
+   `sdks/AmiSSL-v5.26-SDK/Developer/include/amissl/tags.h`.
+4. **AmigaOS `sockaddr_in` requires `sin_len`** set to
+   `sizeof(struct sockaddr_in)` (= 16). Missing → EADDRNOTAVAIL on
+   `connect()`.
+5. **AmigaOS `hostent`'s `h_addrtype`/`h_length` are `LONG`** (32-bit),
+   not `short`. Hand-rolled struct stubs using `short` silently return
+   wrong `h_length` → "Unsupported address type" error.
+6. **`tc_UserData` collides with `bsdsocket.library` per-task stash.**
+   If you use `tc_UserData` for atomic handoff (as the Worker framework
+   does), the worker MUST zero it immediately after reading, or
+   `OpenLibrary("bsdsocket.library", 4)` in that task fails opaquely.
+
+---
+
+## BUILD RECIPE (verbatim)
+
+```bash
+# All 6 library variants
+VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc variants
+
+# CLI (68020 fpu)
+VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc -f Makefile.cli
+
+# Native stress test
+VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc -f Makefile.test_workers
+
+# flushlibs utility
+VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc -f Makefile.flushlibs
+
+# Sanity: every variant's $VER
+for v in 020fpu 020soft 040fpu 040soft 060fpu 060soft; do \
+  printf "%-10s " "$v"; \
+  strings amiga/libs/quickjs.$v.library | grep "VER.*quickjs" | head -1; \
+done
+```
+
+Expected: all show `quickjs.XXX.library 0.075 (15.4.2026)` (or newer revision).
+
+---
+
+## VERSIONING REMINDER
+
+Packed-decimal: `lib_Version = major * 1000 + revision`. Current is 75.
+Every rebuild-that-changes-bytes:
+1. Bump `LIBRARY_VERSION` by 1 in `library/vbcc/libraryconfig.h`
+2. Update the revision in `LIBRARY_VERSION_STRING` (e.g. `0.076`)
+3. Update the date in `LIBRARY_VERSION_STRING` if it changed
+
+The Makefile now lists `libraryconfig.h` as a dependency of `library.o`
+(both FPU and soft variants), so version bumps always trigger a rebuild.
+
+---
+
+## AMIGA TEST RECIPE (user does this)
+
+User's workflow (verified 2026-04-15):
 
 ```
-nea-quickjs/
-├── amiga/                     Ships to Amiga
-│   ├── c/qjs                  CLI binary
-│   ├── libs/quickjs*.library  7 library variants + default
-│   ├── docs/                  Autodocs (quickjs.doc, quickjs-js.doc)
-│   └── tests/                 test_core.js, test_comprehensive.js,
-│                              test_fetch.js, test_extended.js
-├── library/vbcc/              VBCC library source (23 .c/.s/.h files)
-├── quickjs-master/            QuickJS-ng engine source + our patches
-│   ├── amiga/extended/        Extended-mode JS shims (currently
-│   │                          monolithic extended.js — being refactored)
-│   └── gen/extended.c         qjsc-generated bytecode linked into CLI
-├── quickjs-clean/             Unmodified Bellard QuickJS (for diffing)
-├── docs/                      Project-level docs
-│   └── NODEJS-DELTA.md        Node/web delta + porting plan
-├── SO_FAR.md                  Historical log
-├── WORKING_VBCC.md            VBCC/library technical memoir
-└── WHATS_NEXT.md              (this file)
+copy amiga/libs/quickjs.020soft.library libs:quickjs.library
+amiga/c/flushlibs
+avail flush
+amiga/c/qjs tests/test_fetch.js
+amiga/c/test_workers
 ```
 
----
-
-## 5. Build & Toolchain
-
-- VBCC at `$HOME/vbcc` (required env: `VBCC=$HOME/vbcc`)
-- Library variants: `make -C library/vbcc variants`
-- CLI: `make -C library/vbcc -f Makefile.cli`
-- Default (020+soft + CLI): `make`
-- Extended JS bytecode: recompile with host
-  `./quickjs-master/build/qjsc -m -ss -N qjsc_extended -o quickjs-master/gen/extended.c quickjs-master/amiga/extended/extended.js`
+Expected output for both test binaries above should be all-pass.
 
 ---
 
-## 6. Running
+## FINA WRITE DISCIPLINE
 
-On Amiberry (or real AmigaOS 3.x, any 68020+ CPU):
+Always write to `nea-quickjs` partition, never `global`. Every meaningful
+action should produce a Fina entry:
 
-    copy amiga/libs/quickjs.library to LIBS:
-    copy amiga/c/qjs to C: (or anywhere in path)
-    flushlibs                     (flush any old cached library)
-    qjs                           (REPL)
-    qjs script.js                 (run a script)
-    qjs -m script.js              (module mode)
-    qjs --help                    (full flag list)
+- Design decision → `record_decision` with rationale + alternatives
+- Bug fix → `record_milestone` with kind=bugfix
+- New feature → `record_milestone` with kind=feature
+- Non-obvious fact learned → `remember` with `tags: "gotcha"`
+- Session wrap-up → `record_milestone` summarizing what happened
 
----
-
-## 7. Known Issues / Limitations
-
-- **DateStamp near-1970 on amiberry** — may be clock-sync-related;
-  code path is correct
-- **One fetch at a time** — singleton active_fetch, second call
-  rejects; would be easy to lift
-- **No automatic redirect following** in fetch (3xx returned as-is)
-- **Response body fully buffered** (no streaming)
-- **HTTP/1.0 only** (no keep-alive, no chunked transfer)
-- **Headers option to fetch() is a raw string**, not a plain object
-  (v0.65 limitation)
+When in doubt, use `remember`. The graph stays richer that way.
 
 ---
 
-## 8. If Something Broke
+## THE FINA-HOOK BUG (NOT YOUR PROBLEM)
 
-1. Check `git log -20` for recent changes that might be the cause
-2. Query Fina for recent milestones / decisions on the affected area
-3. Read SO_FAR.md for historical context on quirks
-4. WORKING_VBCC.md for VBCC calling-convention and library-context
-   gotchas
-5. If a test is failing: amiga/tests/test_fetch.js and
-   amiga/tests/test_extended.js are the most recently-touched
-6. Library + CLI versions must match — check the $VER strings
-   (`strings amiga/libs/quickjs.library | grep VER`,
-    `strings amiga/c/qjs | grep VER`)
+The Claude Code session-start hook calls `resolve_context(cwd)` expecting
+a partition name. For this project it returns `null`, so the status line
+shows `partition:none`. I tried every plausible `metadata.*` key via
+`update_partition` (path, paths, directories, cwd, root, prefix,
+base_path, match, cwd_prefix, workspace, pwd, scope_paths); none made
+`resolve_context` match. The registration mechanism isn't exposed via
+MCP — it's somewhere else (CLI tool not on $PATH, config file, or
+internal DB). User is restarting the session to see if this resolves
+itself. If it doesn't, they'll ping the Fina author; meanwhile every
+write this session explicitly passed `partition="nea-quickjs"` so the
+graph is accumulating correctly regardless of the status-line display.
 
----
-
-## 9. Fina Memory Highlights Worth Knowing
-
-Decisions recorded in Fina (partition `nea-quickjs`):
-- Use quickjs-ng (not Bellard's) as engine source
-- Use `CreateNewProc()` worker process pattern for async fetch
-- Adopt @nejs/extension + @nejs/enumeration as plugin system foundation
-- Extensions ON by default, `--no-extensions` opt-out
-- Providers + Tiers both as Enumeration subclasses; version as SemVer
-
-Always prefer Fina's `query_project_context` over guessing; the LLM
-context window is finite but Fina isn't.
+You do NOT need to solve this. Just continue passing `partition="nea-quickjs"`
+explicitly on every write.
 
 ---
 
-## 10. Contact / Authorship
+## ONE MORE THING
 
-Original port and Amiga integration: Brielle Harrison
-(github.com/nyteshade/nea-quickjs). This README and much of the work
-is LLM-assisted (Claude Opus 4.6 in a 1M-context Claude Code session).
+If a tool call returns empty or a dubious result, check Fina before
+assuming the code is right. The graph has a milestone for every fix
+in this session and will tell you whether something was intentional
+or a fresh regression. `query_project_context("recent changes")`
+or `get_timeline` both work.
+
+Good luck. The Worker primitive is solid and proven. Build on it.
