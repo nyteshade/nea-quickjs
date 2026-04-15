@@ -50,17 +50,31 @@ typedef struct ssl_method_st SSL_METHOD;
  * hand a per-scope `_sb` pointer so the worker's base flows through.
  * ================================================================ */
 
-/* sockaddr / hostent — field layouts MUST match bsdsocket's netdb.h.
- * On AmigaOS h_addrtype and h_length are LONG (32-bit), not short:
- *   sdks/NDK3.2R4/SANA+RoadshowTCP-IP/netinclude/netdb.h
- * Getting this wrong silently returns `h_length != 4` → "Unsupported
- * address type." Learned that the hard way. */
+/* sockaddr / hostent — field layouts MUST match AmigaOS BSD headers.
+ *
+ *   netinclude/netinet/in.h:
+ *     struct sockaddr_in { UBYTE sin_len; UBYTE sin_family;
+ *                          in_port_t sin_port; struct in_addr sin_addr;
+ *                          UBYTE sin_zero[8]; };
+ *   netinclude/netdb.h:
+ *     struct hostent { char *h_name; char **h_aliases;
+ *                      LONG h_addrtype; LONG h_length;
+ *                      char **h_addr_list; };
+ *
+ * Two gotchas learned the hard way:
+ *   - sin_family is a UBYTE preceded by a UBYTE sin_len (BSD 4.3+).
+ *     A 'short sin_family' packs wrong: sin_len ends up 0 and bsdsocket
+ *     rejects connect() with EADDRNOTAVAIL (errno 49).
+ *   - hostent's h_addrtype/h_length are LONG, not short. A 'short'
+ *     stub reads the wrong bytes for h_length and fails with
+ *     "Unsupported address type". */
 #pragma amiga-align
 struct sockaddr_in_stub {
-    short sin_family;
-    unsigned short sin_port;
+    unsigned char   sin_len;
+    unsigned char   sin_family;
+    unsigned short  sin_port;
     struct { unsigned long s_addr; } sin_addr;
-    char sin_zero[8];
+    unsigned char   sin_zero[8];
 };
 struct hostent_stub {
     char  *h_name;
@@ -451,8 +465,9 @@ static int fetch_job(QJSWorker *w, void *user_data)
     }
 
     memset(&addr, 0, sizeof(addr));
+    addr.sin_len    = sizeof(addr);        /* BSD 4.3+ requires this */
     addr.sin_family = AF_INET;
-    addr.sin_port = (unsigned short)ctx->port;
+    addr.sin_port   = (unsigned short)ctx->port;
     memcpy(&addr.sin_addr, he->h_addr_list[0], 4);
 
     /* Socket */
