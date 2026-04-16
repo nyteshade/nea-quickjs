@@ -536,7 +536,8 @@ static const JSMallocFunctions mi_mf = {
 #define QJS__XSTR(x) QJS__STR(x)
 #define QJS_ENGINE_VERSION_STATIC \
     QJS__XSTR(QJS_VERSION_MAJOR) "." QJS__XSTR(QJS_VERSION_MINOR) "." QJS__XSTR(QJS_VERSION_PATCH)
-#endif
+
+#endif /* __VBCC__ */
 
 void help(void)
 {
@@ -609,6 +610,58 @@ int main(int argc, char **argv)
     JSValue ns, func, call_args[3]; /* C89: hoisted from later if-blocks */
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
+
+#ifdef __VBCC__
+    /* AmigaOS task stack check. The QuickJS bytecode interpreter uses
+     * alloca() for argument buffers and has deep call chains. Shell
+     * default stack (4KB) is far too small — 64KB minimum required.
+     * Check early, before loading the ~1MB library from disk. */
+    {
+        /* Raw exec access — FindTask(NULL) via SysBase@4 LVO -294.
+         * Task.tc_SPLower offset=58, tc_SPUpper offset=62. */
+        void *sysbase = *(void **)4;
+        void *(*findtask)(__reg("a6") void *, __reg("a1") void *) =
+            (void *)((char *)sysbase - 294);
+        char *task = (char *)findtask(sysbase, (void *)0);
+        unsigned long sp_lower = *(unsigned long *)(task + 58);
+        unsigned long sp_upper = *(unsigned long *)(task + 62);
+        unsigned long stk = sp_upper - sp_lower;
+        if (stk < 65536) {
+            char have[16], need[16];
+            /* Local comma-formatter — thousands separator for readability.
+             * Keeps the pre-library path free of any stdio fanciness. */
+            {
+                unsigned long n; int i, len, j; char tmp[16];
+                unsigned long vals[2] = { stk, 65536UL };
+                char *outs[2] = { have, need };
+                int k;
+                for (k = 0; k < 2; k++) {
+                    n = vals[k]; len = 0;
+                    if (n == 0) tmp[len++] = '0';
+                    while (n) { tmp[len++] = '0' + (int)(n % 10); n /= 10; }
+                    j = 0;
+                    for (i = 0; i < len; i++) {
+                        if (i > 0 && (len - i) % 3 == 0) outs[k][j++] = ',';
+                        outs[k][j++] = tmp[len - 1 - i];
+                    }
+                    outs[k][j] = 0;
+                }
+            }
+            fprintf(stderr,
+"\n"
+"QuickJS needs at least %s bytes of stack to run safely. Your environment\n"
+"only provides %s. Run the following command before starting qjs:\n"
+"\n"
+"    Stack 65536\n"
+"\n"
+"Or you can add it to your Startup-Sequence, or Shell-Startup, both located\n"
+"in S:\n"
+"\n",
+                need, have);
+            return 3;
+        }
+    }
+#endif
 
 #if defined(__SASC) || defined(__VBCC__)
     /* Load S:QJS-Config.txt — injects default flags before CLI args */

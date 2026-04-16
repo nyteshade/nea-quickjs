@@ -61244,15 +61244,16 @@ static void JS_PrintValueInternal(JSRuntime *rt, JSContext *ctx,
     s->level = 0;
     s->inspect_atom = JS_ATOM_NULL;
 
-    /* Resolve Symbol.for('qjs.inspect') once per print call */
+    /* Resolve Symbol.for('qjs.inspect') via direct C API — avoids
+     * JS_Eval which recurses into the parser/compiler/interpreter and
+     * consumes significant stack (caused AN_IntrMem on AmigaOS with
+     * small task stacks). JS_NewSymbol with is_global=true is the
+     * C equivalent of Symbol.for(). */
     if (ctx) {
-        JSValue sym = JS_Eval(ctx, "Symbol.for('qjs.inspect')",
-                              25, "<inspect>", JS_EVAL_TYPE_GLOBAL);
+        JSValue sym = JS_NewSymbol(ctx, "qjs.inspect", 1);
         if (!JS_IsException(sym)) {
             s->inspect_atom = JS_ValueToAtom(ctx, sym);
             JS_FreeValue(ctx, sym);
-        } else {
-            JS_FreeValue(ctx, JS_GetException(ctx));
         }
     }
 

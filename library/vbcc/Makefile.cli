@@ -70,7 +70,7 @@ TARGET = $(CDIR)/qjs
 all: $(TARGET)
 
 $(TARGET): $(OBJS) | $(CDIR)
-	$(VC) $(LDFLAGS) $(OBJS) -lmsoft -lamiga -o $@
+	$(VC) $(LDFLAGS) $(OBJS) -lmieee -lamiga -o $@
 	@ls -la $@
 
 $(CDIR):

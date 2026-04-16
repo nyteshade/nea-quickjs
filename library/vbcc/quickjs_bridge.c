@@ -101,8 +101,6 @@ void quickjs_bridge_cleanup(void)
 {
     extern void CloseLibrary(struct Library *);
     if (QJSBase) { CloseLibrary(QJSBase); QJSBase = NULL; }
-    /* No math-lib CloseLibrary here — the library owns those opens and
-     * closes them in its CustomLibCleanup when we close QJSBase above. */
 }
 
 /* ===================================================================
