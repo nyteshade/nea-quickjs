@@ -2507,13 +2507,18 @@ static JSValue js_os_ttyGetWinSize(JSContext *ctx, JSValueConst this_val,
         return JS_NULL;
 
     /*
-     * Read the Window Bounds Report.  The console device injects it into
-     * the input stream synchronously; Read() blocks until data arrives.
-     * Stop at 'r' (end of CSI sequence) or when the buffer is full.
+     * Read the Window Bounds Report.  WaitForChar with a short timeout
+     * so we don't hang on console handlers that ignore the CSI extension
+     * (stock Kickstart 3.0 CON on the A1200 is the motivating case —
+     * later OS versions and ViNCEd reply; stock 3.0 doesn't). Give up
+     * fast and let the caller default to 80 columns. 250ms is plenty
+     * for any handler that's going to reply at all.
      */
     r = 0; c = 0;
     got = 0;
     while (got < (LONG)(sizeof(buf) - 1)) {
+        if (!WaitForChar(in_fh, 250000L))   /* 250 ms */
+            break;
         rc = Read(in_fh, &ch, 1);
         if (rc <= 0)
             break;

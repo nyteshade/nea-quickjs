@@ -668,6 +668,7 @@ int main(int argc, char **argv)
     amiga_load_config(&argc, &argv);
 #endif
 
+
 #ifdef __VBCC__
     /* Pre-scan for --help / -h before opening quickjs.library. On floppy,
      * loading the library costs a ~1MB disk read and several seconds — we
@@ -698,6 +699,7 @@ int main(int argc, char **argv)
         }
     }
 #endif
+
 
     /* save for later */
     qjs__argc = argc;
