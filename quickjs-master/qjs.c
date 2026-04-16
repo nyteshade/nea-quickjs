@@ -37,10 +37,11 @@
 #include "quickjs-libc.h"
 
 #ifdef __VBCC__
-/* AmigaOS port version — bump when adding features or fixing bugs */
-#define AMIGA_PORT_VERSION "0.66.1"
-#define AMIGA_PORT_DATE    "14.4.2026"
-#define AMIGA_PORT_DATE_US "04/14/2026"
+/* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
+ * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
+#define AMIGA_PORT_VERSION "0.078"
+#define AMIGA_PORT_DATE    "15.4.2026"
+#define AMIGA_PORT_DATE_US "04/15/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] =
     "$VER: qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE ")";
@@ -527,6 +528,16 @@ static const JSMallocFunctions mi_mf = {
 
 #define PROG_NAME "qjs"
 
+#ifdef __VBCC__
+/* Compile-time engine version so help() doesn't need to call JS_GetVersion
+ * via LVO — that would force opening quickjs.library (~1MB disk load on
+ * floppy) just to print --help. */
+#define QJS__STR(x) #x
+#define QJS__XSTR(x) QJS__STR(x)
+#define QJS_ENGINE_VERSION_STATIC \
+    QJS__XSTR(QJS_VERSION_MAJOR) "." QJS__XSTR(QJS_VERSION_MINOR) "." QJS__XSTR(QJS_VERSION_PATCH)
+#endif
+
 void help(void)
 {
 #ifdef __VBCC__
@@ -562,7 +573,11 @@ void help(void)
            "                      (URL, TextEncoder/Decoder, path, process,\n"
            "                      console.*, AbortController, structuredClone, ...)\n"
 #endif
+#ifdef __VBCC__
+           , QJS_ENGINE_VERSION_STATIC);
+#else
            , JS_GetVersion());
+#endif
     exit(1);
 }
 
@@ -598,6 +613,26 @@ int main(int argc, char **argv)
 #if defined(__SASC) || defined(__VBCC__)
     /* Load S:QJS-Config.txt — injects default flags before CLI args */
     amiga_load_config(&argc, &argv);
+#endif
+
+#ifdef __VBCC__
+    /* Pre-scan for --help / -h before opening quickjs.library. On floppy,
+     * loading the library costs a ~1MB disk read and several seconds — we
+     * shouldn't pay that just to print help text. help() uses only
+     * compile-time strings so it doesn't need the library. */
+    {
+        int ai;
+        for (ai = 1; ai < argc; ai++) {
+            const char *a = argv[ai];
+            if (!strcmp(a, "-h") || !strcmp(a, "--help")) {
+                help();
+                /* help() calls exit(1); unreachable */
+            }
+            /* Stop scanning at first non-option (script path) or '--'. */
+            if (a[0] != '-' || (a[0] == '-' && a[1] == '-' && a[2] == 0))
+                break;
+        }
+    }
 #endif
 
 #ifdef QJS_USE_LIBRARY

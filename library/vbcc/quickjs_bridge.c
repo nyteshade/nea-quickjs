@@ -52,59 +52,30 @@ struct Library *QJSBase = NULL;
  *
  * When the CLI is built softfloat (no -fpu=68881), VBCC generates
  * calls to _MathIeeeDoubBasBase / _MathIeeeDoubTransBase / _MathIeeeSingBasBase
- * for all double operations. Those globals live in sharedlib_math_soft.c
- * which is linked into the CLI for softfloat builds. We must open the
- * corresponding math libraries and hand the bases to sharedlib_math_soft_init
- * BEFORE any double op is evaluated (including by quickjs_bridge.c itself,
- * which does JSValue int64<->double conversions).
+ * for every double operation. Those globals live in cli_math_globals.c
+ * (defined in the CLI TU so the CLI doesn't depend on the library's
+ * copy). The *library* owns OpenLibrary for the math bases (architecture
+ * rule: all library management in the library); we just ask it for the
+ * already-open pointers via the QJS_GetMathBase LVO and mirror them into
+ * our local globals BEFORE any double op runs.
  *
- * Under FPU builds (-fpu=68881), sharedlib_math_soft.c is not linked and
- * these references compile away — the block below is wrapped in
- * QJS_CLI_SOFTFLOAT so the FPU CLI doesn't try to open unused libs.
+ * Under FPU builds (-fpu=68881), the softfloat globals aren't linked and
+ * this block compiles away.
  * =================================================================== */
 
 #ifdef QJS_CLI_SOFTFLOAT
 extern struct Library *MathIeeeDoubBasBase;
 extern struct Library *MathIeeeDoubTransBase;
-extern void sharedlib_math_soft_init(struct Library *basBase,
-                                     struct Library *transBase);
-extern void sharedlib_math_soft_cleanup(void);
+extern struct Library *MathIeeeSingBasBase;
+extern struct Library *bridge_GetMathBase(unsigned long which);
 
-/* Kept in file-scope so quickjs_bridge_cleanup can close them on exit. */
-static int qjs_cli_softfloat_opened = 0;
-
-static int qjs_cli_math_init(void)
+static void qjs_cli_math_bind(void)
 {
-    extern struct Library *OpenLibrary(const char *, unsigned long);
-    struct Library *bas, *trans;
-
-    bas = OpenLibrary("mathieeedoubbas.library", 34);
-    if (!bas) return -1;
-    trans = OpenLibrary("mathieeedoubtrans.library", 34);
-    if (!trans) {
-        extern void CloseLibrary(struct Library *);
-        CloseLibrary(bas);
-        return -1;
-    }
-    sharedlib_math_soft_init(bas, trans);
-    qjs_cli_softfloat_opened = 1;
-    return 0;
-}
-
-static void qjs_cli_math_cleanup(void)
-{
-    extern void CloseLibrary(struct Library *);
-    if (!qjs_cli_softfloat_opened) return;
-    sharedlib_math_soft_cleanup();
-    if (MathIeeeDoubTransBase) {
-        CloseLibrary(MathIeeeDoubTransBase);
-        MathIeeeDoubTransBase = (struct Library *)0;
-    }
-    if (MathIeeeDoubBasBase) {
-        CloseLibrary(MathIeeeDoubBasBase);
-        MathIeeeDoubBasBase = (struct Library *)0;
-    }
-    qjs_cli_softfloat_opened = 0;
+    MathIeeeDoubBasBase   = bridge_GetMathBase(0);
+    MathIeeeDoubTransBase = bridge_GetMathBase(1);
+    /* MathIeeeSingBasBase stays NULL — only used by float (not double) ops
+     * and neither printf %f nor JSValue boxing touches it. Define it in
+     * cli_math_globals.c so msoft.lib's extern reference resolves. */
 }
 #endif /* QJS_CLI_SOFTFLOAT */
 
@@ -115,25 +86,23 @@ static void qjs_cli_math_cleanup(void)
 int quickjs_bridge_init(void)
 {
     extern struct Library *OpenLibrary(const char *, unsigned long);
-#ifdef QJS_CLI_SOFTFLOAT
-    /* Must run BEFORE any double op — and the math libs must be openable
-     * on this system, which on a stock 020 requires them present in LIBS:. */
-    if (qjs_cli_math_init() < 0) return -1;
-#endif
     QJSBase = OpenLibrary("quickjs.library", 0);
-    if (QJSBase) {
-        /* library opened successfully */
-    }
-    return QJSBase ? 0 : -1;
+    if (!QJSBase) return -1;
+#ifdef QJS_CLI_SOFTFLOAT
+    /* Must run BEFORE any double op in the CLI. The library already
+     * has these libraries open from its CustomLibInit — we just mirror
+     * the pointers. No OpenLibrary, no CloseLibrary on this side. */
+    qjs_cli_math_bind();
+#endif
+    return 0;
 }
 
 void quickjs_bridge_cleanup(void)
 {
     extern void CloseLibrary(struct Library *);
     if (QJSBase) { CloseLibrary(QJSBase); QJSBase = NULL; }
-#ifdef QJS_CLI_SOFTFLOAT
-    qjs_cli_math_cleanup();
-#endif
+    /* No math-lib CloseLibrary here — the library owns those opens and
+     * closes them in its CustomLibCleanup when we close QJSBase above. */
 }
 
 /* ===================================================================

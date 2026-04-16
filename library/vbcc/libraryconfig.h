@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.077 (15.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.078 (15.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   77   /* packed: major=0, revision=077 (A1200: softfloat CLI + pool/vec magic split) */
+#define LIBRARY_VERSION   78   /* packed: major=0, revision=078 (QJS_GetMathBase LVO; CLI math via library, no own OpenLibrary) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
@@ -974,6 +974,12 @@ void *QJS_InitModuleNet(__reg("a6") LIBRARY_BASE_TYPE *base,
                         __reg("a0") struct JSContext *ctx,
                         __reg("a1") const char *module_name);
 
+/* Expose already-opened math library bases so CLI/clients never
+ * re-open them (architecture rule: all library management in the library).
+ * which: 0=mathieeedoubbas, 1=mathieeedoubtrans, 2=mathieeesingbas. */
+struct Library *QJS_GetMathBase(__reg("a6") LIBRARY_BASE_TYPE *base,
+                                __reg("d0") unsigned long which);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -1187,6 +1193,7 @@ void QJS_Eval(
     (APTR) QJS_WorkerDestroy, \
     (APTR) QJS_WorkerGetBase, \
     (APTR) QJS_GetNetCapabilities, \
-    (APTR) QJS_InitModuleNet
+    (APTR) QJS_InitModuleNet, \
+    (APTR) QJS_GetMathBase
 
 #endif /* LIBRARYCONFIG_H */

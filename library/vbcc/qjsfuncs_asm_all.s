@@ -418,6 +418,8 @@
 	xref	_QJS_GetNetCapabilities_impl
 	xdef	_QJS_InitModuleNet
 	xref	_js_init_module_net
+	xdef	_QJS_GetMathBase
+	xref	_QJS_GetMathBase_impl
 
 
 ; ===================================================================
@@ -3684,6 +3686,17 @@ _QJS_InitModuleNet:
 	move.l	a1,-(sp)
 	move.l	a0,-(sp)
 	jsr	_js_init_module_net
+	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_GetMathBase — (which:d0) -> d0 (struct Library*)
+; Impl reads the base's iMath*Base fields; must pass A6.
+_QJS_GetMathBase:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	d0,-(sp)		; which
+	move.l	a6,-(sp)		; base
+	jsr	_QJS_GetMathBase_impl
 	lea	8(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts

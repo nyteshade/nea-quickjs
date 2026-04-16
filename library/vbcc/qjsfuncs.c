@@ -314,6 +314,22 @@ static void qjs_probe_net_caps(LIBRARY_BASE_TYPE *aBase)
     }
 }
 
+/* QJS_GetMathBase_impl — hand out the library's already-opened math
+ * library bases so CLI/clients never re-open them. The library alone
+ * owns OpenLibrary/CloseLibrary for these.
+ * which: 0=mathieeedoubbas, 1=mathieeedoubtrans. SingBas intentionally
+ * omitted — printf %f and double ops use only DoubBas/DoubTrans. */
+struct Library *QJS_GetMathBase_impl(LIBRARY_BASE_TYPE *base,
+                                     unsigned long which)
+{
+    if (!base) return (struct Library *)0;
+    switch (which) {
+    case 0: return base->iMathDoubBasBase;
+    case 1: return base->iMathDoubTransBase;
+    default: return (struct Library *)0;
+    }
+}
+
 /* QJS_GetNetCapabilities_impl — returns the cached iNetCaps bitmask.
  * Called from the asm trampoline which pushes the library base.
  * Re-probe is available via Networking.reprobe() in the qjs:net module. */

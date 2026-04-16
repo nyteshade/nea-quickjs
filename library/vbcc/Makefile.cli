@@ -61,9 +61,7 @@ OBJS = $(OBJDIR)/qjs.o \
        $(OBJDIR)/amiga_compat_vbcc.o \
        $(OBJDIR)/repl.o \
        $(OBJDIR)/standalone.o \
-       $(OBJDIR)/sharedlib_math_soft.o \
-       $(OBJDIR)/sharedlib_int64_soft.o \
-       $(OBJDIR)/sharedlib_int64_conv.o
+       $(OBJDIR)/cli_math_globals.o
 
 TARGET = $(CDIR)/qjs
 
@@ -111,11 +109,15 @@ $(OBJDIR)/bridge_asm_batch2.o: $(LIBVBCC)/bridge_asm_batch2.s | $(OBJDIR)
 $(OBJDIR)/bridge_asm_libc.o: $(LIBVBCC)/bridge_asm_libc.s | $(OBJDIR)
 	$(VASM) -Fhunk -nowarn=62 -m68020 $< -o $@
 
-# Softfloat support files (shared with the library build). These
-# provide the MathIeeeDoub*Base globals, sharedlib_math_soft_init,
-# the softfloat math functions (sin/cos/floor/etc.), and the
-# int64<->double conversions used by JSValue boxing.
-$(OBJDIR)/sharedlib_math_soft.o: $(LIBVBCC)/sharedlib_math_soft.c | $(OBJDIR)
+# Softfloat support for the CLI:
+#   cli_math_globals.c  — CLI-only definitions of MathIeeeDoub*Base
+#                          (populated via LVO, NOT via OpenLibrary here).
+#   sharedlib_int64_soft.s / sharedlib_int64_conv.c — int64<->double
+#                          conversions VBCC emits for JSValue boxing.
+# sin/cos/NaN constants come from -lmsoft. sharedlib_math_soft.c is
+# deliberately NOT linked into the CLI — its sharedlib_math_soft_init
+# opens math libraries, which the architecture rule forbids in the CLI.
+$(OBJDIR)/cli_math_globals.o: $(LIBVBCC)/cli_math_globals.c | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
 
 $(OBJDIR)/sharedlib_int64_soft.o: $(LIBVBCC)/sharedlib_int64_soft.s | $(OBJDIR)

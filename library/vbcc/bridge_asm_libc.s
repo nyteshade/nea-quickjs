@@ -219,3 +219,16 @@ _bridge_InitModuleNet:
 	jsr	(a5)
 	movem.l	(sp)+,d2/a2-a6
 	rts
+
+; bridge_GetMathBase(which) -> struct Library*
+; LVO -1194 — library's already-opened math base (0=DoubBas, 1=DoubTrans, 2=SingBas)
+	xdef	_bridge_GetMathBase
+_bridge_GetMathBase:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),d0
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1194,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts

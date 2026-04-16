@@ -1,4 +1,4 @@
-==id quickjs_lib 0.76
+==id quickjs_lib 0.78
 ==base _QJSBase
 ==bias 30
 ==public
@@ -198,4 +198,5 @@ QJS_WorkerDestroy(worker)(a0)
 QJS_WorkerGetBase(worker,which)(a0/d0)
 QJS_GetNetCapabilities()()
 QJS_InitModuleNet(ctx,module_name)(a0/a1)
+QJS_GetMathBase(which)(d0)
 ==end
