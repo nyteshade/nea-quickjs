@@ -1,0 +1,49 @@
+; run-tests.script — AmigaOS regression suite for quickjs.library
+;
+; Runs the canonical test set and captures output to RAM: so the
+; user can scroll / diff / scp it back. Each test writes to its own
+; file; a summary goes to RAM:qjs-results/SUMMARY.
+;
+; Prerequisite: `stack 65536` (the CLI refuses to start otherwise).
+; Optional: `bin:` contains `amiga/c/` so `qjs` and `test_workers`
+;           are on the path.
+;
+; Usage (from the project's amiga/ directory):
+;   stack 65536
+;   execute tests/run-tests.script
+;
+; Exit: 0 if every test matches its golden output, non-zero otherwise
+; (caller decides how to surface failures; this script just captures).
+
+failat 21
+
+makedir ram:qjs-results
+delete ram:qjs-results/*.txt quiet
+
+echo "== quickjs.library regression suite =="     >  ram:qjs-results/SUMMARY
+echo ""                                            >> ram:qjs-results/SUMMARY
+version libs:quickjs.library                       >> ram:qjs-results/SUMMARY
+echo ""                                            >> ram:qjs-results/SUMMARY
+
+; ---- test 1: Worker primitive (native C) ----
+echo "[1] test_workers ..."
+c/test_workers                                      > ram:qjs-results/test_workers.txt
+echo "test_workers  -> ram:qjs-results/test_workers.txt"  >> ram:qjs-results/SUMMARY
+
+; ---- test 2: fetch() API over real HTTP/HTTPS ----
+echo "[2] test_fetch.js ..."
+c/qjs tests/test_fetch.js                           > ram:qjs-results/test_fetch.txt
+echo "test_fetch    -> ram:qjs-results/test_fetch.txt"    >> ram:qjs-results/SUMMARY
+
+; ---- test 3: qjs:net capability probe ----
+echo "[3] test_net.js ..."
+c/qjs tests/test_net.js                             > ram:qjs-results/test_net.txt
+echo "test_net      -> ram:qjs-results/test_net.txt"      >> ram:qjs-results/SUMMARY
+
+echo ""                                            >> ram:qjs-results/SUMMARY
+echo "Done. Compare each file against amiga/tests/golden/ on the"  >> ram:qjs-results/SUMMARY
+echo "host side (scripts/check-tests.sh)."                         >> ram:qjs-results/SUMMARY
+
+echo ""
+echo "== Results in RAM:qjs-results/ =="
+list ram:qjs-results

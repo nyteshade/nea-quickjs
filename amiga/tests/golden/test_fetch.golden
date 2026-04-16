@@ -1,0 +1,16 @@
+# Golden for tests/test_fetch.js.
+# Body text and header contents vary between runs; we pin the
+# structural markers and the pass count.
+
+LITERAL: === fetch() API Test Suite ===
+
+CONTAINS: Basic HTTP GET
+CONTAINS: JSON response
+CONTAINS: Response headers
+CONTAINS: 404 response
+CONTAINS: HTTPS GET
+CONTAINS: arrayBuffer()
+CONTAINS: Bad URL error
+
+# Pass count. Update to 23 passed etc. when tests are added.
+REGEX: === Results: 22 passed, 0 failed ===

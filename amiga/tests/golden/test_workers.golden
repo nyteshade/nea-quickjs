@@ -1,0 +1,13 @@
+# Golden for c/test_workers
+# See golden/README.md for match rules (LITERAL / REGEX / CONTAINS).
+
+# Final pass/fail summary. Count changes require updating this line.
+CONTAINS: 59/0 pass
+
+# Six stress categories must all announce themselves.
+CONTAINS: isolation
+CONTAINS: durations
+CONTAINS: responsiveness
+CONTAINS: failure
+CONTAINS: leak
+CONTAINS: scaling

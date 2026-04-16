@@ -313,3 +313,65 @@ Runs under `make test-workers` target.
 - Fina decision `decision:qp7wyp93qvzqhmpv7f4y` — rationale for building
   this primitive instead of band-aiding fetch
 - Fina remember (bsdsocket per-task) — the root gotcha
+
+---
+
+## Architecture
+
+```
+                    AmigaOS Task (single address space)
+  +---------------------------------------------------------+
+  |                                                         |
+  |   JS runtime (main task)                                |
+  |     +---------------------------------------------+     |
+  |     | quickjs engine  +----------+  +----------+  |     |
+  |     |                 | js_fetch |  | future   |  |     |
+  |     |                 +----------+  | consumer |  |     |
+  |     |                      |        +----------+  |     |
+  |     +----------------------|--------------|-------+     |
+  |                            v              v             |
+  |   +----------------- Worker primitive --------------+   |
+  |   | QJS_WorkerSpawn / Poll / Join / Destroy /       |   |
+  |   | GetBase   (LVOs in quickjs.library)             |   |
+  |   |                                                 |   |
+  |   |    MsgPort + Task + reply port + handoff        |   |
+  |   +-------------|-------|-----------------|---------+   |
+  |                 v       v                 v             |
+  |        +--------+  +---------+    +------------+        |
+  |        | Worker |  | Worker  |    |   Worker   |        |
+  |        | Task A |  | Task B  |    |   Task C   |        |
+  |        |        |  |         |    |            |        |
+  |        | per-   |  | per-    |    | per-task   |        |
+  |        | task   |  | task    |    | library    |        |
+  |        | libs:  |  | libs:   |    | bases      |        |
+  |        |  bsd   |  |  bsd    |    |            |        |
+  |        |  ssl   |  |  ssl    |    |            |        |
+  |        |  dos   |  |  dos    |    |            |        |
+  |        +--------+  +---------+    +------------+        |
+  |                                                         |
+  +---------------------------------------------------------+
+            preemptive scheduling by exec.library
+```
+
+- **One main task** holds the JS runtime and the JS-visible bindings
+  (`js_fetch`, and later `child_process`, async crypto, async DNS, etc.).
+- **N worker tasks** run independent C jobs, each with its OWN
+  `bsdsocket.library`, `amisslmaster.library`, and `dos.library` opened
+  via `OpenLibrary` in the worker task. This is mandatory — those
+  libraries keep per-task state and cannot be shared across tasks.
+- The primitive hides all of `CreateNewProc` / `CreateMsgPort` /
+  `PutMsg` / `WaitPort` / per-task library opens behind five LVOs.
+- Communication is **one-shot** — a worker signals completion via a
+  single `PutMsg` on the reply port.  For streaming, wrap a message
+  queue inside the `user_data`.
+
+## Stability
+
+| Test               | Outcome                 | Library revision |
+| ------------------ | ----------------------- | ---------------- |
+| `test_workers`     | 59/0 pass               | 0.075+           |
+| `test_fetch.js`    | 22/0 pass (incl. HTTPS) | 0.075+           |
+| `test_net.js`      | 8/0 pass                | 0.076+           |
+
+Reproduced on real A1200 / 020 soft-float (post `stack 65536`) and on
+Amiberry. No known memory or isolation regressions since W4.

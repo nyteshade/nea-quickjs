@@ -63,8 +63,10 @@ quickjs.library/QJS_GetGlobalObject
 quickjs.library/QJS_GetImportMeta
 quickjs.library/QJS_GetLength
 quickjs.library/QJS_GetLibcOpaque
+quickjs.library/QJS_GetMathBase
 quickjs.library/QJS_GetModuleName
 quickjs.library/QJS_GetModuleNamespace
+quickjs.library/QJS_GetNetCapabilities
 quickjs.library/QJS_GetOpaque
 quickjs.library/QJS_GetOpaque2
 quickjs.library/QJS_GetOwnPropertyNames
@@ -81,6 +83,7 @@ quickjs.library/QJS_GetVersion
 quickjs.library/QJS_HasException
 quickjs.library/QJS_HasProperty
 quickjs.library/QJS_InitModuleBJSON
+quickjs.library/QJS_InitModuleNet
 quickjs.library/QJS_InitModuleOS
 quickjs.library/QJS_InitModuleStd
 quickjs.library/QJS_Invoke
@@ -188,6 +191,11 @@ quickjs.library/QJS_ToPropertyKey
 quickjs.library/QJS_ToString
 quickjs.library/QJS_UpdateStackTop
 quickjs.library/QJS_ValueToAtom
+quickjs.library/QJS_WorkerDestroy
+quickjs.library/QJS_WorkerGetBase
+quickjs.library/QJS_WorkerJoin
+quickjs.library/QJS_WorkerPoll
+quickjs.library/QJS_WorkerSpawn
 quickjs.library/QJS_WriteObject
 
 
@@ -6537,4 +6545,339 @@ quickjs.library/QJS_LoadFile                         QJS_LoadFile
     SEE ALSO
 	QJS_Free, QJS_EvalBuf
 
+
+
+
+
+quickjs.library/QJS_GetMathBase               quickjs.library/QJS_GetMathBase
+
+    NAME
+	QJS_GetMathBase -- Get a library-owned IEEE math base pointer.
+
+    SYNOPSIS
+	base = QJS_GetMathBase(which)
+	D0		       D0
+
+	struct Library *QJS_GetMathBase(ULONG which);
+
+    FUNCTION
+	Returns a pointer to one of the math libraries quickjs.library
+	has already opened for its own use.  The library opens these
+	once during initialization; callers should just read them here
+	rather than duplicating the OpenLibrary call.
+
+	This exists so that a softfloat-compiled client (e.g. the qjs
+	CLI built with no -fpu) can wire its VBCC-generated
+	MathIeeeDoubBasBase / MathIeeeDoubTransBase globals to the
+	same bases quickjs.library already holds.  Refcounting stays
+	balanced: the library owns OpenLibrary, you never call
+	CloseLibrary on what this returns.
+
+    INPUTS
+	which - Selector:
+		0 = mathieeedoubbas.library
+		1 = mathieeedoubtrans.library
+		(other values return NULL)
+
+    RESULT
+	base - Pointer to the requested library, or NULL if the
+	    selector is unknown or the library never opened it.
+
+    EXAMPLE
+	/* In a softfloat CLI's startup code, after OpenLibrary of
+	 * quickjs.library: */
+	extern struct Library *MathIeeeDoubBasBase;
+	extern struct Library *MathIeeeDoubTransBase;
+	MathIeeeDoubBasBase   = QJS_GetMathBase(0);
+	MathIeeeDoubTransBase = QJS_GetMathBase(1);
+
+    NOTES
+	mathieeesingbas.library is intentionally NOT exposed here;
+	printf %f and JSValue int64<->double conversions use only
+	DoubBas and DoubTrans.  If you need SingBas you can open it
+	yourself without breaking refcount hygiene.
+
+    SEE ALSO
+	QJS_GetNetCapabilities, QJS_GetVersion
+
+
+quickjs.library/QJS_GetNetCapabilities quickjs.library/QJS_GetNetCapabilities
+
+    NAME
+	QJS_GetNetCapabilities -- Query which network stacks the
+	    library successfully probed at load time.
+
+    SYNOPSIS
+	caps = QJS_GetNetCapabilities()
+	D0
+
+	ULONG QJS_GetNetCapabilities(VOID);
+
+    FUNCTION
+	Returns a bitmask of networking capabilities that quickjs.library
+	confirmed at CustomLibInit time by opening and closing the
+	relevant system libraries once.
+
+	The library loads unconditionally even if both probes fail; it
+	just reports zero caps.  fetch() checks this mask before
+	attempting a request and throws a clear TypeError naming the
+	missing library, rather than letting the failure manifest
+	opaquely inside a worker task.
+
+    INPUTS
+	None.
+
+    RESULT
+	caps - Bitmask:
+		QJS_NET_TCP (0x01) = bsdsocket.library v4+ available
+		QJS_NET_TLS (0x02) = amisslmaster.library available
+
+    EXAMPLE
+	ULONG caps = QJS_GetNetCapabilities();
+	if (!(caps & QJS_NET_TCP)) {
+	    Printf("http:// not supported; install bsdsocket.library\n");
+	}
+	if (!(caps & QJS_NET_TLS)) {
+	    Printf("https:// not supported; install AmiSSL\n");
+	}
+
+    NOTES
+	The qjs:net JS module exposes this same information via
+	Networking.hasTCP(), Networking.hasTLS(), Networking.status()
+	and Networking.reprobe() (the latter re-runs the probe to
+	pick up newly-installed libraries at runtime).
+
+    SEE ALSO
+	QJS_InitModuleNet, --background--
+
+
+quickjs.library/QJS_InitModuleNet           quickjs.library/QJS_InitModuleNet
+
+    NAME
+	QJS_InitModuleNet -- Register the "qjs:net" JS module.
+
+    SYNOPSIS
+	m = QJS_InitModuleNet(ctx, module_name)
+	D0		      A0   A1
+
+	JSModuleDef *QJS_InitModuleNet(JSContext *ctx,
+				       CONST_STRPTR module_name);
+
+    FUNCTION
+	Registers a C module in ctx that exports the Networking
+	capability API.  After this call, JavaScript code can
+	`import * as Networking from "qjs:net"` and use:
+
+	    Networking.hasTCP()  -- boolean
+	    Networking.hasTLS()  -- boolean
+	    Networking.status()  -- { tcp, tls }
+	    Networking.reprobe() -- { tcp, tls } (also refreshes)
+
+    INPUTS
+	ctx	    - Context that should expose the module.
+	module_name - Module identifier, typically "qjs:net".
+
+    RESULT
+	m - The new module, or NULL on failure.
+
+    SEE ALSO
+	QJS_InitModuleStd, QJS_InitModuleOS, QJS_GetNetCapabilities
+
+
+quickjs.library/QJS_WorkerSpawn               quickjs.library/QJS_WorkerSpawn
+
+    NAME
+	QJS_WorkerSpawn -- Launch a native Task that runs a C job
+	    function with its own per-task library bases.
+
+    SYNOPSIS
+	worker = QJS_WorkerSpawn(job_fn, user_data, flags)
+	D0			 A0	 A1	    D0
+
+	typedef LONG (*QJSWorkerJobFn)(struct QJSWorker *w, APTR user);
+	struct QJSWorker *QJS_WorkerSpawn(QJSWorkerJobFn job_fn,
+					  APTR user_data,
+					  ULONG flags);
+
+    FUNCTION
+	Creates a new AmigaOS Task that runs job_fn(worker, user_data)
+	and exits when job_fn returns.  The framework opens
+	bsdsocket.library, amisslmaster.library, and dos.library with
+	their own per-task bases in the child task -- this is required
+	because several AmigaOS system libraries keep per-task state
+	and hang if two tasks share a single library base.
+
+	The caller's Task may continue immediately; use QJS_WorkerPoll
+	to check progress without blocking or QJS_WorkerJoin to wait.
+
+	Documented in docs/WORKER_API.md with the full concurrency
+	model and signal/MsgPort semantics.
+
+    INPUTS
+	job_fn	  - Entry function to execute in the new Task.
+	user_data - Arbitrary pointer passed through to job_fn.
+	flags	  - Reserved for future use; pass 0.
+
+    RESULT
+	worker - Opaque handle for Poll/Join/GetBase/Destroy, or NULL
+	    on failure (memory, Task creation, etc.).
+
+    EXAMPLE
+	static LONG my_job(struct QJSWorker *w, APTR ud) {
+	    /* Worker's bsdsocket base: */
+	    struct Library *sb = QJS_WorkerGetBase(w, 0);
+	    /* ... do work ... */
+	    return 0;
+	}
+	struct QJSWorker *w = QJS_WorkerSpawn(my_job, NULL, 0);
+	if (w) {
+	    LONG rc = QJS_WorkerJoin(w);
+	    QJS_WorkerDestroy(w);
+	}
+
+    NOTES
+	DO NOT touch the worker handle from inside job_fn with the
+	expectation that it reflects job state -- job_fn runs AS the
+	worker, so fields like state are updated after job_fn returns.
+	Use QJS_WorkerGetBase from within job_fn to access its
+	per-task library bases.
+
+    SEE ALSO
+	QJS_WorkerPoll, QJS_WorkerJoin, QJS_WorkerDestroy,
+	QJS_WorkerGetBase
+
+
+quickjs.library/QJS_WorkerPoll                 quickjs.library/QJS_WorkerPoll
+
+    NAME
+	QJS_WorkerPoll -- Non-blocking state check for a worker.
+
+    SYNOPSIS
+	state = QJS_WorkerPoll(worker)
+	D0		       A0
+
+	LONG QJS_WorkerPoll(struct QJSWorker *worker);
+
+    FUNCTION
+	Returns the worker's current state without blocking.  Safe to
+	call from the spawning Task at any frequency.  Typical use is
+	a short loop that does other work while awaiting completion.
+
+    INPUTS
+	worker - Handle from QJS_WorkerSpawn.  NULL is treated as
+	    "failed".
+
+    RESULT
+	state - One of:
+		QJS_WORKER_PENDING (0) -- not yet started
+		QJS_WORKER_RUNNING (1) -- job_fn executing
+		QJS_WORKER_DONE    (2) -- job_fn returned normally
+		QJS_WORKER_FAILED  (3) -- framework error or NULL
+
+    SEE ALSO
+	QJS_WorkerSpawn, QJS_WorkerJoin
+
+
+quickjs.library/QJS_WorkerJoin                 quickjs.library/QJS_WorkerJoin
+
+    NAME
+	QJS_WorkerJoin -- Block the caller until a worker finishes.
+
+    SYNOPSIS
+	rc = QJS_WorkerJoin(worker)
+	D0		    A0
+
+	LONG QJS_WorkerJoin(struct QJSWorker *worker);
+
+    FUNCTION
+	Blocks the calling Task on the worker's reply MsgPort until
+	job_fn has returned (or framework setup failed), then returns
+	the value job_fn returned.  Kernel-level wait -- the calling
+	Task consumes no CPU while waiting.
+
+	After a successful Join, the worker handle is in the DONE
+	state; call QJS_WorkerDestroy to release its resources.
+
+    INPUTS
+	worker - Handle from QJS_WorkerSpawn.  NULL returns -1.
+
+    RESULT
+	rc - The LONG returned by job_fn, or -1 on worker==NULL or
+	    framework error.
+
+    NOTES
+	Calling Join twice on the same worker is safe; the second
+	call returns immediately with the cached result.
+
+    SEE ALSO
+	QJS_WorkerSpawn, QJS_WorkerPoll, QJS_WorkerDestroy
+
+
+quickjs.library/QJS_WorkerDestroy           quickjs.library/QJS_WorkerDestroy
+
+    NAME
+	QJS_WorkerDestroy -- Free a worker handle and its resources.
+
+    SYNOPSIS
+	QJS_WorkerDestroy(worker)
+			  A0
+
+	VOID QJS_WorkerDestroy(struct QJSWorker *worker);
+
+    FUNCTION
+	Releases the worker struct, its reply MsgPort, and any
+	framework-allocated buffers.  If the worker is still RUNNING
+	when this is called, a QJS_WorkerJoin is performed first to
+	prevent use-after-free.
+
+	Safe on NULL -- it's a no-op.  Safe to call after Join.
+
+    INPUTS
+	worker - Handle from QJS_WorkerSpawn.
+
+    RESULT
+	None.
+
+    SEE ALSO
+	QJS_WorkerSpawn, QJS_WorkerJoin
+
+
+quickjs.library/QJS_WorkerGetBase           quickjs.library/QJS_WorkerGetBase
+
+    NAME
+	QJS_WorkerGetBase -- Retrieve one of the worker's per-task
+	    library bases.
+
+    SYNOPSIS
+	base = QJS_WorkerGetBase(worker, which)
+	D0			 A0	 D0
+
+	struct Library *QJS_WorkerGetBase(struct QJSWorker *worker,
+					  ULONG which);
+
+    FUNCTION
+	Returns one of the per-task library bases the framework opened
+	for the worker.  Must only be called FROM WITHIN job_fn, for
+	the worker that's running -- bsdsocket, AmiSSL, and dos bases
+	stashed in the worker struct are task-local and MUST NOT be
+	used from any other Task.
+
+    INPUTS
+	worker - The currently-running worker handle (passed to job_fn).
+	which  - Selector:
+		 QJS_WORKER_BASE_SOCKET  (0) = bsdsocket.library
+		 QJS_WORKER_BASE_SSL     (1) = amisslmaster.library
+		 QJS_WORKER_BASE_DOS     (2) = dos.library
+
+    RESULT
+	base - Per-task library base, or NULL if the worker failed
+	    to open that library at spawn time.
+
+    NOTES
+	Returning a non-NULL bsdsocket base out of job_fn and then
+	using it from the parent task is a guaranteed hang on
+	AmigaOS.  Don't do it.
+
+    SEE ALSO
+	QJS_WorkerSpawn
 

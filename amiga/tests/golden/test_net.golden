@@ -1,0 +1,17 @@
+# Golden for tests/test_net.js.
+# Exact caps depend on whether the test Amiga has bsdsocket/AmiSSL
+# installed; the SHAPE of the run is what we verify.
+
+LITERAL: test_net: qjs:net module
+
+CONTAINS: status() returns object
+CONTAINS: status.tcp is boolean
+CONTAINS: status.tls is boolean
+CONTAINS: hasTCP() matches status.tcp
+CONTAINS: hasTLS() matches status.tls
+CONTAINS: reprobe() returns object
+CONTAINS: reprobe.tcp === status.tcp
+CONTAINS: reprobe.tls === status.tls
+
+REGEX: caps: tcp=(true|false) tls=(true|false)
+REGEX: test_net: 8 pass / 0 fail

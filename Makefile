@@ -30,7 +30,7 @@
 
 LIBVBCC = library/vbcc
 
-.PHONY: all ship lib lib-fpu lib-soft cli clean variants 020 040 060
+.PHONY: all ship lib lib-fpu lib-soft cli clean variants 020 040 060 tests check
 
 all: ship
 
@@ -62,3 +62,25 @@ cli:
 clean:
 	$(MAKE) -C $(LIBVBCC) clean-variants
 	$(MAKE) -C $(LIBVBCC) -f Makefile.cli clean
+
+# --- Regression suite ---
+# 'make tests'  builds test_workers (native C) and ensures qjs + the
+#               library are current, so the Amiga can run
+#               tests/run-tests.script out of the box.
+# 'make check'  compare a results dir you pulled from RAM: against the
+#               goldens (runs on host, not Amiga).
+#               usage: make check RESULTS=path/to/results/
+tests:
+	$(MAKE) -C $(LIBVBCC) -f Makefile.test_workers
+	@echo ""
+	@echo "Regression artifacts staged. On the Amiga:"
+	@echo "    stack 65536"
+	@echo "    execute tests/run-tests.script"
+	@echo "then scp RAM:qjs-results/ back and run 'make check RESULTS=...'."
+
+check:
+	@if [ -z "$(RESULTS)" ]; then \
+	    echo "usage: make check RESULTS=path/to/results-dir" >&2; \
+	    exit 2; \
+	fi
+	scripts/check-tests.sh "$(RESULTS)"
