@@ -45,6 +45,21 @@ echo "[4] test_buffer.js ..."
 c/qjs tests/test_buffer.js                          > ram:qjs-results/test_buffer.txt
 echo "test_buffer   -> ram:qjs-results/test_buffer.txt"   >> ram:qjs-results/SUMMARY
 
+; ---- test 5: EventEmitter (Node API subset) ----
+echo "[5] test_events.js ..."
+c/qjs tests/test_events.js                          > ram:qjs-results/test_events.txt
+echo "test_events   -> ram:qjs-results/test_events.txt"   >> ram:qjs-results/SUMMARY
+
+; ---- test 6: util (Node API subset) ----
+echo "[6] test_util.js ..."
+c/qjs tests/test_util.js                            > ram:qjs-results/test_util.txt
+echo "test_util     -> ram:qjs-results/test_util.txt"     >> ram:qjs-results/SUMMARY
+
+; ---- test 7: fs.promises (Node API subset over qjs:os) ----
+echo "[7] test_fs.js ..."
+c/qjs tests/test_fs.js                              > ram:qjs-results/test_fs.txt
+echo "test_fs       -> ram:qjs-results/test_fs.txt"       >> ram:qjs-results/SUMMARY
+
 echo ""                                            >> ram:qjs-results/SUMMARY
 echo "Done. Compare each file against amiga/tests/golden/ on the"  >> ram:qjs-results/SUMMARY
 echo "host side (scripts/check-tests.sh)."                         >> ram:qjs-results/SUMMARY

@@ -1,0 +1,23 @@
+# Golden for tests/test_util.js.
+
+LITERAL: test_util: util subset
+
+CONTAINS: format plain string
+CONTAINS: format %s
+CONTAINS: format %d
+CONTAINS: format %j
+CONTAINS: format %%
+CONTAINS: format extra args
+CONTAINS: inspect null
+CONTAINS: inspect array
+CONTAINS: inspect object
+CONTAINS: inspect nested
+CONTAINS: promisify resolves
+CONTAINS: promisify rejects
+CONTAINS: callbackify result
+CONTAINS: callbackify error
+CONTAINS: types.isArray
+CONTAINS: types.isPromise
+CONTAINS: types.isTypedArray
+
+REGEX: test_util: 35 pass / 0 fail

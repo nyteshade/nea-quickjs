@@ -1,0 +1,18 @@
+# Golden for tests/test_events.js.
+
+LITERAL: test_events: EventEmitter subset
+
+CONTAINS: on + emit delivers
+CONTAINS: listeners fire in order
+CONTAINS: prependListener runs first
+CONTAINS: once fires exactly once
+CONTAINS: off removes listener
+CONTAINS: removeAllListeners clears
+CONTAINS: unhandled error throws
+CONTAINS: error with listener absorbs
+CONTAINS: mutation during emit snapshots
+CONTAINS: listenerCount
+CONTAINS: newListener meta
+CONTAINS: methods return this
+
+REGEX: test_events: 19 pass / 0 fail

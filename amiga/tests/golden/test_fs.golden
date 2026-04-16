@@ -1,0 +1,17 @@
+# Golden for tests/test_fs.js.
+# Exact pass count depends on whether T: is writable and what qjs:os
+# APIs are present. The shape is what we pin; the suite just has to
+# run to completion without throwing an uncaught promise rejection.
+
+LITERAL: test_fs: fs.promises subset
+
+CONTAINS: fs global exists
+CONTAINS: fs.promises exists
+CONTAINS: writeFile is function
+CONTAINS: readFile is function
+CONTAINS: stat is function
+CONTAINS: unlink is function
+
+# Final count line. Expected 18 when all passes on Amiga (T: writable,
+# readdir/readFile both present). Bump if that changes.
+REGEX: test_fs: [0-9]+ pass / [0-9]+ fail

@@ -93,6 +93,9 @@ check_one "$GOLDEN_DIR/test_workers.golden" "$RESULTS_DIR/test_workers.txt"
 check_one "$GOLDEN_DIR/test_fetch.golden"   "$RESULTS_DIR/test_fetch.txt"
 check_one "$GOLDEN_DIR/test_net.golden"     "$RESULTS_DIR/test_net.txt"
 check_one "$GOLDEN_DIR/test_buffer.golden"  "$RESULTS_DIR/test_buffer.txt"
+check_one "$GOLDEN_DIR/test_events.golden"  "$RESULTS_DIR/test_events.txt"
+check_one "$GOLDEN_DIR/test_util.golden"    "$RESULTS_DIR/test_util.txt"
+check_one "$GOLDEN_DIR/test_fs.golden"      "$RESULTS_DIR/test_fs.txt"
 
 if [ $overall_fail -eq 0 ]; then
     echo ""

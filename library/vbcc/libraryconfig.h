@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.082 (16.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.083 (16.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   82   /* packed: major=0, revision=082 (Buffer: base64 regex -> plain-JS filter for Amiga) */
+#define LIBRARY_VERSION   83   /* packed: major=0, revision=083 (D2 EventEmitter + D3 util + D4 fs.promises) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

@@ -12,13 +12,19 @@ verify behavior on the target, not simulate it on the host.
 | `tests/test_fetch.js`       | fetch() over HTTP and HTTPS, JSON, 404, ArrayBuffer, headers |
 | `tests/test_net.js`         | `qjs:net` module: probe, reprobe, status shape        |
 | `tests/test_buffer.js`      | Node Buffer subset: construction, encodings, read/write ints, compare, search, fill, copy, subarray |
+| `tests/test_events.js`      | EventEmitter: on/once/off, prepend, error semantics, introspection, meta-events, mutation-during-emit |
+| `tests/test_util.js`        | util.format, util.inspect, util.promisify, util.callbackify, util.types.* |
+| `tests/test_fs.js`          | fs.promises: readFile/writeFile/appendFile, stat, access, unlink over `T:` |
 
-Last known-good baselines (library revision 0.081):
+Last known-good baselines (library revision 0.083):
 
 - `test_workers` — **59/0 pass**
 - `test_fetch`   — **22/0 pass**
 - `test_net`     — **8/0 pass**
-- `test_buffer`  — **60/0 pass** (host qjs run; Amiga baseline pending)
+- `test_buffer`  — **60/0 pass**
+- `test_events`  — **19/0 pass** (host qjs run; Amiga baseline pending)
+- `test_util`    — **35/0 pass** (host qjs run; Amiga baseline pending)
+- `test_fs`      — baseline pending (needs T: writable on Amiga)
 
 ## Running the suite on the Amiga
 

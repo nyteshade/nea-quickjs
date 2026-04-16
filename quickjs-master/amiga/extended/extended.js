@@ -1572,6 +1572,464 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: EventEmitter  (Node.js API subset)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Classic Node EventEmitter. on/once/off/emit plus the usual
+ * helpers. Listeners fire synchronously in insertion order.
+ * Error events with no listener throw, matching Node behavior.
+ *
+ * Note on mutation during emit: we snapshot the listener array
+ * before iterating, so listeners added or removed inside a
+ * handler don't affect the current emit (Node semantics).
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'event-emitter',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node.js EventEmitter (on/once/off/emit + helpers)',
+    globals:     ['EventEmitter'],
+    standard:    false,
+    install() {
+        class EventEmitter {
+            constructor() {
+                this._events = {};
+                this._maxListeners = 10;
+            }
+            setMaxListeners(n) {
+                this._maxListeners = n | 0;
+                return this;
+            }
+            getMaxListeners() {
+                return this._maxListeners;
+            }
+            _add(ev, fn, prepend) {
+                if (typeof fn !== 'function')
+                    throw new TypeError('listener must be a function');
+                const list = this._events[ev] || (this._events[ev] = []);
+                if (prepend) list.unshift(fn); else list.push(fn);
+                if (this._maxListeners > 0 && list.length > this._maxListeners) {
+                    try {
+                        std.err.puts(`(qjs) MaxListenersExceededWarning: ` +
+                            `${list.length} '${ev}' listeners on EventEmitter, ` +
+                            `limit is ${this._maxListeners}\n`);
+                    } catch (_) {}
+                }
+                this.emit('newListener', ev, fn._origFn || fn);
+                return this;
+            }
+            on(ev, fn)          { return this._add(ev, fn, false); }
+            addListener(ev, fn) { return this._add(ev, fn, false); }
+            prependListener(ev, fn) { return this._add(ev, fn, true); }
+            once(ev, fn) {
+                const self = this;
+                const wrap = function (...args) {
+                    self.off(ev, wrap);
+                    fn.apply(this, args);
+                };
+                wrap._origFn = fn;
+                return this._add(ev, wrap, false);
+            }
+            prependOnceListener(ev, fn) {
+                const self = this;
+                const wrap = function (...args) {
+                    self.off(ev, wrap);
+                    fn.apply(this, args);
+                };
+                wrap._origFn = fn;
+                return this._add(ev, wrap, true);
+            }
+            off(ev, fn) {
+                const list = this._events[ev];
+                if (!list) return this;
+                for (let i = list.length - 1; i >= 0; i--) {
+                    if (list[i] === fn || list[i]._origFn === fn) {
+                        list.splice(i, 1);
+                        this.emit('removeListener', ev, fn);
+                        break;
+                    }
+                }
+                if (list.length === 0) delete this._events[ev];
+                return this;
+            }
+            removeListener(ev, fn) { return this.off(ev, fn); }
+            removeAllListeners(ev) {
+                if (ev === undefined) { this._events = {}; return this; }
+                delete this._events[ev];
+                return this;
+            }
+            emit(ev, ...args) {
+                const list = this._events[ev];
+                if (!list || list.length === 0) {
+                    if (ev === 'error') {
+                        const err = args[0];
+                        throw (err instanceof Error) ? err :
+                            new Error('Unhandled "error" event: ' + String(err));
+                    }
+                    return false;
+                }
+                /* Snapshot so mutation during emit doesn't shift indices. */
+                const snap = list.slice();
+                for (const fn of snap) {
+                    try { fn.apply(this, args); }
+                    catch (e) {
+                        try { std.err.puts(`(qjs) EventEmitter listener threw: ${e && e.message || e}\n`); }
+                        catch (_) {}
+                    }
+                }
+                return true;
+            }
+            listeners(ev) {
+                const list = this._events[ev];
+                return list ? list.map(fn => fn._origFn || fn) : [];
+            }
+            rawListeners(ev) {
+                const list = this._events[ev];
+                return list ? list.slice() : [];
+            }
+            listenerCount(ev) {
+                const list = this._events[ev];
+                return list ? list.length : 0;
+            }
+            eventNames() {
+                return Object.keys(this._events);
+            }
+        }
+        EventEmitter.defaultMaxListeners = 10;
+        globalThis.EventEmitter = EventEmitter;
+    },
+}));
+
+/* ==========================================================
+ * Feature: util  (Node.js subset: format, inspect, promisify, types)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Deliberate subset. util.inspect uses the engine's JS_PrintValue
+ * for accurate rendering (via print(...)-compatible formatting)
+ * but degrades gracefully if print isn't available.
+ *
+ * Exposed as `globalThis.util` plus `globalThis.require('util')`
+ * (a hand-rolled stub registry that just returns the same object).
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'util',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node.js util (format, inspect, promisify, types.*)',
+    globals:     ['util'],
+    standard:    false,
+    install() {
+        function format(fmt, ...args) {
+            if (typeof fmt !== 'string') {
+                return [fmt, ...args].map(inspect).join(' ');
+            }
+            let i = 0;
+            let out = '';
+            for (let p = 0; p < fmt.length; p++) {
+                const c = fmt.charAt(p);
+                if (c !== '%' || p + 1 >= fmt.length) { out += c; continue; }
+                const spec = fmt.charAt(++p);
+                if (spec === '%') { out += '%'; continue; }
+                if (i >= args.length) { out += '%' + spec; continue; }
+                const a = args[i++];
+                switch (spec) {
+                    case 's': out += String(a); break;
+                    case 'd':
+                    case 'i': out += String(parseInt(a, 10)); break;
+                    case 'f': out += String(Number(a)); break;
+                    case 'j': try { out += JSON.stringify(a); }
+                              catch (_) { out += '[Circular]'; } break;
+                    case 'o':
+                    case 'O': out += inspect(a); break;
+                    default:  out += '%' + spec; i--; break;
+                }
+            }
+            /* Extra args get space-joined and appended like Node:
+             * primitives go through String(), objects through inspect(). */
+            while (i < args.length) {
+                const a = args[i++];
+                const s = (a !== null && typeof a === 'object')
+                    ? inspect(a) : String(a);
+                out += ' ' + s;
+            }
+            return out;
+        }
+
+        function inspect(v, _depth) {
+            if (v === null) return 'null';
+            if (v === undefined) return 'undefined';
+            const t = typeof v;
+            if (t === 'string') return "'" + v.replace(/\\/g, '\\\\')
+                                                .replace(/'/g, "\\'")
+                                                .replace(/\n/g, '\\n') + "'";
+            if (t === 'number' || t === 'boolean' || t === 'bigint') return String(v);
+            if (t === 'function')
+                return '[Function' + (v.name ? ': ' + v.name : ' (anonymous)') + ']';
+            if (t === 'symbol') return v.toString();
+            /* object branch */
+            const depth = _depth || 0;
+            if (depth > 4) return '[...]';
+            if (Array.isArray(v)) {
+                if (v.length === 0) return '[]';
+                return '[ ' + v.map(x => inspect(x, depth + 1)).join(', ') + ' ]';
+            }
+            if (v instanceof Date) return v.toISOString();
+            if (v instanceof RegExp) return v.toString();
+            if (v instanceof Error) return v.stack || (v.name + ': ' + v.message);
+            if (ArrayBuffer.isView(v)) {
+                const arr = Array.from(v);
+                return (v.constructor.name || 'TypedArray') + '(' + arr.length + ') [ ' +
+                    arr.slice(0, 10).join(', ') +
+                    (arr.length > 10 ? ', ...' : '') + ' ]';
+            }
+            /* plain object */
+            const keys = Object.keys(v);
+            if (keys.length === 0) return '{}';
+            const parts = keys.slice(0, 20).map(k => {
+                const ks = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k);
+                return ks + ': ' + inspect(v[k], depth + 1);
+            });
+            if (keys.length > 20) parts.push('...');
+            return '{ ' + parts.join(', ') + ' }';
+        }
+
+        function promisify(fn) {
+            return function (...args) {
+                return new Promise((resolve, reject) => {
+                    args.push(function (err, ...rest) {
+                        if (err) return reject(err);
+                        if (rest.length <= 1) resolve(rest[0]);
+                        else resolve(rest);
+                    });
+                    try { fn.apply(this, args); }
+                    catch (e) { reject(e); }
+                });
+            };
+        }
+
+        function callbackify(fn) {
+            return function (...args) {
+                const cb = args.pop();
+                if (typeof cb !== 'function')
+                    throw new TypeError('last argument must be a function');
+                Promise.resolve()
+                    .then(() => fn.apply(this, args))
+                    .then(v => cb(null, v), e => cb(e));
+            };
+        }
+
+        const types = {
+            isArray: Array.isArray,
+            isDate: v => v instanceof Date,
+            isRegExp: v => v instanceof RegExp,
+            isError: v => v instanceof Error,
+            isPromise: v => v && typeof v.then === 'function',
+            isMap: v => v instanceof Map,
+            isSet: v => v instanceof Set,
+            isWeakMap: v => v instanceof WeakMap,
+            isWeakSet: v => v instanceof WeakSet,
+            isArrayBuffer: v => v instanceof ArrayBuffer,
+            isTypedArray: v => ArrayBuffer.isView(v) && !(v instanceof DataView),
+            isUint8Array: v => v instanceof Uint8Array,
+            isFunction: v => typeof v === 'function',
+        };
+
+        globalThis.util = {
+            format, inspect, promisify, callbackify, types,
+            inherits(ctor, superCtor) {
+                /* Old Node util.inherits. Here mainly so code that
+                 * imports it doesn't error. */
+                Object.setPrototypeOf(ctor.prototype, superCtor.prototype);
+            },
+        };
+    },
+}));
+
+/* ==========================================================
+ * Feature: fs.promises  (Node.js subset over qjs:os)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Wraps the synchronous qjs:os file primitives in Promises so
+ * Node-style `import fs from 'node:fs/promises'` style code can
+ * run without change. All I/O is still synchronous under the
+ * hood — we don't have async file I/O on AmigaOS yet.
+ *
+ * Exposed as globalThis.fs.promises and mirrored at
+ * globalThis.fsPromises for ergonomics.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'fs-promises',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node fs.promises subset over qjs:os (synchronous underneath)',
+    globals:     ['fs', 'fsPromises'],
+    standard:    false,
+    requires:    ['buffer'],
+    install() {
+        /* qjs:os functions we lean on: read, readFile, writeFile, remove,
+         * rename, stat, lstat, realpath, mkdir, readdir (via readdir()
+         * or equivalent), open, close. Availability varies; each wrapper
+         * falls back gracefully where possible. */
+
+        function pError(err, path) {
+            const e = new Error(err + (path ? ": " + path : ''));
+            e.code = err;
+            if (path !== undefined) e.path = path;
+            return e;
+        }
+
+        function toBuffer(arg, enc) {
+            if (arg instanceof Uint8Array) return arg;
+            if (typeof arg === 'string') {
+                return globalThis.Buffer
+                    ? globalThis.Buffer.from(arg, enc || 'utf8')
+                    : new TextEncoder().encode(arg);
+            }
+            throw new TypeError('expected string or Buffer');
+        }
+
+        const fsp = {
+            readFile(path, options) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const [data, err] = os.readFile
+                            ? [os.readFile(path), 0]
+                            : (() => {
+                                /* Fallback: open/read/close */
+                                const [fd, e] = os.open(path, /*O_RDONLY*/0);
+                                if (fd < 0) return [null, e];
+                                const parts = [];
+                                const buf = new Uint8Array(8192);
+                                let n;
+                                do {
+                                    n = os.read(fd, buf.buffer, 0, buf.length);
+                                    if (n > 0) parts.push(buf.slice(0, n));
+                                } while (n > 0);
+                                os.close(fd);
+                                let total = 0;
+                                for (const p of parts) total += p.length;
+                                const out = new Uint8Array(total);
+                                let off = 0;
+                                for (const p of parts) { out.set(p, off); off += p.length; }
+                                return [out, 0];
+                            })();
+                        if (err) return reject(pError('EIO', path));
+                        if (typeof options === 'string') {
+                            /* Decode with requested encoding. */
+                            resolve(globalThis.Buffer
+                                ? globalThis.Buffer.from(data).toString(options)
+                                : new TextDecoder(options).decode(data));
+                        } else if (options && options.encoding) {
+                            resolve(globalThis.Buffer
+                                ? globalThis.Buffer.from(data).toString(options.encoding)
+                                : new TextDecoder(options.encoding).decode(data));
+                        } else {
+                            resolve(globalThis.Buffer
+                                ? globalThis.Buffer.from(data)
+                                : data);
+                        }
+                    } catch (e) { reject(e); }
+                });
+            },
+            writeFile(path, data, options) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const enc = (typeof options === 'string') ? options
+                                  : (options && options.encoding) || 'utf8';
+                        const bytes = toBuffer(data, enc);
+                        if (os.writeFile) {
+                            os.writeFile(path, bytes);
+                            return resolve(undefined);
+                        }
+                        const [fd, e] = os.open(path,
+                            /*O_WRONLY | O_CREAT | O_TRUNC*/ 0x201);
+                        if (fd < 0) return reject(pError('EACCES', path));
+                        os.write(fd, bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                        os.close(fd);
+                        resolve(undefined);
+                    } catch (e) { reject(e); }
+                });
+            },
+            appendFile(path, data, options) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const enc = (typeof options === 'string') ? options
+                                  : (options && options.encoding) || 'utf8';
+                        const bytes = toBuffer(data, enc);
+                        const [fd, e] = os.open(path,
+                            /*O_WRONLY | O_CREAT | O_APPEND*/ 0x401);
+                        if (fd < 0) return reject(pError('EACCES', path));
+                        os.write(fd, bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                        os.close(fd);
+                        resolve(undefined);
+                    } catch (e) { reject(e); }
+                });
+            },
+            stat(path) {
+                return new Promise((resolve, reject) => {
+                    const [st, err] = os.stat(path);
+                    if (err) return reject(pError('ENOENT', path));
+                    /* Node's stat returns isFile()/isDirectory() helpers. */
+                    const S_IFMT = 0xF000;
+                    const S_IFDIR = 0x4000;
+                    const S_IFREG = 0x8000;
+                    st.isFile      = () => (st.mode & S_IFMT) === S_IFREG;
+                    st.isDirectory = () => (st.mode & S_IFMT) === S_IFDIR;
+                    st.isSymbolicLink = () => false;
+                    resolve(st);
+                });
+            },
+            lstat(path) { return fsp.stat(path); },
+            unlink(path) {
+                return new Promise((resolve, reject) => {
+                    const e = os.remove(path);
+                    if (e) reject(pError('EIO', path));
+                    else resolve(undefined);
+                });
+            },
+            rename(oldPath, newPath) {
+                return new Promise((resolve, reject) => {
+                    const e = os.rename(oldPath, newPath);
+                    if (e) reject(pError('EIO', oldPath));
+                    else resolve(undefined);
+                });
+            },
+            mkdir(path, options) {
+                return new Promise((resolve, reject) => {
+                    const mode = (options && options.mode) || 0o777;
+                    const e = os.mkdir ? os.mkdir(path, mode) : -1;
+                    if (e) reject(pError('EIO', path));
+                    else resolve(undefined);
+                });
+            },
+            readdir(path) {
+                return new Promise((resolve, reject) => {
+                    if (!os.readdir) return reject(pError('ENOSYS', path));
+                    const [list, err] = os.readdir(path);
+                    if (err) reject(pError('ENOENT', path));
+                    /* Node filters out '.' and '..' by default; match that. */
+                    else resolve(list.filter(n => n !== '.' && n !== '..'));
+                });
+            },
+            access(path) {
+                return new Promise((resolve, reject) => {
+                    const [, err] = os.stat(path);
+                    if (err) reject(pError('ENOENT', path));
+                    else resolve(undefined);
+                });
+            },
+        };
+
+        globalThis.fs = globalThis.fs || {};
+        globalThis.fs.promises = fsp;
+        globalThis.fsPromises = fsp;
+    },
+}));
+
+/* ==========================================================
  * Apply all features in dependency order, expose registry
  * ========================================================== */
 
