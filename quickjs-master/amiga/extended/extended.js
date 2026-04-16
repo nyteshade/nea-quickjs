@@ -1895,37 +1895,31 @@ _manifests.push(new LocalManifest({
             readFile(path, options) {
                 return new Promise((resolve, reject) => {
                     try {
-                        const [data, err] = os.readFile
-                            ? [os.readFile(path), 0]
-                            : (() => {
-                                /* Fallback: open/read/close */
-                                const [fd, e] = os.open(path, /*O_RDONLY*/0);
-                                if (fd < 0) return [null, e];
-                                const parts = [];
-                                const buf = new Uint8Array(8192);
-                                let n;
-                                do {
-                                    n = os.read(fd, buf.buffer, 0, buf.length);
-                                    if (n > 0) parts.push(buf.slice(0, n));
-                                } while (n > 0);
-                                os.close(fd);
-                                let total = 0;
-                                for (const p of parts) total += p.length;
-                                const out = new Uint8Array(total);
-                                let off = 0;
-                                for (const p of parts) { out.set(p, off); off += p.length; }
-                                return [out, 0];
-                            })();
-                        if (err) return reject(pError('EIO', path));
-                        if (typeof options === 'string') {
-                            /* Decode with requested encoding. */
+                        /* std.open uses AmigaOS-native MODE_* under the hood
+                         * on the Amiga build; POSIX mode strings work on host.
+                         * Avoids guessing POSIX open() flag values. */
+                        const f = std.open(path, 'rb');
+                        if (!f) return reject(pError('ENOENT', path));
+                        const parts = [];
+                        const buf = new Uint8Array(8192);
+                        let n;
+                        do {
+                            n = f.read(buf.buffer, 0, buf.length) | 0;
+                            if (n > 0) parts.push(buf.slice(0, n));
+                        } while (n > 0);
+                        f.close();
+                        let total = 0;
+                        for (const p of parts) total += p.length;
+                        const data = new Uint8Array(total);
+                        let off = 0;
+                        for (const p of parts) { data.set(p, off); off += p.length; }
+                        const encArg = (typeof options === 'string')
+                            ? options
+                            : (options && options.encoding);
+                        if (encArg) {
                             resolve(globalThis.Buffer
-                                ? globalThis.Buffer.from(data).toString(options)
-                                : new TextDecoder(options).decode(data));
-                        } else if (options && options.encoding) {
-                            resolve(globalThis.Buffer
-                                ? globalThis.Buffer.from(data).toString(options.encoding)
-                                : new TextDecoder(options.encoding).decode(data));
+                                ? globalThis.Buffer.from(data).toString(encArg)
+                                : new TextDecoder(encArg).decode(data));
                         } else {
                             resolve(globalThis.Buffer
                                 ? globalThis.Buffer.from(data)
@@ -1940,15 +1934,10 @@ _manifests.push(new LocalManifest({
                         const enc = (typeof options === 'string') ? options
                                   : (options && options.encoding) || 'utf8';
                         const bytes = toBuffer(data, enc);
-                        if (os.writeFile) {
-                            os.writeFile(path, bytes);
-                            return resolve(undefined);
-                        }
-                        const [fd, e] = os.open(path,
-                            /*O_WRONLY | O_CREAT | O_TRUNC*/ 0x201);
-                        if (fd < 0) return reject(pError('EACCES', path));
-                        os.write(fd, bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        os.close(fd);
+                        const f = std.open(path, 'wb');
+                        if (!f) return reject(pError('EACCES', path));
+                        f.write(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                        f.close();
                         resolve(undefined);
                     } catch (e) { reject(e); }
                 });
@@ -1959,11 +1948,10 @@ _manifests.push(new LocalManifest({
                         const enc = (typeof options === 'string') ? options
                                   : (options && options.encoding) || 'utf8';
                         const bytes = toBuffer(data, enc);
-                        const [fd, e] = os.open(path,
-                            /*O_WRONLY | O_CREAT | O_APPEND*/ 0x401);
-                        if (fd < 0) return reject(pError('EACCES', path));
-                        os.write(fd, bytes.buffer, bytes.byteOffset, bytes.byteLength);
-                        os.close(fd);
+                        const f = std.open(path, 'ab');
+                        if (!f) return reject(pError('EACCES', path));
+                        f.write(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                        f.close();
                         resolve(undefined);
                     } catch (e) { reject(e); }
                 });
