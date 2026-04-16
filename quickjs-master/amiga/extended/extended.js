@@ -561,7 +561,18 @@ _manifests.push(new LocalManifest({
                 if (s.startsWith('//')) {
                     s = s.substring(2);
                     let authEnd = s.length;
-                    const pathIdx = s.search(/[/?#]/);
+                    /* Find the first /, ?, or # — plain scan, not a regex.
+                     * `/[/?#]/` had the `/` inside a char class that hangs
+                     * the Amiga QuickJS-ng regex compiler (same bug as the
+                     * Buffer base64 and util identifier regexes). */
+                    let pathIdx = -1;
+                    for (let k = 0, n = s.length; k < n; k++) {
+                        const ch = s.charAt(k);
+                        if (ch === '/' || ch === '?' || ch === '#') {
+                            pathIdx = k;
+                            break;
+                        }
+                    }
                     if (pathIdx >= 0) authEnd = pathIdx;
                     const auth = s.substring(0, authEnd);
                     s = s.substring(authEnd);
