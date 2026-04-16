@@ -1,13 +1,26 @@
-# Golden for c/test_workers
-# See golden/README.md for match rules (LITERAL / REGEX / CONTAINS).
+# Golden for c/test_workers.
+# Patterns tracked against the actual text the binary prints, not
+# against an imagined format. Keeps the shape pinned without
+# over-constraining cosmetic changes.
 
-# Final pass/fail summary. Count changes require updating this line.
-CONTAINS: 59/0 pass
+LITERAL: === QJS Worker primitive stress test ===
 
-# Six stress categories must all announce themselves.
-CONTAINS: isolation
-CONTAINS: durations
-CONTAINS: responsiveness
-CONTAINS: failure
-CONTAINS: leak
-CONTAINS: scaling
+# Library version line — pins the LVO API contract.
+REGEX: ^Opening quickjs.library \(version >= 70, i.e. 0.070\)...$
+
+# All six test sections must fire.
+CONTAINS: === Test 1:
+CONTAINS: === Test 2:
+CONTAINS: === Test 3:
+CONTAINS: === Test 4:
+CONTAINS: === Test 5:
+CONTAINS: === Test 6:
+
+# Specific invariants the tests verify.
+CONTAINS: expected: 4 2 5 3 1
+CONTAINS: main counter reached
+CONTAINS: (observe 'avail' before/after to confirm no memory leak)
+CONTAINS: 10 workers
+
+# Final pass/fail. Count bumps require updating this line.
+LITERAL: === Results: 59 passed, 0 failed ===
