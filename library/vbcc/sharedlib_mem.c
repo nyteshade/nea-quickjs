@@ -26,7 +26,15 @@ typedef struct {
     ULONG magic;    /* sanity check */
 } AAHeader;
 
-#define AA_MAGIC    0x41416D61UL   /* "AAma" */
+/* Two distinct magic numbers so that pool-allocated and AllocVec-allocated
+ * pointers can't be cross-freed. Cross-free would call FreePooled on
+ * AllocVec memory (or FreeVec on AllocPooled memory) and silently corrupt
+ * the exec public-memory pool — the classic AN_IntrMem ($81000005) setup
+ * on AmigaOS. With distinct magics the wrong-allocator free path rejects
+ * the pointer cleanly (small leak, no corruption). */
+#define AA_MAGIC_POOL 0x41416D61UL   /* "AAma" — AllocPooled header */
+#define AA_MAGIC_VEC  0x41415665UL   /* "AAVe" — AllocVec header   */
+#define AA_MAGIC      AA_MAGIC_POOL  /* back-compat for aa_usable() */
 #define AA_HDR_SIZE 8              /* sizeof(AAHeader), 8-byte aligned */
 
 /* Pool tuning:
@@ -68,7 +76,7 @@ static void *aa_alloc(struct QJSLibBase *base, ULONG size)
     if (!h) return NULL;
 
     h->total = total;
-    h->magic = AA_MAGIC;
+    h->magic = AA_MAGIC_POOL;
     return (char *)h + AA_HDR_SIZE;
 }
 
@@ -78,7 +86,7 @@ static void aa_free(struct QJSLibBase *base, void *ptr)
     if (!ptr) return;
 
     h = (AAHeader *)((char *)ptr - AA_HDR_SIZE);
-    if (h->magic != AA_MAGIC) return;  /* bad pointer */
+    if (h->magic != AA_MAGIC_POOL) return;  /* not ours — don't corrupt */
 
     h->magic = 0;  /* poison for double-free detection */
     __FreePooled(base->iSysBase, base->iMemPool, h, h->total);
@@ -89,7 +97,7 @@ static ULONG aa_usable(const void *ptr)
     const AAHeader *h;
     if (!ptr) return 0;
     h = (const AAHeader *)((const char *)ptr - AA_HDR_SIZE);
-    return (h->magic == AA_MAGIC) ? (h->total - AA_HDR_SIZE) : 0;
+    return (h->magic == AA_MAGIC_POOL) ? (h->total - AA_HDR_SIZE) : 0;
 }
 
 /* Simple zero-fill since we can't rely on any libc memset */
@@ -201,7 +209,7 @@ void *malloc(size_t sz)
     h = (AAHeader *)__AllocVec(get_sysbase(), total, MEMF_PUBLIC);
     if (!h) return NULL;
     h->total = total;
-    h->magic = AA_MAGIC;
+    h->magic = AA_MAGIC_VEC;
     return (char *)h + AA_HDR_SIZE;
 }
 
@@ -215,7 +223,7 @@ void *calloc(size_t count, size_t sz)
                                 MEMF_PUBLIC | MEMF_CLEAR);
     if (!h) return NULL;
     h->total = total;
-    h->magic = AA_MAGIC;
+    h->magic = AA_MAGIC_VEC;
     return (char *)h + AA_HDR_SIZE;
 }
 
@@ -224,7 +232,7 @@ void free(void *ptr)
     AAHeader *h;
     if (!ptr) return;
     h = (AAHeader *)((char *)ptr - AA_HDR_SIZE);
-    if (h->magic != AA_MAGIC) return;
+    if (h->magic != AA_MAGIC_VEC) return;  /* not ours — don't corrupt */
     h->magic = 0;
     __FreeVec(get_sysbase(), h);
 }
@@ -239,7 +247,7 @@ void *realloc(void *ptr, size_t ns)
     if (ns == 0) { free(ptr); return NULL; }
 
     oh = (AAHeader *)((char *)ptr - AA_HDR_SIZE);
-    if (oh->magic != AA_MAGIC) return NULL;
+    if (oh->magic != AA_MAGIC_VEC) return NULL;
     old_usable = oh->total - AA_HDR_SIZE;
     if (ns <= old_usable) return ptr;
 
