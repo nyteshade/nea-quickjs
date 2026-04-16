@@ -11,12 +11,14 @@ verify behavior on the target, not simulate it on the host.
 | `amiga/c/test_workers`      | Native Worker primitive: isolation, concurrency, cleanup, leak-free over 100 cycles |
 | `tests/test_fetch.js`       | fetch() over HTTP and HTTPS, JSON, 404, ArrayBuffer, headers |
 | `tests/test_net.js`         | `qjs:net` module: probe, reprobe, status shape        |
+| `tests/test_buffer.js`      | Node Buffer subset: construction, encodings, read/write ints, compare, search, fill, copy, subarray |
 
-Last known-good baselines (library revision 0.080):
+Last known-good baselines (library revision 0.081):
 
 - `test_workers` — **59/0 pass**
 - `test_fetch`   — **22/0 pass**
 - `test_net`     — **8/0 pass**
+- `test_buffer`  — **60/0 pass** (host qjs run; Amiga baseline pending)
 
 ## Running the suite on the Amiga
 

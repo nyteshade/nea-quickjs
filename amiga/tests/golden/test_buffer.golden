@@ -1,0 +1,22 @@
+# Golden for tests/test_buffer.js. Patterns pinned against the actual
+# host-qjs run of the Buffer module (60 assertions, Node API subset).
+
+LITERAL: test_buffer: Node Buffer subset
+
+# A few representative sections must print.
+CONTAINS: alloc zero-fills
+CONTAINS: from utf8 string
+CONTAINS: utf8 multibyte length
+CONTAINS: toString hex
+CONTAINS: toString base64
+CONTAINS: byteLength utf8
+CONTAINS: write returns bytes
+CONTAINS: indexOf needle
+CONTAINS: fill byte
+CONTAINS: copy places bytes
+CONTAINS: subarray shares memory
+CONTAINS: 32BE byte order
+CONTAINS: toJSON shape
+
+# Final count. Bumps require updating this line.
+REGEX: test_buffer: 60 pass / 0 fail

@@ -946,6 +946,632 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: Buffer  (Node.js subset)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Buffer extends Uint8Array so indexed access, .length, .buffer,
+ * .byteOffset, and all TypedArray methods work unchanged. Node-
+ * style methods are layered on top.
+ *
+ * Encodings supported: utf-8 / utf8 (default), ascii, latin1 /
+ * binary, base64, hex. Any unknown encoding throws TypeError
+ * matching Node's behavior.
+ *
+ * Intentionally omitted from v1 (follow-up work):
+ *   * Float / Double read & write (softfloat cost on no-FPU)
+ *   * BigInt64 / BigUInt64 read & write (slow on 68k)
+ *   * swap16 / swap32 / swap64
+ *   * utf-16le encoding (rare in practice)
+ *
+ * Allocator strategy: Buffer.alloc zeros memory; Buffer.allocUnsafe
+ * does not (matches Node). Both share the runtime's pool allocator
+ * so they land in exec pool memory on AmigaOS.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'buffer',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node.js Buffer (subset: utf-8/ascii/latin1/base64/hex, int reads/writes)',
+    globals:     ['Buffer'],
+    standard:    false,
+    install() {
+        const HEX_MAP = '0123456789abcdef';
+        const B64_ALPHA =
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+        /* Decoding table for base64 — built once, indexed by char code. */
+        const B64_DEC = new Int8Array(128);
+        B64_DEC.fill(-1);
+        for (let i = 0; i < 64; i++) B64_DEC[B64_ALPHA.charCodeAt(i)] = i;
+
+        function normalizeEncoding(enc) {
+            if (enc === undefined || enc === null) return 'utf8';
+            const s = String(enc).toLowerCase();
+            switch (s) {
+                case 'utf8': case 'utf-8':              return 'utf8';
+                case 'ascii':                            return 'ascii';
+                case 'latin1': case 'binary':            return 'latin1';
+                case 'base64':                           return 'base64';
+                case 'hex':                              return 'hex';
+                default:
+                    throw new TypeError(`Unknown encoding: ${enc}`);
+            }
+        }
+
+        /* ---- string ↔ bytes ---------------------------------- */
+
+        function utf8ByteLength(str) {
+            let n = 0;
+            for (let i = 0, len = str.length; i < len; i++) {
+                let c = str.charCodeAt(i);
+                if (c >= 0xD800 && c <= 0xDBFF && i + 1 < len) {
+                    const c2 = str.charCodeAt(i + 1);
+                    if (c2 >= 0xDC00 && c2 <= 0xDFFF) {
+                        c = 0x10000 + ((c - 0xD800) << 10) + (c2 - 0xDC00);
+                        i++;
+                    }
+                }
+                if      (c < 0x80)    n += 1;
+                else if (c < 0x800)   n += 2;
+                else if (c < 0x10000) n += 3;
+                else                  n += 4;
+            }
+            return n;
+        }
+
+        function writeUtf8(str, dst, off, max) {
+            const start = off;
+            const end = off + max;
+            for (let i = 0, len = str.length; i < len && off < end; i++) {
+                let c = str.charCodeAt(i);
+                if (c >= 0xD800 && c <= 0xDBFF && i + 1 < len) {
+                    const c2 = str.charCodeAt(i + 1);
+                    if (c2 >= 0xDC00 && c2 <= 0xDFFF) {
+                        c = 0x10000 + ((c - 0xD800) << 10) + (c2 - 0xDC00);
+                        i++;
+                    }
+                }
+                if (c < 0x80) {
+                    if (off >= end) break;
+                    dst[off++] = c;
+                } else if (c < 0x800) {
+                    if (off + 1 >= end) break;
+                    dst[off++] = 0xC0 | (c >> 6);
+                    dst[off++] = 0x80 | (c & 0x3F);
+                } else if (c < 0x10000) {
+                    if (off + 2 >= end) break;
+                    dst[off++] = 0xE0 | (c >> 12);
+                    dst[off++] = 0x80 | ((c >> 6) & 0x3F);
+                    dst[off++] = 0x80 | (c & 0x3F);
+                } else {
+                    if (off + 3 >= end) break;
+                    dst[off++] = 0xF0 | (c >> 18);
+                    dst[off++] = 0x80 | ((c >> 12) & 0x3F);
+                    dst[off++] = 0x80 | ((c >> 6) & 0x3F);
+                    dst[off++] = 0x80 | (c & 0x3F);
+                }
+            }
+            return off - start;
+        }
+
+        function readUtf8(src, start, end) {
+            let out = '';
+            let i = start;
+            while (i < end) {
+                const b = src[i++];
+                let cp;
+                if (b < 0x80) {
+                    cp = b;
+                } else if ((b & 0xE0) === 0xC0) {
+                    if (i >= end) { cp = 0xFFFD; }
+                    else cp = ((b & 0x1F) << 6) | (src[i++] & 0x3F);
+                } else if ((b & 0xF0) === 0xE0) {
+                    if (i + 1 >= end) { cp = 0xFFFD; }
+                    else cp = ((b & 0x0F) << 12)
+                           | ((src[i++] & 0x3F) << 6)
+                           | (src[i++] & 0x3F);
+                } else if ((b & 0xF8) === 0xF0) {
+                    if (i + 2 >= end) { cp = 0xFFFD; }
+                    else cp = ((b & 0x07) << 18)
+                           | ((src[i++] & 0x3F) << 12)
+                           | ((src[i++] & 0x3F) << 6)
+                           | (src[i++] & 0x3F);
+                } else {
+                    cp = 0xFFFD;
+                }
+                if (cp < 0x10000) out += String.fromCharCode(cp);
+                else {
+                    cp -= 0x10000;
+                    out += String.fromCharCode(0xD800 | (cp >> 10),
+                                               0xDC00 | (cp & 0x3FF));
+                }
+            }
+            return out;
+        }
+
+        function writeAscii(str, dst, off, max) {
+            const n = Math.min(str.length, max);
+            for (let i = 0; i < n; i++) dst[off + i] = str.charCodeAt(i) & 0x7F;
+            return n;
+        }
+        function writeLatin1(str, dst, off, max) {
+            const n = Math.min(str.length, max);
+            for (let i = 0; i < n; i++) dst[off + i] = str.charCodeAt(i) & 0xFF;
+            return n;
+        }
+        function readAscii(src, s, e) {
+            let out = '';
+            for (let i = s; i < e; i++) out += String.fromCharCode(src[i] & 0x7F);
+            return out;
+        }
+        function readLatin1(src, s, e) {
+            let out = '';
+            for (let i = s; i < e; i++) out += String.fromCharCode(src[i]);
+            return out;
+        }
+        function writeHex(str, dst, off, max) {
+            str = String(str);
+            const pairs = Math.min(Math.floor(str.length / 2), max);
+            for (let i = 0; i < pairs; i++) {
+                const h = parseInt(str.substr(i * 2, 2), 16);
+                if (isNaN(h)) return i;
+                dst[off + i] = h;
+            }
+            return pairs;
+        }
+        function readHex(src, s, e) {
+            let out = '';
+            for (let i = s; i < e; i++) {
+                const b = src[i];
+                out += HEX_MAP[b >> 4] + HEX_MAP[b & 0x0F];
+            }
+            return out;
+        }
+        /* Character class filter implemented without a regex literal —
+         * `/[^A-Za-z0-9+/=]/g` exists, but an unescaped `/` inside the
+         * character class trips some regex compilers (observed: Amiga
+         * build hangs here; host qjs doesn't). Plain-JS filter is ~5
+         * lines and works everywhere. */
+        function base64Clean(str) {
+            let out = '';
+            for (let i = 0, n = str.length; i < n; i++) {
+                const c = str.charCodeAt(i);
+                if ((c >= 0x41 && c <= 0x5A) ||     /* A-Z */
+                    (c >= 0x61 && c <= 0x7A) ||     /* a-z */
+                    (c >= 0x30 && c <= 0x39) ||     /* 0-9 */
+                    c === 0x2B || c === 0x2F ||     /* + / */
+                    c === 0x3D) {                   /* = */
+                    out += str.charAt(i);
+                }
+            }
+            return out;
+        }
+
+        function writeBase64(str, dst, off, max) {
+            /* Preserve '=' padding so short final groups (e.g.
+             * 'aGVsbG8=' = "hello") decode correctly. Padding decodes
+             * to -1 via B64_DEC and is treated as "skip this byte". */
+            const clean = base64Clean(String(str));
+            let w = 0;
+            for (let i = 0; i + 3 < clean.length && w < max; i += 4) {
+                const a = B64_DEC[clean.charCodeAt(i)];
+                const b = B64_DEC[clean.charCodeAt(i + 1)];
+                const c = B64_DEC[clean.charCodeAt(i + 2)];
+                const d = B64_DEC[clean.charCodeAt(i + 3)];
+                if (a < 0 || b < 0) break;
+                if (w < max) dst[off + w++] = ((a << 2) | (b >> 4)) & 0xFF;
+                if (c >= 0 && w < max)
+                    dst[off + w++] = ((b << 4) | (c >> 2)) & 0xFF;
+                if (d >= 0 && c >= 0 && w < max)
+                    dst[off + w++] = ((c << 6) | d) & 0xFF;
+            }
+            return w;
+        }
+        function readBase64(src, s, e) {
+            let out = '';
+            let i = s;
+            while (i + 2 < e) {
+                const a = src[i++], b = src[i++], c = src[i++];
+                out += B64_ALPHA[a >> 2]
+                     + B64_ALPHA[((a & 0x03) << 4) | (b >> 4)]
+                     + B64_ALPHA[((b & 0x0F) << 2) | (c >> 6)]
+                     + B64_ALPHA[c & 0x3F];
+            }
+            const rem = e - i;
+            if (rem === 1) {
+                const a = src[i];
+                out += B64_ALPHA[a >> 2]
+                     + B64_ALPHA[(a & 0x03) << 4]
+                     + '==';
+            } else if (rem === 2) {
+                const a = src[i], b = src[i + 1];
+                out += B64_ALPHA[a >> 2]
+                     + B64_ALPHA[((a & 0x03) << 4) | (b >> 4)]
+                     + B64_ALPHA[(b & 0x0F) << 2]
+                     + '=';
+            }
+            return out;
+        }
+
+        /* Central dispatcher for encoding-aware writes. Returns bytes written. */
+        function encodeInto(enc, str, dst, off, max) {
+            switch (enc) {
+                case 'utf8':   return writeUtf8(str, dst, off, max);
+                case 'ascii':  return writeAscii(str, dst, off, max);
+                case 'latin1': return writeLatin1(str, dst, off, max);
+                case 'hex':    return writeHex(str, dst, off, max);
+                case 'base64': return writeBase64(str, dst, off, max);
+            }
+            throw new TypeError(`Unknown encoding: ${enc}`);
+        }
+        function decodeSlice(enc, src, start, end) {
+            switch (enc) {
+                case 'utf8':   return readUtf8(src, start, end);
+                case 'ascii':  return readAscii(src, start, end);
+                case 'latin1': return readLatin1(src, start, end);
+                case 'hex':    return readHex(src, start, end);
+                case 'base64': return readBase64(src, start, end);
+            }
+            throw new TypeError(`Unknown encoding: ${enc}`);
+        }
+
+        /* ---- Buffer class ------------------------------------ */
+
+        class Buffer extends Uint8Array {
+            constructor(arg, offOrEnc, lenOrEncArg) {
+                /* Node's `new Buffer(...)` is deprecated; route to static
+                 * constructors so behavior matches regardless of caller. */
+                if (typeof arg === 'number') {
+                    super(arg);
+                } else if (typeof arg === 'string') {
+                    const enc = normalizeEncoding(offOrEnc);
+                    const bytes = stringToBytes(arg, enc);
+                    super(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                } else if (arg instanceof ArrayBuffer) {
+                    super(arg,
+                          offOrEnc | 0,
+                          lenOrEncArg === undefined
+                            ? arg.byteLength - (offOrEnc | 0)
+                            : lenOrEncArg | 0);
+                } else if (ArrayBuffer.isView(arg) || Array.isArray(arg)) {
+                    super(arg);
+                } else {
+                    super(arg || 0);
+                }
+            }
+
+            /* --- static constructors ------------------------- */
+
+            static alloc(size, fill, encoding) {
+                const b = new Buffer(size | 0);
+                if (fill !== undefined && fill !== 0) b.fill(fill, 0, b.length, encoding);
+                return b;
+            }
+            static allocUnsafe(size) {
+                return new Buffer(size | 0);
+            }
+            static allocUnsafeSlow(size) {
+                return new Buffer(size | 0);
+            }
+            static from(arg, offOrEnc, lenOrEnc) {
+                /* Whatever Buffer's constructor accepts, delegate. */
+                if (arg instanceof ArrayBuffer) {
+                    return new Buffer(arg, offOrEnc, lenOrEnc);
+                }
+                if (typeof arg === 'string') {
+                    const enc = normalizeEncoding(offOrEnc);
+                    const bytes = stringToBytes(arg, enc);
+                    const b = new Buffer(bytes.byteLength);
+                    b.set(bytes);
+                    return b;
+                }
+                if (Array.isArray(arg)) {
+                    const b = new Buffer(arg.length);
+                    for (let i = 0; i < arg.length; i++) b[i] = arg[i] & 0xFF;
+                    return b;
+                }
+                if (ArrayBuffer.isView(arg)) {
+                    /* Includes other Buffers, Uint8Arrays, DataViews, etc.
+                     * Node copies by default for Buffer.from(Uint8Array). */
+                    const b = new Buffer(arg.byteLength);
+                    b.set(new Uint8Array(arg.buffer, arg.byteOffset, arg.byteLength));
+                    return b;
+                }
+                throw new TypeError('Buffer.from: unsupported argument type');
+            }
+            static isBuffer(obj) {
+                return obj instanceof Buffer;
+            }
+            static byteLength(str, encoding) {
+                if (ArrayBuffer.isView(str)) return str.byteLength;
+                if (str instanceof ArrayBuffer) return str.byteLength;
+                const enc = normalizeEncoding(encoding);
+                str = String(str);
+                switch (enc) {
+                    case 'utf8':   return utf8ByteLength(str);
+                    case 'ascii':
+                    case 'latin1': return str.length;
+                    case 'hex':    return (str.length / 2) | 0;
+                    case 'base64': {
+                        const clean = base64Clean(str);
+                        let pad = 0;
+                        for (let i = clean.length - 1;
+                             i >= 0 && clean.charCodeAt(i) === 0x3D; i--) pad++;
+                        return ((clean.length * 3) >> 2) - pad;
+                    }
+                }
+                throw new TypeError(`Unknown encoding: ${encoding}`);
+            }
+            static concat(list, totalLength) {
+                if (!Array.isArray(list)) throw new TypeError('Buffer.concat: list required');
+                if (totalLength === undefined) {
+                    totalLength = 0;
+                    for (const b of list) totalLength += b.length;
+                }
+                const out = new Buffer(totalLength);
+                let off = 0;
+                for (const b of list) {
+                    const n = Math.min(b.length, totalLength - off);
+                    if (n <= 0) break;
+                    for (let i = 0; i < n; i++) out[off + i] = b[i];
+                    off += n;
+                }
+                return out;
+            }
+            static compare(a, b) {
+                const la = a.length, lb = b.length;
+                const n = Math.min(la, lb);
+                for (let i = 0; i < n; i++) {
+                    if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+                }
+                return la === lb ? 0 : la < lb ? -1 : 1;
+            }
+
+            /* --- string conversion ------------------------- */
+
+            toString(encoding, start, end) {
+                const enc = normalizeEncoding(encoding);
+                start = start === undefined ? 0 : Math.max(0, start | 0);
+                end   = end   === undefined ? this.length
+                                            : Math.min(this.length, end | 0);
+                if (end <= start) return '';
+                return decodeSlice(enc, this, start, end);
+            }
+            write(str, offset, length, encoding) {
+                /* Node allows (str), (str, enc), (str, offset, enc),
+                 * (str, offset, length, enc). Disambiguate by type. */
+                if (typeof offset === 'string') { encoding = offset; offset = 0; length = this.length; }
+                else if (typeof length === 'string') { encoding = length; length = this.length - (offset | 0); }
+                offset = offset | 0;
+                length = length === undefined ? this.length - offset : length | 0;
+                const enc = normalizeEncoding(encoding);
+                if (offset < 0 || offset > this.length)
+                    throw new RangeError('Buffer.write: offset out of range');
+                const max = Math.min(length, this.length - offset);
+                return encodeInto(enc, String(str), this, offset, max);
+            }
+            toJSON() {
+                return { type: 'Buffer', data: Array.from(this) };
+            }
+
+            /* --- comparison & search ----------------------- */
+
+            equals(other) {
+                if (!(other instanceof Uint8Array)) return false;
+                if (this.length !== other.length) return false;
+                for (let i = 0; i < this.length; i++)
+                    if (this[i] !== other[i]) return false;
+                return true;
+            }
+            compare(other, tStart, tEnd, sStart, sEnd) {
+                tStart = tStart === undefined ? 0 : tStart | 0;
+                tEnd   = tEnd   === undefined ? other.length : tEnd | 0;
+                sStart = sStart === undefined ? 0 : sStart | 0;
+                sEnd   = sEnd   === undefined ? this.length  : sEnd | 0;
+                const sLen = sEnd - sStart, tLen = tEnd - tStart;
+                const n = Math.min(sLen, tLen);
+                for (let i = 0; i < n; i++) {
+                    const a = this[sStart + i], b = other[tStart + i];
+                    if (a !== b) return a < b ? -1 : 1;
+                }
+                return sLen === tLen ? 0 : sLen < tLen ? -1 : 1;
+            }
+            indexOf(value, byteOffset, encoding) {
+                /* Accept (byte | string | Buffer, byteOffset?, encoding?) */
+                if (typeof byteOffset === 'string') { encoding = byteOffset; byteOffset = 0; }
+                byteOffset = byteOffset === undefined ? 0 : byteOffset | 0;
+                if (byteOffset < 0) byteOffset = Math.max(0, this.length + byteOffset);
+
+                if (typeof value === 'number') {
+                    const v = value & 0xFF;
+                    for (let i = byteOffset; i < this.length; i++)
+                        if (this[i] === v) return i;
+                    return -1;
+                }
+                let needle;
+                if (typeof value === 'string') {
+                    const enc = normalizeEncoding(encoding);
+                    needle = Buffer.from(value, enc);
+                } else if (value instanceof Uint8Array) {
+                    needle = value;
+                } else {
+                    throw new TypeError('Buffer.indexOf: unsupported value type');
+                }
+                if (needle.length === 0) return byteOffset;
+                const limit = this.length - needle.length;
+                outer: for (let i = byteOffset; i <= limit; i++) {
+                    for (let j = 0; j < needle.length; j++)
+                        if (this[i + j] !== needle[j]) continue outer;
+                    return i;
+                }
+                return -1;
+            }
+            includes(value, byteOffset, encoding) {
+                return this.indexOf(value, byteOffset, encoding) !== -1;
+            }
+
+            /* --- fill & copy ------------------------------- */
+
+            fill(value, start, end, encoding) {
+                start = start === undefined ? 0 : start | 0;
+                end   = end   === undefined ? this.length : end | 0;
+                if (start < 0) start = 0;
+                if (end > this.length) end = this.length;
+                if (end <= start) return this;
+                if (typeof value === 'number') {
+                    const v = value & 0xFF;
+                    for (let i = start; i < end; i++) this[i] = v;
+                    return this;
+                }
+                if (typeof value === 'string') {
+                    const enc = normalizeEncoding(encoding);
+                    const bytes = stringToBytes(value, enc);
+                    if (bytes.length === 0) return this;
+                    for (let i = start; i < end; i++) this[i] = bytes[(i - start) % bytes.length];
+                    return this;
+                }
+                if (value instanceof Uint8Array) {
+                    if (value.length === 0) return this;
+                    for (let i = start; i < end; i++) this[i] = value[(i - start) % value.length];
+                    return this;
+                }
+                throw new TypeError('Buffer.fill: unsupported value type');
+            }
+            copy(target, tStart, sStart, sEnd) {
+                tStart = tStart === undefined ? 0 : tStart | 0;
+                sStart = sStart === undefined ? 0 : sStart | 0;
+                sEnd   = sEnd   === undefined ? this.length : sEnd | 0;
+                if (tStart >= target.length || sEnd <= sStart) return 0;
+                const n = Math.min(sEnd - sStart, target.length - tStart);
+                for (let i = 0; i < n; i++) target[tStart + i] = this[sStart + i];
+                return n;
+            }
+
+            /* --- subarray / slice -------------------------- */
+
+            subarray(start, end) {
+                start = start === undefined ? 0 : start | 0;
+                end   = end   === undefined ? this.length : end | 0;
+                if (start < 0) start = Math.max(0, this.length + start);
+                if (end   < 0) end   = Math.max(0, this.length + end);
+                start = Math.min(start, this.length);
+                end   = Math.min(Math.max(end, start), this.length);
+                /* Share the underlying ArrayBuffer (Node semantics) */
+                return new Buffer(this.buffer, this.byteOffset + start, end - start);
+            }
+            /* slice() aliased to subarray for Node compatibility. */
+
+            /* --- integer reads (LE / BE) ------------------- */
+
+            readUInt8(off)       { return this[off | 0]; }
+            readInt8(off)        { const v = this[off | 0]; return v & 0x80 ? v - 0x100 : v; }
+            readUInt16LE(off)    { off |= 0; return this[off] | (this[off + 1] << 8); }
+            readUInt16BE(off)    { off |= 0; return (this[off] << 8) | this[off + 1]; }
+            readInt16LE(off)     { const v = this.readUInt16LE(off); return v & 0x8000 ? v - 0x10000 : v; }
+            readInt16BE(off)     { const v = this.readUInt16BE(off); return v & 0x8000 ? v - 0x10000 : v; }
+            readUInt32LE(off)    {
+                off |= 0;
+                /* >>> 0 gives unsigned interpretation of the result. */
+                return (this[off]
+                      | (this[off + 1] << 8)
+                      | (this[off + 2] << 16)
+                      | (this[off + 3] * 0x1000000)) >>> 0;
+            }
+            readUInt32BE(off)    {
+                off |= 0;
+                return (this[off] * 0x1000000
+                      | (this[off + 1] << 16)
+                      | (this[off + 2] << 8)
+                      | this[off + 3]) >>> 0;
+            }
+            readInt32LE(off)     {
+                off |= 0;
+                return this[off]
+                     | (this[off + 1] << 8)
+                     | (this[off + 2] << 16)
+                     | (this[off + 3] << 24);
+            }
+            readInt32BE(off)     {
+                off |= 0;
+                return (this[off] << 24)
+                     | (this[off + 1] << 16)
+                     | (this[off + 2] << 8)
+                     | this[off + 3];
+            }
+
+            /* --- integer writes (LE / BE) ------------------ */
+
+            writeUInt8(v, off)    { this[off | 0] = v & 0xFF; return (off | 0) + 1; }
+            writeInt8(v, off)     { this[off | 0] = v & 0xFF; return (off | 0) + 1; }
+            writeUInt16LE(v, off) { off |= 0; this[off] = v & 0xFF; this[off + 1] = (v >>> 8) & 0xFF; return off + 2; }
+            writeUInt16BE(v, off) { off |= 0; this[off] = (v >>> 8) & 0xFF; this[off + 1] = v & 0xFF; return off + 2; }
+            writeInt16LE(v, off)  { return this.writeUInt16LE(v & 0xFFFF, off); }
+            writeInt16BE(v, off)  { return this.writeUInt16BE(v & 0xFFFF, off); }
+            writeUInt32LE(v, off) {
+                off |= 0;
+                this[off]     = v & 0xFF;
+                this[off + 1] = (v >>> 8) & 0xFF;
+                this[off + 2] = (v >>> 16) & 0xFF;
+                this[off + 3] = (v >>> 24) & 0xFF;
+                return off + 4;
+            }
+            writeUInt32BE(v, off) {
+                off |= 0;
+                this[off]     = (v >>> 24) & 0xFF;
+                this[off + 1] = (v >>> 16) & 0xFF;
+                this[off + 2] = (v >>> 8) & 0xFF;
+                this[off + 3] = v & 0xFF;
+                return off + 4;
+            }
+            writeInt32LE(v, off)  { return this.writeUInt32LE(v >>> 0, off); }
+            writeInt32BE(v, off)  { return this.writeUInt32BE(v >>> 0, off); }
+        }
+
+        /* slice is an alias for subarray to match Node semantics. */
+        Buffer.prototype.slice = Buffer.prototype.subarray;
+
+        /* Helper used by the constructor and fill(). Returns a Uint8Array
+         * of the encoded bytes. Kept outside the class so the constructor
+         * can reach it without `this`. */
+        function stringToBytes(str, enc) {
+            str = String(str);
+            switch (enc) {
+                case 'utf8': {
+                    const out = new Uint8Array(utf8ByteLength(str));
+                    writeUtf8(str, out, 0, out.length);
+                    return out;
+                }
+                case 'ascii': {
+                    const out = new Uint8Array(str.length);
+                    writeAscii(str, out, 0, out.length);
+                    return out;
+                }
+                case 'latin1': {
+                    const out = new Uint8Array(str.length);
+                    writeLatin1(str, out, 0, out.length);
+                    return out;
+                }
+                case 'hex': {
+                    const pairs = (str.length / 2) | 0;
+                    const out = new Uint8Array(pairs);
+                    writeHex(str, out, 0, pairs);
+                    return out;
+                }
+                case 'base64': {
+                    const size = Buffer.byteLength(str, 'base64');
+                    const out = new Uint8Array(size);
+                    writeBase64(str, out, 0, size);
+                    return out;
+                }
+            }
+            throw new TypeError(`Unknown encoding: ${enc}`);
+        }
+
+        globalThis.Buffer = Buffer;
+    },
+}));
+
+/* ==========================================================
  * Apply all features in dependency order, expose registry
  * ========================================================== */
 

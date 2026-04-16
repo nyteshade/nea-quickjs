@@ -40,6 +40,11 @@ echo "[3] test_net.js ..."
 c/qjs tests/test_net.js                             > ram:qjs-results/test_net.txt
 echo "test_net      -> ram:qjs-results/test_net.txt"      >> ram:qjs-results/SUMMARY
 
+; ---- test 4: Buffer class (Node API subset) ----
+echo "[4] test_buffer.js ..."
+c/qjs tests/test_buffer.js                          > ram:qjs-results/test_buffer.txt
+echo "test_buffer   -> ram:qjs-results/test_buffer.txt"   >> ram:qjs-results/SUMMARY
+
 echo ""                                            >> ram:qjs-results/SUMMARY
 echo "Done. Compare each file against amiga/tests/golden/ on the"  >> ram:qjs-results/SUMMARY
 echo "host side (scripts/check-tests.sh)."                         >> ram:qjs-results/SUMMARY
