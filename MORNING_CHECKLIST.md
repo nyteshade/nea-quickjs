@@ -1,103 +1,94 @@
-# Morning checklist — 0.083 Amiga validation
+# Morning checklist — 0.085 Amiga validation
 
-This file describes exactly what to test tomorrow morning on the
-higher-spec Amiga. Work completed overnight: D2 EventEmitter, D3 util,
-D4 fs.promises (all pure-JS, no engine/library C changes beyond the
-`extended.js` bytecode rebuild).
+Updated after your overnight-ish report. State:
+
+## What you reported working at 0.083/0.084
+
+- test_events: PASS
+- test_fs: PASS
+- test_net: PASS
+- test_buffer: PASS
+- test_timing: completed (no explicit pass/fail line in that test)
+
+## Regressions found and fixed overnight
+
+| Symptom | Root cause | Fix | Version |
+| --- | --- | --- | --- |
+| test_util hung after "format extra args ok" | `util.inspect` used regex `/^[A-Za-z_$][A-Za-z0-9_$]*$/` — `$` inside a char class hangs Amiga QuickJS-ng regex compiler | Plain-JS `isSafeIdent` + manual string-escape loop | 0.084 |
+| test_extended hung at first `new URL(...)` | `URL._parse` used `s.search(/[/?#]/)` — `/` inside char class, same family of regex bug | Plain-JS `for` loop finding first `/`, `?`, `#` | 0.085 |
+
+Both are systematic audits — scanned all regex literals in
+`extended.js` for `/` or `$` inside char classes; the three
+historically-problematic ones are all replaced now. No other
+risky patterns remain.
+
+## Still unexplained
+
+- **test_fetch hangs.** Was 22/0 at 0.080. I did not change any
+  library C code (sharedlib_fetch.c unchanged), only the
+  `extended.js` bytecode. Something in the install path of the
+  new D2/D3/D4 modules may be interacting badly with fetch.
+  Running `qjs tests/test_fetch.js` — please capture EXACTLY
+  what prints before the hang and paste it. Even a partial first
+  line (e.g. "=== fetch() API Test Suite ===" printed but nothing
+  after) is definitive.
 
 ## Copy to Amiga
 
 - `amiga/libs/quickjs.020soft.library` → `LIBS:quickjs.library`
-  (if you want a variant other than 020soft, copy that file instead)
-- `amiga/c/qjs` → wherever you run it
-- All files in `amiga/tests/` that match `test_*.js` — 7 files total
+  (or matching variant)
+- `amiga/c/qjs` (unchanged since 0.080 — CLI had no changes)
 
-## Prerequisites
+## Run these, all after `stack 65536`
 
-- `stack 65536` before every `qjs` invocation (the CLI checks this
-  and will refuse to start otherwise)
-- `T:` assigned and writable — required for `test_fs.js`. On stock
-  AmigaOS this is usually `assign T: RAM:T` in startup-sequence. If
-  `T:` isn't set, test_fs will cleanly report missing-path failures
-  but won't hang.
-
-## Step 1 — sanity: everything that worked before still works
+### Step 1 — confirm fixes
 
 ```
-qjs tests/test_workers.js    ; only if test_workers exists as JS; otherwise c/test_workers
-c/test_workers               ; native C worker stress test
-qjs tests/test_fetch.js
-qjs tests/test_net.js
-qjs tests/test_buffer.js
-```
-
-Expected outputs (no change from 0.082):
-
-- `test_workers`  —  **59 passed, 0 failed**
-- `test_fetch`    —  **22 passed, 0 failed**
-- `test_net`      —  **8 pass / 0 fail**
-- `test_buffer`   —  **60 pass / 0 fail**
-
-If ANY of these regress from its baseline, stop and tell me. That
-means the extended.js expansion broke something that used to work
-(unlikely but the safe default response).
-
-## Step 2 — new D-tier validation
-
-```
-qjs tests/test_events.js
 qjs tests/test_util.js
-qjs tests/test_fs.js
+qjs tests/test_extended.js
 ```
 
 Expected:
+- `test_util`      **35 pass / 0 fail**
+- `test_extended`  runs all the way through the URL section without
+  hanging. (Don't remember the exact pass count — whatever it
+  reports is the new baseline.)
 
-- `test_events`   —  **19 pass / 0 fail**   (host baseline 19/0)
-- `test_util`     —  **35 pass / 0 fail**   (host baseline 35/0)
-- `test_fs`       —  **13-18 pass / 0 fail** (depends on which `os.*`
-  APIs exist — readdir/mkdir may be missing on Amiga build and would
-  cleanly degrade to ENOSYS; the PASS line is what matters)
-
-`test_fs` is the least predictable because it touches `T:`. If
-T: isn't assigned, expect several PASSes for the API-shape tests
-and FAILs for the actual I/O. That's fine — it just means I need
-to look at what `std.open` returns for missing assigns.
-
-## Step 3 — full regression suite
+### Step 2 — capture fetch behavior
 
 ```
-stack 65536
+qjs tests/test_fetch.js 2>&1 > T:fetch-trace.txt
+```
+
+Let it run for up to 30 seconds, then Ctrl-C if it hangs. Paste
+the contents of `T:fetch-trace.txt`. Three scenarios:
+
+- **Prints nothing.** Hang before first banner. Probably in
+  extended.js install OR in the import of qjs:std. I'll add
+  a JS-side tracer around the install ordering.
+- **Prints banner + some section headers, hangs mid-fetch.** The
+  actual fetch() call is blocking on network I/O. Could be a
+  network config issue, not our code.
+- **Prints "22 passed, 0 failed".** Then it's not actually a
+  regression — something about our session was flaky.
+
+### Step 3 — full regression once fetch is resolved
+
+```
 execute tests/run-tests.script
 ```
 
-That script now runs [1]–[7] and writes per-test output to
-`RAM:qjs-results/`. Pull the whole directory back and run on the
-host:
-
-```
-scripts/check-tests.sh path/to/results/
-```
-
-It'll either say "All regression tests match golden output." or
-name the first mismatch. Either answer is useful.
-
-## What to paste back if anything fails
-
-1. The full output of the failing test (`RAM:qjs-results/test_X.txt`).
-2. Which line it last printed if it hung.
-3. Whether `T:` is assigned and writable (for fs issues only).
-
-## What's NOT done
-
-- D5 **child_process** — needs Worker primitive integration on the
-  library side. Deferred to a dedicated session; recorded in Fina
-  with tag `next-up`.
-- Re-entrant CLI for `Resident C:QJS Add Pure` — also recorded in
-  Fina, tag `next-up`. Nice-to-have, not blocking anything.
+Pull `RAM:qjs-results/` back and `scripts/check-tests.sh` on host.
 
 ## Build provenance
 
-- Host pass: test_buffer 60/0, test_events 19/0, test_util 35/0
-- Last commit: `ee104d8`
-- All six library variants built at **0.083**; CLI unchanged at 75 KB
-- `extended.c` bytecode: 41516 bytes (was 32460 at 0.082)
+- Last commit: `790e7a5`
+- Library: **0.085** (all 6 variants rebuilt)
+- CLI: 75 KB, unchanged since 0.080
+- extended.c bytecode: 41749 bytes
+
+## Open items (tomorrow)
+
+- Investigate test_fetch regression with real trace from Amiga
+- D5 child_process (deferred; needs Worker LVO work)
+- Re-entrant CLI for `Resident Add Pure` (deferred; `next-up` in Fina)
