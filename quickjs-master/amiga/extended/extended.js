@@ -1761,9 +1761,20 @@ _manifests.push(new LocalManifest({
             if (v === null) return 'null';
             if (v === undefined) return 'undefined';
             const t = typeof v;
-            if (t === 'string') return "'" + v.replace(/\\/g, '\\\\')
-                                                .replace(/'/g, "\\'")
-                                                .replace(/\n/g, '\\n') + "'";
+            if (t === 'string') {
+                /* Manual escape — avoids three regex replace() calls
+                 * in inspect's hot path (Amiga QuickJS-ng has regex
+                 * quirks, see isSafeIdent comment). */
+                let s = "'";
+                for (let k = 0; k < v.length; k++) {
+                    const ch = v.charAt(k);
+                    if (ch === '\\') s += '\\\\';
+                    else if (ch === "'") s += "\\'";
+                    else if (ch === '\n') s += '\\n';
+                    else s += ch;
+                }
+                return s + "'";
+            }
             if (t === 'number' || t === 'boolean' || t === 'bigint') return String(v);
             if (t === 'function')
                 return '[Function' + (v.name ? ': ' + v.name : ' (anonymous)') + ']';
@@ -1788,11 +1799,35 @@ _manifests.push(new LocalManifest({
             const keys = Object.keys(v);
             if (keys.length === 0) return '{}';
             const parts = keys.slice(0, 20).map(k => {
-                const ks = /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k) ? k : JSON.stringify(k);
+                const ks = isSafeIdent(k) ? k : JSON.stringify(k);
                 return ks + ': ' + inspect(v[k], depth + 1);
             });
             if (keys.length > 20) parts.push('...');
             return '{ ' + parts.join(', ') + ' }';
+        }
+
+        /* Identifier check without a regex. The regex literal
+         * `/^[A-Za-z_$][A-Za-z0-9_$]*$/` hangs the Amiga QuickJS-ng
+         * regex compiler (same family as the Buffer base64 regex bug
+         * with `/` inside a char class — `$` inside a char class
+         * appears to trip the same codepath). Plain JS is faster
+         * anyway for short keys. */
+        function isSafeIdent(k) {
+            if (!k || typeof k !== 'string') return false;
+            const c0 = k.charCodeAt(0);
+            if (!((c0 >= 0x41 && c0 <= 0x5A) ||     /* A-Z */
+                  (c0 >= 0x61 && c0 <= 0x7A) ||     /* a-z */
+                  c0 === 0x5F || c0 === 0x24))      /* _ $ */
+                return false;
+            for (let i = 1, n = k.length; i < n; i++) {
+                const c = k.charCodeAt(i);
+                if (!((c >= 0x41 && c <= 0x5A) ||
+                      (c >= 0x61 && c <= 0x7A) ||
+                      (c >= 0x30 && c <= 0x39) ||   /* 0-9 */
+                      c === 0x5F || c === 0x24))
+                    return false;
+            }
+            return true;
         }
 
         function promisify(fn) {
