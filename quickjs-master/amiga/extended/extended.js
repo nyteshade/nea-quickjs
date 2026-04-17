@@ -2167,6 +2167,73 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: crypto.subtle.digest + getRandomValues (WebCrypto subset)
+ * Tier: pure-js    Provider: nea-port    Standard: web (Node >=19)
+ *
+ * Native hash comes from AmiSSL via globalThis.__qjs_cryptoDigest,
+ * installed by the CLI under QJS_USE_LIBRARY. Algorithm names follow
+ * the WebCrypto spec ("SHA-1", "SHA-256", "SHA-384", "SHA-512"); we
+ * also accept "SHA1"/"SHA256"/etc. and "MD5" (not in WebCrypto but
+ * useful for AmigaOS file checksums).
+ *
+ * getRandomValues uses DateStamp+EClock seeded LCG — NOT
+ * cryptographic-quality. Adequate for IDs, UUIDs, session tokens.
+ * Document this in NODEJS-DELTA.md.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'crypto',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'crypto.subtle.digest (AmiSSL-backed) + getRandomValues',
+    globals:     ['crypto'],
+    standard:    true,
+    install() {
+        const digest = globalThis.__qjs_cryptoDigest;
+        const random = globalThis.__qjs_cryptoRandom;
+        if (typeof digest !== 'function' && typeof random !== 'function') return;
+
+        const subtle = {
+            digest(algo, data) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        if (!digest) throw new Error('crypto.subtle.digest: AmiSSL not available');
+                        const name = (algo && typeof algo === 'object') ? algo.name : algo;
+                        let view = data;
+                        /* WebCrypto accepts BufferSource — ArrayBuffer or
+                         * ArrayBufferView. Native layer handles both. */
+                        if (view instanceof ArrayBuffer) view = new Uint8Array(view);
+                        resolve(digest(String(name), view));
+                    } catch (e) { reject(e); }
+                });
+            },
+        };
+
+        globalThis.crypto = globalThis.crypto || {};
+        globalThis.crypto.subtle = subtle;
+        if (random) {
+            globalThis.crypto.getRandomValues = function (view) {
+                return random(view);
+            };
+            globalThis.crypto.randomUUID = function () {
+                /* v4 UUID from 16 random bytes, per RFC 4122. */
+                const b = new Uint8Array(16);
+                random(b);
+                b[6] = (b[6] & 0x0F) | 0x40;   /* version 4 */
+                b[8] = (b[8] & 0x3F) | 0x80;   /* variant 10 */
+                const hex = '0123456789abcdef';
+                let s = '';
+                for (let i = 0; i < 16; i++) {
+                    s += hex[(b[i] >> 4) & 0xF] + hex[b[i] & 0xF];
+                    if (i === 3 || i === 5 || i === 7 || i === 9) s += '-';
+                }
+                return s;
+            };
+        }
+    },
+}));
+
+/* ==========================================================
  * Apply all features in dependency order, expose registry
  * ========================================================== */
 

@@ -422,6 +422,8 @@
 	xref	_QJS_GetMathBase_impl
 	xdef	_QJS_InstallChildProcessGlobal
 	xref	_qjs_install_child_process_global
+	xdef	_QJS_InstallCryptoGlobal
+	xref	_qjs_install_crypto_global
 
 
 ; ===================================================================
@@ -3710,6 +3712,17 @@ _QJS_InstallChildProcessGlobal:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,-(sp)
 	jsr	_qjs_install_child_process_global
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InstallCryptoGlobal — (ctx)(a0) -> void
+; E1: installs globalThis.__qjs_cryptoDigest and __qjs_cryptoRandom.
+; extended.js wraps in WebCrypto shape (crypto.subtle.digest, etc.).
+_QJS_InstallCryptoGlobal:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_qjs_install_crypto_global
 	lea	4(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts

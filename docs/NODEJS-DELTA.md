@@ -29,7 +29,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `child_process` | ◐ | `globalThis.child_process` — spawnSync/spawn/exec/execSync via `dos.library SystemTagList` (sync underneath) |
 | `cluster` | — | no OS-level forking on classic Amiga |
 | `console` | ◐ | extended beyond upstream qjs (log/error/warn/info/debug/assert/dir/table/time/timeEnd/group/groupEnd/trace) |
-| `crypto` | ○ | planned — AmiSSL-backed `crypto.subtle.digest`, `getRandomValues` (E1-E3) |
+| `crypto` | ◐ | `globalThis.crypto.subtle.digest` + `getRandomValues` + `randomUUID` (E1 at 0.091 via AmiSSL) |
 | `dgram` | ○ | possible via bsdsocket UDP — no demand yet |
 | `dns` | ○ | `gethostbyname` already wired through fetch; expose as module when needed |
 | `domain` | ✗ | deprecated upstream |
@@ -194,6 +194,23 @@ any future edits must stay regex-free (see Fina `gotcha,regex,amiga`).
 | `new URLSearchParams(init)` | ✓ | string / array / object init |
 | USP `.get/.getAll/.set/.append/.delete/.has/.sort/.size/.forEach/.keys/.values/.entries/.toString/[Symbol.iterator]` | ✓ | |
 
+### `crypto` (WebCrypto subset)
+
+Implemented in `extended.js` (`crypto` manifest). Hash comes from AmiSSL via
+native `__qjs_cryptoDigest` installed by `QJS_InstallCryptoGlobal`. Random
+is a DateStamp-seeded LCG — good enough for IDs, not for keys.
+
+| API | Status | Notes |
+|---|---|---|
+| `crypto.subtle.digest(alg, data)` | ✓ | SHA-1 / SHA-224 / SHA-256 / SHA-384 / SHA-512 / MD5. Returns `Promise<ArrayBuffer>`. Per-call AmiSSL open/close — ~few ms overhead. |
+| `crypto.getRandomValues(view)` | ◐ | Fills an integer TypedArray. **NOT cryptographic-grade** — seeded from `DateStamp` + in-library counter. Fine for UUIDs/session IDs, unsafe for key material. |
+| `crypto.randomUUID()` | ✓ | RFC 4122 v4 UUID built on `getRandomValues`. |
+| `crypto.subtle.encrypt / decrypt / sign / verify` | ○ | planned if demand |
+| `crypto.subtle.generateKey / importKey` | ○ | |
+| HMAC / HKDF / PBKDF2 | ○ | AmiSSL has the primitives, no JS wrapper yet |
+
+If AmiSSL is not installed, `digest()` throws an `InternalError`. `getRandomValues` / `randomUUID` don't depend on AmiSSL and always work.
+
 ### `child_process`
 
 Implemented in `extended.js` (`child-process` manifest) as `globalThis.child_process`,
@@ -204,7 +221,7 @@ backed by native `__qjs_spawnSync` installed from the library (LVO
 | API | Status | Notes |
 |---|---|---|
 | `spawnSync(cmd, args, opts)` | ✓ | returns `{ stdout, stderr, exitCode, signal: null }` |
-| `spawn(cmd, args, opts)` | ◐ | returns Promise but executes synchronously — API shape for code that expects it |
+| `spawn(cmd, args, opts)` | ◐ | returns `Promise<{stdout, stderr, exitCode}>` — NOT Node-accurate. Node returns a ChildProcess EventEmitter with stdin/out/err as streams; ours is functionally like Node's `execFile` with `utf8` encoding. Needs `stream` tier before it can match Node. |
 | `exec(cmd, opts)` | ◐ | Promise-wrapped single-string — Amiga shell resolves the cmdline |
 | `execSync(cmd, opts)` | ✓ | sync single-string shell-style |
 | `fork` | ✗ | no fork semantics on Amiga |
@@ -288,12 +305,12 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 Rough sequence — can reorder based on demand. Each tier depends on the
 previous for at most boilerplate, not critical path.
 
-### E1-E3 — Crypto bridges
+### E3 — AbortSignal threaded into fetch
 
-- E1 `crypto.subtle.digest('SHA-256' | 'SHA-1' | 'MD5', bytes)` via AmiSSL.
-- E2 `crypto.getRandomValues(buf)` via EClock micros XOR'd with DateStamp
-  (not cryptographic-grade on 3.x — document the caveat).
-- E3 Thread `AbortSignal` into fetch so `.signal` actually cancels.
+`AbortController` and `AbortSignal` exist (present in extended.js at 0.070+)
+but aren't wired into `fetch()` yet. Need the fetch Worker to periodically
+check an atomic abort flag and return early. No new LVOs — flag lives in
+`FetchContext`.
 
 ### F — `assert`
 

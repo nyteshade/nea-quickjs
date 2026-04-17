@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.090 (16.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.091 (16.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   90   /* packed: major=0, revision=090 (D5 qjs:child_process spawnSync via SystemTagList + T: temp files) */
+#define LIBRARY_VERSION   91   /* packed: major=0, revision=091 (E1 crypto.subtle.digest + getRandomValues via AmiSSL) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
@@ -987,6 +987,13 @@ struct Library *QJS_GetMathBase(__reg("a6") LIBRARY_BASE_TYPE *base,
 void QJS_InstallChildProcessGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
                                    __reg("a0") struct JSContext *ctx);
 
+/* E1 — install native hash + random on globalThis.
+ * __qjs_cryptoDigest(alg, bytes) -> ArrayBuffer
+ * __qjs_cryptoRandom(view)       -> fills view with pseudo-random bytes
+ * extended.js wraps in WebCrypto shape (crypto.subtle.digest + getRandomValues). */
+void QJS_InstallCryptoGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
+                             __reg("a0") struct JSContext *ctx);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -1202,6 +1209,7 @@ void QJS_Eval(
     (APTR) QJS_GetNetCapabilities, \
     (APTR) QJS_InitModuleNet, \
     (APTR) QJS_GetMathBase, \
-    (APTR) QJS_InstallChildProcessGlobal
+    (APTR) QJS_InstallChildProcessGlobal, \
+    (APTR) QJS_InstallCryptoGlobal
 
 #endif /* LIBRARYCONFIG_H */

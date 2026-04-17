@@ -87,6 +87,7 @@ quickjs.library/QJS_InitModuleNet
 quickjs.library/QJS_InitModuleOS
 quickjs.library/QJS_InitModuleStd
 quickjs.library/QJS_InstallChildProcessGlobal
+quickjs.library/QJS_InstallCryptoGlobal
 quickjs.library/QJS_Invoke
 quickjs.library/QJS_IsArray
 quickjs.library/QJS_IsArrayBuffer
@@ -6728,6 +6729,59 @@ quickjs.library/QJS_InstallChildProcessGlobal  quickjs.library/QJS_InstallChildP
 
     SEE ALSO
 	QJS_InitModuleNet, QJS_WorkerSpawn, --overview--
+
+
+quickjs.library/QJS_InstallCryptoGlobal     quickjs.library/QJS_InstallCryptoGlobal
+
+    NAME
+	QJS_InstallCryptoGlobal -- Install WebCrypto-style native
+	    hash + random functions on globalThis for the given context.
+
+    SYNOPSIS
+	QJS_InstallCryptoGlobal(ctx)
+				A0
+
+	void QJS_InstallCryptoGlobal(JSContext *ctx);
+
+    FUNCTION
+	Attaches two native C functions:
+
+	    globalThis.__qjs_cryptoDigest(alg, bytes)
+	        - alg    is a case-insensitive string: "SHA-1",
+	                 "SHA-256", "SHA-384", "SHA-512", "SHA-224",
+	                 or "MD5" (also "SHA1" etc. without dash).
+	        - bytes  is an ArrayBuffer or TypedArray view of the
+	                 input data.
+	        - returns a new ArrayBuffer containing the raw hash.
+
+	    globalThis.__qjs_cryptoRandom(view)
+	        - fills an integer typed-array view with pseudo-random
+	          bytes from DateStamp + an in-library counter.  NOT
+	          cryptographic-quality -- fine for UUIDs, session
+	          IDs, nonces; do NOT use for key material.
+
+	extended.js (Amiga CLI startup bundle) wraps these in
+	globalThis.crypto.subtle.digest() and
+	globalThis.crypto.getRandomValues() / randomUUID().
+
+	The digest function opens amisslmaster.library and a per-task
+	AmiSSL handle, computes the hash via the one-shot SHA/MD5
+	calls, then closes both.  This is a few milliseconds of
+	overhead per call -- adequate for file checksums and auth
+	tokens; hot-loop users should cache results at the JS level.
+
+	If AmiSSL is not installed, digest calls throw an
+	InternalError; random calls continue to work because they
+	only use dos.library's DateStamp.
+
+    INPUTS
+	ctx - Context that should receive the two native functions.
+
+    RESULT
+	None.  Overwrites any previous bindings if called again.
+
+    SEE ALSO
+	QJS_InstallChildProcessGlobal, QJS_InitModuleNet, --overview--
 
 
 quickjs.library/QJS_WorkerSpawn               quickjs.library/QJS_WorkerSpawn
