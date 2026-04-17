@@ -386,6 +386,12 @@ struct FetchContext {
 
     /* Worker handle (created by fetch_create, polled/destroyed later) */
     QJSWorker *worker;
+
+    /* Abort flag — main task sets to 1 via a future native; worker
+     * polls between recv iterations. Currently always 0 (no setter
+     * exposed yet) — step 2/3 of the careful timeout+abort rollout.
+     * Volatile so VBCC doesn't cache across the recv loop. */
+    volatile unsigned long abort_requested;
 };
 
 /* ================================================================
@@ -578,6 +584,15 @@ static int fetch_job(QJSWorker *w, void *user_data)
     }
     ctx->response_len = 0;
     for (;;) {
+        /* Abort check — set by future native-side __qjs_fetchAbort.
+         * Currently always 0 since nothing sets it; the check is a
+         * single ULONG load per iteration, no observable cost. */
+        if (ctx->abort_requested) {
+            strcpy(ctx->error_msg, "aborted");
+            ctx->state = FETCH_STATE_ERROR;
+            goto cleanup_sock;
+        }
+
         if (ctx->response_len + 4096 > ctx->response_cap) {
             int new_cap = ctx->response_cap * 2;
             char *new_buf = realloc(ctx->response_buf, new_cap);
