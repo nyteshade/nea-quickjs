@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.103 (17.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.104 (17.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   103  /* packed: major=0, revision=103 (worker stdio isolation — NP_Input/Output=NIL: so AmiSSL in workers doesn't break parent shell redirection) */
+#define LIBRARY_VERSION   104  /* packed: major=0, revision=104 (revert 0.103 worker stdio change — didn't fix fetch HTTPS redirect breakage; root cause is AmiSSL-internal) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

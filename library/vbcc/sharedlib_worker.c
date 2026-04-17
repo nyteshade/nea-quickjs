@@ -114,19 +114,6 @@ static struct Process *__w_CreateNewProc(__reg("a6") struct Library *base,
     = "\tjsr\t-498(a6)";
 #define w_CreateNewProc(t) __w_CreateNewProc(_qjs_DOSBase, (t))
 
-/* Open — dos.library LVO -30. Used to give the worker its own
- * owned NIL: handles so nothing shared with the parent CLI
- * survives past worker exit. (Addresses a bug where AmiSSL init
- * inside a worker leaked some kind of handle into the parent's
- * stdio, breaking `>` redirection for any caller running fetch
- * HTTPS. Explicit NP_Input/Output + NP_Close*=TRUE isolates the
- * worker's stdio from the shell's.) */
-static ULONG __w_Open(__reg("a6") struct Library *base,
-                      __reg("d1") const char *name,
-                      __reg("d2") LONG mode)
-    = "\tjsr\t-30(a6)";
-#define w_Open(n, m) __w_Open(_qjs_DOSBase, (n), (m))
-
 /* ================================================================
  * QJSWorker internal struct
  *
@@ -414,7 +401,7 @@ QJSWorker *QJS_WorkerSpawn_impl(QJSWorkerJobFn job_fn,
 {
     struct QJSWorker *w;
     struct Process *proc;
-    struct TagItem tags[11];
+    struct TagItem tags[7];
     unsigned long size = sizeof(struct QJSWorker);
 
     if (!job_fn) return NULL;
@@ -437,31 +424,14 @@ QJSWorker *QJS_WorkerSpawn_impl(QJSWorkerJobFn job_fn,
         return NULL;
     }
 
-    /* Open owned NIL: handles for the worker's stdio. Without these
-     * CreateNewProc would default to NIL: on V36+ but the default
-     * path appears to leak some handle ownership out to the parent
-     * CLI when AmiSSL is initialized inside the worker — `>` output
-     * redirection breaks the moment fetch does its first HTTPS
-     * call. Giving the worker its own handles + NP_Close*=TRUE
-     * guarantees dos.library closes only things owned by the worker. */
-    {
-        ULONG in_fh  = w_Open("NIL:", 1005);   /* MODE_OLDFILE */
-        ULONG out_fh = w_Open("NIL:", 1006);   /* MODE_NEWFILE */
-        /* If NIL: open fails (very unusual), fall through with 0 —
-         * dos.library will default that to NIL: anyway, losing the
-         * ownership isolation but staying functional. */
-        tags[0].ti_Tag = NP_Entry;        tags[0].ti_Data = (ULONG)worker_entry;
-        tags[1].ti_Tag = NP_Name;         tags[1].ti_Data = (ULONG)"qjs_worker";
-        tags[2].ti_Tag = NP_StackSize;    tags[2].ti_Data = 32768;
-        tags[3].ti_Tag = NP_Priority;     tags[3].ti_Data = 0;
-        tags[4].ti_Tag = NP_CopyVars;     tags[4].ti_Data = FALSE;
-        tags[5].ti_Tag = NP_CurrentDir;   tags[5].ti_Data = 0;
-        tags[6].ti_Tag = NP_Input;        tags[6].ti_Data = in_fh;
-        tags[7].ti_Tag = NP_Output;       tags[7].ti_Data = out_fh;
-        tags[8].ti_Tag = NP_CloseInput;   tags[8].ti_Data = TRUE;
-        tags[9].ti_Tag = NP_CloseOutput;  tags[9].ti_Data = TRUE;
-        tags[10].ti_Tag = TAG_END;        tags[10].ti_Data = 0;
-    }
+    /* Fill NP_* tags for CreateNewProc. */
+    tags[0].ti_Tag = NP_Entry;       tags[0].ti_Data = (ULONG)worker_entry;
+    tags[1].ti_Tag = NP_Name;        tags[1].ti_Data = (ULONG)"qjs_worker";
+    tags[2].ti_Tag = NP_StackSize;   tags[2].ti_Data = 32768;
+    tags[3].ti_Tag = NP_Priority;    tags[3].ti_Data = 0;
+    tags[4].ti_Tag = NP_CopyVars;    tags[4].ti_Data = FALSE;
+    tags[5].ti_Tag = NP_CurrentDir;  tags[5].ti_Data = 0;    /* none */
+    tags[6].ti_Tag = TAG_END;        tags[6].ti_Data = 0;
 
     /* Atomic handoff: the spawned task won't run until Permit(),
      * so setting tc_UserData between CreateNewProc and Permit is
