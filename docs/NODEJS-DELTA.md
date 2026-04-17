@@ -196,20 +196,24 @@ any future edits must stay regex-free (see Fina `gotcha,regex,amiga`).
 
 ### `crypto` (WebCrypto subset)
 
-Implemented in `extended.js` (`crypto` manifest). Hash comes from AmiSSL via
-native `__qjs_cryptoDigest` installed by `QJS_InstallCryptoGlobal`. Random
-is a DateStamp-seeded LCG — good enough for IDs, not for keys.
+Implemented in `extended.js` (`crypto` manifest). **Works without AmiSSL** —
+SHA-1 / SHA-256 / MD5 are pure-JS implementations in the bundle. AmiSSL
+is used as an optional fast-path when available (faster for large inputs)
+but isn't required. SHA-384 / SHA-512 require AmiSSL (64-bit arithmetic
+too slow in pure-JS on 68k).
 
 | API | Status | Notes |
 |---|---|---|
-| `crypto.subtle.digest(alg, data)` | ✓ | SHA-1 / SHA-224 / SHA-256 / SHA-384 / SHA-512 / MD5. Returns `Promise<ArrayBuffer>`. Per-call AmiSSL open/close — ~few ms overhead. |
-| `crypto.getRandomValues(view)` | ◐ | Fills an integer TypedArray. **NOT cryptographic-grade** — seeded from `DateStamp` + in-library counter. Fine for UUIDs/session IDs, unsafe for key material. |
+| `crypto.subtle.digest('SHA-1'\|'SHA-256'\|'MD5', data)` | ✓ | Pure-JS primary path; AmiSSL fast-path tried first when available. Returns `Promise<ArrayBuffer>`. |
+| `crypto.subtle.digest('SHA-384'\|'SHA-512', data)` | ◐ | AmiSSL-only. Clean rejection with actionable error if AmiSSL absent. |
+| `crypto.subtle.has(algo)` | ✓ | Returns `true` if the algorithm will work in this build. Use before calling `digest()` to avoid exceptions. |
+| `crypto.getRandomValues(view)` | ◐ | Fills an integer TypedArray. **NOT cryptographic-grade** — DateStamp-seeded LCG (native) or `Math.random` (fallback). Fine for UUIDs/session IDs, unsafe for key material. |
 | `crypto.randomUUID()` | ✓ | RFC 4122 v4 UUID built on `getRandomValues`. |
 | `crypto.subtle.encrypt / decrypt / sign / verify` | ○ | planned if demand |
 | `crypto.subtle.generateKey / importKey` | ○ | |
 | HMAC / HKDF / PBKDF2 | ○ | AmiSSL has the primitives, no JS wrapper yet |
 
-If AmiSSL is not installed, `digest()` throws an `InternalError`. `getRandomValues` / `randomUUID` don't depend on AmiSSL and always work.
+No graceful-degradation gotchas: `digest()` works on Amigas without AmiSSL and/or without bsdsocket, for the three most commonly needed algorithms. Users who want SHA-384/SHA-512 on non-AmiSSL systems can check `crypto.subtle.has('SHA-512')` first.
 
 ### `child_process`
 

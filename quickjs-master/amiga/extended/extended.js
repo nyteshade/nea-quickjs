@@ -2170,66 +2170,330 @@ _manifests.push(new LocalManifest({
  * Feature: crypto.subtle.digest + getRandomValues (WebCrypto subset)
  * Tier: pure-js    Provider: nea-port    Standard: web (Node >=19)
  *
- * Native hash comes from AmiSSL via globalThis.__qjs_cryptoDigest,
- * installed by the CLI under QJS_USE_LIBRARY. Algorithm names follow
- * the WebCrypto spec ("SHA-1", "SHA-256", "SHA-384", "SHA-512"); we
- * also accept "SHA1"/"SHA256"/etc. and "MD5" (not in WebCrypto but
- * useful for AmigaOS file checksums).
+ * Primary path is pure-JS SHA-1 / SHA-256 / MD5 — works on any
+ * Amiga, no AmiSSL or bsdsocket required.  Native AmiSSL fast-path
+ * via globalThis.__qjs_cryptoDigest is tried first when installed
+ * (library 0.090+); falls back to pure-JS on failure.
  *
- * getRandomValues uses DateStamp+EClock seeded LCG — NOT
- * cryptographic-quality. Adequate for IDs, UUIDs, session tokens.
- * Document this in NODEJS-DELTA.md.
+ * SHA-384 / SHA-512 require 64-bit arithmetic and are only
+ * supported via the AmiSSL native path.  Requesting them without
+ * AmiSSL rejects with a clear error; use SHA-256 instead.
+ *
+ * getRandomValues uses DateStamp-seeded LCG (native) or Math.random
+ * (fallback) — NOT cryptographic-quality in either case.  Adequate
+ * for IDs, session tokens, nonces.  Document in NODEJS-DELTA.md.
  * ========================================================== */
 
 _manifests.push(new LocalManifest({
     name:        'crypto',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'crypto.subtle.digest (AmiSSL-backed) + getRandomValues',
+    description: 'crypto.subtle.digest (pure-JS + AmiSSL fast-path) + getRandomValues',
     globals:     ['crypto'],
     standard:    true,
     install() {
-        const digest = globalThis.__qjs_cryptoDigest;
-        const random = globalThis.__qjs_cryptoRandom;
-        if (typeof digest !== 'function' && typeof random !== 'function') return;
+        const nativeDigest = globalThis.__qjs_cryptoDigest;
+        const nativeRandom = globalThis.__qjs_cryptoRandom;
+
+        /* -------- pure-JS primitives ---------- */
+
+        /* Rotate-right 32-bit */
+        function rotr(x, n) { return ((x >>> n) | (x << (32 - n))) >>> 0; }
+        /* Rotate-left 32-bit */
+        function rotl(x, n) { return ((x << n) | (x >>> (32 - n))) >>> 0; }
+
+        function toBytes(data) {
+            if (data instanceof Uint8Array) return data;
+            if (data instanceof ArrayBuffer) return new Uint8Array(data);
+            if (ArrayBuffer.isView(data))
+                return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+            if (typeof data === 'string') return new TextEncoder().encode(data);
+            throw new TypeError('crypto.digest: data must be ArrayBuffer, TypedArray, or string');
+        }
+
+        /* ---- SHA-256 ---- */
+        const SHA256_K = new Uint32Array([
+            0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+            0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+            0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+            0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+            0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+            0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+            0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+            0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+        ]);
+        function sha256(bytes) {
+            const len = bytes.length;
+            const bitLen = len * 8;
+            const padLen = (len + 9 + 63) & ~63;
+            const msg = new Uint8Array(padLen);
+            msg.set(bytes);
+            msg[len] = 0x80;
+            /* Big-endian 64-bit bit-length in last 8 bytes */
+            msg[padLen - 4] = (bitLen >>> 24) & 0xFF;
+            msg[padLen - 3] = (bitLen >>> 16) & 0xFF;
+            msg[padLen - 2] = (bitLen >>> 8)  & 0xFF;
+            msg[padLen - 1] =  bitLen         & 0xFF;
+
+            let h0=0x6a09e667, h1=0xbb67ae85, h2=0x3c6ef372, h3=0xa54ff53a,
+                h4=0x510e527f, h5=0x9b05688c, h6=0x1f83d9ab, h7=0x5be0cd19;
+            const w = new Uint32Array(64);
+
+            for (let off = 0; off < padLen; off += 64) {
+                for (let i = 0; i < 16; i++) {
+                    w[i] = (msg[off+4*i]<<24) | (msg[off+4*i+1]<<16) |
+                           (msg[off+4*i+2]<<8) | msg[off+4*i+3];
+                    w[i] >>>= 0;
+                }
+                for (let i = 16; i < 64; i++) {
+                    const s0 = rotr(w[i-15],7) ^ rotr(w[i-15],18) ^ (w[i-15] >>> 3);
+                    const s1 = rotr(w[i-2],17) ^ rotr(w[i-2],19)  ^ (w[i-2] >>> 10);
+                    w[i] = (w[i-16] + s0 + w[i-7] + s1) >>> 0;
+                }
+                let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,hh=h7;
+                for (let i = 0; i < 64; i++) {
+                    const S1 = rotr(e,6) ^ rotr(e,11) ^ rotr(e,25);
+                    const ch = (e & f) ^ (~e & g);
+                    const t1 = (hh + S1 + ch + SHA256_K[i] + w[i]) >>> 0;
+                    const S0 = rotr(a,2) ^ rotr(a,13) ^ rotr(a,22);
+                    const mj = (a & b) ^ (a & c) ^ (b & c);
+                    const t2 = (S0 + mj) >>> 0;
+                    hh = g; g = f; f = e; e = (d + t1) >>> 0;
+                    d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+                }
+                h0 = (h0+a)>>>0; h1 = (h1+b)>>>0; h2 = (h2+c)>>>0; h3 = (h3+d)>>>0;
+                h4 = (h4+e)>>>0; h5 = (h5+f)>>>0; h6 = (h6+g)>>>0; h7 = (h7+hh)>>>0;
+            }
+            const out = new Uint8Array(32);
+            const hs = [h0,h1,h2,h3,h4,h5,h6,h7];
+            for (let i = 0; i < 8; i++) {
+                out[i*4]   = (hs[i]>>>24) & 0xFF;
+                out[i*4+1] = (hs[i]>>>16) & 0xFF;
+                out[i*4+2] = (hs[i]>>>8)  & 0xFF;
+                out[i*4+3] =  hs[i]       & 0xFF;
+            }
+            return out.buffer;
+        }
+
+        /* ---- SHA-1 ---- */
+        function sha1(bytes) {
+            const len = bytes.length;
+            const bitLen = len * 8;
+            const padLen = (len + 9 + 63) & ~63;
+            const msg = new Uint8Array(padLen);
+            msg.set(bytes);
+            msg[len] = 0x80;
+            msg[padLen - 4] = (bitLen >>> 24) & 0xFF;
+            msg[padLen - 3] = (bitLen >>> 16) & 0xFF;
+            msg[padLen - 2] = (bitLen >>> 8)  & 0xFF;
+            msg[padLen - 1] =  bitLen         & 0xFF;
+
+            let h0=0x67452301, h1=0xEFCDAB89, h2=0x98BADCFE, h3=0x10325476, h4=0xC3D2E1F0;
+            const w = new Uint32Array(80);
+
+            for (let off = 0; off < padLen; off += 64) {
+                for (let i = 0; i < 16; i++) {
+                    w[i] = ((msg[off+4*i]<<24) | (msg[off+4*i+1]<<16) |
+                            (msg[off+4*i+2]<<8) | msg[off+4*i+3]) >>> 0;
+                }
+                for (let i = 16; i < 80; i++) {
+                    w[i] = rotl((w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16]) >>> 0, 1);
+                }
+                let a=h0,b=h1,c=h2,d=h3,e=h4;
+                for (let i = 0; i < 80; i++) {
+                    let f, k;
+                    if (i < 20)      { f = (b & c) | (~b & d);          k = 0x5A827999; }
+                    else if (i < 40) { f = b ^ c ^ d;                    k = 0x6ED9EBA1; }
+                    else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDC; }
+                    else             { f = b ^ c ^ d;                    k = 0xCA62C1D6; }
+                    const t = (rotl(a,5) + f + e + k + w[i]) >>> 0;
+                    e = d; d = c; c = rotl(b,30); b = a; a = t;
+                }
+                h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0;
+            }
+            const out = new Uint8Array(20);
+            const hs = [h0,h1,h2,h3,h4];
+            for (let i = 0; i < 5; i++) {
+                out[i*4]   = (hs[i]>>>24) & 0xFF;
+                out[i*4+1] = (hs[i]>>>16) & 0xFF;
+                out[i*4+2] = (hs[i]>>>8)  & 0xFF;
+                out[i*4+3] =  hs[i]       & 0xFF;
+            }
+            return out.buffer;
+        }
+
+        /* ---- MD5 ---- */
+        const MD5_S = [7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+                       5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+                       4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+                       6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+        const MD5_K = new Uint32Array([
+            0xd76aa478,0xe8c7b756,0x242070db,0xc1bdceee,0xf57c0faf,0x4787c62a,0xa8304613,0xfd469501,
+            0x698098d8,0x8b44f7af,0xffff5bb1,0x895cd7be,0x6b901122,0xfd987193,0xa679438e,0x49b40821,
+            0xf61e2562,0xc040b340,0x265e5a51,0xe9b6c7aa,0xd62f105d,0x02441453,0xd8a1e681,0xe7d3fbc8,
+            0x21e1cde6,0xc33707d6,0xf4d50d87,0x455a14ed,0xa9e3e905,0xfcefa3f8,0x676f02d9,0x8d2a4c8a,
+            0xfffa3942,0x8771f681,0x6d9d6122,0xfde5380c,0xa4beea44,0x4bdecfa9,0xf6bb4b60,0xbebfbc70,
+            0x289b7ec6,0xeaa127fa,0xd4ef3085,0x04881d05,0xd9d4d039,0xe6db99e5,0x1fa27cf8,0xc4ac5665,
+            0xf4292244,0x432aff97,0xab9423a7,0xfc93a039,0x655b59c3,0x8f0ccc92,0xffeff47d,0x85845dd1,
+            0x6fa87e4f,0xfe2ce6e0,0xa3014314,0x4e0811a1,0xf7537e82,0xbd3af235,0x2ad7d2bb,0xeb86d391
+        ]);
+        function md5(bytes) {
+            const len = bytes.length;
+            const bitLen = len * 8;
+            const padLen = (len + 9 + 63) & ~63;
+            const msg = new Uint8Array(padLen);
+            msg.set(bytes);
+            msg[len] = 0x80;
+            /* MD5 uses little-endian bit length */
+            msg[padLen - 8] =  bitLen        & 0xFF;
+            msg[padLen - 7] = (bitLen >>> 8) & 0xFF;
+            msg[padLen - 6] = (bitLen >>> 16)& 0xFF;
+            msg[padLen - 5] = (bitLen >>> 24)& 0xFF;
+
+            let a0=0x67452301, b0=0xefcdab89, c0=0x98badcfe, d0=0x10325476;
+            const m = new Uint32Array(16);
+
+            for (let off = 0; off < padLen; off += 64) {
+                for (let i = 0; i < 16; i++) {
+                    m[i] = (msg[off+4*i] | (msg[off+4*i+1]<<8) |
+                            (msg[off+4*i+2]<<16) | (msg[off+4*i+3]<<24)) >>> 0;
+                }
+                let A=a0,B=b0,C=c0,D=d0;
+                for (let i = 0; i < 64; i++) {
+                    let f, g;
+                    if (i < 16)      { f = (B & C) | (~B & D); g = i; }
+                    else if (i < 32) { f = (D & B) | (~D & C); g = (5*i + 1) & 15; }
+                    else if (i < 48) { f = B ^ C ^ D;          g = (3*i + 5) & 15; }
+                    else             { f = C ^ (B | ~D);       g = (7*i) & 15; }
+                    const t = (D + 0) >>> 0;
+                    D = C;
+                    C = B;
+                    const sum = (A + f + MD5_K[i] + m[g]) >>> 0;
+                    B = (B + rotl(sum, MD5_S[i])) >>> 0;
+                    A = t;
+                }
+                a0 = (a0+A)>>>0; b0 = (b0+B)>>>0; c0 = (c0+C)>>>0; d0 = (d0+D)>>>0;
+            }
+            const out = new Uint8Array(16);
+            const hs = [a0,b0,c0,d0];
+            for (let i = 0; i < 4; i++) {
+                out[i*4]   =  hs[i]        & 0xFF;
+                out[i*4+1] = (hs[i] >>> 8) & 0xFF;
+                out[i*4+2] = (hs[i] >>> 16)& 0xFF;
+                out[i*4+3] = (hs[i] >>> 24)& 0xFF;
+            }
+            return out.buffer;
+        }
+
+        /* -------- algorithm normalization ---------- */
+
+        function normalizeAlg(alg) {
+            const raw = (alg && typeof alg === 'object') ? alg.name : alg;
+            if (typeof raw !== 'string') return null;
+            const u = raw.toUpperCase();
+            if (u === 'SHA-1'   || u === 'SHA1')   return 'SHA-1';
+            if (u === 'SHA-256' || u === 'SHA256') return 'SHA-256';
+            if (u === 'SHA-384' || u === 'SHA384') return 'SHA-384';
+            if (u === 'SHA-512' || u === 'SHA512') return 'SHA-512';
+            if (u === 'SHA-224' || u === 'SHA224') return 'SHA-224';
+            if (u === 'MD5') return 'MD5';
+            return null;
+        }
+
+        /* -------- digest dispatch ---------- */
+
+        function pureJSDigest(alg, bytes) {
+            switch (alg) {
+                case 'SHA-256': return sha256(bytes);
+                case 'SHA-1':   return sha1(bytes);
+                case 'MD5':     return md5(bytes);
+                default: return null;  /* SHA-224/384/512 require native */
+            }
+        }
 
         const subtle = {
             digest(algo, data) {
                 return new Promise((resolve, reject) => {
                     try {
-                        if (!digest) throw new Error('crypto.subtle.digest: AmiSSL not available');
-                        const name = (algo && typeof algo === 'object') ? algo.name : algo;
-                        let view = data;
-                        /* WebCrypto accepts BufferSource — ArrayBuffer or
-                         * ArrayBufferView. Native layer handles both. */
-                        if (view instanceof ArrayBuffer) view = new Uint8Array(view);
-                        resolve(digest(String(name), view));
+                        const alg = normalizeAlg(algo);
+                        if (!alg) {
+                            reject(new Error(
+                                `crypto.subtle.digest: unsupported algorithm '${algo && algo.name || algo}'. ` +
+                                `Expected SHA-1, SHA-256, SHA-384, SHA-512, SHA-224, or MD5.`
+                            ));
+                            return;
+                        }
+                        const bytes = toBytes(data);
+
+                        /* 1. Try AmiSSL fast-path (faster for large inputs
+                         *    once it works; currently may fail on main task
+                         *    per open-issue, but attempt anyway and fall
+                         *    through to pure-JS on any failure). */
+                        if (nativeDigest) {
+                            try {
+                                const ab = nativeDigest(alg, bytes);
+                                if (ab && ab.byteLength > 0) { resolve(ab); return; }
+                            } catch (_) { /* fall through */ }
+                        }
+
+                        /* 2. Pure-JS for the algorithms we support. */
+                        const result = pureJSDigest(alg, bytes);
+                        if (result) { resolve(result); return; }
+
+                        /* 3. Algorithm recognized but pure-JS doesn't
+                         *    implement it and native didn't succeed. */
+                        reject(new Error(
+                            `crypto.subtle.digest: ${alg} requires AmiSSL (amisslmaster.library + an ` +
+                            `amissl_v*.library). Install AmiSSL or use SHA-1, SHA-256, or MD5 instead ` +
+                            `(those work without AmiSSL).`
+                        ));
                     } catch (e) { reject(e); }
                 });
+            },
+            has(algo) {
+                const alg = normalizeAlg(algo);
+                if (!alg) return false;
+                /* SHA-1, SHA-256, MD5 always work via pure-JS. */
+                if (alg === 'SHA-1' || alg === 'SHA-256' || alg === 'MD5') return true;
+                /* SHA-224/384/512 only work if native path is present AND
+                 * actually functional — we can't easily test without a
+                 * call, so report based on native presence. */
+                return typeof nativeDigest === 'function';
             },
         };
 
         globalThis.crypto = globalThis.crypto || {};
         globalThis.crypto.subtle = subtle;
-        if (random) {
-            globalThis.crypto.getRandomValues = function (view) {
-                return random(view);
-            };
-            globalThis.crypto.randomUUID = function () {
-                /* v4 UUID from 16 random bytes, per RFC 4122. */
-                const b = new Uint8Array(16);
-                random(b);
-                b[6] = (b[6] & 0x0F) | 0x40;   /* version 4 */
-                b[8] = (b[8] & 0x3F) | 0x80;   /* variant 10 */
-                const hex = '0123456789abcdef';
-                let s = '';
-                for (let i = 0; i < 16; i++) {
-                    s += hex[(b[i] >> 4) & 0xF] + hex[b[i] & 0xF];
-                    if (i === 3 || i === 5 || i === 7 || i === 9) s += '-';
-                }
-                return s;
-            };
-        }
+
+        /* getRandomValues: prefer native (DateStamp-seeded), fall back
+         * to Math.random. Neither is CSPRNG-grade; documented. */
+        globalThis.crypto.getRandomValues = function (view) {
+            if (!view || !ArrayBuffer.isView(view))
+                throw new TypeError('getRandomValues: integer TypedArray required');
+            if (nativeRandom) {
+                try { return nativeRandom(view); }
+                catch (_) { /* fall through */ }
+            }
+            /* Math.random fallback. */
+            const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+            for (let i = 0; i < bytes.length; i++)
+                bytes[i] = (Math.random() * 256) & 0xFF;
+            return view;
+        };
+
+        globalThis.crypto.randomUUID = function () {
+            const b = new Uint8Array(16);
+            globalThis.crypto.getRandomValues(b);
+            b[6] = (b[6] & 0x0F) | 0x40;   /* version 4 */
+            b[8] = (b[8] & 0x3F) | 0x80;   /* variant 10 */
+            const hex = '0123456789abcdef';
+            let s = '';
+            for (let i = 0; i < 16; i++) {
+                s += hex[(b[i] >> 4) & 0xF] + hex[b[i] & 0xF];
+                if (i === 3 || i === 5 || i === 7 || i === 9) s += '-';
+            }
+            return s;
+        };
     },
 }));
 
