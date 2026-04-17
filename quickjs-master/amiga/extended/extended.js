@@ -2254,8 +2254,11 @@ _manifests.push(new LocalManifest({
             write(chunk, cb) {
                 if (this._ended) {
                     const err = new Error('write after end');
+                    /* Node semantics: emit 'error' AND call cb with error.
+                     * Callers may attach either or both; we fire both so
+                     * detection works for listeners and callbacks. */
+                    queueMicrotask(() => this.emit('error', err));
                     if (cb) queueMicrotask(() => cb(err));
-                    else queueMicrotask(() => this.emit('error', err));
                     return false;
                 }
                 /* Invoke synchronous write. Callback (if any) called once
