@@ -152,3 +152,56 @@ void __CopyMem(struct ExecBase *sysBase,
             __reg("a1") void *,
             __reg("d0") ULONG))(sysBase, src, dest, size);
 }
+
+/* ---- Signals / lists / devices (timer.device integration) ---- */
+
+/* AllocSignal — LVO -330 */
+LONG __AllocSignal(struct ExecBase *sysBase, LONG signalNum)
+{
+    return LVO(sysBase, 330,
+        LONG (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("d0") LONG))(sysBase, signalNum);
+}
+
+/* FreeSignal — LVO -336 */
+void __FreeSignal(struct ExecBase *sysBase, LONG signalNum)
+{
+    LVO(sysBase, 336,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("d0") LONG))(sysBase, signalNum);
+}
+
+/* NewList — manual inline (it's really a macro that zeros head/tail) */
+void __NewList(struct ExecBase *sysBase, struct List *list)
+{
+    (void)sysBase;
+    list->lh_Head     = (struct Node *)&list->lh_Tail;
+    list->lh_Tail     = NULL;
+    list->lh_TailPred = (struct Node *)&list->lh_Head;
+}
+
+/* OpenDevice — LVO -444. Returns 0 on success, non-zero on error.
+ * VBCC's BYTE return needs widening to LONG for sign-safety. */
+LONG __OpenDevice(struct ExecBase *sysBase, const char *name, ULONG unit,
+                  struct IORequest *ior, ULONG flags)
+{
+    BYTE r = LVO(sysBase, 444,
+        BYTE (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a0") const char *,
+            __reg("d0") ULONG,
+            __reg("a1") struct IORequest *,
+            __reg("d1") ULONG))(sysBase, name, unit, ior, flags);
+    return (LONG)r;
+}
+
+/* CloseDevice — LVO -450 */
+void __CloseDevice(struct ExecBase *sysBase, struct IORequest *ior)
+{
+    LVO(sysBase, 450,
+        void (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("a1") struct IORequest *))(sysBase, ior);
+}

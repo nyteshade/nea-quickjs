@@ -334,12 +334,17 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 Rough sequence — can reorder based on demand. Each tier depends on the
 previous for at most boilerplate, not critical path.
 
-### E3 — AbortSignal threaded into fetch
+### C — mid-flight fetch cancel
 
-`AbortController` and `AbortSignal` exist (present in extended.js at 0.070+)
-but aren't wired into `fetch()` yet. Need the fetch Worker to periodically
-check an atomic abort flag and return early. No new LVOs — flag lives in
-`FetchContext`.
+JS-level `fetch(url, {signal})` ships at 0.096: when the signal fires, the
+returned Promise rejects with an `AbortError` DOMException. Good enough for
+most use cases — caller's `await` stops waiting, error propagates normally.
+
+What's *not* there: the underlying HTTP worker keeps running to completion
+and its result is silently discarded. For large-payload transfers where the
+user wants to free the socket/bandwidth immediately, the worker needs to
+poll an atomic abort flag in the `recv` loop and close the socket early.
+That's ~30 lines of C in `sharedlib_fetch.c` — deferred until demand.
 
 ### F — `assert`
 

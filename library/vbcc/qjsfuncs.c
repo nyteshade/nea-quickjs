@@ -11,7 +11,13 @@
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <exec/execbase.h>
+#include <exec/io.h>
+#include <exec/ports.h>
+#include <exec/lists.h>
+#include <devices/timer.h>
 /* No proto/exec.h — use explicit SysBase from library base instead */
+
+#include "execinline.h"
 
 #include <stddef.h>  /* size_t */
 
@@ -261,22 +267,104 @@ static struct DateStamp _qjs_ds;
 
 #define QJS_AMIGA_UNIX_EPOCH_DIFF 252460800L
 
+/* ---- timer.device for microsecond-resolution time ----
+ *
+ * DateStamp alone has 20ms resolution (1/50s), which makes setTimeout
+ * timing feel coarse — `setTimeout(fn, 10)` actually fires between
+ * 0-30ms later. We open timer.device UNIT_MICROHZ once at library
+ * init and call GetSysTime for µs-resolution time in _qjs_time_us.
+ *
+ * Fallback to DateStamp if timer.device open fails (it won't on any
+ * sane Amiga — timer.device is a ROM resident).
+ * -------------------------------------------------- */
+struct Library *_qjs_TimerBase = NULL;
+static struct MsgPort *_qjs_timer_mp = NULL;
+static struct timerequest *_qjs_timer_req = NULL;
+
+/* GetSysTime — timer.device LVO -66.
+ * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
+static void __qjs_GetSysTime(__reg("a6") struct Library *base,
+                              __reg("a0") struct timeval *tv)
+                              = "\tjsr\t-66(a6)";
+
+/* Locate the caller's task without proto/exec — exec.library LVO -294. */
+static struct Task *__qjs_FindTask(__reg("a6") struct ExecBase *sb,
+                                    __reg("a1") const char *name)
+                                    = "\tjsr\t-294(a6)";
+
+static int qjs_timer_init(LIBRARY_BASE_TYPE *aBase)
+{
+    struct ExecBase *sys = aBase->iSysBase;
+
+    _qjs_timer_mp = (struct MsgPort *)__AllocMem(sys, sizeof(struct MsgPort),
+                                                  MEMF_CLEAR | MEMF_PUBLIC);
+    if (!_qjs_timer_mp) return 1;
+
+    _qjs_timer_mp->mp_Node.ln_Type = NT_MSGPORT;
+    _qjs_timer_mp->mp_Flags = PA_SIGNAL;
+    _qjs_timer_mp->mp_SigBit = (UBYTE)__AllocSignal(sys, -1);
+    _qjs_timer_mp->mp_SigTask = __qjs_FindTask(sys, NULL);
+    __NewList(sys, (struct List *)&_qjs_timer_mp->mp_MsgList);
+
+    _qjs_timer_req = (struct timerequest *)__AllocMem(sys,
+        sizeof(struct timerequest), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!_qjs_timer_req) return 1;
+
+    _qjs_timer_req->tr_node.io_Message.mn_Node.ln_Type = NT_MESSAGE;
+    _qjs_timer_req->tr_node.io_Message.mn_ReplyPort = _qjs_timer_mp;
+    _qjs_timer_req->tr_node.io_Message.mn_Length = sizeof(struct timerequest);
+
+    if (__OpenDevice(sys, "timer.device", UNIT_MICROHZ,
+                     (struct IORequest *)_qjs_timer_req, 0) != 0) {
+        return 1;
+    }
+
+    _qjs_TimerBase = (struct Library *)_qjs_timer_req->tr_node.io_Device;
+    return 0;
+}
+
+static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
+{
+    struct ExecBase *sys = aBase->iSysBase;
+
+    if (_qjs_TimerBase && _qjs_timer_req) {
+        __CloseDevice(sys, (struct IORequest *)_qjs_timer_req);
+        _qjs_TimerBase = NULL;
+    }
+    if (_qjs_timer_req) {
+        __FreeMem(sys, _qjs_timer_req, sizeof(struct timerequest));
+        _qjs_timer_req = NULL;
+    }
+    if (_qjs_timer_mp) {
+        if (_qjs_timer_mp->mp_SigBit != (UBYTE)-1)
+            __FreeSignal(sys, _qjs_timer_mp->mp_SigBit);
+        __FreeMem(sys, _qjs_timer_mp, sizeof(struct MsgPort));
+        _qjs_timer_mp = NULL;
+    }
+}
+
 long long _qjs_time_us(void)
 {
-    long sec, usec;
+    /* Preferred path: timer.device GetSysTime — µs resolution. */
+    if (_qjs_TimerBase) {
+        struct timeval tv;
+        __qjs_GetSysTime(_qjs_TimerBase, &tv);
+        return (long long)tv.tv_secs * 1000000LL + (long long)tv.tv_micro;
+    }
 
-    if (!_qjs_DOSBase)
-        return 0;
+    /* Fallback: 20ms-granular DateStamp (only if timer.device unavailable). */
+    if (_qjs_DOSBase) {
+        long sec, usec;
+        __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
+        sec = (long)_qjs_ds.ds_Days * 86400L
+            + (long)_qjs_ds.ds_Minute * 60L
+            + (long)_qjs_ds.ds_Tick / 50L
+            + QJS_AMIGA_UNIX_EPOCH_DIFF;
+        usec = ((long)_qjs_ds.ds_Tick % 50L) * 20000L;
+        return (long long)sec * 1000000LL + (long long)usec;
+    }
 
-    __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
-
-    sec = (long)_qjs_ds.ds_Days * 86400L
-        + (long)_qjs_ds.ds_Minute * 60L
-        + (long)_qjs_ds.ds_Tick / 50L
-        + QJS_AMIGA_UNIX_EPOCH_DIFF;
-    usec = ((long)_qjs_ds.ds_Tick % 50L) * 20000L;
-
-    return (long long)sec * 1000000LL + (long long)usec;
+    return 0;
 }
 
 /* ---- W7: networking capability probe ----
@@ -412,12 +500,20 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
     /* W7: probe networking caps (non-fatal — library loads without them) */
     qjs_probe_net_caps(aBase);
 
+    /* Open timer.device for µs-resolution time. Non-fatal: _qjs_time_us
+     * falls back to DateStamp's 20ms granularity if this fails. */
+    qjs_timer_init(aBase);
+
     return FALSE;
 }
 
 VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
 {
     struct ExecBase *sys = aBase->iSysBase;
+
+    /* Close timer.device first — before pool cleanup so message port
+     * and IORequest AllocMem blocks are still valid. */
+    qjs_timer_cleanup(aBase);
 
     /* Destroy pool first — frees all engine allocations */
     AmigaPoolCleanup(aBase);

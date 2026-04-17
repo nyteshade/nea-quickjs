@@ -41,4 +41,12 @@ void __FreePooled(struct ExecBase *sysBase, APTR pool,
 void __CopyMem(struct ExecBase *sysBase,
                const void *src, void *dest, ULONG size);
 
+/* ---- Signals / lists / devices (for timer.device setup) ---- */
+LONG __AllocSignal(struct ExecBase *sysBase, LONG signalNum);
+void __FreeSignal(struct ExecBase *sysBase, LONG signalNum);
+void __NewList(struct ExecBase *sysBase, struct List *list);
+LONG __OpenDevice(struct ExecBase *sysBase, const char *name, ULONG unit,
+                  struct IORequest *ior, ULONG flags);
+void __CloseDevice(struct ExecBase *sysBase, struct IORequest *ior);
+
 #endif /* EXECINLINE_H */

@@ -803,6 +803,71 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: fetch + AbortSignal integration
+ * Tier: pure-js    Provider: nea-port    Standard: web (Node >=18)
+ *
+ * E3: wraps the native fetch to honor options.signal — when the
+ * AbortSignal fires, the returned Promise rejects with a standard
+ * AbortError DOMException. v1 is JS-level only: the background
+ * worker continues until HTTP completion and its result is
+ * discarded. True mid-flight socket close requires C changes to
+ * sharedlib_fetch.c (poll an atomic flag in the recv loop) —
+ * deferred until someone needs to cancel a slow multi-megabyte
+ * transfer. For typical scripts the JS-level abort is enough:
+ * the caller's await stops waiting, error propagates normally.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'fetch-abort',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'AbortSignal wiring for globalThis.fetch (JS-level abort)',
+    globals:     ['fetch'],
+    standard:    true,
+    requires:    ['abort'],
+    install() {
+        const nativeFetch = globalThis.fetch;
+        if (typeof nativeFetch !== 'function') return;
+
+        globalThis.fetch = function (url, options) {
+            const signal = options && options.signal;
+            if (!signal || typeof signal.addEventListener !== 'function')
+                return nativeFetch(url, options);
+
+            if (signal.aborted) {
+                return Promise.reject(
+                    signal.reason || new DOMException('Aborted', 'AbortError'));
+            }
+
+            return new Promise((resolve, reject) => {
+                let settled = false;
+                const onAbort = () => {
+                    if (settled) return;
+                    settled = true;
+                    reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+                };
+                signal.addEventListener('abort', onAbort);
+
+                nativeFetch(url, options).then(
+                    (response) => {
+                        if (settled) return;
+                        settled = true;
+                        try { signal.removeEventListener('abort', onAbort); } catch (_) {}
+                        resolve(response);
+                    },
+                    (err) => {
+                        if (settled) return;
+                        settled = true;
+                        try { signal.removeEventListener('abort', onAbort); } catch (_) {}
+                        reject(err);
+                    }
+                );
+            });
+        };
+    },
+}));
+
+/* ==========================================================
  * Feature: structuredClone
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
