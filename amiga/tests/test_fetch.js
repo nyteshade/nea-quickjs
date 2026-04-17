@@ -9,6 +9,40 @@
 
 import * as std from 'qjs:std';
 
+/* ----------------------------------------------------------------
+ * Self-captured output.
+ *
+ * Shell `>` redirection breaks on Amiga when fetch opens AmiSSL in
+ * a worker — the parent CLI's pr_COS (output file handle) gets
+ * clobbered partway through, and subsequent `print` calls land on
+ * the console instead of the redirected file. Root cause is inside
+ * AmiSSL and not yet diagnosed (see docs/AMISSL_MAINTASK_BUG.md for
+ * the related main-task issue).
+ *
+ * Workaround: open our own output/test_fetch.output via std.open
+ * BEFORE any fetch runs, tee every print into it, flush aggressively.
+ * Callers should run `qjs tests/test_fetch.js` with no shell `>`.
+ * -------------------------------------------------------------- */
+const _logFile = (() => {
+    try { return std.open('output/test_fetch.output', 'wb'); }
+    catch (_) { return null; }
+})();
+
+const _origPrint = globalThis.print;
+globalThis.print = function (...args) {
+    const line = args.map(String).join(' ');
+    _origPrint(line);
+    if (_logFile) {
+        _logFile.puts(line);
+        _logFile.puts('\n');
+        _logFile.flush();
+    }
+};
+
+function _closeLog() {
+    if (_logFile) { try { _logFile.close(); } catch (_) {} }
+}
+
 let pass = 0, fail = 0;
 
 function assert(cond, msg) {
@@ -140,6 +174,7 @@ async function run_all() {
     await test_bad_url();
 
     print("\n=== Results: " + pass + " passed, " + fail + " failed ===");
+    _closeLog();
     if (fail > 0) std.exit(1);
 }
 
