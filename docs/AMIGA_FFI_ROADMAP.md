@@ -62,20 +62,87 @@ event loop. Could hook into existing `os_timers` loop or add a
 
 ### Q3 — GadTools / MUI widget toolkit (~600 lines JS)
 
+Aim for the exact NodeAmiga `gui` surface so their ecosystem of
+scripts runs on our port. Reference app: `aminet_browser.js` (the
+Aminet download browser by Juen), ~968 lines.
+
+**Observed NodeAmiga API** (concrete — from the reference app):
+
 ```js
+const gui = require('gui');
+const gfx = gui.gfx;
+
+// Screen metrics
+const scr = gui.screenInfo();   // → { fontWidth, fontHeight, ... }
+
+// Declarative gadget array — numeric IDs, pct or px layout
+const gadgets = [
+    { kind: 'cycle',    id: 1, left: '1%', top: 4, width: '50%', height: 20,
+      items: ['A','B','C'], value: 0 },
+    { kind: 'listview', id: 4, left: 4, top: 30, width: 120, height: 300,
+      items: [], value: 0, flex: true },
+    { kind: 'string',   id: 7, label: 'Find:', left: '12%', top: -50,
+      width: '87%', height: 20, value: '' },
+    { kind: 'button',   id: 8, label: 'Download',
+      left: '1%', top: -25, width: '32%', height: 20 },
+    { kind: 'text',     id: 6, left: '1%', top: -80, width: '98%', height: 20,
+      value: 'Ready.' },
+    // also supported: checkbox, integer, slider, cycle, scroller
+];
+
 const win = gui.createWindow({
-    title: 'Settings',
-    contents: [
-        gui.string({ label: 'Name', id: 'name' }),
-        gui.checkbox({ label: 'Enabled', id: 'enabled' }),
-        gui.button({ label: 'OK', onClick: () => close(ret) }),
-    ],
+    title: 'Aminet Browser',
+    width: 520, height: 400,
+    left: 20, top: 15,
+    resizable: true, minWidth: 300, minHeight: 140,
+    gadgets: gadgets,
 });
+
+// Gadget access by numeric id
+gui.set(win, 6, 'New status text');
+gui.set(win, 4, ['item a', 'item b']);            // listview items
+const query = gui.get(win, 7);                     // string value
+gui.setDisabled(win, 8, true);                     // dim a button
+
+// File requester (ASL)
+const result = gui.fileRequest({
+    title: 'Save File', save: true,
+    drawer: 'RAM:', file: 'default.txt',
+});
+// result === { path: 'RAM:default.txt' } or null (cancelled)
+
+// Event loop
+while (true) {
+    const evt = gui.waitEvent(win);      // blocking
+    // or: const evt = gui.pollEvent(win);  // non-blocking
+    if (!evt) break;
+
+    if (evt.type === 'close') break;
+    if (evt.type === 'key' && evt.key === '\x1b') break;
+    if (evt.type === 'resize') { /* evt.width, evt.height */ }
+    if (evt.type === 'gadgetup') {
+        // evt.id = which gadget, evt.code = value (index/state)
+    }
+}
+
+gfx.waitTOF();   // wait for top-of-frame (vsync-ish; use with pollEvent)
+gui.closeWindow(win);
 ```
 
-Declarative layout + event handlers. Wraps GadTools gadgets. Could
-layer on MUI or ClassAct as alternative back-ends (detect which is
-installed).
+**Layout conventions observed:**
+- `left`/`top`/`width`/`height` accept pixels (number), percentages (`'50%'`),
+  or negative numbers (pixels from right/bottom edge).
+- `flex: true` on a gadget makes it resize-responsive.
+- Multiple windows: open more via `gui.createWindow()`, poll each with
+  `gui.pollEvent(win)` in a combined loop.
+
+**Gadget kinds in the wild:** `cycle`, `listview`, `string`, `text`,
+`button`, `checkbox`, `integer`, `slider`, `scroller` — and the Aminet
+browser's readme window uses a `scroller` with `{visible, total}` for
+horizontal scroll state.
+
+Implementing this surface 1:1 maximizes script portability — users can
+drop NodeAmiga scripts into our port and they just run.
 
 ## Non-goals
 
