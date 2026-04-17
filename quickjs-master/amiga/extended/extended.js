@@ -181,6 +181,36 @@ _manifests.push(new LocalManifest({
             const stack = new Error().stack;
             if (stack) std.err.puts(stack + '\n');
         };
+
+        /* console.timeLog(label, ...args) — non-destructive read of a running
+         * timer. Prints `label: Xms args...` without deleting the timer.
+         * Node-compatible. */
+        globalThis.console.timeLog = (label = 'default', ...args) => {
+            const start = _timers.get(label);
+            if (start === undefined) {
+                globalThis.console.warn(`No such label: ${label}`);
+                return;
+            }
+            const elapsed = (os.now() - start) / 1000;
+            const extra = args.length ? ' ' + args.map(String).join(' ') : '';
+            globalThis.console.log(`${label}: ${elapsed.toFixed(3)}ms${extra}`);
+        };
+
+        /* console.count(label?) + console.countReset(label?) — tracks a per-
+         * label call-count counter, prints `label: N` on each call. */
+        const _counts = new Map();
+        globalThis.console.count = (label = 'default') => {
+            const n = (_counts.get(label) || 0) + 1;
+            _counts.set(label, n);
+            globalThis.console.log(`${label}: ${n}`);
+        };
+        globalThis.console.countReset = (label = 'default') => {
+            if (!_counts.has(label)) {
+                globalThis.console.warn(`Count for '${label}' does not exist`);
+                return;
+            }
+            _counts.delete(label);
+        };
     },
 }));
 
@@ -1641,6 +1671,60 @@ _manifests.push(new LocalManifest({
             }
             writeInt32LE(v, off)  { return this.writeUInt32LE(v >>> 0, off); }
             writeInt32BE(v, off)  { return this.writeUInt32BE(v >>> 0, off); }
+
+            /* swap16 / swap32 / swap64 — in-place byte-order swap on 2/4/8
+             * byte aligned chunks. Node semantics: throw if buffer length
+             * isn't a multiple. Returns the buffer for chaining. */
+            swap16() {
+                if (this.length & 1)
+                    throw new RangeError('Buffer size for swap16 must be a multiple of 2');
+                for (let i = 0; i < this.length; i += 2) {
+                    const t = this[i]; this[i] = this[i+1]; this[i+1] = t;
+                }
+                return this;
+            }
+            swap32() {
+                if (this.length & 3)
+                    throw new RangeError('Buffer size for swap32 must be a multiple of 4');
+                for (let i = 0; i < this.length; i += 4) {
+                    const a = this[i], b = this[i+1];
+                    this[i]   = this[i+3];
+                    this[i+1] = this[i+2];
+                    this[i+2] = b;
+                    this[i+3] = a;
+                }
+                return this;
+            }
+            swap64() {
+                if (this.length & 7)
+                    throw new RangeError('Buffer size for swap64 must be a multiple of 8');
+                for (let i = 0; i < this.length; i += 8) {
+                    for (let k = 0; k < 4; k++) {
+                        const t = this[i+k]; this[i+k] = this[i+7-k]; this[i+7-k] = t;
+                    }
+                }
+                return this;
+            }
+
+            /* Float32/Float64 read/write — via a shared DataView over the
+             * same ArrayBuffer. Works on both FPU and softfloat builds;
+             * on softfloat the floats go through VBCC's softfloat helpers
+             * (the library already links them). */
+            readFloatLE(off)  { return this._dv().getFloat32(off | 0, true); }
+            readFloatBE(off)  { return this._dv().getFloat32(off | 0, false); }
+            readDoubleLE(off) { return this._dv().getFloat64(off | 0, true); }
+            readDoubleBE(off) { return this._dv().getFloat64(off | 0, false); }
+            writeFloatLE(v, off)  { this._dv().setFloat32(off | 0, +v, true);  return (off | 0) + 4; }
+            writeFloatBE(v, off)  { this._dv().setFloat32(off | 0, +v, false); return (off | 0) + 4; }
+            writeDoubleLE(v, off) { this._dv().setFloat64(off | 0, +v, true);  return (off | 0) + 8; }
+            writeDoubleBE(v, off) { this._dv().setFloat64(off | 0, +v, false); return (off | 0) + 8; }
+
+            /* Lazy DataView cache — built once per buffer, reused per call. */
+            _dv() {
+                if (!this._cachedDV)
+                    this._cachedDV = new DataView(this.buffer, this.byteOffset, this.byteLength);
+                return this._cachedDV;
+            }
         }
 
         /* slice is an alias for subarray to match Node semantics. */
@@ -1813,6 +1897,31 @@ _manifests.push(new LocalManifest({
             }
         }
         EventEmitter.defaultMaxListeners = 10;
+
+        /* Static helper — events.once(emitter, name) returns a Promise that
+         * resolves with the args from the first emission of that event, or
+         * rejects if 'error' fires first. Pattern used by stream.pipeline
+         * and async iterator adapters. */
+        EventEmitter.once = function (emitter, name) {
+            return new Promise((resolve, reject) => {
+                const onEvt = (...args) => {
+                    emitter.removeListener && emitter.removeListener('error', onErr);
+                    resolve(args);
+                };
+                const onErr = (err) => {
+                    emitter.removeListener && emitter.removeListener(name, onEvt);
+                    reject(err);
+                };
+                if (typeof emitter.once === 'function') {
+                    emitter.once(name, onEvt);
+                    emitter.once('error', onErr);
+                } else {
+                    emitter.addEventListener && emitter.addEventListener(name, onEvt);
+                    emitter.addEventListener && emitter.addEventListener('error', onErr);
+                }
+            });
+        };
+
         globalThis.EventEmitter = EventEmitter;
     },
 }));
@@ -1987,8 +2096,98 @@ _manifests.push(new LocalManifest({
             isFunction: v => typeof v === 'function',
         };
 
+        /* util.parseArgs — Node 18.3+ argv parser subset.
+         * Supports options={type:'string'|'boolean', short, multiple, default}. */
+        function parseArgs(config) {
+            const args = (config && config.args) || [];
+            const opts = (config && config.options) || {};
+            const allowPositionals = config && config.allowPositionals;
+            const values = {};
+            const positionals = [];
+
+            /* Pre-populate defaults */
+            for (const k of Object.keys(opts)) {
+                if ('default' in opts[k]) values[k] = opts[k].default;
+            }
+
+            /* Build short-name lookup */
+            const shorts = {};
+            for (const k of Object.keys(opts)) {
+                if (opts[k].short) shorts[opts[k].short] = k;
+            }
+
+            for (let i = 0; i < args.length; i++) {
+                const a = args[i];
+                if (a === '--') {
+                    if (allowPositionals) for (i = i + 1; i < args.length; i++) positionals.push(args[i]);
+                    break;
+                }
+                if (a.startsWith('--')) {
+                    const eq = a.indexOf('=');
+                    let name, val;
+                    if (eq >= 0) { name = a.substring(2, eq); val = a.substring(eq + 1); }
+                    else         { name = a.substring(2); val = null; }
+                    const o = opts[name];
+                    if (!o) continue;
+                    if (o.type === 'boolean') {
+                        values[name] = (val === null || val === '' || val === 'true');
+                    } else {
+                        if (val === null) { i++; val = args[i]; }
+                        if (o.multiple) {
+                            if (!Array.isArray(values[name])) values[name] = [];
+                            values[name].push(val);
+                        } else values[name] = val;
+                    }
+                } else if (a.startsWith('-') && a.length > 1) {
+                    const sh = a.substring(1);
+                    const name = shorts[sh];
+                    if (!name) continue;
+                    const o = opts[name];
+                    if (o.type === 'boolean') values[name] = true;
+                    else                     { i++; values[name] = args[i]; }
+                } else if (allowPositionals) {
+                    positionals.push(a);
+                }
+            }
+            return { values, positionals };
+        }
+
+        /* util.deprecate — wraps fn to print a deprecation warning on first call. */
+        function deprecate(fn, msg) {
+            let warned = false;
+            return function (...args) {
+                if (!warned) {
+                    warned = true;
+                    try { std.err.puts('(qjs) DeprecationWarning: ' + msg + '\n'); } catch (_) {}
+                }
+                return fn.apply(this, args);
+            };
+        }
+
+        /* util.debuglog — returns a logger controlled by NODE_DEBUG env var.
+         * If section is present in comma-separated NODE_DEBUG, logs to stderr. */
+        function debuglog(section) {
+            let enabled = null;
+            return function (fmt, ...args) {
+                if (enabled === null) {
+                    const env = (std && std.getenv) ? std.getenv('NODE_DEBUG') : '';
+                    if (!env) { enabled = false; }
+                    else {
+                        const parts = String(env).split(',');
+                        enabled = parts.indexOf(section) >= 0 ||
+                                  parts.indexOf('*') >= 0;
+                    }
+                }
+                if (!enabled) return;
+                try {
+                    std.err.puts(section.toUpperCase() + ' ' + format(fmt, ...args) + '\n');
+                } catch (_) {}
+            };
+        }
+
         globalThis.util = {
             format, inspect, promisify, callbackify, types,
+            parseArgs, deprecate, debuglog,
             inherits(ctor, superCtor) {
                 /* Old Node util.inherits. Here mainly so code that
                  * imports it doesn't error. */
@@ -2153,7 +2352,69 @@ _manifests.push(new LocalManifest({
                     else resolve(list.filter(n => n !== '.' && n !== '..'));
                 });
             },
-            access(path) {
+            access(path, mode) {
+                /* Node: resolves if accessible, rejects with ENOENT otherwise.
+                 * We don't enforce mode (R_OK/W_OK/X_OK) — AmigaOS doesn't
+                 * have POSIX access semantics per-bit. Existence check via
+                 * os.stat is the practical proxy. */
+                return new Promise((resolve, reject) => {
+                    const [, err] = os.stat(path);
+                    if (err) reject(pError('ENOENT', path));
+                    else resolve(undefined);
+                });
+            },
+            copyFile(src, dest) {
+                return new Promise((resolve, reject) => {
+                    try {
+                        const f = std.open(src, 'rb');
+                        if (!f) return reject(pError('ENOENT', src));
+                        const parts = [];
+                        const buf = new Uint8Array(8192);
+                        let n;
+                        do {
+                            n = f.read(buf.buffer, 0, buf.length) | 0;
+                            if (n > 0) parts.push(buf.slice(0, n));
+                        } while (n > 0);
+                        f.close();
+                        let total = 0;
+                        for (const p of parts) total += p.length;
+                        const data = new Uint8Array(total);
+                        let off = 0;
+                        for (const p of parts) { data.set(p, off); off += p.length; }
+
+                        const out = std.open(dest, 'wb');
+                        if (!out) return reject(pError('EACCES', dest));
+                        if (total > 0) out.write(data.buffer, 0, total);
+                        out.close();
+                        resolve(undefined);
+                    } catch (e) { reject(e); }
+                });
+            },
+            truncate(path, len) {
+                /* No native truncate on qjs:os. Read-truncate-write approach:
+                 * read the first `len` bytes, rewrite. Destructive but
+                 * matches Node semantics for the common case. */
+                return new Promise((resolve, reject) => {
+                    try {
+                        const size = len | 0;
+                        if (size < 0) return reject(pError('EINVAL', path));
+                        const f = std.open(path, 'rb');
+                        if (!f) return reject(pError('ENOENT', path));
+                        const buf = new Uint8Array(size);
+                        if (size > 0) f.read(buf.buffer, 0, size);
+                        f.close();
+                        const out = std.open(path, 'wb');
+                        if (!out) return reject(pError('EACCES', path));
+                        if (size > 0) out.write(buf.buffer, 0, size);
+                        out.close();
+                        resolve(undefined);
+                    } catch (e) { reject(e); }
+                });
+            },
+            utimes(path, atime, mtime) {
+                /* AmigaOS has SetFileDate but qjs:os doesn't expose it yet.
+                 * Stub: resolves without actually updating times. Node code
+                 * that needs this is rare on Amiga. */
                 return new Promise((resolve, reject) => {
                     const [, err] = os.stat(path);
                     if (err) reject(pError('ENOENT', path));
@@ -2162,9 +2423,137 @@ _manifests.push(new LocalManifest({
             },
         };
 
+        /* Node constants on fs — some code pulls these directly. */
+        const fsConstants = {
+            F_OK: 0, R_OK: 4, W_OK: 2, X_OK: 1,
+            O_RDONLY: 0, O_WRONLY: 1, O_RDWR: 2,
+            O_CREAT: 0x200, O_EXCL: 0x800, O_TRUNC: 0x400, O_APPEND: 8,
+        };
+
         globalThis.fs = globalThis.fs || {};
         globalThis.fs.promises = fsp;
+        globalThis.fs.constants = fsConstants;
         globalThis.fsPromises = fsp;
+    },
+}));
+
+/* ==========================================================
+ * Feature: querystring  (Node legacy query-string parser)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Node v0 qs API — deprecated in favor of URLSearchParams but still
+ * used in lots of Node code. Implementation just wraps URLSearchParams
+ * for parse(); stringify() matches Node's historical output (%20 as +
+ * in value component, = for empty value).
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'querystring',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node querystring (parse/stringify/escape/unescape)',
+    globals:     ['querystring'],
+    standard:    false,
+    requires:    ['url'],
+    install() {
+        function parse(str, sep, eq) {
+            sep = sep || '&';
+            eq  = eq  || '=';
+            const out = {};
+            if (!str || typeof str !== 'string') return out;
+            for (const pair of str.split(sep)) {
+                if (!pair.length) continue;
+                const idx = pair.indexOf(eq);
+                let k, v;
+                if (idx < 0) { k = pair; v = ''; }
+                else         { k = pair.substring(0, idx); v = pair.substring(idx + 1); }
+                k = decodeURIComponent(k.split('+').join(' '));
+                v = decodeURIComponent(v.split('+').join(' '));
+                if (k in out) {
+                    if (Array.isArray(out[k])) out[k].push(v);
+                    else out[k] = [out[k], v];
+                } else out[k] = v;
+            }
+            return out;
+        }
+
+        function stringify(obj, sep, eq) {
+            sep = sep || '&';
+            eq  = eq  || '=';
+            if (!obj || typeof obj !== 'object') return '';
+            const parts = [];
+            const enc = (s) => encodeURIComponent(String(s)).split('%20').join('+');
+            for (const k of Object.keys(obj)) {
+                const ek = enc(k);
+                const v = obj[k];
+                if (Array.isArray(v)) {
+                    for (const item of v) parts.push(ek + eq + enc(item));
+                } else if (v === null || v === undefined) {
+                    parts.push(ek + eq);
+                } else {
+                    parts.push(ek + eq + enc(v));
+                }
+            }
+            return parts.join(sep);
+        }
+
+        globalThis.querystring = {
+            parse, stringify,
+            escape: encodeURIComponent,
+            unescape: decodeURIComponent,
+            /* Node aliases */
+            decode: parse,
+            encode: stringify,
+        };
+    },
+}));
+
+/* ==========================================================
+ * Feature: string_decoder  (Node incremental UTF-8 decoder)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Thin wrapper over TextDecoder with streaming semantics: write()
+ * decodes as much as it can, end() flushes any trailing bytes.
+ * Used by readline, fs streams, net protocols. Tiny surface.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'string-decoder',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node string_decoder (StringDecoder class over TextDecoder)',
+    globals:     ['StringDecoder'],
+    requires:    ['text-encoding'],
+    standard:    false,
+    install() {
+        class StringDecoder {
+            constructor(encoding) {
+                this._enc = encoding || 'utf-8';
+                this._dec = new globalThis.TextDecoder(this._enc, { fatal: false });
+            }
+            /* Node: write(buffer) returns decoded string,
+             * using TextDecoder's stream:true so partial multibyte
+             * sequences carry over to the next call. */
+            write(buf) {
+                if (typeof buf === 'string') return buf;
+                if (!(buf instanceof Uint8Array)) {
+                    if (buf instanceof ArrayBuffer) buf = new Uint8Array(buf);
+                    else if (ArrayBuffer.isView(buf))
+                        buf = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+                    else return '';
+                }
+                return this._dec.decode(buf, { stream: true });
+            }
+            end(buf) {
+                let out = '';
+                if (buf !== undefined) out += this.write(buf);
+                out += this._dec.decode(new Uint8Array(0), { stream: false });
+                /* Reset decoder for reuse */
+                this._dec = new globalThis.TextDecoder(this._enc, { fatal: false });
+                return out;
+            }
+        }
+        globalThis.StringDecoder = StringDecoder;
     },
 }));
 
@@ -2310,8 +2699,44 @@ _manifests.push(new LocalManifest({
             end() { this.push(null); }
         }
 
+        /* stream.pipeline(...streams, [cb]) — wires a chain via .pipe and
+         * resolves/rejects when the last stream finishes or any stream
+         * errors. Callback form mirrors Node exactly. */
+        function pipeline(...args) {
+            let cb = null;
+            if (typeof args[args.length - 1] === 'function') cb = args.pop();
+            const streams = args;
+            if (streams.length < 2)
+                throw new TypeError('pipeline requires at least 2 streams');
+
+            return new Promise((resolve, reject) => {
+                let settled = false;
+                const finish = (err) => {
+                    if (settled) return;
+                    settled = true;
+                    if (cb) { try { cb(err); } catch (_) {} }
+                    if (err) reject(err); else resolve();
+                };
+                for (const s of streams) {
+                    if (s && typeof s.on === 'function')
+                        s.on('error', finish);
+                }
+                /* Wire the chain */
+                for (let i = 0; i < streams.length - 1; i++) {
+                    streams[i].pipe(streams[i + 1]);
+                }
+                /* Last stream's 'finish' or 'end' signals completion */
+                const last = streams[streams.length - 1];
+                if (last && typeof last.on === 'function') {
+                    last.on('finish', () => finish());
+                    last.on('end',    () => finish());
+                }
+            });
+        }
+
         globalThis.stream = {
             Readable, Writable, Transform,
+            pipeline,
             /* Node aliases */
             PassThrough: class PassThrough extends Transform {
                 constructor(opts) { super(opts); }

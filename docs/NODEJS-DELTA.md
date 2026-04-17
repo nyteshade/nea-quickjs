@@ -45,11 +45,11 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `perf_hooks` | ○ | `process.hrtime()` available; full API not planned |
 | `process` | ◐ | `globalThis.process` (argv, env, platform, arch, pid, ppid, exit, cwd, chdir, hrtime, nextTick) |
 | `punycode` | ✗ | deprecated in Node |
-| `querystring` | ○ | use `URLSearchParams` instead (already present) |
+| `querystring` | ✓ | `globalThis.querystring.parse/stringify/escape/unescape` (0.099) |
 | `readline` | ○ | no demand — REPL covers interactive use |
 | `repl` | — | qjs has its own REPL; programmatic API not exposed |
 | `stream` | ◐ | `globalThis.stream.Readable/Writable/Transform/PassThrough` — push-based, no backpressure (v1) |
-| `string_decoder` | ○ | `TextDecoder` covers modern use; add shim if demand appears |
+| `string_decoder` | ✓ | `globalThis.StringDecoder` — wraps TextDecoder with streaming semantics (0.099) |
 | `sys` | ✗ | deprecated alias of `util` |
 | `timers` | ◐ | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` via `qjs:os`; `setImmediate` missing |
 | `tls` | ✗ | AmiSSL-backed HTTPS through fetch covers use-case |
@@ -88,8 +88,8 @@ Implemented in `extended.js` (`console-ext` manifest). Upstream qjs provides
 | `console.group`, `.groupEnd` | ◐ | stub — no actual indentation |
 | `console.time`, `.timeEnd` | ✓ | microsecond precision via `os.now()` |
 | `console.trace(...)` | ✓ | prepends "Trace:" + Error().stack |
-| `console.count` / `.countReset` | ○ | |
-| `console.timeLog` | ○ | |
+| `console.count` / `.countReset` | ✓ | per-label counter (0.099) |
+| `console.timeLog` | ✓ | non-destructive read of running timer (0.099) |
 
 ### `process` — Node global
 
@@ -132,7 +132,7 @@ Implemented in `extended.js` (`event-emitter` manifest) as `globalThis.EventEmit
 | `.eventNames()` | ✓ | |
 | meta-events (`newListener`, `removeListener`) | ✓ | |
 | `EventEmitter.defaultMaxListeners` | ✓ | |
-| `events.once(emitter, ev)` (static) | ○ | not wrapped |
+| `EventEmitter.once(emitter, ev)` (static) | ✓ | returns Promise resolving with emission args; rejects on 'error' (0.099) |
 | `events.on(emitter, ev)` async iter | ○ | |
 | `events.captureRejections` | ✗ | |
 
@@ -149,9 +149,9 @@ Implemented in `extended.js` (`util` manifest) as `globalThis.util`.
 | `util.inherits(ctor, super)` | ✓ | legacy Node API, shim |
 | `util.types.isArray/isDate/isRegExp/isError/isPromise/isMap/isSet/isWeakMap/isWeakSet/isArrayBuffer/isTypedArray/isUint8Array/isFunction` | ✓ | |
 | `util.types.isNativeError`, `.isAnyArrayBuffer`, etc. | ○ | long tail |
-| `util.deprecate` | ○ | |
-| `util.debuglog` | ○ | |
-| `util.parseArgs` | ○ | useful; port if demand |
+| `util.deprecate(fn, msg)` | ✓ | first-call warning on stderr (0.099) |
+| `util.debuglog(section)` | ✓ | `NODE_DEBUG=section`-gated logger to stderr (0.099) |
+| `util.parseArgs({args, options, allowPositionals})` | ✓ | supports `--key`, `--key=val`, `-shortAlias`, boolean/string/multiple types (0.099) |
 | `util.styleText` | ○ | |
 
 ### `path`
@@ -233,7 +233,7 @@ and pipe them to sinks without blocking the event loop on large inputs.
 | `highWaterMark` | ✗ | no buffering limit |
 | `Readable.read(n)` pull mode | ○ | push-mode only in v1 |
 | Duplex | ○ | |
-| `stream.pipeline()` | ○ | |
+| `stream.pipeline(...streams, cb?)` | ✓ | wires chain via .pipe, resolves on finish, rejects on any error (0.099) |
 
 The no-backpressure limitation is acceptable for Amiga use cases (file
 copies, child_process output capture, short HTTP bodies) where producer
@@ -281,7 +281,11 @@ synchronous under the hood.
 | `fs.promises.mkdir(path, opts)` | ✓ | `mode` accepted, not enforced on Amiga |
 | `fs.promises.readdir(path)` | ✓ | filters `.`/`..` per Node |
 | `fs.promises.access(path)` | ✓ | |
-| `fs.promises.copyFile`, `.cp`, `.symlink`, `.chmod`, `.chown`, `.utimes`, `.truncate`, `.open` (FileHandle) | ○ | add as demand appears |
+| `fs.promises.copyFile(src, dst)` | ✓ | read-then-write via std.open; no flags (0.099) |
+| `fs.promises.truncate(path, len)` | ✓ | read-truncate-write approach (0.099) |
+| `fs.promises.utimes(path, atime, mtime)` | ◐ | stub — resolves without actually updating times (no qjs:os API yet) |
+| `fs.constants` | ✓ | F_OK/R_OK/W_OK/X_OK + O_* flags (0.099) |
+| `fs.promises.cp / symlink / chmod / chown / open (FileHandle)` | ○ | add as demand appears |
 | `fs` (sync namespace) | ○ | use `qjs:std` / `qjs:os` directly for now |
 | `fs.createReadStream/WriteStream` | ○ | streams not yet supported |
 
@@ -307,7 +311,8 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 | `writeUInt8/Int8` + 16/32 LE+BE | ✓ | |
 | `.toJSON()` | ✓ | |
 | Float / Double / BigInt64 read & write | ✗ | softfloat cost on no-FPU; add for FPU-only builds if demand |
-| `swap16`, `swap32`, `swap64` | ○ | |
+| `swap16`, `swap32`, `swap64` | ✓ | in-place byte-order swap; throw on unaligned length (0.099) |
+| `Float32/Float64` read/write (LE+BE) | ✓ | DataView-backed; FPU builds native, softfloat builds slow-but-correct (0.099) |
 | `utf-16le` encoding | ○ | rare in practice |
 | `Buffer.poolSize`, pooling | ✗ | no pool — allocations go through runtime allocator |
 
