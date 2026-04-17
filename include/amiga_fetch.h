@@ -65,4 +65,10 @@ const char *fetch_get_error(FetchContext *ctx);
 /* Free all resources including closing the socket. */
 void fetch_destroy(FetchContext *ctx);
 
+/* Request the worker wind down early. Safe to call from any task
+ * while the worker is in its recv loop. Next recv iteration sees
+ * the flag, transitions state to ERROR with "aborted" error_msg,
+ * closes socket, exits. fetch_destroy afterwards joins cleanly. */
+void fetch_abort(FetchContext *ctx);
+
 #endif /* AMIGA_FETCH_H */

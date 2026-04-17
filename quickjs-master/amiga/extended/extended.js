@@ -932,6 +932,14 @@ _manifests.push(new LocalManifest({
                 const onAbort = () => {
                     if (settled) return;
                     settled = true;
+                    /* Propagate to C-level: sets fc->abort_requested so
+                     * the worker wind down on its next recv iteration.
+                     * Without this the Promise rejects but the worker
+                     * runs to HTTP completion. Guarded: older library
+                     * versions don't install __qjs_fetchAbort. */
+                    if (typeof globalThis.__qjs_fetchAbort === 'function') {
+                        try { globalThis.__qjs_fetchAbort(); } catch (_) {}
+                    }
                     reject(signal.reason || new DOMException('Aborted', 'AbortError'));
                 };
                 signal.addEventListener('abort', onAbort);

@@ -183,6 +183,23 @@ int fileno(FILE *stream)
  */
 #include "../../quickjs-master/quickjs-libc.c"
 
+/* Native bridge for AbortSignal → in-flight fetch cancellation.
+ * active_fetch is a static pointer inside quickjs-libc.c but we're
+ * in the same TU via the #include above, so we can reach it.
+ *
+ * Called from JS as globalThis.__qjs_fetchAbort(). Takes no args.
+ * If there's a fetch in progress, sets its abort_requested flag;
+ * the worker's next recv iteration exits with ERROR("aborted").
+ * If no fetch active, returns silently — no-op. */
+extern void fetch_abort(FetchContext *fc);
+
+JSValue js_fetch_abort_native(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    if (active_fetch && active_fetch->fc) fetch_abort(active_fetch->fc);
+    return JS_UNDEFINED;
+}
+
 /* ==================================================================
  * W7 — qjs:net module
  *

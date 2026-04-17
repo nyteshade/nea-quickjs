@@ -815,6 +815,15 @@ const char *fetch_get_error(FetchContext *ctx)
     return (ctx && ctx->error_msg[0]) ? ctx->error_msg : NULL;
 }
 
+/* Request early termination of an in-flight fetch. Safe to call
+ * from any task (notably the main task from a JS AbortSignal
+ * handler via __qjs_fetchAbort native). Sets a volatile flag the
+ * worker checks between recv iterations. */
+void fetch_abort(FetchContext *ctx)
+{
+    if (ctx) ctx->abort_requested = 1;
+}
+
 void fetch_destroy(FetchContext *ctx)
 {
     if (!ctx) return;

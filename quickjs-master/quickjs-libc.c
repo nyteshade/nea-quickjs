@@ -5784,6 +5784,15 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
     js_fetch_init_classes(ctx);
     JS_SetPropertyStr(ctx, global_obj, "fetch",
                       JS_NewCFunction(ctx, js_fetch, "fetch", 1));
+    /* Step 3: expose fetch-abort to JS so AbortSignal can wind down
+     * the worker. Defined in quickjs_libc_lib.c (library-side, same
+     * TU as this file via the wrapper's #include). */
+    {
+        extern JSValue js_fetch_abort_native(JSContext *ctx, JSValueConst this_val,
+                                             int argc, JSValueConst *argv);
+        JS_SetPropertyStr(ctx, global_obj, "__qjs_fetchAbort",
+                          JS_NewCFunction(ctx, js_fetch_abort_native, "__qjs_fetchAbort", 0));
+    }
 #endif
 
     JS_FreeValue(ctx, global_obj);
