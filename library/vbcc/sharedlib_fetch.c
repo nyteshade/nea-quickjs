@@ -120,6 +120,19 @@ static long __fc_recv(__reg("a6") struct Library *base,
                       __reg("d2") long flags)
     = "\tjsr\t-78(a6)";     /* recv (was -60=sendto) */
 
+/* setsockopt — bsdsocket LVO -90. Verified against NDK3.2
+ * Roadshow's bsdsocket_protos.h. Used for SO_RCVTIMEO so a flaky
+ * network can't wedge recv() forever. Return value ignored in
+ * the caller — failing to set timeout degrades gracefully to
+ * old pre-timeout behavior. */
+static long __fc_setsockopt(__reg("a6") struct Library *base,
+                            __reg("d0") long s,
+                            __reg("d1") long level,
+                            __reg("d2") long optname,
+                            __reg("a0") const void *optval,
+                            __reg("d3") long optlen)
+    = "\tjsr\t-90(a6)";
+
 static long __fc_CloseSocket(__reg("a6") struct Library *base,
                              __reg("d0") long s)
     = "\tjsr\t-120(a6)";    /* CloseSocket (was -108=getpeername) */
@@ -136,7 +149,16 @@ static struct hostent_stub *__fc_gethostbyname(__reg("a6") struct Library *base,
 #define fc_connect(s,a,l)    __fc_connect(_sb, (s), (a), (l))
 #define fc_send(s,m,l,f)     __fc_send(_sb, (s), (m), (l), (f))
 #define fc_recv(s,b,l,f)     __fc_recv(_sb, (s), (b), (l), (f))
+#define fc_setsockopt(s,lvl,n,v,sz)  __fc_setsockopt(_sb, (s), (lvl), (n), (v), (sz))
 #define fc_CloseSocket(d)   __fc_CloseSocket(_sb, (d))
+
+/* BSD sockopt constants — from NDK3.2 Roadshow sys/socket.h. */
+#define QJS_SOL_SOCKET    0xFFFF
+#define QJS_SO_RCVTIMEO   0x1006
+
+/* struct timeval — 2 LONGs, BSD layout (sec + usec).
+ * Matches Roadshow bsdsocket expectations exactly. */
+struct qjs_timeval { long tv_sec; long tv_usec; };
 #define fc_Errno()          __fc_Errno(_sb)
 #define fc_gethostbyname(n) __fc_gethostbyname(_sb, (n))
 
@@ -484,6 +506,20 @@ static int fetch_job(QJSWorker *w, void *user_data)
         strcpy(ctx->error_msg, "socket() failed");
         ctx->state = FETCH_STATE_ERROR;
         goto cleanup_ssl;
+    }
+
+    /* Apply a generous 60-second recv timeout so an unresponsive
+     * peer can't wedge the worker forever. Individual recv calls
+     * return -1 if no data within the window — our main loop then
+     * treats that as EOF and exits cleanly. Return code ignored —
+     * if bsdsocket doesn't support this option we fall back to
+     * the old no-timeout behavior (blocking recv). */
+    {
+        struct qjs_timeval tv;
+        tv.tv_sec  = 60;
+        tv.tv_usec = 0;
+        (void)fc_setsockopt(ctx->sock, QJS_SOL_SOCKET, QJS_SO_RCVTIMEO,
+                            &tv, sizeof(tv));
     }
 
     /* Blocking connect */
