@@ -526,39 +526,58 @@ static int crypto_match_alg(const char *name, int *out_digest_len)
  * task only. Workers wanting crypto must open their own AmiSSL. */
 static struct Library *_crypto_master_base = NULL;
 static struct Library *_crypto_ssl_base    = NULL;
+static struct Library *_crypto_ssl_ext     = NULL;
+static struct Library *_crypto_socket_base = NULL;
 static struct Task    *_crypto_owner_task  = NULL;
 
+/* Mirror the tag set that amiga_ssl_lib.c uses for fetch — AmiSSL
+ * appears to require SocketBase even when only hash functions are
+ * used. Without SocketBase, OpenAmiSSLTags returns non-zero.
+ * Opens bsdsocket.library v4 as a dependency. */
 static int crypto_ensure_ssl(void)
 {
     struct Task *me = FindTask(NULL);
 
     if (_crypto_ssl_base != NULL) {
         if (_crypto_owner_task == me) return 0;
-        /* Different task — don't touch, fail cleanly. */
         return -1;
     }
 
+    _crypto_socket_base = OpenLibrary("bsdsocket.library", 4);
+    if (!_crypto_socket_base) return -1;
+
     _crypto_master_base = OpenLibrary("amisslmaster.library",
                                       AMISSLMASTER_MIN_VERSION);
-    if (!_crypto_master_base) return -1;
+    if (!_crypto_master_base) {
+        CloseLibrary(_crypto_socket_base);
+        _crypto_socket_base = NULL;
+        return -1;
+    }
 
     {
         struct Library *AmiSSLMasterBase = _crypto_master_base;
         if (OpenAmiSSLTags(AMISSL_CURRENT_VERSION,
                            AmiSSL_UsesOpenSSLStructs, FALSE,
                            AmiSSL_GetAmiSSLBase, &_crypto_ssl_base,
+                           AmiSSL_GetAmiSSLExtBase, &_crypto_ssl_ext,
+                           AmiSSL_SocketBase, _crypto_socket_base,
                            AmiSSL_ErrNoPtr, &errno,
                            TAG_DONE) != 0) {
             CloseLibrary(_crypto_master_base);
+            CloseLibrary(_crypto_socket_base);
             _crypto_master_base = NULL;
+            _crypto_socket_base = NULL;
             _crypto_ssl_base = NULL;
+            _crypto_ssl_ext  = NULL;
             return -1;
         }
     }
 
     if (!_crypto_ssl_base) {
         CloseLibrary(_crypto_master_base);
+        CloseLibrary(_crypto_socket_base);
         _crypto_master_base = NULL;
+        _crypto_socket_base = NULL;
         return -1;
     }
 
@@ -566,9 +585,6 @@ static int crypto_ensure_ssl(void)
     return 0;
 }
 
-/* Called from qjs_libc_lib_cleanup via extern below. Closes AmiSSL
- * if the caller is the owner task; otherwise leaves it alone (wrong
- * task can't close). */
 void crypto_cleanup_ssl(void)
 {
     struct Task *me = FindTask(NULL);
@@ -576,10 +592,15 @@ void crypto_cleanup_ssl(void)
         struct Library *AmiSSLMasterBase = _crypto_master_base;
         CloseAmiSSL();
         _crypto_ssl_base = NULL;
+        _crypto_ssl_ext  = NULL;
     }
     if (_crypto_master_base) {
         CloseLibrary(_crypto_master_base);
         _crypto_master_base = NULL;
+    }
+    if (_crypto_socket_base) {
+        CloseLibrary(_crypto_socket_base);
+        _crypto_socket_base = NULL;
     }
     _crypto_owner_task = NULL;
 }
