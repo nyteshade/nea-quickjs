@@ -65,12 +65,8 @@ echo "Running tests/test_net.js and saving in output/test_net.output..." noline
 qjs tests/test_net.js > output/test_net.output
 echo "done"
 ;
-; test_fetch.js writes its own output/test_fetch.output via std.open
-; because shell `>` redirect breaks when the HTTPS fetch worker
-; activates AmiSSL (root cause pending diagnosis — see
-; docs/AMISSL_MAINTASK_BUG.md for the related main-task issue).
-echo "Running tests/test_fetch.js (self-captured output)..." noline
-qjs tests/test_fetch.js
+echo "Running tests/test_fetch.js and saving in output/test_fetch.output..." noline
+qjs tests/test_fetch.js > output/test_fetch.output
 echo "done"
 ;
 echo "*NAll tests complete. Results are in output/"

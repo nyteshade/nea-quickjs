@@ -9,42 +9,6 @@
 
 import * as std from 'qjs:std';
 
-/* ----------------------------------------------------------------
- * Self-captured output.
- *
- * Shell `>` redirection breaks on Amiga when fetch opens AmiSSL in
- * a worker — the parent CLI's pr_COS (output file handle) gets
- * clobbered partway through, and subsequent `print` calls land on
- * the console instead of the redirected file. Root cause is inside
- * AmiSSL and not yet diagnosed.
- *
- * Workaround: accumulate every line in a JS array during the run;
- * write output/test_fetch.output once at the end via std.open.
- * No dos.library file handle is held while fetch is running, and
- * no per-line flush competes with the fetch event-loop polling.
- * Callers should run `qjs tests/test_fetch.js` with no shell `>`.
- * -------------------------------------------------------------- */
-const _logLines = [];
-const _origPrint = globalThis.print;
-globalThis.print = function (...args) {
-    const line = args.map(String).join(' ');
-    _origPrint(line);          /* keep console output live */
-    _logLines.push(line);
-};
-
-function _closeLog() {
-    try {
-        const f = std.open('output/test_fetch.output', 'wb');
-        if (f) {
-            for (const line of _logLines) {
-                f.puts(line);
-                f.puts('\n');
-            }
-            f.close();
-        }
-    } catch (_) {}
-}
-
 let pass = 0, fail = 0;
 
 function assert(cond, msg) {
@@ -176,7 +140,6 @@ async function run_all() {
     await test_bad_url();
 
     print("\n=== Results: " + pass + " passed, " + fail + " failed ===");
-    _closeLog();
     if (fail > 0) std.exit(1);
 }
 
