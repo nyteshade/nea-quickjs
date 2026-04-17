@@ -224,9 +224,14 @@ _manifests.push(new LocalManifest({
             versions: { qjs: '0.66', quickjs: '0.12.1' },
             pid: 1, ppid: 0,
             exit(code) { std.exit(code ?? 0); },
-            cwd()      { return os.getcwd(); },
+            cwd() {
+                const r = os.getcwd();
+                const path = r[0], err = r[1];
+                if (err) throw new Error(`getcwd: ${std.strerror(err)}`);
+                return path;
+            },
             chdir(path) {
-                const [, err] = os.chdir(path);
+                const err = os.chdir(path);
                 if (err) throw new Error(`chdir: ${std.strerror(err)}`);
             },
             hrtime(prev) {
