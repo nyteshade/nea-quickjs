@@ -7,7 +7,20 @@
       "Edit(*)",
       "Glob(*)",
       "Grep(*)",
-      "WebSearch"
+      "WebSearch",
+      "mcp__fina__get_status",
+      "mcp__fina__list_partitions",
+      "mcp__fina__create_or_get_partition",
+      "mcp__fina__ingest_file",
+      "mcp__fina__add_knowledge",
+      "mcp__fina__record_milestone",
+      "mcp__fina__remember",
+      "mcp__fina__record_decision",
+      "mcp__fina__query_project_context",
+      "mcp__fina__query_knowledge",
+      "mcp__fina__set_partition_enabled",
+      "mcp__fina__help",
+      "WebFetch(domain:aminet.net)"
     ]
   }
 }
