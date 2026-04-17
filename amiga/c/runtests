@@ -7,7 +7,7 @@
 ; Usage:  execute c/runtests
 ;
 delete output all quiet force
-makedir output quiet
+makedir output
 ;
 echo "Running tests/test_regex.js and saving in output/test_regex.output..." noline
 qjs tests/test_regex.js > output/test_regex.output
