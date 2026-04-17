@@ -250,7 +250,7 @@ backed by native `__qjs_spawnSync` installed from the library (LVO
 | API | Status | Notes |
 |---|---|---|
 | `spawnSync(cmd, args, opts)` | ✓ | returns `{ stdout, stderr, exitCode, signal: null }` |
-| `spawn(cmd, args, opts)` | ◐ | returns `Promise<{stdout, stderr, exitCode}>` — NOT Node-accurate. Node returns a ChildProcess EventEmitter with stdin/out/err as streams; ours is functionally like Node's `execFile` with `utf8` encoding. Needs `stream` tier before it can match Node. |
+| `spawn(cmd, args, opts)` | ◐ | returns `Promise<{stdout, stderr, exitCode}>` — truly async via `QJS_Worker` at 0.100+. Still not Node-accurate (Node returns ChildProcess EventEmitter with stream stdin/out/err); functionally like Node's `execFile` with `utf8` encoding. Needs stream-backed stdout/stderr to fully match Node. Single-concurrent spawn slot. |
 | `exec(cmd, opts)` | ◐ | Promise-wrapped single-string — Amiga shell resolves the cmdline |
 | `execSync(cmd, opts)` | ✓ | sync single-string shell-style |
 | `fork` | ✗ | no fork semantics on Amiga |

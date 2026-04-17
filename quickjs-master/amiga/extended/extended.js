@@ -2774,8 +2774,9 @@ _manifests.push(new LocalManifest({
     install() {
         /* The CLI installs globalThis.__qjs_spawnSync at startup under
          * QJS_USE_LIBRARY. Missing on upstream qjs; detect and noop. */
-        const native = globalThis.__qjs_spawnSync;
-        if (typeof native !== 'function') return;
+        const nativeSync  = globalThis.__qjs_spawnSync;
+        const nativeAsync = globalThis.__qjs_spawnAsync;
+        if (typeof nativeSync !== 'function') return;
 
         function _cmdline(cmd, args) {
             let s = String(cmd);
@@ -2787,23 +2788,25 @@ _manifests.push(new LocalManifest({
 
         globalThis.child_process = {
             spawnSync(cmd, args, opts) {
-                return native(_cmdline(cmd, args));
+                return nativeSync(_cmdline(cmd, args));
             },
             spawn(cmd, args, opts) {
+                /* Prefer true async via QJS_Worker (0.100+); fall back
+                 * to sync-wrapped-in-Promise if the native is absent. */
+                if (nativeAsync) return nativeAsync(_cmdline(cmd, args));
                 return new Promise((resolve, reject) => {
-                    try { resolve(native(_cmdline(cmd, args))); }
+                    try { resolve(nativeSync(_cmdline(cmd, args))); }
                     catch (e) { reject(e); }
                 });
             },
             exec(cmd, opts) {
-                /* Node's exec runs through /bin/sh; on Amiga the string
-                 * is handed to SystemTagList which invokes the user shell. */
+                if (nativeAsync) return nativeAsync(String(cmd));
                 return new Promise((resolve, reject) => {
-                    try { resolve(native(String(cmd))); }
+                    try { resolve(nativeSync(String(cmd))); }
                     catch (e) { reject(e); }
                 });
             },
-            execSync(cmd, opts) { return native(String(cmd)); },
+            execSync(cmd, opts) { return nativeSync(String(cmd)); },
         };
     },
 }));

@@ -410,9 +410,266 @@ static JSValue js_child_process_spawnSync(JSContext *ctx, JSValueConst this_val,
     return result;
 }
 
-/* Called by the CLI via QJS_InstallChildProcessGlobal LVO. Attaches the
- * native spawnSync to globalThis.__qjs_spawnSync; extended.js's
- * child-process manifest wraps that in a Node-style API. No qjs:module
+/* ==================================================================
+ * True async spawn — runs SystemTagList in a QJS_Worker task so the
+ * JS event loop keeps running. Structure mirrors js_fetch with:
+ *   - ChildAsyncContext holds cmdline + temp-file paths + result
+ *   - Worker task (child_async_job) does the SystemTagList + slurp
+ *   - Main-task timer poll (js_spawn_callback) checks worker state
+ *   - When done, Promise resolves with {stdout, stderr, exitCode}
+ *
+ * Single-slot (one async spawn at a time) for v1, matching fetch.
+ * ================================================================== */
+
+#include <amiga_worker.h>
+
+extern struct QJSWorker *QJS_WorkerSpawn_impl(QJSWorkerJobFn, void *, unsigned long);
+extern long  QJS_WorkerPoll_impl(struct QJSWorker *);
+extern long  QJS_WorkerJoin_impl(struct QJSWorker *);
+extern void  QJS_WorkerDestroy_impl(struct QJSWorker *);
+
+struct ChildAsyncContext {
+    char cmdline[512];
+    char out_path[64];
+    char err_path[64];
+    LONG exit_code;
+    char *stdout_buf;
+    LONG  stdout_len;
+    char *stderr_buf;
+    LONG  stderr_len;
+    int   errored;           /* 1 if the worker hit an error */
+    char  err_msg[128];
+    struct QJSWorker *worker;
+    JSContext *ctx;
+    JSValue    resolving_funcs[2];
+};
+
+static struct ChildAsyncContext *active_spawn = NULL;
+
+/* Worker-task entry. Runs in its own Task via CreateNewProc. */
+static long child_async_job(struct QJSWorker *w, void *user_data)
+{
+    struct ChildAsyncContext *actx = (struct ChildAsyncContext *)user_data;
+    struct Library *_dos = QJS_WorkerGetBase_impl(w, QJS_WORKER_BASE_DOS);
+    BPTR outfh = 0, errfh = 0;
+    struct TagItem tags[3];
+    LONG rc;
+
+    (void)_dos;  /* we use the library's DOSBase via inline calls */
+
+    outfh = Open((STRPTR)actx->out_path, MODE_NEWFILE);
+    errfh = Open((STRPTR)actx->err_path, MODE_NEWFILE);
+    if (!outfh || !errfh) {
+        if (outfh) Close(outfh);
+        if (errfh) Close(errfh);
+        strcpy(actx->err_msg, "could not open T: temp files");
+        actx->errored = 1;
+        return -1;
+    }
+
+    tags[0].ti_Tag  = SYS_Output; tags[0].ti_Data = (ULONG)outfh;
+    tags[1].ti_Tag  = SYS_Error;  tags[1].ti_Data = (ULONG)errfh;
+    tags[2].ti_Tag  = TAG_DONE;   tags[2].ti_Data = 0;
+
+    rc = SystemTagList((STRPTR)actx->cmdline, tags);
+    Close(outfh);
+    Close(errfh);
+
+    /* Slurp the temp files. We're in the worker task — js_malloc isn't
+     * safe here (touches ctx which belongs to main task). Use raw malloc
+     * instead; main task js_free's this via js_malloc-compatible free. */
+    {
+        BPTR fh = Open((STRPTR)actx->out_path, MODE_OLDFILE);
+        if (fh) {
+            LONG size;
+            Seek(fh, 0, OFFSET_END);
+            size = Seek(fh, 0, OFFSET_BEGINNING);
+            if (size > 0) {
+                actx->stdout_buf = malloc(size + 1);
+                if (actx->stdout_buf) {
+                    LONG got = Read(fh, actx->stdout_buf, size);
+                    if (got < 0) got = 0;
+                    actx->stdout_buf[got] = '\0';
+                    actx->stdout_len = got;
+                }
+            }
+            Close(fh);
+        }
+    }
+    {
+        BPTR fh = Open((STRPTR)actx->err_path, MODE_OLDFILE);
+        if (fh) {
+            LONG size;
+            Seek(fh, 0, OFFSET_END);
+            size = Seek(fh, 0, OFFSET_BEGINNING);
+            if (size > 0) {
+                actx->stderr_buf = malloc(size + 1);
+                if (actx->stderr_buf) {
+                    LONG got = Read(fh, actx->stderr_buf, size);
+                    if (got < 0) got = 0;
+                    actx->stderr_buf[got] = '\0';
+                    actx->stderr_len = got;
+                }
+            }
+            Close(fh);
+        }
+    }
+
+    DeleteFile((STRPTR)actx->out_path);
+    DeleteFile((STRPTR)actx->err_path);
+
+    actx->exit_code = rc;
+    return 0;
+}
+
+static void spawn_cleanup(JSContext *ctx)
+{
+    if (!active_spawn) return;
+    if (active_spawn->worker) QJS_WorkerDestroy_impl(active_spawn->worker);
+    if (active_spawn->stdout_buf) free(active_spawn->stdout_buf);
+    if (active_spawn->stderr_buf) free(active_spawn->stderr_buf);
+    JS_FreeValue(ctx, active_spawn->resolving_funcs[0]);
+    JS_FreeValue(ctx, active_spawn->resolving_funcs[1]);
+    js_free(ctx, active_spawn);
+    active_spawn = NULL;
+}
+
+/* Main-task polling callback. Called from the event loop's timer
+ * queue (scheduled by spawn_schedule below). */
+static JSValue js_spawn_callback(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv)
+{
+    long state;
+    JSValue result;
+
+    if (!active_spawn || !active_spawn->worker) return JS_UNDEFINED;
+
+    state = QJS_WorkerPoll_impl(active_spawn->worker);
+    if (state != QJS_WORKER_DONE && state != QJS_WORKER_FAILED) {
+        /* Still running — reschedule. */
+        JSValue cb = JS_NewCFunction(ctx, js_spawn_callback, "spawnCallback", 0);
+        /* Reuse fetch's schedule helper — it's static but the same pattern
+         * works; actually we need our own. Use setTimeout via js_os_timers. */
+        {
+            JSRuntime *rt = JS_GetRuntime(ctx);
+            JSThreadState *ts = js_get_thread_state(rt);
+            JSOSTimer *th = js_mallocz(ctx, sizeof(*th));
+            if (th) {
+                th->timer_id = ts->next_timer_id++;
+                th->repeats = 0;
+                th->timeout = js__hrtime_ms() + 20;
+                th->delay = 20;
+                th->func = JS_DupValue(ctx, cb);
+                list_add_tail(&th->link, &ts->os_timers);
+            }
+        }
+        JS_FreeValue(ctx, cb);
+        return JS_UNDEFINED;
+    }
+
+    /* Done — build result, resolve promise. */
+    if (state == QJS_WORKER_FAILED || active_spawn->errored) {
+        JSValue err = JS_NewError(ctx);
+        JS_DefinePropertyValueStr(ctx, err, "message",
+            JS_NewString(ctx, active_spawn->err_msg[0]
+                ? active_spawn->err_msg : "spawn failed"),
+            JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+        result = JS_Call(ctx, active_spawn->resolving_funcs[1], JS_UNDEFINED, 1, &err);
+        JS_FreeValue(ctx, err);
+        JS_FreeValue(ctx, result);
+    } else {
+        JSValue obj = JS_NewObject(ctx);
+        JS_SetPropertyStr(ctx, obj, "stdout",
+            JS_NewStringLen(ctx, active_spawn->stdout_buf ? active_spawn->stdout_buf : "",
+                            active_spawn->stdout_len));
+        JS_SetPropertyStr(ctx, obj, "stderr",
+            JS_NewStringLen(ctx, active_spawn->stderr_buf ? active_spawn->stderr_buf : "",
+                            active_spawn->stderr_len));
+        JS_SetPropertyStr(ctx, obj, "exitCode", JS_NewInt32(ctx, active_spawn->exit_code));
+        JS_SetPropertyStr(ctx, obj, "signal",   JS_NULL);
+        result = JS_Call(ctx, active_spawn->resolving_funcs[0], JS_UNDEFINED, 1, &obj);
+        JS_FreeValue(ctx, obj);
+        JS_FreeValue(ctx, result);
+    }
+
+    spawn_cleanup(ctx);
+    return JS_UNDEFINED;
+}
+
+static JSValue js_child_process_spawnAsync(JSContext *ctx, JSValueConst this_val,
+                                           int argc, JSValueConst *argv)
+{
+    const char *cmdline;
+    struct Task *me;
+    JSValue promise, cb;
+    JSRuntime *rt;
+    JSThreadState *ts;
+    JSOSTimer *th;
+
+    if (argc < 1) return JS_ThrowTypeError(ctx, "spawnAsync: cmdline required");
+    if (active_spawn)
+        return JS_ThrowTypeError(ctx, "spawnAsync: another spawn in progress");
+
+    cmdline = JS_ToCString(ctx, argv[0]);
+    if (!cmdline) return JS_EXCEPTION;
+
+    active_spawn = js_mallocz(ctx, sizeof(struct ChildAsyncContext));
+    if (!active_spawn) {
+        JS_FreeCString(ctx, cmdline);
+        return JS_EXCEPTION;
+    }
+
+    /* Copy cmdline into fixed-size buffer (worker task reads this). */
+    {
+        size_t n = strlen(cmdline);
+        if (n >= sizeof(active_spawn->cmdline)) n = sizeof(active_spawn->cmdline) - 1;
+        memcpy(active_spawn->cmdline, cmdline, n);
+        active_spawn->cmdline[n] = '\0';
+    }
+    JS_FreeCString(ctx, cmdline);
+
+    me = FindTask(NULL);
+    snprintf(active_spawn->out_path, sizeof(active_spawn->out_path),
+             "T:qjs-cpa-%08lx-out", (unsigned long)me);
+    snprintf(active_spawn->err_path, sizeof(active_spawn->err_path),
+             "T:qjs-cpa-%08lx-err", (unsigned long)me);
+
+    active_spawn->ctx = ctx;
+    promise = JS_NewPromiseCapability(ctx, active_spawn->resolving_funcs);
+    if (JS_IsException(promise)) {
+        js_free(ctx, active_spawn);
+        active_spawn = NULL;
+        return promise;
+    }
+
+    active_spawn->worker = QJS_WorkerSpawn_impl(child_async_job, active_spawn, 0);
+    if (!active_spawn->worker) {
+        strcpy(active_spawn->err_msg, "QJS_WorkerSpawn failed");
+        active_spawn->errored = 1;
+        /* Fire callback immediately to reject. */
+    }
+
+    /* Schedule first poll via os_timers queue. */
+    rt = JS_GetRuntime(ctx);
+    ts = js_get_thread_state(rt);
+    cb = JS_NewCFunction(ctx, js_spawn_callback, "spawnCallback", 0);
+    th = js_mallocz(ctx, sizeof(*th));
+    if (th) {
+        th->timer_id = ts->next_timer_id++;
+        th->repeats = 0;
+        th->timeout = js__hrtime_ms() + 20;
+        th->delay = 20;
+        th->func = JS_DupValue(ctx, cb);
+        list_add_tail(&th->link, &ts->os_timers);
+    }
+    JS_FreeValue(ctx, cb);
+
+    return promise;
+}
+
+/* Called by the CLI via QJS_InstallChildProcessGlobal LVO. Attaches
+ * BOTH native spawn variants to globalThis; extended.js's child-
+ * process manifest wraps them in a Node-style API. No qjs:module
  * registration — host qjsc doesn't know this file, so a module import
  * would fail at bytecode-compile time. Global attachment avoids that. */
 void qjs_install_child_process_global(JSContext *ctx)
@@ -421,7 +678,13 @@ void qjs_install_child_process_global(JSContext *ctx)
     global = JS_GetGlobalObject(ctx);
     fn = JS_NewCFunction(ctx, js_child_process_spawnSync, "__qjs_spawnSync", 1);
     JS_SetPropertyStr(ctx, global, "__qjs_spawnSync", fn);
+    fn = JS_NewCFunction(ctx, js_child_process_spawnAsync, "__qjs_spawnAsync", 1);
+    JS_SetPropertyStr(ctx, global, "__qjs_spawnAsync", fn);
     JS_FreeValue(ctx, global);
+
+    /* Reset any stale active_spawn left over from a prior CLI run
+     * (library data persists across opens on AmigaOS). */
+    active_spawn = NULL;
 }
 
 /* ==================================================================
