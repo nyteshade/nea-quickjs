@@ -5784,6 +5784,19 @@ void js_std_add_helpers(JSContext *ctx, int argc, char **argv)
     js_fetch_init_classes(ctx);
     JS_SetPropertyStr(ctx, global_obj, "fetch",
                       JS_NewCFunction(ctx, js_fetch, "fetch", 1));
+    /* E3 completion: expose abort + timeout setters to JS so
+     * extended.js's fetch-abort manifest can propagate an
+     * AbortSignal firing down to the worker. */
+    {
+        extern JSValue js_fetch_abort_native(JSContext *ctx, JSValueConst this_val,
+                                             int argc, JSValueConst *argv);
+        extern JSValue js_fetch_set_timeout_native(JSContext *ctx, JSValueConst this_val,
+                                                    int argc, JSValueConst *argv);
+        JS_SetPropertyStr(ctx, global_obj, "__qjs_fetchAbort",
+                          JS_NewCFunction(ctx, js_fetch_abort_native, "__qjs_fetchAbort", 0));
+        JS_SetPropertyStr(ctx, global_obj, "__qjs_fetchSetTimeout",
+                          JS_NewCFunction(ctx, js_fetch_set_timeout_native, "__qjs_fetchSetTimeout", 1));
+    }
 #endif
 
     JS_FreeValue(ctx, global_obj);

@@ -183,6 +183,30 @@ int fileno(FILE *stream)
  */
 #include "../../quickjs-master/quickjs-libc.c"
 
+/* E3 completion: expose fetch_abort / fetch_set_timeout to JS.
+ * active_fetch is a static in quickjs-libc.c but we're in the same
+ * translation unit via the #include above, so we can reach it. */
+extern void fetch_abort(FetchContext *fc);
+extern void fetch_set_timeout(FetchContext *fc, unsigned long ms);
+
+JSValue js_fetch_abort_native(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    if (active_fetch && active_fetch->fc) fetch_abort(active_fetch->fc);
+    return JS_UNDEFINED;
+}
+
+JSValue js_fetch_set_timeout_native(JSContext *ctx, JSValueConst this_val,
+                                    int argc, JSValueConst *argv)
+{
+    int64_t ms;
+    if (argc < 1) return JS_UNDEFINED;
+    if (JS_ToInt64(ctx, &ms, argv[0])) return JS_EXCEPTION;
+    if (active_fetch && active_fetch->fc && ms > 0)
+        fetch_set_timeout(active_fetch->fc, (unsigned long)ms);
+    return JS_UNDEFINED;
+}
+
 /* ==================================================================
  * W7 — qjs:net module
  *

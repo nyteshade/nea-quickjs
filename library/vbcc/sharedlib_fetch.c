@@ -120,6 +120,17 @@ static long __fc_recv(__reg("a6") struct Library *base,
                       __reg("d2") long flags)
     = "\tjsr\t-78(a6)";     /* recv (was -60=sendto) */
 
+/* setsockopt — bsdsocket LVO -90. Used for SO_RCVTIMEO / SO_SNDTIMEO
+ * to bound blocking recv/send so a flaky network or server hang
+ * doesn't wedge the worker forever. */
+static long __fc_setsockopt(__reg("a6") struct Library *base,
+                            __reg("d0") long s,
+                            __reg("d1") long level,
+                            __reg("d2") long optname,
+                            __reg("a0") const void *optval,
+                            __reg("d3") long optlen)
+    = "\tjsr\t-90(a6)";
+
 static long __fc_CloseSocket(__reg("a6") struct Library *base,
                              __reg("d0") long s)
     = "\tjsr\t-120(a6)";    /* CloseSocket (was -108=getpeername) */
@@ -136,7 +147,17 @@ static struct hostent_stub *__fc_gethostbyname(__reg("a6") struct Library *base,
 #define fc_connect(s,a,l)    __fc_connect(_sb, (s), (a), (l))
 #define fc_send(s,m,l,f)     __fc_send(_sb, (s), (m), (l), (f))
 #define fc_recv(s,b,l,f)     __fc_recv(_sb, (s), (b), (l), (f))
+#define fc_setsockopt(s,lvl,n,v,sz)  __fc_setsockopt(_sb, (s), (lvl), (n), (v), (sz))
 #define fc_CloseSocket(d)   __fc_CloseSocket(_sb, (d))
+
+/* BSD sockopt constants — values from Roadshow / Miami bsdsocket.h. */
+#define QJS_SOL_SOCKET    0xFFFF
+#define QJS_SO_RCVTIMEO   0x1006
+#define QJS_SO_SNDTIMEO   0x1005
+
+/* BSD timeval — LONG seconds + LONG microseconds (Amiga convention
+ * is 32-bit signed for both, matching socket layer expectations). */
+struct qjs_timeval { long tv_sec; long tv_usec; };
 #define fc_Errno()          __fc_Errno(_sb)
 #define fc_gethostbyname(n) __fc_gethostbyname(_sb, (n))
 
@@ -364,6 +385,19 @@ struct FetchContext {
 
     /* Worker handle (created by fetch_create, polled/destroyed later) */
     QJSWorker *worker;
+
+    /* Cancellation + timeout support (v2 E3 completion).
+     *
+     * abort_requested: set to 1 by main task (via fetch_abort or JS
+     * AbortSignal handler) to request the worker wind down early.
+     * Worker checks between recv iterations, closes socket on set.
+     * Volatile so VBCC doesn't cache it across the recv loop.
+     *
+     * timeout_ms: overall per-call timeout. Currently applied as
+     * SO_RCVTIMEO on the socket (each recv call is bounded). 0 =
+     * use default (30s). */
+    volatile unsigned long abort_requested;
+    unsigned long timeout_ms;
 };
 
 /* ================================================================
@@ -486,6 +520,19 @@ static int fetch_job(QJSWorker *w, void *user_data)
         goto cleanup_ssl;
     }
 
+    /* Apply per-call recv/send timeout so a flaky peer can't wedge
+     * the worker indefinitely. SO_RCVTIMEO only affects individual
+     * recv() calls, so a responsive peer streaming data slowly is
+     * still OK — only a complete pause > timeout_ms aborts. */
+    {
+        unsigned long ms = ctx->timeout_ms ? ctx->timeout_ms : 30000UL;
+        struct qjs_timeval tv;
+        tv.tv_sec  = (long)(ms / 1000UL);
+        tv.tv_usec = (long)((ms % 1000UL) * 1000UL);
+        (void)fc_setsockopt(ctx->sock, QJS_SOL_SOCKET, QJS_SO_RCVTIMEO, &tv, sizeof(tv));
+        (void)fc_setsockopt(ctx->sock, QJS_SOL_SOCKET, QJS_SO_SNDTIMEO, &tv, sizeof(tv));
+    }
+
     /* Blocking connect */
     rc = fc_connect(ctx->sock, &addr, sizeof(addr));
     if (rc < 0) {
@@ -542,6 +589,14 @@ static int fetch_job(QJSWorker *w, void *user_data)
     }
     ctx->response_len = 0;
     for (;;) {
+        /* Check abort request between each recv iteration. Set by
+         * the main task via fetch_abort() (wired to AbortSignal). */
+        if (ctx->abort_requested) {
+            strcpy(ctx->error_msg, "aborted");
+            ctx->state = FETCH_STATE_ERROR;
+            goto cleanup_sock;
+        }
+
         if (ctx->response_len + 4096 > ctx->response_cap) {
             int new_cap = ctx->response_cap * 2;
             char *new_buf = realloc(ctx->response_buf, new_cap);
@@ -561,7 +616,17 @@ static int fetch_job(QJSWorker *w, void *user_data)
             n = fc_recv(ctx->sock,
                         ctx->response_buf + ctx->response_len,
                         ctx->response_cap - ctx->response_len - 1, 0);
-        if (n <= 0) break;
+        if (n <= 0) {
+            /* EOF (0) is normal HTTP end-of-stream. Negative is
+             * error OR timeout (SO_RCVTIMEO fires recv = -1 errno
+             * EAGAIN). Treat timeout as abort if no data received. */
+            if (n < 0 && ctx->response_len == 0) {
+                strcpy(ctx->error_msg, "recv timed out or failed");
+                ctx->state = FETCH_STATE_ERROR;
+                goto cleanup_sock;
+            }
+            break;
+        }
         ctx->response_len += n;
     }
     ctx->response_buf[ctx->response_len] = '\0';
@@ -762,6 +827,26 @@ const char *fetch_get_url(FetchContext *ctx)
 const char *fetch_get_error(FetchContext *ctx)
 {
     return (ctx && ctx->error_msg[0]) ? ctx->error_msg : NULL;
+}
+
+/* E3 completion — request early termination of an in-flight fetch.
+ * Safe to call from any task (notably the main task from a JS
+ * AbortSignal handler). Sets a volatile flag the worker checks
+ * between recv iterations. Worker sees the flag on the next cycle,
+ * sets ctx->state = ERROR with "aborted" error_msg, closes socket,
+ * exits. fetch_destroy then joins cleanly. */
+void fetch_abort(FetchContext *ctx)
+{
+    if (ctx) ctx->abort_requested = 1;
+}
+
+/* Set per-fetch timeout (milliseconds). Takes effect on the next
+ * socket creation inside fetch_job; for an already-in-flight fetch
+ * this is a no-op (the SO_RCVTIMEO is set once after socket()).
+ * Pass 0 to use the default (30s). */
+void fetch_set_timeout(FetchContext *ctx, unsigned long ms)
+{
+    if (ctx) ctx->timeout_ms = ms;
 }
 
 void fetch_destroy(FetchContext *ctx)

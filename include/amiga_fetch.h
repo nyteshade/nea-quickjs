@@ -65,4 +65,14 @@ const char *fetch_get_error(FetchContext *ctx);
 /* Free all resources including closing the socket. */
 void fetch_destroy(FetchContext *ctx);
 
+/* Request the worker wind down early. Safe to call from the main
+ * task while the worker is in its recv loop. Next recv iteration
+ * sees the flag, closes the socket, transitions state to ERROR
+ * with "aborted" error_msg. fetch_destroy afterwards joins cleanly. */
+void fetch_abort(FetchContext *ctx);
+
+/* Set per-fetch recv/send timeout in milliseconds. Takes effect
+ * once on socket creation. Pass 0 to use default (30s). */
+void fetch_set_timeout(FetchContext *ctx, unsigned long ms);
+
 #endif /* AMIGA_FETCH_H */

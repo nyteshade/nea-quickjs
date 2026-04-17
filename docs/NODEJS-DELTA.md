@@ -339,17 +339,48 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 Rough sequence — can reorder based on demand. Each tier depends on the
 previous for at most boilerplate, not critical path.
 
-### C — mid-flight fetch cancel
+### AbortController / AbortSignal (WebCrypto-adjacent web API)
 
-JS-level `fetch(url, {signal})` ships at 0.096: when the signal fires, the
-returned Promise rejects with an `AbortError` DOMException. Good enough for
-most use cases — caller's `await` stops waiting, error propagates normally.
+| API | Status | Notes |
+|---|---|---|
+| `new AbortController()` | ✓ | `.signal`, `.abort(reason?)` |
+| `controller.abort(reason)` | ✓ | idempotent — second call is no-op |
+| `signal.aborted` | ✓ | |
+| `signal.reason` | ✓ | defaults to `DOMException('Aborted', 'AbortError')` |
+| `signal.throwIfAborted()` | ✓ | |
+| `signal.onabort` | ✓ | single-callback slot fired alongside listeners |
+| `signal.addEventListener('abort', cb)` | ◐ | no `{once: true}`/`{signal}` option yet |
+| `signal.removeEventListener('abort', cb)` | ✓ | |
+| `signal.dispatchEvent(e)` | ○ | not exposed (EventTarget base class missing) |
+| `AbortSignal.abort(reason?)` (static) | ✓ | |
+| `AbortSignal.timeout(ms)` (static) | ✓ | |
+| `AbortSignal.any([signals])` (static, Node 20.3+) | ✓ | added 0.105 |
+| Event object shape | ◐ | plain `{type, target}` — not a full `Event` |
+| Proper EventTarget inheritance | ○ | we implement on-class; Node classes extend EventTarget |
 
-What's *not* there: the underlying HTTP worker keeps running to completion
-and its result is silently discarded. For large-payload transfers where the
-user wants to free the socket/bandwidth immediately, the worker needs to
-poll an atomic abort flag in the `recv` loop and close the socket early.
-That's ~30 lines of C in `sharedlib_fetch.c` — deferred until demand.
+### fetch + AbortSignal integration
+
+`fetch(url, {signal, timeout})` at 0.105+:
+
+- `signal` → when it fires, **both** reject the Promise **and** propagate to
+  the worker (`__qjs_fetchAbort`). Worker checks the flag between `recv`
+  iterations, closes the socket, exits early. Bandwidth and socket freed
+  immediately instead of letting the background worker drain to completion.
+- `timeout` (number, ms) → applied as `SO_RCVTIMEO` / `SO_SNDTIMEO` on the
+  socket. `recv`/`send` calls return early if the peer stalls. Default is
+  30 000 ms if unspecified — prevents indefinite hangs on flaky networks.
+- Both work together: timeout bounds individual I/O waits; abort lets JS
+  cancel explicitly.
+
+What's still not there:
+- Abort mid-TLS-handshake. `SSL_connect` is blocking and we don't poll the
+  flag during it. If the TLS handshake hangs, only the socket timeout
+  rescues — abort won't. Needs non-blocking SSL_connect loop.
+- Connect-phase abort. `connect()` is blocking and ignores abort. Same
+  remedy as above (non-blocking + poll).
+- Streaming response cancel. Response is buffered, not streamed — abort
+  during body recv works, but if you've already awaited text()/json() it's
+  too late.
 
 ### F — `assert`
 
