@@ -232,3 +232,16 @@ _bridge_GetMathBase:
 	jsr	(a5)
 	movem.l	(sp)+,d2/a2-a6
 	rts
+
+; bridge_InstallChildProcessGlobal(ctx) -> void
+; LVO -1200 — D5: install globalThis.__qjs_spawnSync on the given context.
+	xdef	_bridge_InstallChildProcessGlobal
+_bridge_InstallChildProcessGlobal:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1200,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts

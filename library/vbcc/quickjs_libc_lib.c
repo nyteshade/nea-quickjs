@@ -267,3 +267,150 @@ JSModuleDef *js_init_module_net(JSContext *ctx, const char *module_name)
     JS_AddModuleExportList(ctx, m, js_net_funcs, countof(js_net_funcs));
     return m;
 }
+
+/* ==================================================================
+ * D5 — qjs:child_process module
+ *
+ * spawnSync(cmdline) -> { stdout, stderr, exitCode, signal }
+ *
+ * Uses dos.library SystemTagList with SYS_Output/SYS_Error pointed
+ * at T:qjs-cp-<task>-{out,err} temp files. After the child exits,
+ * the handles are closed (defensively — SystemTagList owns them
+ * during execution), the files are reopened for reading, their
+ * contents slurped, and the files unlinked.
+ *
+ * v1 is synchronous only. Async spawn() can be layered on top via
+ * the Worker primitive in a follow-up (or via Promise.resolve() in
+ * JS if callers want the shape).
+ *
+ * SYS_Error is V50+. On V47 it's silently ignored — stderr goes
+ * wherever the child's default error stream points (usually the
+ * console). That's acceptable for a classic-OS port.
+ * ================================================================== */
+
+#include <dos/dostags.h>
+#include <proto/dos.h>
+
+/* snprintf is provided by sharedlib_printf.c — declare extern like
+ * sharedlib_fetch.c does, since VBCC's stdio.h isn't in scope here. */
+extern int snprintf(char *, size_t, const char *, ...);
+
+/* Read file contents into a newly-allocated buffer. Returns NULL if the
+ * file doesn't exist or is empty; sets *plen to 0 in those cases. */
+static char *slurp_temp(JSContext *ctx, const char *path, LONG *plen)
+{
+    BPTR fh;
+    LONG size, got;
+    char *buf;
+
+    *plen = 0;
+    fh = Open((STRPTR)path, MODE_OLDFILE);
+    if (!fh) return NULL;
+
+    /* Seek to END to get size, then back to start. */
+    Seek(fh, 0, OFFSET_END);
+    size = Seek(fh, 0, OFFSET_BEGINNING);
+    if (size <= 0) {
+        Close(fh);
+        return NULL;
+    }
+
+    buf = js_malloc(ctx, size + 1);
+    if (!buf) {
+        Close(fh);
+        return NULL;
+    }
+    got = Read(fh, buf, size);
+    Close(fh);
+    if (got < 0) got = 0;
+    buf[got] = '\0';
+    *plen = got;
+    return buf;
+}
+
+static JSValue js_child_process_spawnSync(JSContext *ctx, JSValueConst this_val,
+                                          int argc, JSValueConst *argv)
+{
+    const char *cmdline;
+    char out_path[64], err_path[64];
+    BPTR outfh = 0, errfh = 0;
+    struct TagItem tags[3];
+    LONG rc;
+    char *out_buf, *err_buf;
+    LONG out_len = 0, err_len = 0;
+    JSValue result;
+    struct Task *me;
+
+    if (argc < 1) return JS_ThrowTypeError(ctx, "spawnSync: cmdline required");
+    if (!DOSBase) return JS_ThrowInternalError(ctx, "spawnSync: DOSBase not set");
+
+    cmdline = JS_ToCString(ctx, argv[0]);
+    if (!cmdline) return JS_EXCEPTION;
+
+    me = FindTask(NULL);
+    snprintf(out_path, sizeof(out_path), "T:qjs-cp-%08lx-out", (unsigned long)me);
+    snprintf(err_path, sizeof(err_path), "T:qjs-cp-%08lx-err", (unsigned long)me);
+
+    outfh = Open((STRPTR)out_path, MODE_NEWFILE);
+    errfh = Open((STRPTR)err_path, MODE_NEWFILE);
+    if (!outfh || !errfh) {
+        if (outfh) Close(outfh);
+        if (errfh) Close(errfh);
+        JS_FreeCString(ctx, cmdline);
+        return JS_ThrowInternalError(ctx,
+            "spawnSync: could not open temp files in T:");
+    }
+
+    tags[0].ti_Tag  = SYS_Output; tags[0].ti_Data = (ULONG)outfh;
+    tags[1].ti_Tag  = SYS_Error;  tags[1].ti_Data = (ULONG)errfh;
+    tags[2].ti_Tag  = TAG_DONE;   tags[2].ti_Data = 0;
+
+    /* Synchronous — blocks the calling task until the child exits. */
+    rc = SystemTagList((STRPTR)cmdline, tags);
+
+    /* SystemTagList docs are ambiguous about whether the handles are
+     * closed on return for non-Asynch calls. Close defensively; a
+     * double-close on Amiga is harmless. */
+    Close(outfh);
+    Close(errfh);
+
+    out_buf = slurp_temp(ctx, out_path, &out_len);
+    err_buf = slurp_temp(ctx, err_path, &err_len);
+
+    DeleteFile((STRPTR)out_path);
+    DeleteFile((STRPTR)err_path);
+
+    result = JS_NewObject(ctx);
+    if (JS_IsException(result)) {
+        if (out_buf) js_free(ctx, out_buf);
+        if (err_buf) js_free(ctx, err_buf);
+        JS_FreeCString(ctx, cmdline);
+        return result;
+    }
+
+    JS_SetPropertyStr(ctx, result, "stdout",
+        JS_NewStringLen(ctx, out_buf ? out_buf : "", out_len));
+    JS_SetPropertyStr(ctx, result, "stderr",
+        JS_NewStringLen(ctx, err_buf ? err_buf : "", err_len));
+    JS_SetPropertyStr(ctx, result, "exitCode", JS_NewInt32(ctx, rc));
+    JS_SetPropertyStr(ctx, result, "signal",   JS_NULL);
+
+    if (out_buf) js_free(ctx, out_buf);
+    if (err_buf) js_free(ctx, err_buf);
+    JS_FreeCString(ctx, cmdline);
+    return result;
+}
+
+/* Called by the CLI via QJS_InstallChildProcessGlobal LVO. Attaches the
+ * native spawnSync to globalThis.__qjs_spawnSync; extended.js's
+ * child-process manifest wraps that in a Node-style API. No qjs:module
+ * registration — host qjsc doesn't know this file, so a module import
+ * would fail at bytecode-compile time. Global attachment avoids that. */
+void qjs_install_child_process_global(JSContext *ctx)
+{
+    JSValue global, fn;
+    global = JS_GetGlobalObject(ctx);
+    fn = JS_NewCFunction(ctx, js_child_process_spawnSync, "__qjs_spawnSync", 1);
+    JS_SetPropertyStr(ctx, global, "__qjs_spawnSync", fn);
+    JS_FreeValue(ctx, global);
+}

@@ -2104,6 +2104,69 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: child_process  (Node.js subset over qjs:child_process)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * v1: synchronous spawnSync via dos.library SystemTagList with
+ * SYS_Output/SYS_Error captured to T: temp files. Returns
+ * { stdout, stderr, exitCode, signal } matching Node.
+ *
+ * spawn() wraps spawnSync in a Promise for API shape — it does
+ * NOT actually run the child asynchronously on Amiga yet.
+ * True async would need a Worker-task wrapper; deferred until
+ * there's demand. For most Amiga use cases (run a build, get
+ * exit code + output) the sync path is what users want anyway.
+ *
+ * exec(cmd) is aliased to spawn(cmd) — on Amiga, dos.library
+ * commands already resolve through the shell's path, so there's
+ * no practical difference.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'child-process',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node.js child_process subset (spawnSync via dos.library SystemTagList)',
+    globals:     ['child_process'],
+    standard:    false,
+    install() {
+        /* The CLI installs globalThis.__qjs_spawnSync at startup under
+         * QJS_USE_LIBRARY. Missing on upstream qjs; detect and noop. */
+        const native = globalThis.__qjs_spawnSync;
+        if (typeof native !== 'function') return;
+
+        function _cmdline(cmd, args) {
+            let s = String(cmd);
+            if (Array.isArray(args)) {
+                for (const a of args) s += ' ' + String(a);
+            }
+            return s;
+        }
+
+        globalThis.child_process = {
+            spawnSync(cmd, args, opts) {
+                return native(_cmdline(cmd, args));
+            },
+            spawn(cmd, args, opts) {
+                return new Promise((resolve, reject) => {
+                    try { resolve(native(_cmdline(cmd, args))); }
+                    catch (e) { reject(e); }
+                });
+            },
+            exec(cmd, opts) {
+                /* Node's exec runs through /bin/sh; on Amiga the string
+                 * is handed to SystemTagList which invokes the user shell. */
+                return new Promise((resolve, reject) => {
+                    try { resolve(native(String(cmd))); }
+                    catch (e) { reject(e); }
+                });
+            },
+            execSync(cmd, opts) { return native(String(cmd)); },
+        };
+    },
+}));
+
+/* ==========================================================
  * Apply all features in dependency order, expose registry
  * ========================================================== */
 

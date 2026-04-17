@@ -420,6 +420,8 @@
 	xref	_js_init_module_net
 	xdef	_QJS_GetMathBase
 	xref	_QJS_GetMathBase_impl
+	xdef	_QJS_InstallChildProcessGlobal
+	xref	_qjs_install_child_process_global
 
 
 ; ===================================================================
@@ -3698,6 +3700,17 @@ _QJS_GetMathBase:
 	move.l	a6,-(sp)		; base
 	jsr	_QJS_GetMathBase_impl
 	lea	8(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InstallChildProcessGlobal — (ctx)(a0) -> void
+; Installs globalThis.__qjs_spawnSync. Extended.js wraps that in
+; globalThis.child_process.{spawnSync, spawn, exec, execSync}.
+_QJS_InstallChildProcessGlobal:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_qjs_install_child_process_global
+	lea	4(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 

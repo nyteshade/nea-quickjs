@@ -199,4 +199,5 @@ QJS_WorkerGetBase(worker,which)(a0/d0)
 QJS_GetNetCapabilities()()
 QJS_InitModuleNet(ctx,module_name)(a0/a1)
 QJS_GetMathBase(which)(d0)
+QJS_InstallChildProcessGlobal(ctx)(a0)
 ==end

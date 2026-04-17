@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.089 (16.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.090 (16.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   89   /* packed: major=0, revision=089 (libregexp.c -> -O0 to dodge VBCC opt miscompile; user regex now works) */
+#define LIBRARY_VERSION   90   /* packed: major=0, revision=090 (D5 qjs:child_process spawnSync via SystemTagList + T: temp files) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
@@ -980,6 +980,13 @@ void *QJS_InitModuleNet(__reg("a6") LIBRARY_BASE_TYPE *base,
 struct Library *QJS_GetMathBase(__reg("a6") LIBRARY_BASE_TYPE *base,
                                 __reg("d0") unsigned long which);
 
+/* D5 — install native spawnSync on globalThis.__qjs_spawnSync.
+ * extended.js's child-process manifest wraps that in a Node API.
+ * Called once from the CLI after context creation; no-op if called
+ * twice (just replaces the global). */
+void QJS_InstallChildProcessGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
+                                   __reg("a0") struct JSContext *ctx);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -1194,6 +1201,7 @@ void QJS_Eval(
     (APTR) QJS_WorkerGetBase, \
     (APTR) QJS_GetNetCapabilities, \
     (APTR) QJS_InitModuleNet, \
-    (APTR) QJS_GetMathBase
+    (APTR) QJS_GetMathBase, \
+    (APTR) QJS_InstallChildProcessGlobal
 
 #endif /* LIBRARYCONFIG_H */
