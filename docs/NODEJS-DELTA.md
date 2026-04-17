@@ -48,7 +48,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `querystring` | ○ | use `URLSearchParams` instead (already present) |
 | `readline` | ○ | no demand — REPL covers interactive use |
 | `repl` | — | qjs has its own REPL; programmatic API not exposed |
-| `stream` | ○ | substantial work; not planned v1 |
+| `stream` | ◐ | `globalThis.stream.Readable/Writable/Transform/PassThrough` — push-based, no backpressure (v1) |
 | `string_decoder` | ○ | `TextDecoder` covers modern use; add shim if demand appears |
 | `sys` | ✗ | deprecated alias of `util` |
 | `timers` | ◐ | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` via `qjs:os`; `setImmediate` missing |
@@ -214,6 +214,31 @@ too slow in pure-JS on 68k).
 | HMAC / HKDF / PBKDF2 | ○ | AmiSSL has the primitives, no JS wrapper yet |
 
 No graceful-degradation gotchas: `digest()` works on Amigas without AmiSSL and/or without bsdsocket, for the three most commonly needed algorithms. Users who want SHA-384/SHA-512 on non-AmiSSL systems can check `crypto.subtle.has('SHA-512')` first.
+
+### `stream` (v1)
+
+Implemented in `extended.js` (`stream` manifest) as `globalThis.stream`.
+Push-based, no backpressure — enough to wrap fs/child_process producers
+and pipe them to sinks without blocking the event loop on large inputs.
+
+| API | Status | Notes |
+|---|---|---|
+| `stream.Readable` | ✓ | `new Readable({ read })`, `.push(chunk)`, `.push(null)`, `.on('data'\|'end'\|'error')`, `.pipe(dest)` |
+| `Readable.from(iterable)` | ✓ | Drains iterable into a Readable via microtask |
+| `stream.Writable` | ✓ | `new Writable({ write(chunk, cb) })`, `.write()`, `.end()`, `.on('finish'\|'error')` |
+| `stream.Transform` | ✓ | `new Transform({ transform(chunk, enc, cb) })` — default is pass-through |
+| `stream.PassThrough` | ✓ | alias of Transform with no override |
+| backpressure (`write()` returns false) | ✗ | v1 always returns true — callers must not flood |
+| object mode | ✗ | all chunks pass through as-is |
+| `highWaterMark` | ✗ | no buffering limit |
+| `Readable.read(n)` pull mode | ○ | push-mode only in v1 |
+| Duplex | ○ | |
+| `stream.pipeline()` | ○ | |
+
+The no-backpressure limitation is acceptable for Amiga use cases (file
+copies, child_process output capture, short HTTP bodies) where producer
+and consumer run in the same event loop and the producer doesn't
+outpace the consumer by orders of magnitude.
 
 ### `child_process`
 

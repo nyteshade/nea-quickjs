@@ -2104,6 +2104,155 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: stream  (Node.js subset — Readable, Writable)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Minimal v1: push-based Readable, synchronous Writable, .pipe(),
+ * Readable.from(iterable). No backpressure, no highWaterMark, no
+ * object mode, no duplex/transform. Enough to:
+ *   - build streaming producers (fs.createReadStream, child_process
+ *     stdout) that emit 'data' and 'end'
+ *   - consume via on('data') or pipe()
+ *   - wrap arrays/iterables with Readable.from()
+ *
+ * Node surface approximated; full Streams3 backpressure semantics
+ * deferred. Extending EventEmitter comes for free (we require it).
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'stream',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node.js stream (Readable + Writable subset; push-based, no backpressure)',
+    globals:     ['stream'],
+    standard:    false,
+    requires:    ['event-emitter'],
+    install() {
+        const EE = globalThis.EventEmitter;
+
+        class Readable extends EE {
+            constructor(opts) {
+                super();
+                this._ended = false;
+                this._reading = false;
+                const src = opts || {};
+                if (typeof src.read === 'function') this._read = src.read;
+            }
+            _read() { /* subclass or option override */ }
+
+            /* Called by the producer (either user code or our _read) to
+             * deliver a chunk. null signals end-of-stream. */
+            push(chunk) {
+                if (this._ended) return false;
+                if (chunk === null) {
+                    this._ended = true;
+                    /* Defer to the microtask queue so any listener attached
+                     * on the same tick after construction still fires. */
+                    queueMicrotask(() => this.emit('end'));
+                    return false;
+                }
+                queueMicrotask(() => this.emit('data', chunk));
+                return true;
+            }
+
+            pipe(dest, opts) {
+                const end = !opts || opts.end !== false;
+                this.on('data', (chunk) => { dest.write(chunk); });
+                this.on('end',  () => { if (end) dest.end(); });
+                this.on('error', (e) => dest.emit('error', e));
+                return dest;
+            }
+
+            /* Node-compatible helper. Drains an iterable into a Readable. */
+            static from(iterable, opts) {
+                const r = new Readable(opts);
+                queueMicrotask(() => {
+                    try {
+                        for (const item of iterable) r.push(item);
+                        r.push(null);
+                    } catch (e) { r.emit('error', e); }
+                });
+                return r;
+            }
+        }
+
+        class Writable extends EE {
+            constructor(opts) {
+                super();
+                this._ended = false;
+                this._finished = false;
+                const src = opts || {};
+                if (typeof src.write === 'function') this._writeFn = src.write;
+            }
+            _writeFn(chunk, cb) { cb(); }
+
+            write(chunk, cb) {
+                if (this._ended) {
+                    const err = new Error('write after end');
+                    if (cb) queueMicrotask(() => cb(err));
+                    else queueMicrotask(() => this.emit('error', err));
+                    return false;
+                }
+                /* Invoke synchronous write. Callback (if any) called once
+                 * the write "settles" — for us, same tick. */
+                try {
+                    this._writeFn.call(this, chunk, (err) => {
+                        if (err) this.emit('error', err);
+                        if (cb)  cb(err || null);
+                    });
+                } catch (e) {
+                    this.emit('error', e);
+                    if (cb) cb(e);
+                    return false;
+                }
+                return true;
+            }
+
+            end(chunk, cb) {
+                if (chunk !== undefined && chunk !== null) this.write(chunk);
+                if (this._ended) return;
+                this._ended = true;
+                queueMicrotask(() => {
+                    if (!this._finished) {
+                        this._finished = true;
+                        this.emit('finish');
+                        if (cb) cb();
+                    }
+                });
+            }
+        }
+
+        /* Minimal Transform — for completeness, same API as Node: the
+         * user provides a transform(chunk, enc, cb) method. Not
+         * optimized (two EE chains) but works for simple use. */
+        class Transform extends Readable {
+            constructor(opts) {
+                super(opts);
+                const src = opts || {};
+                if (typeof src.transform === 'function') this._transform = src.transform;
+            }
+            _transform(chunk, enc, cb) { this.push(chunk); cb(); }
+            write(chunk) {
+                this._transform(chunk, null, (err, out) => {
+                    if (err) { this.emit('error', err); return; }
+                    if (out !== undefined && out !== null) this.push(out);
+                });
+                return true;
+            }
+            end() { this.push(null); }
+        }
+
+        globalThis.stream = {
+            Readable, Writable, Transform,
+            /* Node aliases */
+            PassThrough: class PassThrough extends Transform {
+                constructor(opts) { super(opts); }
+            },
+        };
+    },
+}));
+
+/* ==========================================================
  * Feature: child_process  (Node.js subset over qjs:child_process)
  * Tier: pure-js    Provider: nea-port    Standard: node
  *
