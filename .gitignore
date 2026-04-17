@@ -1,1 +1,10 @@
 .DS_Store
+
+# Test output artifacts — generated per-run on Amiga, not useful in history
+amiga/*.output
+amiga/*.output.txt
+amiga/output/
+
+# Amiga filesystem database droppings
+_UAEFSDB.___
+**/_UAEFSDB.___

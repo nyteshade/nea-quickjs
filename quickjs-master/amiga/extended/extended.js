@@ -283,6 +283,35 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: global timers — setTimeout/setInterval/clearTimeout/
+ *          clearInterval as plain globals (Node/web convention)
+ * Tier: pure-js    Provider: nea-port    Standard: web
+ *
+ * qjs:os exposes these under the os namespace. Node and browsers
+ * make them globals; scripts assume it. Alias at the global
+ * scope here so `setTimeout(fn, ms)` just works.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'global-timers',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'setTimeout/setInterval/clearTimeout/clearInterval at global scope',
+    globals:     ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'],
+    standard:    true,
+    install() {
+        if (typeof globalThis.setTimeout !== 'function')
+            globalThis.setTimeout = os.setTimeout;
+        if (typeof globalThis.setInterval !== 'function')
+            globalThis.setInterval = os.setInterval;
+        if (typeof globalThis.clearTimeout !== 'function')
+            globalThis.clearTimeout = os.clearTimeout;
+        if (typeof globalThis.clearInterval !== 'function')
+            globalThis.clearInterval = os.clearInterval;
+    },
+}));
+
+/* ==========================================================
  * Feature: queueMicrotask  (polyfill if missing)
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
@@ -2792,14 +2821,29 @@ _manifests.push(new LocalManifest({
     requires:    ['text-encoding'],
     standard:    false,
     install() {
+        /* UTF-8 continuation byte check: 10xxxxxx */
+        function isCont(b) { return (b & 0xC0) === 0x80; }
+
+        /* Count how many bytes are needed to complete a UTF-8 sequence
+         * that starts at index `start`. Returns the TOTAL byte count
+         * (2, 3, or 4) or 0 for single-byte ASCII / invalid leads. */
+        function expectedBytes(leadByte) {
+            if (leadByte < 0x80) return 1;
+            if ((leadByte & 0xE0) === 0xC0) return 2;
+            if ((leadByte & 0xF0) === 0xE0) return 3;
+            if ((leadByte & 0xF8) === 0xF0) return 4;
+            return 1;  /* invalid lead; let TextDecoder emit 0xFFFD */
+        }
+
         class StringDecoder {
             constructor(encoding) {
-                this._enc = encoding || 'utf-8';
+                this._enc = (encoding || 'utf-8').toLowerCase();
                 this._dec = new globalThis.TextDecoder(this._enc, { fatal: false });
+                this._partial = null;   /* leftover bytes from prior write */
             }
-            /* Node: write(buffer) returns decoded string,
-             * using TextDecoder's stream:true so partial multibyte
-             * sequences carry over to the next call. */
+            /* write(buffer) — returns decoded string. Buffers trailing
+             * bytes of any incomplete UTF-8 sequence so the next write
+             * can complete it. */
             write(buf) {
                 if (typeof buf === 'string') return buf;
                 if (!(buf instanceof Uint8Array)) {
@@ -2808,14 +2852,49 @@ _manifests.push(new LocalManifest({
                         buf = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
                     else return '';
                 }
-                return this._dec.decode(buf, { stream: true });
+
+                /* Prepend any pending partial bytes from the last write. */
+                let bytes = buf;
+                if (this._partial && this._partial.length > 0) {
+                    const merged = new Uint8Array(this._partial.length + buf.length);
+                    merged.set(this._partial, 0);
+                    merged.set(buf, this._partial.length);
+                    bytes = merged;
+                    this._partial = null;
+                }
+
+                /* Scan back from the end to find the start of any
+                 * incomplete trailing sequence. At most 3 bytes of tail
+                 * can be incomplete (SHA-4's max leading + 0-3 conts). */
+                let cut = bytes.length;
+                for (let back = 1; back <= 3 && back <= bytes.length; back++) {
+                    const idx = bytes.length - back;
+                    const b = bytes[idx];
+                    if (isCont(b)) continue;   /* continuation — look further left */
+                    const need = expectedBytes(b);
+                    if (need > back) {
+                        /* Incomplete sequence starting at idx */
+                        cut = idx;
+                    }
+                    break;
+                }
+
+                if (cut < bytes.length) {
+                    this._partial = bytes.slice(cut);
+                    bytes = bytes.subarray(0, cut);
+                }
+
+                return bytes.length > 0 ? this._dec.decode(bytes) : '';
             }
             end(buf) {
                 let out = '';
                 if (buf !== undefined) out += this.write(buf);
-                out += this._dec.decode(new Uint8Array(0), { stream: false });
-                /* Reset decoder for reuse */
-                this._dec = new globalThis.TextDecoder(this._enc, { fatal: false });
+                /* Flush whatever's left — will emit replacement chars
+                 * if the trailing sequence was truly incomplete. */
+                if (this._partial && this._partial.length > 0) {
+                    out += this._dec.decode(this._partial);
+                    this._partial = null;
+                }
                 return out;
             }
         }
