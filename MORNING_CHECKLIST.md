@@ -1,94 +1,80 @@
-# Morning checklist — 0.085 Amiga validation
+# Morning Checklist — 0.101 overnight batch
 
-Updated after your overnight-ish report. State:
+## What landed while you slept
 
-## What you reported working at 0.083/0.084
+| Ver | Commit | Change | Risk |
+|---|---|---|---|
+| 0.098 | `631d40f` | stream: Writable write-after-end emits AND calls cb | tiny |
+| 0.099 | `9d9b58f` | util.parseArgs/deprecate/debuglog + events.once + stream.pipeline + querystring + string_decoder + console.count/timeLog + fs.promises copy/truncate/utimes + Buffer swap/float | low (JS-only, host-verified) |
+| 0.100 | `b6c109b` | **True async child_process.spawn via QJS_Worker** | medium — new C code, polling loop |
+| 0.101 | pending push | assert module + timers.promises + process.stdout/stderr/stdin + path.posix/win32 aliases | low (JS-only) |
 
-- test_events: PASS
-- test_fs: PASS
-- test_net: PASS
-- test_buffer: PASS
-- test_timing: completed (no explicit pass/fail line in that test)
+All commits pushed to main. Library binaries ship with each commit.
 
-## Regressions found and fixed overnight
+## Validation order (priority)
 
-| Symptom | Root cause | Fix | Version |
-| --- | --- | --- | --- |
-| test_util hung after "format extra args ok" | `util.inspect` used regex `/^[A-Za-z_$][A-Za-z0-9_$]*$/` — `$` inside a char class hangs Amiga QuickJS-ng regex compiler | Plain-JS `isSafeIdent` + manual string-escape loop | 0.084 |
-| test_extended hung at first `new URL(...)` | `URL._parse` used `s.search(/[/?#]/)` — `/` inside char class, same family of regex bug | Plain-JS `for` loop finding first `/`, `?`, `#` | 0.085 |
-
-Both are systematic audits — scanned all regex literals in
-`extended.js` for `/` or `$` inside char classes; the three
-historically-problematic ones are all replaced now. No other
-risky patterns remain.
-
-## Still unexplained
-
-- **test_fetch hangs.** Was 22/0 at 0.080. I did not change any
-  library C code (sharedlib_fetch.c unchanged), only the
-  `extended.js` bytecode. Something in the install path of the
-  new D2/D3/D4 modules may be interacting badly with fetch.
-  Running `qjs tests/test_fetch.js` — please capture EXACTLY
-  what prints before the hang and paste it. Even a partial first
-  line (e.g. "=== fetch() API Test Suite ===" printed but nothing
-  after) is definitive.
-
-## Copy to Amiga
-
-- `amiga/libs/quickjs.020soft.library` → `LIBS:quickjs.library`
-  (or matching variant)
-- `amiga/c/qjs` (unchanged since 0.080 — CLI had no changes)
-
-## Run these, all after `stack 65536`
-
-### Step 1 — confirm fixes
+Run these on the real Amiga with `stack 65536`:
 
 ```
-qjs tests/test_util.js
-qjs tests/test_extended.js
+qjs tests/test_stream.js          ; 0.098 fix — should now be 13/13
+qjs tests/test_node_extras.js     ; 0.099 batch — ~25 cases
+qjs tests/test_spawn_async.js     ; 0.100 async spawn — watch for timer responsiveness
+qjs tests/test_child_process.js   ; regression — 19/19 should still pass
+qjs tests/test_fetch.js           ; regression — 22/0
+qjs tests/test_crypto.js          ; regression — crypto still green
+qjs tests/test_extended.js        ; full extended regression — 79/79
 ```
 
-Expected:
-- `test_util`      **35 pass / 0 fail**
-- `test_extended`  runs all the way through the URL section without
-  hanging. (Don't remember the exact pass count — whatever it
-  reports is the new baseline.)
-
-### Step 2 — capture fetch behavior
+If any fail, the failing commit is straightforward to revert since
+each is a clean single-point change:
 
 ```
-qjs tests/test_fetch.js 2>&1 > T:fetch-trace.txt
+git revert <commit-sha>          ; clean revert
+git push origin main
 ```
 
-Let it run for up to 30 seconds, then Ctrl-C if it hangs. Paste
-the contents of `T:fetch-trace.txt`. Three scenarios:
+## Known risks
 
-- **Prints nothing.** Hang before first banner. Probably in
-  extended.js install OR in the import of qjs:std. I'll add
-  a JS-side tracer around the install ordering.
-- **Prints banner + some section headers, hangs mid-fetch.** The
-  actual fetch() call is blocking on network I/O. Could be a
-  network config issue, not our code.
-- **Prints "22 passed, 0 failed".** Then it's not actually a
-  regression — something about our session was flaky.
+**0.100 async spawn** is the highest-risk change:
+- New C code in `quickjs_libc_lib.c` introduces `active_spawn`
+  global state and a polling callback scheduled via `os_timers`.
+- Uses `QJS_Worker` primitive — same one fetch uses (proven).
+- `child_async_job` (worker-task entry) uses the global DOSBase for
+  Open/Close/Read/SystemTagList — dos.library is shared across
+  tasks on AmigaOS, so this should be fine, but verify with
+  `test_spawn_async.js`.
+- Single-concurrent slot — second `spawn()` while one is running
+  throws. Intentional for v1; add queueing if it bites.
 
-### Step 3 — full regression once fetch is resolved
+**If `test_spawn_async` crashes:** the async path is gated behind
+`typeof __qjs_spawnAsync === 'function'` in extended.js. Reverting
+just the C side (undo the three functions in quickjs_libc_lib.c)
+and rebuilding gives you back the sync-wrapped-in-Promise behavior
+at 0.099 levels.
 
-```
-execute tests/run-tests.script
-```
+## What's not in this batch
 
-Pull `RAM:qjs-results/` back and `scripts/check-tests.sh` on host.
+Deferred to future sessions:
+- **Q-tier FFI/GUI bridge** — you said "table the conversation,"
+  so I haven't touched it. `docs/AMIGA_FFI_ROADMAP.md` has the
+  design reference.
+- **AmiSSL main-task diagnostic** — crypto works via pure-JS
+  fallback; native fast-path still broken from main task.
+  `docs/AMISSL_MAINTASK_BUG.md`.
+- **Re-entrant CLI** — `docs/RESIDENT_CLI.md`.
+- **Mid-flight fetch socket close** — JS-level abort at 0.096
+  works; true socket-close on abort needs C changes.
 
-## Build provenance
+## Session notes
 
-- Last commit: `790e7a5`
-- Library: **0.085** (all 6 variants rebuilt)
-- CLI: 75 KB, unchanged since 0.080
-- extended.c bytecode: 41749 bytes
+- Stream test 13/13 verified — 0.098 fix is solid.
+- All new JS manifests host-verified where possible (util.parseArgs
+  reference cases, querystring round-trips, Buffer swap/float).
+- AsyncSpawn uses the same polling pattern as fetch at 20ms — if
+  you notice lag, consider dropping to 10ms in the C code.
+- `NODEJS-DELTA.md` is current — every landing has a table row.
 
-## Open items (tomorrow)
+## Ready for your eyes
 
-- Investigate test_fetch regression with real trace from Amiga
-- D5 child_process (deferred; needs Worker LVO work)
-- Re-entrant CLI for `Resident Add Pure` (deferred; `next-up` in Fina)
+`git pull` on the repo, run the test list above, report which pass
+and which fail. I can fix-forward on any failure during the day.

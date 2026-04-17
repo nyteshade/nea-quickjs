@@ -23,7 +23,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 
 | Node module | Status | Entry point |
 |---|---|---|
-| `assert` | ○ | planned — Tier 2 |
+| `assert` | ✓ | `globalThis.assert` — ok/equal/strictEqual/deepEqual/throws/rejects/match/etc. (0.101) |
 | `async_hooks` | ✗ | Node-internal, no equivalent use-case on AmigaOS |
 | `buffer` | ◐ | `globalThis.Buffer` (Tier 1 v1 — see below for omissions) |
 | `child_process` | ◐ | `globalThis.child_process` — spawnSync/spawn/exec/execSync via `dos.library SystemTagList` (sync underneath) |
@@ -51,7 +51,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `stream` | ◐ | `globalThis.stream.Readable/Writable/Transform/PassThrough` — push-based, no backpressure (v1) |
 | `string_decoder` | ✓ | `globalThis.StringDecoder` — wraps TextDecoder with streaming semantics (0.099) |
 | `sys` | ✗ | deprecated alias of `util` |
-| `timers` | ◐ | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` via `qjs:os`; `setImmediate` missing |
+| `timers` | ◐ | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` via `qjs:os`; `globalThis.timers.promises.setTimeout/setImmediate` at 0.101; AbortSignal honored |
 | `tls` | ✗ | AmiSSL-backed HTTPS through fetch covers use-case |
 | `trace_events` | ✗ | no upstream infra |
 | `tty` | ◐ | `os.isatty` / `os.ttyGetWinSize` / `os.ttySetRaw` via `qjs:os` |
@@ -108,7 +108,7 @@ Implemented in `extended.js` (`process` manifest).
 | `process.chdir(path)` | ✓ | fixed in 0.088 — throws on errno |
 | `process.hrtime([prev])` | ✓ | `[sec, nsec]` via `os.now()` microseconds |
 | `process.nextTick(fn, ...args)` | ✓ | via `queueMicrotask` |
-| `process.stdout` / `.stderr` / `.stdin` | ○ | use `std.out` / `std.err` / `std.in` directly |
+| `process.stdout` / `.stderr` / `.stdin` | ◐ | Writable-like objects at 0.101 — `.write(chunk)`, `.end()`, columns/rows getters via `os.ttyGetWinSize`, `isTTY` true. Not full streams; no pipe/backpressure. |
 | `process.kill(pid, sig)` | ○ | no Amiga task-kill wrapper yet |
 | `process.uptime()` | ○ | |
 | `process.memoryUsage()` | ○ | partially available via `std.dumpMemoryUsage()` |
@@ -173,7 +173,7 @@ AmigaOS-aware — treats both `/` and `:` as separators.
 | `path.relative(from, to)` | ✓ | |
 | `path.parse(p)` | ✓ | `{ root, dir, base, ext, name }` |
 | `path.format(obj)` | ✓ | inverse of parse |
-| `path.posix`, `path.win32` | ✗ | AmigaOS semantics only |
+| `path.posix`, `path.win32` | ◐ | Alias to `path` at 0.101 — Node code that imports `path.posix` gets AmigaOS-aware behavior rather than erroring. |
 | `path.toNamespacedPath` | — | Windows-only |
 
 ### `url` — WHATWG URL (web + Node alias)

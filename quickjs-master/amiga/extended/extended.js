@@ -2438,6 +2438,272 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: assert  (Node assert module — tiny subset)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'assert',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node assert (ok/equal/notEqual/deepEqual/strictEqual/throws/rejects/fail)',
+    globals:     ['assert'],
+    standard:    false,
+    install() {
+        function fail(msg) {
+            const e = new Error(msg || 'Assertion failed');
+            e.name = 'AssertionError';
+            throw e;
+        }
+        function ok(v, msg) {
+            if (!v) fail(msg || `ok(${v})`);
+        }
+        function equal(a, b, msg) {
+            /* Node assert.equal is ==; strictEqual is === */
+            if (a != b) fail(msg || `${a} == ${b}`);
+        }
+        function notEqual(a, b, msg) {
+            if (a == b) fail(msg || `${a} != ${b}`);
+        }
+        function strictEqual(a, b, msg) {
+            if (a !== b) fail(msg || `${JSON.stringify(a)} === ${JSON.stringify(b)}`);
+        }
+        function notStrictEqual(a, b, msg) {
+            if (a === b) fail(msg || `${JSON.stringify(a)} !== ${JSON.stringify(b)}`);
+        }
+        function deepEqualImpl(a, b, strict) {
+            if (strict ? a === b : a == b) return true;
+            if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object')
+                return false;
+            if (Array.isArray(a) !== Array.isArray(b)) return false;
+            const ka = Object.keys(a), kb = Object.keys(b);
+            if (ka.length !== kb.length) return false;
+            for (const k of ka) {
+                if (!Object.prototype.hasOwnProperty.call(b, k)) return false;
+                if (!deepEqualImpl(a[k], b[k], strict)) return false;
+            }
+            return true;
+        }
+        function deepEqual(a, b, msg) {
+            if (!deepEqualImpl(a, b, false)) fail(msg || 'deepEqual');
+        }
+        function deepStrictEqual(a, b, msg) {
+            if (!deepEqualImpl(a, b, true)) fail(msg || 'deepStrictEqual');
+        }
+        function throws(fn, expected, msg) {
+            let caught = null;
+            try { fn(); } catch (e) { caught = e; }
+            if (!caught) fail(msg || 'expected function to throw');
+            if (expected && typeof expected === 'function') {
+                if (!(caught instanceof expected))
+                    fail(msg || `throw not instanceof ${expected.name}`);
+            }
+        }
+        function doesNotThrow(fn, msg) {
+            try { fn(); }
+            catch (e) { fail(msg || `unexpected throw: ${e && e.message || e}`); }
+        }
+        async function rejects(promiseOrFn, expected, msg) {
+            const p = (typeof promiseOrFn === 'function') ? promiseOrFn() : promiseOrFn;
+            let caught = null;
+            try { await p; } catch (e) { caught = e; }
+            if (!caught) fail(msg || 'expected Promise to reject');
+            if (expected && typeof expected === 'function') {
+                if (!(caught instanceof expected))
+                    fail(msg || `reject not instanceof ${expected.name}`);
+            }
+        }
+        async function doesNotReject(promiseOrFn, msg) {
+            const p = (typeof promiseOrFn === 'function') ? promiseOrFn() : promiseOrFn;
+            try { await p; }
+            catch (e) { fail(msg || `unexpected reject: ${e && e.message || e}`); }
+        }
+        function match(str, regex, msg) {
+            if (!regex.test(String(str))) fail(msg || `${str} does not match ${regex}`);
+        }
+        function doesNotMatch(str, regex, msg) {
+            if (regex.test(String(str))) fail(msg || `${str} matches ${regex}`);
+        }
+
+        /* Bare call: assert(value, msg) === assert.ok(value, msg) */
+        const assertFn = function (v, msg) { ok(v, msg); };
+        assertFn.ok                = ok;
+        assertFn.equal             = equal;
+        assertFn.notEqual          = notEqual;
+        assertFn.strictEqual       = strictEqual;
+        assertFn.notStrictEqual    = notStrictEqual;
+        assertFn.deepEqual         = deepEqual;
+        assertFn.deepStrictEqual   = deepStrictEqual;
+        assertFn.notDeepEqual      = (a, b, m) => { if (deepEqualImpl(a, b, false)) fail(m || 'notDeepEqual'); };
+        assertFn.notDeepStrictEqual = (a, b, m) => { if (deepEqualImpl(a, b, true)) fail(m || 'notDeepStrictEqual'); };
+        assertFn.throws            = throws;
+        assertFn.doesNotThrow      = doesNotThrow;
+        assertFn.rejects           = rejects;
+        assertFn.doesNotReject     = doesNotReject;
+        assertFn.match             = match;
+        assertFn.doesNotMatch      = doesNotMatch;
+        assertFn.fail              = fail;
+        /* Aliases */
+        assertFn.strict = assertFn;
+        assertFn.AssertionError = class AssertionError extends Error {
+            constructor(opts) {
+                super((opts && opts.message) || 'Assertion failed');
+                this.name = 'AssertionError';
+                if (opts) {
+                    this.actual = opts.actual;
+                    this.expected = opts.expected;
+                    this.operator = opts.operator;
+                }
+            }
+        };
+
+        globalThis.assert = assertFn;
+    },
+}));
+
+/* ==========================================================
+ * Feature: timers.promises  (Node modern async sleep API)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'timers-promises',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node timers/promises (setTimeout/setInterval/setImmediate as Promises)',
+    globals:     ['timers'],
+    standard:    false,
+    install() {
+        const timersP = {
+            setTimeout(ms, value, opts) {
+                return new Promise((resolve, reject) => {
+                    const signal = opts && opts.signal;
+                    if (signal && signal.aborted) {
+                        reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+                        return;
+                    }
+                    const id = setTimeout(() => resolve(value), ms | 0);
+                    if (signal) {
+                        signal.addEventListener('abort', () => {
+                            clearTimeout(id);
+                            reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+                        });
+                    }
+                });
+            },
+            setImmediate(value, opts) {
+                return new Promise((resolve) => {
+                    queueMicrotask(() => resolve(value));
+                });
+            },
+            /* setInterval would need an async iterator; defer */
+        };
+        globalThis.timers = { promises: timersP };
+    },
+}));
+
+/* ==========================================================
+ * Feature: process.stdout / stderr / stdin (Writables + Readable)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Wraps std.out/std.err/std.in (qjs:std FILE handles) in stream-
+ * compatible objects so Node-style `process.stdout.write(str)`
+ * works. These are NOT full streams (no .pipe target on stdin, no
+ * backpressure); they expose .write/.end and basic event emitter
+ * shape for compat.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'process-stdio',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'process.stdout / stderr as Writable-like objects',
+    requires:    ['process'],
+    standard:    false,
+    install() {
+        if (!globalThis.process) return;
+
+        const makeStdio = (fh) => ({
+            write(chunk, enc, cb) {
+                try {
+                    if (chunk instanceof Uint8Array) {
+                        fh.write(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+                    } else {
+                        fh.puts(String(chunk));
+                    }
+                    fh.flush();
+                    if (cb) cb(null);
+                    return true;
+                } catch (e) { if (cb) cb(e); return false; }
+            },
+            end(chunk) {
+                if (chunk !== undefined && chunk !== null) this.write(chunk);
+                /* don't actually close std.out/std.err */
+            },
+            /* on() / once() / emit() stubs — code that treats stdout as an
+             * EventEmitter gets a no-op instead of a crash. */
+            on() { return this; },
+            once() { return this; },
+            emit() { return false; },
+            /* Columns/rows queried lazily from os.ttyGetWinSize where available */
+            get columns() {
+                try {
+                    const r = os.ttyGetWinSize && os.ttyGetWinSize(1);
+                    return r ? r[0] : 80;
+                } catch (_) { return 80; }
+            },
+            get rows() {
+                try {
+                    const r = os.ttyGetWinSize && os.ttyGetWinSize(1);
+                    return r ? r[1] : 24;
+                } catch (_) { return 24; }
+            },
+            isTTY: true,
+        });
+
+        globalThis.process.stdout = makeStdio(std.out);
+        globalThis.process.stderr = makeStdio(std.err);
+        /* stdin is readable — basic shape only. Full support would need
+         * the stream tier + async read loop. */
+        globalThis.process.stdin = {
+            on() { return this; }, once() { return this; }, emit() { return false; },
+            isTTY: true,
+            /* Node stdin has a .resume() that kicks off reading — no-op
+             * here since we don't run a stdin read loop. */
+            resume() {},
+            pause() {},
+        };
+    },
+}));
+
+/* ==========================================================
+ * Feature: path.posix / path.win32 aliases (Node compat)
+ * Tier: pure-js    Provider: nea-port
+ *
+ * Amiga path handling is unique — `:` is a separator, `/` too.
+ * Node code that explicitly imports `path.posix` or `path.win32`
+ * is usually doing platform-agnostic path manipulation and wants
+ * consistent behavior. We alias both to the same AmigaOS-aware
+ * `path` object — good enough for join/dirname/basename/extname
+ * which are the 95% case.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'path-aliases',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'path.posix / path.win32 alias to globalThis.path',
+    requires:    ['path'],
+    standard:    false,
+    install() {
+        if (globalThis.path) {
+            globalThis.path.posix = globalThis.path;
+            globalThis.path.win32 = globalThis.path;
+        }
+    },
+}));
+
+/* ==========================================================
  * Feature: querystring  (Node legacy query-string parser)
  * Tier: pure-js    Provider: nea-port    Standard: node
  *
