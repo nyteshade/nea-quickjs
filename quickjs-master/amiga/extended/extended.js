@@ -457,8 +457,12 @@ _manifests.push(new LocalManifest({
                         let name, value;
                         if (eq < 0) { name = pair; value = ''; }
                         else { name = pair.substring(0, eq); value = pair.substring(eq + 1); }
-                        this._list.push([_pctDecode(name.replace(/\+/g, ' ')),
-                                         _pctDecode(value.replace(/\+/g, ' '))]);
+                        /* Plus-to-space done via split/join to avoid
+                         * ANY regex compilation on Amiga — even trivial
+                         * patterns like /\+/g are suspect given the
+                         * broader char-class hang seen elsewhere. */
+                        this._list.push([_pctDecode(name.split('+').join(' ')),
+                                         _pctDecode(value.split('+').join(' '))]);
                     }
                 } else if (Array.isArray(init)) {
                     for (const pair of init) {
@@ -498,8 +502,8 @@ _manifests.push(new LocalManifest({
             toString() {
                 const unreserved = "-_.!~*'()";
                 return this._list.map(([k, v]) =>
-                    _pctEncode(k, unreserved).replace(/%20/g, '+') + '=' +
-                    _pctEncode(v, unreserved).replace(/%20/g, '+')
+                    _pctEncode(k, unreserved).split('%20').join('+') + '=' +
+                    _pctEncode(v, unreserved).split('%20').join('+')
                 ).join('&');
             }
             _notify() { if (this._url) this._url._syncSearchFromParams(); }
@@ -540,8 +544,34 @@ _manifests.push(new LocalManifest({
                             port: '', path: '', query: '', fragment: '' };
                 let s = str;
 
-                const m = /^([a-zA-Z][a-zA-Z0-9+.\-]*):(.*)$/.exec(s);
-                if (m) { o.scheme = m[1].toLowerCase(); s = m[2]; }
+                /* Plain-JS scheme extraction. The original regex
+                 * `/^([a-zA-Z][a-zA-Z0-9+.\-]*):(.*)$/` hangs the Amiga
+                 * QuickJS-ng regex compiler (same class of bug as the
+                 * earlier `/[/?#]/` fix). Walk the string manually. */
+                let schemeEnd = -1;
+                if (s.length > 0) {
+                    const c0 = s.charCodeAt(0);
+                    const isAlpha0 = (c0 >= 0x41 && c0 <= 0x5A) ||
+                                     (c0 >= 0x61 && c0 <= 0x7A);
+                    if (isAlpha0) {
+                        for (let k = 1, n = s.length; k < n; k++) {
+                            const c = s.charCodeAt(k);
+                            if (c === 0x3A) { schemeEnd = k; break; }
+                            const isAlpha = (c >= 0x41 && c <= 0x5A) ||
+                                            (c >= 0x61 && c <= 0x7A);
+                            const isDigit = (c >= 0x30 && c <= 0x39);
+                            const isSchemeCh = isAlpha || isDigit ||
+                                c === 0x2B /* + */ ||
+                                c === 0x2D /* - */ ||
+                                c === 0x2E /* . */;
+                            if (!isSchemeCh) break;
+                        }
+                    }
+                }
+                if (schemeEnd > 0) {
+                    o.scheme = s.substring(0, schemeEnd).toLowerCase();
+                    s = s.substring(schemeEnd + 1);
+                }
                 else if (base) {
                     const baseParsed = URL._parse(base, null);
                     if (!baseParsed) return null;
@@ -623,7 +653,12 @@ _manifests.push(new LocalManifest({
             }
 
             get protocol() { return this._scheme + ':'; }
-            set protocol(v) { this._scheme = String(v).replace(/:$/, '').toLowerCase(); }
+            set protocol(v) {
+                let s = String(v);
+                if (s.length > 0 && s.charCodeAt(s.length - 1) === 0x3A)
+                    s = s.substring(0, s.length - 1);
+                this._scheme = s.toLowerCase();
+            }
             get username() { return this._username; }
             set username(v) { this._username = String(v); }
             get password() { return this._password; }
