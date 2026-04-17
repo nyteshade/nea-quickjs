@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.109 (17.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.110 (17.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   109  /* packed: major=0, revision=109 (step 3: expose __qjs_fetchAbort + wire JS onAbort — complete AbortSignal→fetch propagation) */
+#define LIBRARY_VERSION   110  /* packed: major=0, revision=110 (step 3a: install __qjs_fetchAbort native but JS wrapper does NOT call it — isolate install from invocation) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
