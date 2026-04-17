@@ -26,7 +26,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `assert` | ○ | planned — Tier 2 |
 | `async_hooks` | ✗ | Node-internal, no equivalent use-case on AmigaOS |
 | `buffer` | ◐ | `globalThis.Buffer` (Tier 1 v1 — see below for omissions) |
-| `child_process` | ○ | planned — needs Worker LVO (D5) |
+| `child_process` | ◐ | `globalThis.child_process` — spawnSync/spawn/exec/execSync via `dos.library SystemTagList` (sync underneath) |
 | `cluster` | — | no OS-level forking on classic Amiga |
 | `console` | ◐ | extended beyond upstream qjs (log/error/warn/info/debug/assert/dir/table/time/timeEnd/group/groupEnd/trace) |
 | `crypto` | ○ | planned — AmiSSL-backed `crypto.subtle.digest`, `getRandomValues` (E1-E3) |
@@ -194,6 +194,29 @@ any future edits must stay regex-free (see Fina `gotcha,regex,amiga`).
 | `new URLSearchParams(init)` | ✓ | string / array / object init |
 | USP `.get/.getAll/.set/.append/.delete/.has/.sort/.size/.forEach/.keys/.values/.entries/.toString/[Symbol.iterator]` | ✓ | |
 
+### `child_process`
+
+Implemented in `extended.js` (`child-process` manifest) as `globalThis.child_process`,
+backed by native `__qjs_spawnSync` installed from the library (LVO
+`QJS_InstallChildProcessGlobal`). Uses `dos.library SystemTagList` with
+`SYS_Output`/`SYS_Error` captured to `T:qjs-cp-<task>-{out,err}` temp files.
+
+| API | Status | Notes |
+|---|---|---|
+| `spawnSync(cmd, args, opts)` | ✓ | returns `{ stdout, stderr, exitCode, signal: null }` |
+| `spawn(cmd, args, opts)` | ◐ | returns Promise but executes synchronously — API shape for code that expects it |
+| `exec(cmd, opts)` | ◐ | Promise-wrapped single-string — Amiga shell resolves the cmdline |
+| `execSync(cmd, opts)` | ✓ | sync single-string shell-style |
+| `fork` | ✗ | no fork semantics on Amiga |
+| `execFile` | ○ | identical to `spawn` on Amiga — alias if demand appears |
+| true async spawn | ○ | would wrap `__qjs_spawnSync` in a `QJS_Worker` — deferred |
+| streaming stdio, ChildProcess events | ○ | |
+| `SIGINT`/signal delivery | ○ | no signal model on classic Amiga |
+
+`SYS_Error` tag is V50+. On Kickstart V47 (3.2.2) `stderr` falls through
+to the console instead of our temp file — `result.stderr` will be empty
+but `stdout` and `exitCode` still work.
+
 ### `fs.promises`
 
 Implemented in `extended.js` (`fs-promises` manifest) as `globalThis.fs.promises`
@@ -264,16 +287,6 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 
 Rough sequence — can reorder based on demand. Each tier depends on the
 previous for at most boilerplate, not critical path.
-
-### D5 — `child_process`
-
-Second real Worker consumer. Will stress-test the `QJS_Worker*` LVO primitive's
-generality. Needs:
-- New C LVO that spawns a system command from a worker, captures stdout+stderr,
-  returns exit code.
-- JS API: `spawn(cmd, args, opts)` returning `{ stdout, stderr, exitCode }`
-  Promise. Possibly also `exec(cmd)` and `execFile`.
-- Test: `test_child_process.js`.
 
 ### E1-E3 — Crypto bridges
 

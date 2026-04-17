@@ -59,11 +59,12 @@ try {
     } catch (e) { print("  FAIL: exec threw " + e); fail++; }
 
     /* 7. Non-zero exit code — run something that should fail.
-     * C:List with bogus path returns non-zero. */
+     * Use a path on T: (always mounted) so AmigaDOS doesn't open the
+     * "please insert volume" requester. File just doesn't exist. */
     try {
-        const r = child_process.spawnSync("C:List", ["NONEXISTENT_VOLUME:"]);
+        const r = child_process.spawnSync("C:List", ["T:nonexistent-qjs-test-file-xyz"]);
         /* Don't assert a specific exit value — just that it's non-zero. */
-        ok(r.exitCode !== 0, "List on bogus path returns non-zero exit");
+        ok(r.exitCode !== 0, "List on nonexistent file returns non-zero exit");
     } catch (e) { print("  FAIL: List bogus threw " + e); fail++; }
 
     print("");
