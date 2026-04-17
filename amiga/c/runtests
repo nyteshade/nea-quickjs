@@ -1,0 +1,72 @@
+; runtests -- run the full qjs test suite and collect output.
+;
+; Expected CWD: <root>/amiga
+; Expected PATH: includes <root>/amiga/c (qjs resolvable)
+; Produces: output/test_<name>.output per test
+;
+; Usage:  execute c/runtests
+;
+delete output all quiet force
+makedir output quiet
+;
+echo "Running tests/test_regex.js and saving in output/test_regex.output..." noline
+qjs tests/test_regex.js > output/test_regex.output
+echo "done"
+;
+echo "Running tests/test_extended.js and saving in output/test_extended.output..." noline
+qjs tests/test_extended.js > output/test_extended.output
+echo "done"
+;
+echo "Running tests/test_buffer.js and saving in output/test_buffer.output..." noline
+qjs tests/test_buffer.js > output/test_buffer.output
+echo "done"
+;
+echo "Running tests/test_events.js and saving in output/test_events.output..." noline
+qjs tests/test_events.js > output/test_events.output
+echo "done"
+;
+echo "Running tests/test_util.js and saving in output/test_util.output..." noline
+qjs tests/test_util.js > output/test_util.output
+echo "done"
+;
+echo "Running tests/test_fs.js and saving in output/test_fs.output..." noline
+qjs tests/test_fs.js > output/test_fs.output
+echo "done"
+;
+echo "Running tests/test_stream.js and saving in output/test_stream.output..." noline
+qjs tests/test_stream.js > output/test_stream.output
+echo "done"
+;
+echo "Running tests/test_node_extras.js and saving in output/test_node_extras.output..." noline
+qjs tests/test_node_extras.js > output/test_node_extras.output
+echo "done"
+;
+echo "Running tests/test_assert_timers.js and saving in output/test_assert_timers.output..." noline
+qjs tests/test_assert_timers.js > output/test_assert_timers.output
+echo "done"
+;
+echo "Running tests/test_child_process.js and saving in output/test_child_process.output..." noline
+qjs tests/test_child_process.js > output/test_child_process.output
+echo "done"
+;
+echo "Running tests/test_spawn_async.js and saving in output/test_spawn_async.output..." noline
+qjs tests/test_spawn_async.js > output/test_spawn_async.output
+echo "done"
+;
+echo "Running tests/test_timing.js and saving in output/test_timing.output..." noline
+qjs tests/test_timing.js > output/test_timing.output
+echo "done"
+;
+echo "Running tests/test_crypto.js and saving in output/test_crypto.output..." noline
+qjs tests/test_crypto.js > output/test_crypto.output
+echo "done"
+;
+echo "Running tests/test_net.js and saving in output/test_net.output..." noline
+qjs tests/test_net.js > output/test_net.output
+echo "done"
+;
+echo "Running tests/test_fetch.js and saving in output/test_fetch.output..." noline
+qjs tests/test_fetch.js > output/test_fetch.output
+echo "done"
+;
+echo "*NAll tests complete. Results are in output/"
