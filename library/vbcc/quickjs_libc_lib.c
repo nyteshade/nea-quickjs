@@ -114,8 +114,12 @@ void quickjs_libc_lib_init(struct Library *dosBase)
     DOSBase = (struct DosLibrary *)dosBase;
 }
 
+extern void crypto_cleanup_ssl(void);
+
 void quickjs_libc_lib_cleanup(void)
 {
+    /* E1 — close the lazy-opened AmiSSL handle if any. */
+    crypto_cleanup_ssl();
     DOSBase = NULL;
 }
 
@@ -294,6 +298,11 @@ JSModuleDef *js_init_module_net(JSContext *ctx, const char *module_name)
 /* snprintf is provided by sharedlib_printf.c — declare extern like
  * sharedlib_fetch.c does, since VBCC's stdio.h isn't in scope here. */
 extern int snprintf(char *, size_t, const char *, ...);
+
+/* errno is in sharedlib_clib.c; AmiSSL's AmiSSL_ErrNoPtr tag wants
+ * its address so per-call OpenSSL errors don't touch NULL. Without
+ * this the hash call crashes with AN_IntrMem ($81000005). */
+extern int errno;
 
 /* Read file contents into a newly-allocated buffer. Returns NULL if the
  * file doesn't exist or is empty; sets *plen to 0 in those cases. */
@@ -507,48 +516,94 @@ static int crypto_match_alg(const char *name, int *out_digest_len)
     return -1;
 }
 
-/* Compute hash in-place. Opens a per-task AmiSSL handle, runs the
- * one-shot hash, closes. Returns 0 on success, -1 on failure. */
+/* Lazy-init AmiSSL in the calling task. Opens amisslmaster.library +
+ * AmiSSL on first call; subsequent calls reuse. Close happens at
+ * qjs_libc_lib_cleanup() (library unload).
+ *
+ * Task-affinity: we record the task that did the init. If a
+ * different task calls in, we refuse rather than risk corrupting
+ * AmiSSL's per-task state. v1 assumption: crypto called from main
+ * task only. Workers wanting crypto must open their own AmiSSL. */
+static struct Library *_crypto_master_base = NULL;
+static struct Library *_crypto_ssl_base    = NULL;
+static struct Task    *_crypto_owner_task  = NULL;
+
+static int crypto_ensure_ssl(void)
+{
+    struct Task *me = FindTask(NULL);
+
+    if (_crypto_ssl_base != NULL) {
+        if (_crypto_owner_task == me) return 0;
+        /* Different task — don't touch, fail cleanly. */
+        return -1;
+    }
+
+    _crypto_master_base = OpenLibrary("amisslmaster.library",
+                                      AMISSLMASTER_MIN_VERSION);
+    if (!_crypto_master_base) return -1;
+
+    {
+        struct Library *AmiSSLMasterBase = _crypto_master_base;
+        if (OpenAmiSSLTags(AMISSL_CURRENT_VERSION,
+                           AmiSSL_UsesOpenSSLStructs, FALSE,
+                           AmiSSL_GetAmiSSLBase, &_crypto_ssl_base,
+                           AmiSSL_ErrNoPtr, &errno,
+                           TAG_DONE) != 0) {
+            CloseLibrary(_crypto_master_base);
+            _crypto_master_base = NULL;
+            _crypto_ssl_base = NULL;
+            return -1;
+        }
+    }
+
+    if (!_crypto_ssl_base) {
+        CloseLibrary(_crypto_master_base);
+        _crypto_master_base = NULL;
+        return -1;
+    }
+
+    _crypto_owner_task = me;
+    return 0;
+}
+
+/* Called from qjs_libc_lib_cleanup via extern below. Closes AmiSSL
+ * if the caller is the owner task; otherwise leaves it alone (wrong
+ * task can't close). */
+void crypto_cleanup_ssl(void)
+{
+    struct Task *me = FindTask(NULL);
+    if (_crypto_ssl_base && _crypto_owner_task == me) {
+        struct Library *AmiSSLMasterBase = _crypto_master_base;
+        CloseAmiSSL();
+        _crypto_ssl_base = NULL;
+    }
+    if (_crypto_master_base) {
+        CloseLibrary(_crypto_master_base);
+        _crypto_master_base = NULL;
+    }
+    _crypto_owner_task = NULL;
+}
+
+/* Compute hash in-place. Uses the lazy-initialized main-task AmiSSL.
+ * Returns 0 on success, -1 on failure. */
 static int crypto_compute_digest(int selector, const unsigned char *data,
                                  size_t data_len, unsigned char *out_md)
 {
-    struct Library *masterBase;
-    struct Library *sslBase = NULL;
-    int rc = -1;
+    struct Library *ssl;
 
-    masterBase = OpenLibrary("amisslmaster.library", AMISSLMASTER_MIN_VERSION);
-    if (!masterBase) return -1;
-
-    /* AmiSSL_NoSocketBase: hash functions don't need the socket base;
-     * skip opening it to save time and not require bsdsocket present. */
-    {
-        struct Library *AmiSSLMasterBase = masterBase;
-        if (OpenAmiSSLTags(AMISSL_CURRENT_VERSION,
-                           AmiSSL_UsesOpenSSLStructs, FALSE,
-                           AmiSSL_GetAmiSSLBase, &sslBase,
-                           TAG_DONE) != 0)
-            goto done;
-    }
-
-    if (!sslBase) goto done;
+    if (crypto_ensure_ssl() != 0) return -1;
+    ssl = _crypto_ssl_base;
+    if (!ssl) return -1;
 
     switch (selector) {
-        case 0: __cpy_MD5(sslBase, data, data_len, out_md); rc = 0; break;
-        case 1: __cpy_SHA1(sslBase, data, data_len, out_md); rc = 0; break;
-        case 2: __cpy_SHA256(sslBase, data, data_len, out_md); rc = 0; break;
-        case 3: __cpy_SHA512(sslBase, data, data_len, out_md); rc = 0; break;
-        case 4: __cpy_SHA224(sslBase, data, data_len, out_md); rc = 0; break;
-        case 5: __cpy_SHA384(sslBase, data, data_len, out_md); rc = 0; break;
-        default: rc = -1; break;
+        case 0: __cpy_MD5(ssl, data, data_len, out_md);    return 0;
+        case 1: __cpy_SHA1(ssl, data, data_len, out_md);   return 0;
+        case 2: __cpy_SHA256(ssl, data, data_len, out_md); return 0;
+        case 3: __cpy_SHA512(ssl, data, data_len, out_md); return 0;
+        case 4: __cpy_SHA224(ssl, data, data_len, out_md); return 0;
+        case 5: __cpy_SHA384(ssl, data, data_len, out_md); return 0;
     }
-
-done:
-    if (sslBase) {
-        struct Library *AmiSSLMasterBase = masterBase;
-        CloseAmiSSL();
-    }
-    if (masterBase) CloseLibrary(masterBase);
-    return rc;
+    return -1;
 }
 
 static JSValue js_crypto_digest(JSContext *ctx, JSValueConst this_val,
