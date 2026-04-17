@@ -919,20 +919,6 @@ _manifests.push(new LocalManifest({
 
         globalThis.fetch = function (url, options) {
             const signal = options && options.signal;
-            const timeout = options && typeof options.timeout === 'number'
-                            ? options.timeout : 0;
-
-            /* Apply per-call recv/send timeout to the in-flight fetch.
-             * The native setter reaches into active_fetch — valid only
-             * once fetch has started. Kick the fetch first, then set
-             * timeout on the next microtask. Overly-early calls are a
-             * no-op (no active_fetch yet). */
-            if (timeout > 0 && typeof globalThis.__qjs_fetchSetTimeout === 'function') {
-                queueMicrotask(() => {
-                    try { globalThis.__qjs_fetchSetTimeout(timeout); } catch (_) {}
-                });
-            }
-
             if (!signal || typeof signal.addEventListener !== 'function')
                 return nativeFetch(url, options);
 
@@ -946,13 +932,6 @@ _manifests.push(new LocalManifest({
                 const onAbort = () => {
                     if (settled) return;
                     settled = true;
-                    /* Propagate to C-level: sets fc->abort_requested,
-                     * worker closes socket on next recv cycle. Without
-                     * this the Promise rejects but the worker runs to
-                     * HTTP completion — wasted bandwidth on big downloads. */
-                    if (typeof globalThis.__qjs_fetchAbort === 'function') {
-                        try { globalThis.__qjs_fetchAbort(); } catch (_) {}
-                    }
                     reject(signal.reason || new DOMException('Aborted', 'AbortError'));
                 };
                 signal.addEventListener('abort', onAbort);

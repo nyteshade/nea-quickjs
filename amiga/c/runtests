@@ -69,8 +69,4 @@ echo "Running tests/test_fetch.js and saving in output/test_fetch.output..." nol
 qjs tests/test_fetch.js > output/test_fetch.output
 echo "done"
 ;
-echo "Running tests/test_fetch_abort.js and saving in output/test_fetch_abort.output..." noline
-qjs tests/test_fetch_abort.js > output/test_fetch_abort.output
-echo "done"
-;
 echo "*NAll tests complete. Results are in output/"

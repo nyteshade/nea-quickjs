@@ -360,27 +360,23 @@ previous for at most boilerplate, not critical path.
 
 ### fetch + AbortSignal integration
 
-`fetch(url, {signal, timeout})` at 0.105+:
+`fetch(url, {signal})` at 0.096+: when the signal fires, the returned
+Promise rejects with an `AbortError` DOMException. The caller's `await`
+stops waiting immediately.
 
-- `signal` → when it fires, **both** reject the Promise **and** propagate to
-  the worker (`__qjs_fetchAbort`). Worker checks the flag between `recv`
-  iterations, closes the socket, exits early. Bandwidth and socket freed
-  immediately instead of letting the background worker drain to completion.
-- `timeout` (number, ms) → applied as `SO_RCVTIMEO` / `SO_SNDTIMEO` on the
-  socket. `recv`/`send` calls return early if the peer stalls. Default is
-  30 000 ms if unspecified — prevents indefinite hangs on flaky networks.
-- Both work together: timeout bounds individual I/O waits; abort lets JS
-  cancel explicitly.
+**Not yet wired to the worker.** The background HTTP worker keeps
+running to completion and its result is silently discarded. Attempted
+at 0.105 with SO_RCVTIMEO + C-level abort flag; caused hangs we
+couldn't reproduce on host — reverted at 0.106. Root cause for that
+hang is TBD; probably something about the bsdsocket setsockopt call
+in our specific amiberry environment. Deferred to a future session
+with proper device-level diagnostic capability.
 
 What's still not there:
-- Abort mid-TLS-handshake. `SSL_connect` is blocking and we don't poll the
-  flag during it. If the TLS handshake hangs, only the socket timeout
-  rescues — abort won't. Needs non-blocking SSL_connect loop.
-- Connect-phase abort. `connect()` is blocking and ignores abort. Same
-  remedy as above (non-blocking + poll).
-- Streaming response cancel. Response is buffered, not streamed — abort
-  during body recv works, but if you've already awaited text()/json() it's
-  too late.
+- Worker-level abort (free socket/bandwidth immediately on abort).
+- Connect-phase / TLS-handshake abort (both blocking).
+- Per-call timeout option.
+- Streaming response cancel (body is buffered, not streamed).
 
 ### F — `assert`
 
