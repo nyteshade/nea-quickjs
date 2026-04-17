@@ -86,6 +86,7 @@ quickjs.library/QJS_InitModuleBJSON
 quickjs.library/QJS_InitModuleNet
 quickjs.library/QJS_InitModuleOS
 quickjs.library/QJS_InitModuleStd
+quickjs.library/QJS_InstallChildProcessGlobal
 quickjs.library/QJS_Invoke
 quickjs.library/QJS_IsArray
 quickjs.library/QJS_IsArrayBuffer
@@ -6682,6 +6683,51 @@ quickjs.library/QJS_InitModuleNet           quickjs.library/QJS_InitModuleNet
 
     SEE ALSO
 	QJS_InitModuleStd, QJS_InitModuleOS, QJS_GetNetCapabilities
+
+
+quickjs.library/QJS_InstallChildProcessGlobal  quickjs.library/QJS_InstallChildProcessGlobal
+
+    NAME
+	QJS_InstallChildProcessGlobal -- Install native spawnSync on
+	    globalThis.__qjs_spawnSync for the given context.
+
+    SYNOPSIS
+	QJS_InstallChildProcessGlobal(ctx)
+				      A0
+
+	void QJS_InstallChildProcessGlobal(JSContext *ctx);
+
+    FUNCTION
+	Attaches a native C function to
+	globalThis.__qjs_spawnSync(cmdline).  The function runs
+	cmdline synchronously via dos.library SystemTagList, with
+	SYS_Output and SYS_Error redirected to T:qjs-cp-<task>-out
+	and T:qjs-cp-<task>-err temp files.  After the child exits
+	the files are slurped, their contents returned as an object:
+
+	    { stdout: string,
+	      stderr: string,
+	      exitCode: number,
+	      signal: null }
+
+	extended.js (Amiga CLI startup bundle) wraps this native
+	function in a Node-compatible globalThis.child_process
+	object exposing spawnSync(), spawn() (Promise),
+	execSync() and exec() (Promise).
+
+	SYS_Error is V50+ only.  On Kickstart V47 the child's stderr
+	falls through to the console instead of our temp file -- the
+	result.stderr string will be empty but stdout and exitCode
+	still work.
+
+    INPUTS
+	ctx - Context that should receive globalThis.__qjs_spawnSync.
+
+    RESULT
+	None.  Overwrites any previous binding if called again.
+
+    SEE ALSO
+	QJS_InitModuleNet, QJS_WorkerSpawn, --overview--
 
 
 quickjs.library/QJS_WorkerSpawn               quickjs.library/QJS_WorkerSpawn
