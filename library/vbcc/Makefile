@@ -79,6 +79,17 @@ CFLAGS_SOFT = $(CFLAGS_COMMON) \
               -DQJS_VARIANT_NAME=$(CPU_TAG_LOCAL)soft
 ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m$(CPU)
 
+# libregexp.c must be compiled at -O0. At -O1 and above, VBCC emits
+# "warning 175: this code is weird" for lre_compile, lre_exec_backtrack,
+# and re_parse_char_class — and the generated code hangs at runtime on
+# any regex literal (including trivial ones like /\+/g). Root cause is
+# upstream-QuickJS-ng regex code that VBCC's optimizer miscompiles;
+# dropping opt to -O0 sidesteps it. Size cost is ~50KB per variant;
+# perf cost is not measurable for regex-heavy tests (regex was hung
+# before, so "slow" is infinitely better than "broken").
+CFLAGS_FPU_REGEXP  = $(subst -O1,-O0,$(CFLAGS_FPU))
+CFLAGS_SOFT_REGEXP = $(subst -O1,-O0,$(CFLAGS_SOFT))
+
 # Linker flags
 LDFLAGS = -bamigahunk -Bstatic -nostdlib -mrel
 # No .lib files — shared library is fully self-contained.
@@ -240,7 +251,7 @@ $(OBJDIR_FPU)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/libregexp.o: $(QJS)/libregexp.c | $(OBJDIR_FPU)
-	$(VC) $(CFLAGS_FPU) $< -o $@
+	$(VC) $(CFLAGS_FPU_REGEXP) $< -o $@
 
 $(OBJDIR_FPU)/libunicode.o: $(QJS)/libunicode.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
@@ -336,7 +347,7 @@ $(OBJDIR_SOFT)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/libregexp.o: $(QJS)/libregexp.c | $(OBJDIR_SOFT)
-	$(VC) $(CFLAGS_SOFT) $< -o $@
+	$(VC) $(CFLAGS_SOFT_REGEXP) $< -o $@
 
 $(OBJDIR_SOFT)/libunicode.o: $(QJS)/libunicode.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
