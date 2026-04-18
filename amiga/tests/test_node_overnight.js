@@ -670,6 +670,99 @@ ok(typeof CustomEvent === 'function', 'CustomEvent is constructor');
     ok(threw, 'dispatchEvent throws on non-Event');
 }
 
+/* =====================================================
+ * 0.121 — readline module (no stdin interaction)
+ *
+ * We can't drive actual stdin in a regression test, so we verify
+ * the module surface and behavior against a fake input object
+ * that implements getline().
+ * ===================================================== */
+section("readline module (0.121)");
+ok(typeof readline === 'object', 'readline global');
+ok(typeof readline.createInterface === 'function', 'createInterface');
+ok(typeof readline.Interface === 'function', 'Interface class');
+ok(readline.promises && typeof readline.promises.createInterface === 'function',
+   'readline.promises.createInterface');
+
+{
+    /* Fake input & output streams. */
+    const lines = ['alice', 'bob', 'charlie'];
+    const fakeIn  = { getline() { return lines.length ? lines.shift() : null; } };
+    const writes = [];
+    const fakeOut = { write(s) { writes.push(s); } };
+    const rl = readline.createInterface({ input: fakeIn, output: fakeOut, prompt: '$ ' });
+    ok(rl instanceof readline.Interface, 'createInterface returns Interface');
+    ok(rl.getPrompt() === '$ ', 'prompt set from opts');
+    rl.prompt();
+    ok(writes[0] === '$ ', 'prompt() writes prompt');
+
+    let answer = null;
+    rl.question('name? ', (a) => { answer = a; });
+    /* The callback fires on next microtask — wait for it. */
+    await Promise.resolve();
+    ok(writes.includes('name? '), 'question writes query');
+    ok(answer === 'alice', 'question invokes callback with line');
+
+    ok(rl.history[0] === 'alice', 'history prepended');
+}
+
+{
+    /* readline/promises Interface. */
+    const fakeIn  = { getline() { return 'yes'; } };
+    const writes = [];
+    const fakeOut = { write(s) { writes.push(s); } };
+    const rl = readline.promises.createInterface({ input: fakeIn, output: fakeOut });
+    const p = rl.question('continue? ');
+    ok(p && typeof p.then === 'function', 'promises.question returns Promise');
+    const a = await p;
+    ok(a === 'yes', 'promises.question resolves with line');
+    rl.close();
+}
+
+{
+    /* Async iteration: for await (const line of rl) */
+    const lines = ['one', 'two', 'three'];
+    const fakeIn = { getline() { return lines.length ? lines.shift() : null; } };
+    const rl = readline.createInterface({ input: fakeIn, output: { write: () => {} } });
+    const got = [];
+    for await (const line of rl) got.push(line);
+    ok(got.length === 3 && got[2] === 'three', 'async iteration drains input');
+}
+
+{
+    /* close() fires 'close' event */
+    const rl = readline.createInterface({ input: { getline: () => null }, output: { write: () => {} } });
+    let closed = false;
+    rl.on('close', () => { closed = true; });
+    rl.close();
+    ok(closed, 'close event fires');
+}
+
+{
+    /* AbortSignal in promises.question */
+    const rl = readline.promises.createInterface({
+        input: { getline: () => 'never' },
+        output: { write: () => {} },
+    });
+    const ac = new AbortController();
+    ac.abort();
+    let caught = null;
+    try { await rl.question('go: ', { signal: ac.signal }); } catch (e) { caught = e; }
+    ok(caught, 'pre-aborted signal rejects question');
+    rl.close();
+}
+
+{
+    /* ANSI helpers */
+    const writes = [];
+    const stream = { write(s) { writes.push(s); } };
+    readline.clearLine(stream, 0);
+    readline.cursorTo(stream, 4);
+    readline.moveCursor(stream, -2, 0);
+    ok(writes.length === 3, 'ANSI helpers write to stream');
+    ok(writes[0].indexOf('\x1b[') === 0, 'clearLine emits CSI');
+}
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);

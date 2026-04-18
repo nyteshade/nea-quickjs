@@ -46,7 +46,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `process` | ◐ | `globalThis.process` (argv, env, platform, arch, pid, ppid, exit, cwd, chdir, hrtime, nextTick) |
 | `punycode` | ✗ | deprecated in Node |
 | `querystring` | ✓ | `globalThis.querystring.parse/stringify/escape/unescape` (0.099) |
-| `readline` | ○ | no demand — REPL covers interactive use |
+| `readline` | ◐ | 0.121 — `readline.createInterface({input, output, prompt})`, `rl.question(q, cb)`, `rl.prompt()`, `rl.close()`, history, `for await (const line of rl)` async iter, `readline/promises` sub-module with Promise-based question, ANSI helpers (clearLine/cursorTo/moveCursor/clearScreenDown). Under the hood uses `std.in.getline()` — synchronous blocking read; no 'line' event stream / no `os.setReadHandler` integration |
 | `repl` | — | qjs has its own REPL; programmatic API not exposed |
 | `stream` | ◐ | `globalThis.stream.Readable/Writable/Transform/PassThrough` — push-based, no backpressure (v1) |
 | `string_decoder` | ✓ | `globalThis.StringDecoder` — wraps TextDecoder with streaming semantics (0.099) |

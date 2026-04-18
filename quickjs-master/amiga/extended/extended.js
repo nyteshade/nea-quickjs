@@ -4676,6 +4676,217 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: readline  (Node readline + readline/promises subset)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Line-oriented I/O around `std.in.getline()`. Synchronous under
+ * the hood — the promise-based question() resolves on the next
+ * microtask with the read line. For interactive scripts that need
+ * a prompt/read/prompt loop this is "good enough"; for a real
+ * non-blocking 'line' event stream you'd want a setReadHandler-
+ * driven reader, which is future work.
+ *
+ * Also exposes the classic callback form
+ *     rl.question('name? ', answer => ...)
+ * and a readline.createInterface(input, output, ...) 4-arg legacy
+ * signature from old Node.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'readline',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node readline module (createInterface, question, close)',
+    requires:    ['event-emitter'],
+    globals:     ['readline'],
+    standard:    false,
+    install() {
+        class Interface extends globalThis.EventEmitter {
+            constructor(opts) {
+                super();
+                /* opts: { input, output, terminal, prompt, historySize } */
+                this._input  = (opts && opts.input)  || { getline: () => {
+                    /* Default: read from std.in. */
+                    const line = std.in.getline();
+                    return (line === null) ? null : line;
+                }};
+                this._output = (opts && opts.output) || (globalThis.process && globalThis.process.stdout);
+                this._prompt = (opts && typeof opts.prompt === 'string') ? opts.prompt : '> ';
+                this._closed = false;
+                this._historySize = (opts && opts.historySize) || 30;
+                this.history = [];
+                this.terminal = !!(opts && opts.terminal);
+                this.line = '';
+                this.cursor = 0;
+            }
+            _readLine() {
+                /* Input may be our default object, a qjs:std FILE, or any
+                 * object exposing getline(). */
+                if (this._closed) return null;
+                let line;
+                if (this._input && typeof this._input.getline === 'function') {
+                    line = this._input.getline();
+                } else if (this._input === std.in) {
+                    line = std.in.getline();
+                } else {
+                    line = null;
+                }
+                if (line === null || line === undefined) {
+                    this._closed = true;
+                    this.emit('close');
+                    return null;
+                }
+                if (line.length > 0 && this.history.length < this._historySize
+                    && (this.history.length === 0 || this.history[0] !== line)) {
+                    this.history.unshift(line);
+                }
+                return line;
+            }
+            setPrompt(p) { this._prompt = String(p); }
+            getPrompt() { return this._prompt; }
+            prompt(/* preserveCursor */) {
+                if (this._closed) return;
+                if (this._output && typeof this._output.write === 'function') {
+                    this._output.write(this._prompt);
+                }
+            }
+            /* Classic callback form: question(query, callback).
+             * query written to output, answer read from input. */
+            question(query, options, callback) {
+                if (typeof options === 'function') { callback = options; options = undefined; }
+                if (this._closed) {
+                    if (callback) callback(null);
+                    return;
+                }
+                if (this._output && typeof this._output.write === 'function') {
+                    this._output.write(query);
+                }
+                const signal = options && options.signal;
+                if (signal && signal.aborted) {
+                    const err = signal.reason || new DOMException('Aborted', 'AbortError');
+                    if (callback) queueMicrotask(() => callback(null, err));
+                    return;
+                }
+                const line = this._readLine();
+                /* Fire on microtask for Node-matching async semantics. */
+                if (callback) queueMicrotask(() => callback(line));
+            }
+            close() {
+                if (this._closed) return;
+                this._closed = true;
+                this.emit('close');
+            }
+            write(data /*, key */) {
+                if (this._output && typeof this._output.write === 'function') {
+                    this._output.write(String(data));
+                }
+            }
+            pause()  { /* input is not resumable in v1 — no-op */ }
+            resume() { /* same */ }
+            /* Lazy async iterator for `for await (const line of rl)` — reads
+             * lines until EOF. */
+            [Symbol.asyncIterator]() {
+                const self = this;
+                return {
+                    next() {
+                        if (self._closed) return Promise.resolve({ value: undefined, done: true });
+                        const line = self._readLine();
+                        if (line === null) return Promise.resolve({ value: undefined, done: true });
+                        return Promise.resolve({ value: line, done: false });
+                    },
+                    return() { self.close(); return Promise.resolve({ value: undefined, done: true }); },
+                    [Symbol.asyncIterator]() { return this; },
+                };
+            }
+        }
+
+        /* readline/promises-flavored Interface — question returns a Promise. */
+        class PromisesInterface extends Interface {
+            question(query, options) {
+                return new Promise((resolve, reject) => {
+                    const signal = options && options.signal;
+                    if (signal && signal.aborted) {
+                        reject(signal.reason || new DOMException('Aborted', 'AbortError'));
+                        return;
+                    }
+                    Interface.prototype.question.call(this, query, options, (answer, err) => {
+                        if (err) reject(err);
+                        else resolve(answer);
+                    });
+                });
+            }
+        }
+
+        function createInterface(inputOrOptions /* , output, completer, terminal */) {
+            let opts;
+            if (inputOrOptions && typeof inputOrOptions === 'object'
+                && !('getline' in inputOrOptions) && !('fileno' in inputOrOptions)) {
+                opts = inputOrOptions;
+            } else {
+                /* Classic 4-arg signature: (input, output, completer, terminal). */
+                opts = {
+                    input: arguments[0],
+                    output: arguments[1],
+                    completer: arguments[2],
+                    terminal: arguments[3],
+                };
+            }
+            return new Interface(opts);
+        }
+
+        function createPromisesInterface(opts) {
+            return new PromisesInterface(opts || {});
+        }
+
+        globalThis.readline = {
+            createInterface,
+            Interface,
+            /* clearScreenDown / moveCursor / cursorTo — ANSI helpers.
+             * No-ops if output has no .write. */
+            clearLine(stream, dir, cb) {
+                /* dir: -1 left-of-cursor, 0 whole, 1 right-of-cursor */
+                if (stream && typeof stream.write === 'function') {
+                    const seq = dir === -1 ? '\x1b[1K' : dir === 1 ? '\x1b[K' : '\x1b[2K';
+                    stream.write(seq);
+                }
+                if (cb) queueMicrotask(cb);
+                return true;
+            },
+            clearScreenDown(stream, cb) {
+                if (stream && typeof stream.write === 'function') stream.write('\x1b[J');
+                if (cb) queueMicrotask(cb);
+                return true;
+            },
+            cursorTo(stream, x, y, cb) {
+                if (typeof y === 'function') { cb = y; y = undefined; }
+                if (stream && typeof stream.write === 'function') {
+                    if (y === undefined) stream.write('\x1b[' + ((x | 0) + 1) + 'G');
+                    else stream.write('\x1b[' + ((y | 0) + 1) + ';' + ((x | 0) + 1) + 'H');
+                }
+                if (cb) queueMicrotask(cb);
+                return true;
+            },
+            moveCursor(stream, dx, dy, cb) {
+                if (stream && typeof stream.write === 'function') {
+                    if (dx > 0) stream.write('\x1b[' + dx + 'C');
+                    else if (dx < 0) stream.write('\x1b[' + (-dx) + 'D');
+                    if (dy > 0) stream.write('\x1b[' + dy + 'B');
+                    else if (dy < 0) stream.write('\x1b[' + (-dy) + 'A');
+                }
+                if (cb) queueMicrotask(cb);
+                return true;
+            },
+            /* readline/promises sub-module — mirrors readline.createInterface
+             * but returns an Interface whose question() is a Promise. */
+            promises: {
+                createInterface: createPromisesInterface,
+                Interface: PromisesInterface,
+            },
+        };
+    },
+}));
+
+/* ==========================================================
  * Apply all features in dependency order, expose registry
  * ========================================================== */
 
