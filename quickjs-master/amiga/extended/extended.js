@@ -2277,6 +2277,107 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: FormData (WHATWG — Node ≥18 bundles this too)
+ * Tier: pure-js    Provider: nea-port    Standard: web
+ *
+ * Ordered list of (name, value) pairs. value is string for form
+ * field inputs, File for file inputs. Pure-JS; no network wire
+ * format (that's fetch's multipart/form-data encoder's job).
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'form-data',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'WHATWG FormData — ordered (name, value) pairs',
+    requires:    ['blob'],
+    globals:     ['FormData'],
+    standard:    true,
+    install() {
+        function _coerceValue(value, filename) {
+            /* Per WHATWG FormData spec:
+             *   - string stays string
+             *   - Blob/File promoted to File with name=filename || existing || 'blob'
+             *   - anything else coerced to string
+             */
+            if (value instanceof globalThis.File) {
+                if (filename !== undefined) {
+                    /* Rename by creating a new File. */
+                    return new globalThis.File([value._bytes], filename, { type: value.type, lastModified: value.lastModified });
+                }
+                return value;
+            }
+            if (value instanceof globalThis.Blob) {
+                const fname = (filename === undefined) ? 'blob' : String(filename);
+                return new globalThis.File([value._bytes], fname, { type: value.type });
+            }
+            return String(value);
+        }
+
+        class FormData {
+            constructor(form) {
+                /* Node/deno ignore `form` arg (no DOM). Browsers would
+                 * read <form> inputs here. */
+                this._entries = [];
+                void form;
+            }
+            append(name, value, filename) {
+                this._entries.push([String(name), _coerceValue(value, filename)]);
+            }
+            set(name, value, filename) {
+                const n = String(name);
+                const coerced = _coerceValue(value, filename);
+                /* Remove all existing entries with this name, then push once. */
+                let replaced = false;
+                for (let i = this._entries.length - 1; i >= 0; i--) {
+                    if (this._entries[i][0] === n) {
+                        if (!replaced) {
+                            this._entries[i] = [n, coerced];
+                            replaced = true;
+                        } else {
+                            this._entries.splice(i, 1);
+                        }
+                    }
+                }
+                if (!replaced) this._entries.push([n, coerced]);
+            }
+            delete(name) {
+                const n = String(name);
+                for (let i = this._entries.length - 1; i >= 0; i--) {
+                    if (this._entries[i][0] === n) this._entries.splice(i, 1);
+                }
+            }
+            get(name) {
+                const n = String(name);
+                for (const [k, v] of this._entries) if (k === n) return v;
+                return null;
+            }
+            getAll(name) {
+                const n = String(name);
+                const out = [];
+                for (const [k, v] of this._entries) if (k === n) out.push(v);
+                return out;
+            }
+            has(name) {
+                const n = String(name);
+                for (const [k] of this._entries) if (k === n) return true;
+                return false;
+            }
+            /* Iteration — order of insertion preserved per spec. */
+            * entries() { for (const e of this._entries) yield e.slice(); }
+            * keys()    { for (const [k]    of this._entries) yield k; }
+            * values()  { for (const [, v]  of this._entries) yield v; }
+            [Symbol.iterator]() { return this.entries(); }
+            forEach(cb, thisArg) {
+                for (const [k, v] of this._entries) cb.call(thisArg, v, k, this);
+            }
+        }
+
+        globalThis.FormData = FormData;
+    },
+}));
+
+/* ==========================================================
  * Feature: EventEmitter  (Node.js API subset)
  * Tier: pure-js    Provider: nea-port    Standard: node
  *

@@ -304,6 +304,66 @@ ok(typeof File === 'function', 'File is constructor');
     ok(threw, 'File requires name');
 }
 
+/* =====================================================
+ * 0.117 — FormData
+ * ===================================================== */
+section("FormData (0.117)");
+ok(typeof FormData === 'function', 'FormData constructor');
+{
+    const fd = new FormData();
+    fd.append('a', '1');
+    fd.append('a', '2');
+    fd.append('b', '3');
+    ok(fd.get('a') === '1', 'get returns first');
+    ok(fd.getAll('a').length === 2 && fd.getAll('a')[1] === '2', 'getAll');
+    ok(fd.has('a'), 'has true');
+    ok(!fd.has('c'), 'has false');
+    fd.set('a', 'only');
+    ok(fd.getAll('a').length === 1 && fd.get('a') === 'only', 'set collapses duplicates');
+    fd.delete('b');
+    ok(!fd.has('b'), 'delete');
+}
+{
+    const fd = new FormData();
+    fd.append('x', '1');
+    fd.append('y', '2');
+    const keys = [...fd.keys()];
+    ok(keys.length === 2 && keys[0] === 'x' && keys[1] === 'y', 'keys() preserves order');
+    const vals = [...fd.values()];
+    ok(vals[0] === '1' && vals[1] === '2', 'values()');
+    const ents = [...fd.entries()];
+    ok(ents[0][0] === 'x' && ents[0][1] === '1', 'entries()');
+    const iter = [...fd];
+    ok(iter.length === 2, 'Symbol.iterator');
+}
+{
+    const fd = new FormData();
+    const b = new Blob(['hi']);
+    fd.append('file', b);
+    const f = fd.get('file');
+    ok(f instanceof File, 'Blob value promoted to File');
+    ok(f.name === 'blob', 'blob default name');
+}
+{
+    const fd = new FormData();
+    const f = new File(['hi'], 'orig.txt');
+    fd.append('x', f, 'renamed.txt');
+    ok(fd.get('x').name === 'renamed.txt', 'append filename renames File');
+}
+{
+    const fd = new FormData();
+    fd.append('n', 42);
+    ok(fd.get('n') === '42', 'non-Blob value coerced to string');
+}
+{
+    const fd = new FormData();
+    fd.append('a', '1');
+    fd.append('a', '2');
+    const seen = [];
+    fd.forEach((v, k) => seen.push([k, v]));
+    ok(seen.length === 2 && seen[0][0] === 'a' && seen[0][1] === '1', 'forEach iterates all entries in order');
+}
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);
