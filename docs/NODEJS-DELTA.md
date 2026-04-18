@@ -360,23 +360,45 @@ previous for at most boilerplate, not critical path.
 
 ### fetch + AbortSignal integration
 
-`fetch(url, {signal})` at 0.096+: when the signal fires, the returned
-Promise rejects with an `AbortError` DOMException. The caller's `await`
-stops waiting immediately.
+Rebuilt carefully across 0.107 → 0.111 after 0.105 big-bang caused a
+hang:
 
-**Not yet wired to the worker.** The background HTTP worker keeps
-running to completion and its result is silently discarded. Attempted
-at 0.105 with SO_RCVTIMEO + C-level abort flag; caused hangs we
-couldn't reproduce on host — reverted at 0.106. Root cause for that
-hang is TBD; probably something about the bsdsocket setsockopt call
-in our specific amiberry environment. Deferred to a future session
-with proper device-level diagnostic capability.
+- **SO_RCVTIMEO = 60s** (0.107) — prevents indefinite recv blocks on
+  flaky peers. A stalled server takes at most 60s to unblock instead
+  of forever.
+- **`abort_requested` flag + recv-loop check** (0.108) — worker polls
+  the flag between recv iterations.
+- **`fetch_abort()` public + `__qjs_fetchAbort` native + JS wrapper
+  wiring** (0.109/0.110/0.111) — AbortSignal firing propagates all
+  the way to the worker's flag.
+
+Verified-clean scenarios (test suite passes):
+
+| Case | Status |
+|---|---|
+| Fetch without signal | ✓ |
+| Fetch with signal passed, never aborted | ✓ |
+| Fetch with pre-aborted `AbortSignal.abort()` | ✓ |
+| Fetch with `AbortSignal.timeout(ms)` before fetch starts | ✓ |
+| Fetch with mid-flight abort against a slow server (httpbin/delay/N) | **HANGS** |
+
+The mid-flight abort case hangs for reasons we couldn't localize
+with remote iteration — suspicion is either httpbin.org timing
+interaction with the polling event loop, or a bug in our worker-
+cleanup path where the main task waits on a worker that can't be
+cleanly signaled. The native plumbing (flag, C function, JS call)
+is all in place and correct structurally; the hang only appears in
+that one specific scenario. Users who pre-abort or timeout-abort
+are unaffected.
 
 What's still not there:
-- Worker-level abort (free socket/bandwidth immediately on abort).
-- Connect-phase / TLS-handshake abort (both blocking).
-- Per-call timeout option.
-- Streaming response cancel (body is buffered, not streamed).
+- Abort during the blocking `connect()` or `SSL_connect()` phases.
+  Both need non-blocking + flag poll — out of scope for now.
+- Per-call `{timeout}` option in fetch — was in 0.105 and reverted
+  along with it; not restored. Default 60s timeout is applied
+  uniformly.
+- Streaming response cancel — response body is buffered, not
+  streamed; `.text()`/`.json()` happens after completion.
 
 ### F — `assert`
 
