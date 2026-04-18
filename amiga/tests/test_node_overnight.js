@@ -763,6 +763,58 @@ ok(readline.promises && typeof readline.promises.createInterface === 'function',
     ok(writes[0].indexOf('\x1b[') === 0, 'clearLine emits CSI');
 }
 
+/* =====================================================
+ * 0.122 — Node os module + require() stub
+ * ===================================================== */
+section("Node os module (0.122)");
+ok(typeof nodeOs === 'object', 'globalThis.nodeOs exists');
+ok(nodeOs.platform() === 'amigaos', 'nodeOs.platform');
+ok(nodeOs.arch() === 'm68k', 'nodeOs.arch');
+ok(nodeOs.type() === 'AmigaOS', 'nodeOs.type');
+ok(nodeOs.endianness() === 'BE', 'nodeOs.endianness');
+ok(typeof nodeOs.hostname() === 'string', 'nodeOs.hostname');
+ok(typeof nodeOs.tmpdir() === 'string', 'nodeOs.tmpdir');
+ok(typeof nodeOs.homedir() === 'string', 'nodeOs.homedir');
+ok(nodeOs.EOL === '\n', 'nodeOs.EOL');
+ok(Array.isArray(nodeOs.cpus()) && nodeOs.cpus().length >= 1, 'nodeOs.cpus non-empty');
+ok(Array.isArray(nodeOs.loadavg()) && nodeOs.loadavg().length === 3, 'nodeOs.loadavg length');
+ok(typeof nodeOs.userInfo() === 'object', 'nodeOs.userInfo');
+ok(nodeOs.userInfo().homedir === nodeOs.homedir(), 'userInfo.homedir matches');
+ok(typeof nodeOs.uptime() === 'number', 'nodeOs.uptime is number');
+ok(nodeOs.constants && nodeOs.constants.signals && nodeOs.constants.signals.SIGINT === 2,
+   'nodeOs.constants.signals.SIGINT');
+
+section("Node require() stub (0.122)");
+ok(typeof require === 'function', 'require function');
+ok(require('os') === nodeOs, 'require("os") returns nodeOs');
+ok(require('node:os') === nodeOs, 'require("node:os") returns nodeOs');
+ok(require('path') === globalThis.path, 'require("path")');
+ok(require('util') === globalThis.util, 'require("util")');
+ok(require('events') === globalThis.events, 'require("events")');
+ok(require('assert') === globalThis.assert, 'require("assert")');
+ok(require('readline') === globalThis.readline, 'require("readline")');
+{
+    const timersP = require('timers/promises');
+    ok(timersP === globalThis.timers.promises, 'require("timers/promises")');
+}
+{
+    const buf = require('buffer');
+    ok(buf.Buffer === globalThis.Buffer, 'require("buffer").Buffer');
+    ok(buf.Blob === globalThis.Blob, 'require("buffer").Blob');
+    ok(buf.File === globalThis.File, 'require("buffer").File');
+}
+{
+    const sd = require('string_decoder');
+    ok(sd.StringDecoder === globalThis.StringDecoder, 'require("string_decoder")');
+}
+{
+    let caught = null;
+    try { require('nonexistent'); } catch (e) { caught = e; }
+    ok(caught && caught.code === 'MODULE_NOT_FOUND', 'require unknown throws MODULE_NOT_FOUND');
+}
+ok(typeof require.resolve === 'function', 'require.resolve');
+ok(require.resolve('os') === 'os', 'require.resolve passes id through');
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);

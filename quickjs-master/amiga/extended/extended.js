@@ -4676,6 +4676,161 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: Node os module (globalThis.nodeOs)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * AmigaOS-specific shim for the Node os module. Exposed as
+ * `globalThis.nodeOs` (not `globalThis.os` — that name is reserved
+ * for qjs:os users). Also registered in the require() stub so
+ * `require('os')` / `require('node:os')` returns it.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'node-os',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node os module (platform/arch/hostname/tmpdir/homedir/cpus/...)',
+    requires:    ['process'],
+    globals:     ['nodeOs'],
+    standard:    false,
+    install() {
+        function _getenv(name, dflt) {
+            try {
+                const v = std.getenv && std.getenv(name);
+                return (v == null || v === '') ? dflt : v;
+            } catch (_) { return dflt; }
+        }
+        const _startUs = os.now();
+
+        globalThis.nodeOs = {
+            EOL: '\n',
+            /* Identity */
+            platform()  { return 'amigaos'; },
+            arch()      { return 'm68k'; },
+            type()      { return 'AmigaOS'; },
+            release()   { return _getenv('Kickstart', '3.2.x'); },
+            version()   { return 'AmigaOS 3.x'; },
+            endianness() { return 'BE'; },
+            machine()   { return 'm68k'; },
+            hostname()  { return _getenv('HOST', 'amiga'); },
+            /* File-system locations */
+            tmpdir()    { return _getenv('T', 'T:'); },
+            homedir()   { return _getenv('HOME', _getenv('SYS', 'SYS:')); },
+            userInfo(opts) {
+                const u = _getenv('USER', _getenv('USERNAME', 'user'));
+                return {
+                    username: u,
+                    uid: -1, gid: -1,
+                    shell: null,
+                    homedir: globalThis.nodeOs.homedir(),
+                };
+            },
+            /* CPU / memory — we don't have meaningful telemetry; return
+             * a single stubbed entry per Node contract (non-empty array). */
+            cpus() {
+                return [{
+                    model: 'm68k',
+                    speed: 0,
+                    times: { user: 0, nice: 0, sys: 0, idle: 0, irq: 0 },
+                }];
+            },
+            totalmem() { return 0; },
+            freemem()  { return 0; },
+            loadavg()  { return [0, 0, 0]; },
+            uptime()   { return (os.now() - _startUs) / 1e6; },
+            networkInterfaces() { return {}; },
+            /* Constants — subset. Signals are meaningless on classic Amiga
+             * but some Node code references os.constants.signals.SIGINT. */
+            constants: {
+                signals: {
+                    SIGHUP: 1, SIGINT: 2, SIGQUIT: 3, SIGILL: 4, SIGTRAP: 5,
+                    SIGABRT: 6, SIGKILL: 9, SIGUSR1: 10, SIGSEGV: 11, SIGTERM: 15,
+                },
+                errno: { EACCES: 13, EEXIST: 17, ENOENT: 2, EIO: 5 },
+                UV_UDP_REUSEADDR: 4,
+            },
+            /* priority is a no-op — no task prio mapping in v1 */
+            getPriority() { return 0; },
+            setPriority() { /* no-op */ },
+        };
+    },
+}));
+
+/* ==========================================================
+ * Feature: require stub (Node CommonJS — built-ins only)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Ships a `globalThis.require(id)` that returns the matching
+ * built-in module global when a known id is requested. Handles
+ * both bare ids and `node:` prefix. Not a full CommonJS loader
+ * — no file resolution, no .js evaluation — just enough that
+ * ported Node code `const fs = require('fs')` works without a
+ * bundler.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'node-require',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'CommonJS-style require() stub for built-in modules',
+    globals:     ['require'],
+    standard:    false,
+    install() {
+        function _resolve(id) {
+            let name = String(id);
+            if (name.startsWith('node:')) name = name.substring(5);
+            switch (name) {
+                case 'assert':           return globalThis.assert;
+                case 'buffer':           return { Buffer: globalThis.Buffer, Blob: globalThis.Blob, File: globalThis.File };
+                case 'child_process':    return globalThis.child_process;
+                case 'crypto':           return globalThis.crypto;
+                case 'events':           return globalThis.events;
+                case 'fs':               return globalThis.fs;
+                case 'fs/promises':      return globalThis.fs && globalThis.fs.promises;
+                case 'os':               return globalThis.nodeOs;
+                case 'path':             return globalThis.path;
+                case 'path/posix':       return globalThis.path && globalThis.path.posix;
+                case 'path/win32':       return globalThis.path && globalThis.path.win32;
+                case 'process':          return globalThis.process;
+                case 'querystring':      return globalThis.querystring;
+                case 'readline':         return globalThis.readline;
+                case 'readline/promises': return globalThis.readline && globalThis.readline.promises;
+                case 'stream':           return globalThis.stream;
+                case 'string_decoder':   return { StringDecoder: globalThis.StringDecoder };
+                case 'timers':           return globalThis.timers;
+                case 'timers/promises':  return globalThis.timers && globalThis.timers.promises;
+                case 'url':              return globalThis.url;
+                case 'util':             return globalThis.util;
+                case 'util/types':       return globalThis.util && globalThis.util.types;
+                default: return null;
+            }
+        }
+        function require(id) {
+            const mod = _resolve(id);
+            if (mod === null || mod === undefined) {
+                const err = new Error("Cannot find module '" + id + "'");
+                err.code = 'MODULE_NOT_FOUND';
+                throw err;
+            }
+            return mod;
+        }
+        require.resolve = function (id) {
+            const mod = _resolve(id);
+            if (!mod) {
+                const err = new Error("Cannot find module '" + id + "'");
+                err.code = 'MODULE_NOT_FOUND';
+                throw err;
+            }
+            return id;
+        };
+        require.cache = Object.create(null);
+        /* `require.extensions` is legacy and mostly unused — stub for completeness. */
+        require.extensions = Object.create(null);
+        globalThis.require = require;
+    },
+}));
+
+/* ==========================================================
  * Feature: readline  (Node readline + readline/promises subset)
  * Tier: pure-js    Provider: nea-port    Standard: node
  *

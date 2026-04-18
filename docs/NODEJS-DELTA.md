@@ -38,9 +38,9 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `http` / `https` | ✗ | not a daemon platform — `fetch()` covers client needs |
 | `http2` | ✗ | same |
 | `inspector` | ✗ | no V8 inspector protocol |
-| `module` | ◐ | ES modules via QuickJS-ng loader; CommonJS `require` is stubbed (`util` via `require('util')` works, broader require not planned) |
+| `module` | ◐ | ES modules via QuickJS-ng loader; `require()` stub at 0.122 — handles bare ids + `node:` prefix for all built-in modules (`assert`/`buffer`/`child_process`/`crypto`/`events`/`fs`/`fs/promises`/`os`/`path`/`path/posix`/`path/win32`/`process`/`querystring`/`readline`/`readline/promises`/`stream`/`string_decoder`/`timers`/`timers/promises`/`url`/`util`/`util/types`); no file resolution (file-based CommonJS not planned) |
 | `net` | ◐ | `qjs:net` module exposes TCP/TLS capability probe; no socket API yet |
-| `os` | ◐ | `qjs:os` exposes FD I/O, timers, stat, exec, signals, cwd/chdir, platform; not the Node `os` shape |
+| `os` | ◐ | `globalThis.nodeOs` at 0.122 — platform/arch/type/hostname/tmpdir/homedir/cpus/userInfo/loadavg/uptime/constants.signals/EOL/endianness. Distinct from `qjs:os` (FD I/O, timers) to avoid name collision |
 | `path` | ✓ | `globalThis.path` (AmigaOS-aware: handles `Volume:` and `/`; subset of POSIX path) |
 | `perf_hooks` | ◐ | `globalThis.performance` with now/timeOrigin/mark/measure/getEntries*/clearMarks/clearMeasures at 0.112; `PerformanceObserver` not planned |
 | `process` | ◐ | `globalThis.process` (argv, env, platform, arch, pid, ppid, exit, cwd, chdir, hrtime, nextTick) |
