@@ -539,6 +539,137 @@ ok(typeof EventEmitter.on === 'function', 'EventEmitter.on static');
     ok(caught, 'pre-aborted signal rejects');
 }
 
+/* =====================================================
+ * 0.120 — EventTarget + Event
+ * ===================================================== */
+section("EventTarget + Event (0.120)");
+ok(typeof EventTarget === 'function', 'EventTarget is constructor');
+ok(typeof Event === 'function', 'Event is constructor');
+ok(typeof CustomEvent === 'function', 'CustomEvent is constructor');
+
+/* Basic dispatch */
+{
+    const t = new EventTarget();
+    let seen = null;
+    t.addEventListener('click', (e) => { seen = e; });
+    const ev = new Event('click');
+    t.dispatchEvent(ev);
+    ok(seen === ev, 'listener receives event');
+    ok(seen.type === 'click', 'event type');
+    ok(seen.target === t, 'event.target set');
+    ok(seen.currentTarget === null, 'currentTarget cleared after dispatch');
+}
+
+/* once option */
+{
+    const t = new EventTarget();
+    let count = 0;
+    t.addEventListener('x', () => count++, { once: true });
+    t.dispatchEvent(new Event('x'));
+    t.dispatchEvent(new Event('x'));
+    ok(count === 1, 'once fires exactly once');
+}
+
+/* Dedupe same listener */
+{
+    const t = new EventTarget();
+    let count = 0;
+    const fn = () => count++;
+    t.addEventListener('x', fn);
+    t.addEventListener('x', fn);
+    t.dispatchEvent(new Event('x'));
+    ok(count === 1, 'duplicate listener deduped');
+}
+
+/* removeEventListener */
+{
+    const t = new EventTarget();
+    let count = 0;
+    const fn = () => count++;
+    t.addEventListener('x', fn);
+    t.removeEventListener('x', fn);
+    t.dispatchEvent(new Event('x'));
+    ok(count === 0, 'removeEventListener');
+}
+
+/* handleEvent object-listener */
+{
+    const t = new EventTarget();
+    let seen = null;
+    const handler = { handleEvent(e) { seen = e.type; } };
+    t.addEventListener('y', handler);
+    t.dispatchEvent(new Event('y'));
+    ok(seen === 'y', 'handleEvent object-listener');
+}
+
+/* preventDefault + cancelable */
+{
+    const t = new EventTarget();
+    t.addEventListener('z', (e) => { e.preventDefault(); });
+    const ev = new Event('z', { cancelable: true });
+    const ret = t.dispatchEvent(ev);
+    ok(ret === false, 'dispatchEvent returns false on preventDefault');
+    ok(ev.defaultPrevented === true, 'defaultPrevented flag');
+}
+{
+    /* preventDefault() is a no-op on non-cancelable events */
+    const t = new EventTarget();
+    t.addEventListener('z', (e) => { e.preventDefault(); });
+    const ev = new Event('z');
+    const ret = t.dispatchEvent(ev);
+    ok(ret === true && ev.defaultPrevented === false, 'non-cancelable ignores preventDefault');
+}
+
+/* stopImmediatePropagation */
+{
+    const t = new EventTarget();
+    let a = 0, b = 0;
+    t.addEventListener('go', (e) => { a++; e.stopImmediatePropagation(); });
+    t.addEventListener('go', () => { b++; });
+    t.dispatchEvent(new Event('go'));
+    ok(a === 1 && b === 0, 'stopImmediatePropagation halts subsequent listeners');
+}
+
+/* CustomEvent with detail */
+{
+    const t = new EventTarget();
+    let detail = null;
+    t.addEventListener('c', (e) => { detail = e.detail; });
+    t.dispatchEvent(new CustomEvent('c', { detail: { k: 1 } }));
+    ok(detail && detail.k === 1, 'CustomEvent detail');
+}
+
+/* signal option for addEventListener */
+{
+    const t = new EventTarget();
+    const ac = new AbortController();
+    let count = 0;
+    t.addEventListener('s', () => count++, { signal: ac.signal });
+    t.dispatchEvent(new Event('s'));
+    ac.abort();
+    t.dispatchEvent(new Event('s'));
+    ok(count === 1, 'signal removes listener on abort');
+}
+
+/* Pre-aborted signal: listener never added */
+{
+    const t = new EventTarget();
+    const ac = new AbortController();
+    ac.abort();
+    let count = 0;
+    t.addEventListener('s', () => count++, { signal: ac.signal });
+    t.dispatchEvent(new Event('s'));
+    ok(count === 0, 'pre-aborted signal prevents add');
+}
+
+/* dispatchEvent with non-Event throws */
+{
+    const t = new EventTarget();
+    let threw = false;
+    try { t.dispatchEvent({ type: 'fake' }); } catch (_) { threw = true; }
+    ok(threw, 'dispatchEvent throws on non-Event');
+}
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);

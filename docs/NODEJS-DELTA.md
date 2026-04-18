@@ -358,7 +358,7 @@ previous for at most boilerplate, not critical path.
 | `AbortSignal.timeout(ms)` (static) | ✓ | |
 | `AbortSignal.any([signals])` (static, Node 20.3+) | ✓ | added 0.105 |
 | Event object shape | ◐ | plain `{type, target}` — not a full `Event` |
-| Proper EventTarget inheritance | ○ | we implement on-class; Node classes extend EventTarget |
+| Proper EventTarget inheritance | ◐ | `globalThis.EventTarget`/`Event`/`CustomEvent` at 0.120; AbortSignal kept on-class to preserve working fetch/abort plumbing |
 
 ### fetch + AbortSignal integration
 

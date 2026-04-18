@@ -1111,6 +1111,152 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: EventTarget + Event (WHATWG — Node ≥14.5)
+ * Tier: pure-js    Provider: nea-port    Standard: web
+ *
+ * Minimal EventTarget + Event implementation. Covers the 95% of
+ * DOM/Node usage: addEventListener/removeEventListener/dispatchEvent
+ * with {once, signal} listener options. No capture-phase / bubble
+ * hierarchy — we don't have a DOM tree to walk — `capture` / `passive`
+ * are accepted and ignored per spec leniency.
+ *
+ * AbortSignal (earlier in this file) is NOT refactored to extend
+ * EventTarget — keeps the working fetch/abort plumbing intact.
+ * Its addEventListener shape is already compatible with user code.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'event-target',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'WHATWG EventTarget + Event base classes',
+    globals:     ['EventTarget', 'Event', 'CustomEvent'],
+    standard:    true,
+    install() {
+        class Event {
+            constructor(type, init) {
+                this.type = String(type);
+                this.bubbles = !!(init && init.bubbles);
+                this.cancelable = !!(init && init.cancelable);
+                this.composed = !!(init && init.composed);
+                this.defaultPrevented = false;
+                this.cancelBubble = false;
+                this.target = null;
+                this.currentTarget = null;
+                this.eventPhase = 0;
+                this.isTrusted = false;
+                this.timeStamp = (typeof performance !== 'undefined')
+                    ? performance.now() : Date.now();
+                /* Internal flag — dispatchEvent resets to AT_TARGET */
+                this._stopImmediate = false;
+            }
+            preventDefault() {
+                if (this.cancelable) this.defaultPrevented = true;
+            }
+            stopPropagation() { this.cancelBubble = true; }
+            stopImmediatePropagation() { this._stopImmediate = true; this.cancelBubble = true; }
+            /* Legacy no-ops */
+            initEvent(type, bubbles, cancelable) {
+                this.type = String(type);
+                this.bubbles = !!bubbles;
+                this.cancelable = !!cancelable;
+            }
+        }
+        /* Event phase constants — match DOM. */
+        Event.NONE           = 0;
+        Event.CAPTURING_PHASE = 1;
+        Event.AT_TARGET      = 2;
+        Event.BUBBLING_PHASE = 3;
+
+        class CustomEvent extends Event {
+            constructor(type, init) {
+                super(type, init);
+                this.detail = (init && 'detail' in init) ? init.detail : null;
+            }
+        }
+
+        class EventTarget {
+            constructor() {
+                /* { [type]: [{listener, once, signal}] } */
+                this._listeners = {};
+            }
+            addEventListener(type, listener, options) {
+                if (typeof listener !== 'function'
+                    && !(listener && typeof listener.handleEvent === 'function')) {
+                    return;
+                }
+                const t = String(type);
+                const bucket = this._listeners[t] || (this._listeners[t] = []);
+                const once = !!(options && options.once);
+                const signal = options && options.signal;
+                /* Dedupe: same listener+type is a no-op in DOM semantics. */
+                for (const e of bucket) if (e.listener === listener) return;
+                const entry = { listener, once, signal };
+                bucket.push(entry);
+                if (signal) {
+                    if (signal.aborted) {
+                        /* Already aborted — don't add. */
+                        bucket.pop();
+                        return;
+                    }
+                    if (signal.addEventListener) {
+                        const onAbort = () => {
+                            this.removeEventListener(t, listener);
+                        };
+                        signal.addEventListener('abort', onAbort, { once: true });
+                    }
+                }
+            }
+            removeEventListener(type, listener) {
+                const t = String(type);
+                const bucket = this._listeners[t];
+                if (!bucket) return;
+                for (let i = 0; i < bucket.length; i++) {
+                    if (bucket[i].listener === listener) {
+                        bucket.splice(i, 1);
+                        if (bucket.length === 0) delete this._listeners[t];
+                        return;
+                    }
+                }
+            }
+            dispatchEvent(event) {
+                if (!(event instanceof Event)) {
+                    throw new TypeError('dispatchEvent: argument must be an Event');
+                }
+                event.target = this;
+                event.currentTarget = this;
+                event.eventPhase = Event.AT_TARGET;
+                const bucket = this._listeners[event.type];
+                if (bucket) {
+                    const snap = bucket.slice();
+                    for (const entry of snap) {
+                        if (event._stopImmediate) break;
+                        try {
+                            if (typeof entry.listener === 'function') {
+                                entry.listener.call(this, event);
+                            } else {
+                                entry.listener.handleEvent(event);
+                            }
+                        } catch (e) {
+                            try { std.err.puts('(qjs) EventTarget listener threw: '
+                                + (e && e.message || e) + '\n'); } catch (_) {}
+                        }
+                        if (entry.once) this.removeEventListener(event.type, entry.listener);
+                    }
+                }
+                event.eventPhase = Event.NONE;
+                event.currentTarget = null;
+                return !event.defaultPrevented;
+            }
+        }
+
+        globalThis.EventTarget = EventTarget;
+        globalThis.Event = Event;
+        globalThis.CustomEvent = CustomEvent;
+    },
+}));
+
+/* ==========================================================
  * Feature: AbortController / AbortSignal
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
