@@ -2468,16 +2468,122 @@ _manifests.push(new LocalManifest({
             isDate: v => v instanceof Date,
             isRegExp: v => v instanceof RegExp,
             isError: v => v instanceof Error,
+            isNativeError: v => v instanceof Error,
             isPromise: v => v && typeof v.then === 'function',
             isMap: v => v instanceof Map,
             isSet: v => v instanceof Set,
+            isMapIterator: v => {
+                if (!v || typeof v !== 'object') return false;
+                const s = Object.prototype.toString.call(v);
+                return s === '[object Map Iterator]';
+            },
+            isSetIterator: v => {
+                if (!v || typeof v !== 'object') return false;
+                const s = Object.prototype.toString.call(v);
+                return s === '[object Set Iterator]';
+            },
             isWeakMap: v => v instanceof WeakMap,
             isWeakSet: v => v instanceof WeakSet,
             isArrayBuffer: v => v instanceof ArrayBuffer,
+            isSharedArrayBuffer: v => typeof SharedArrayBuffer !== 'undefined'
+                                        && v instanceof SharedArrayBuffer,
+            isAnyArrayBuffer: v => v instanceof ArrayBuffer
+                                    || (typeof SharedArrayBuffer !== 'undefined'
+                                        && v instanceof SharedArrayBuffer),
+            isDataView: v => v instanceof DataView,
             isTypedArray: v => ArrayBuffer.isView(v) && !(v instanceof DataView),
             isUint8Array: v => v instanceof Uint8Array,
+            isUint8ClampedArray: v => v instanceof Uint8ClampedArray,
+            isUint16Array: v => v instanceof Uint16Array,
+            isUint32Array: v => v instanceof Uint32Array,
+            isInt8Array:   v => v instanceof Int8Array,
+            isInt16Array:  v => v instanceof Int16Array,
+            isInt32Array:  v => v instanceof Int32Array,
+            isFloat32Array: v => v instanceof Float32Array,
+            isFloat64Array: v => v instanceof Float64Array,
+            isBigInt64Array: v => typeof BigInt64Array !== 'undefined'
+                                    && v instanceof BigInt64Array,
+            isBigUint64Array: v => typeof BigUint64Array !== 'undefined'
+                                    && v instanceof BigUint64Array,
+            isBooleanObject: v => v instanceof Boolean,
+            isNumberObject:  v => v instanceof Number,
+            isStringObject:  v => v instanceof String,
+            isSymbolObject:  v => typeof v === 'object'
+                                    && Object.prototype.toString.call(v) === '[object Symbol]',
+            isBoxedPrimitive: v => v instanceof Boolean || v instanceof Number
+                                    || v instanceof String
+                                    || Object.prototype.toString.call(v) === '[object Symbol]',
+            isAsyncFunction: v => typeof v === 'function'
+                                    && v.constructor && v.constructor.name === 'AsyncFunction',
+            isGeneratorFunction: v => typeof v === 'function'
+                                    && v.constructor && v.constructor.name === 'GeneratorFunction',
+            isGeneratorObject: v => {
+                if (!v || typeof v !== 'object') return false;
+                return typeof v.next === 'function'
+                    && typeof v.throw === 'function'
+                    && typeof v.return === 'function'
+                    && typeof v[Symbol.iterator] === 'function';
+            },
+            isProxy: () => false, /* no runtime Proxy-detection hook */
+            isModuleNamespaceObject: v =>
+                v != null && typeof v === 'object'
+                    && v[Symbol.toStringTag] === 'Module',
             isFunction: v => typeof v === 'function',
         };
+
+        /* ANSI style helper — util.styleText(style, text).
+         * Supports a single style name or an array of styles. Honors
+         * NO_COLOR env var (returns text unchanged). */
+        const _ansiStyles = {
+            reset: [0, 0], bold: [1, 22], dim: [2, 22], italic: [3, 23],
+            underline: [4, 24], inverse: [7, 27], hidden: [8, 28], strikethrough: [9, 29],
+            black: [30, 39], red: [31, 39], green: [32, 39], yellow: [33, 39],
+            blue: [34, 39], magenta: [35, 39], cyan: [36, 39], white: [37, 39],
+            gray: [90, 39], grey: [90, 39],
+            bgBlack: [40, 49], bgRed: [41, 49], bgGreen: [42, 49], bgYellow: [43, 49],
+            bgBlue: [44, 49], bgMagenta: [45, 49], bgCyan: [46, 49], bgWhite: [47, 49],
+        };
+        function styleText(style, text, opts) {
+            const styles = Array.isArray(style) ? style : [style];
+            const validateOnly = opts && opts.validateStream === false;
+            for (const s of styles) {
+                if (!(s in _ansiStyles)) {
+                    throw new TypeError(`util.styleText: unknown style '${s}'`);
+                }
+            }
+            if (!validateOnly) {
+                try {
+                    if (std.getenv && std.getenv('NO_COLOR')) return String(text);
+                } catch (_) {}
+            }
+            let open = '', close = '';
+            for (const s of styles) {
+                const [o, c] = _ansiStyles[s];
+                open += '\x1b[' + o + 'm';
+                close = '\x1b[' + c + 'm' + close;
+            }
+            return open + String(text) + close;
+        }
+
+        /* Strip CSI/SGR VT control sequences from a string — Node API. */
+        function stripVTControlCharacters(str) {
+            let out = '';
+            const s = String(str);
+            for (let i = 0; i < s.length; i++) {
+                if (s.charCodeAt(i) === 0x1b && s[i + 1] === '[') {
+                    i += 2;
+                    while (i < s.length) {
+                        const c = s.charCodeAt(i);
+                        /* CSI terminator is in the 0x40..0x7e range. */
+                        if (c >= 0x40 && c <= 0x7e) break;
+                        i++;
+                    }
+                    continue;
+                }
+                out += s[i];
+            }
+            return out;
+        }
 
         /* util.parseArgs — Node 18.3+ argv parser subset.
          * Supports options={type:'string'|'boolean', short, multiple, default}. */
@@ -2571,6 +2677,7 @@ _manifests.push(new LocalManifest({
         globalThis.util = {
             format, inspect, promisify, callbackify, types,
             parseArgs, deprecate, debuglog,
+            styleText, stripVTControlCharacters,
             inherits(ctor, superCtor) {
                 /* Old Node util.inherits. Here mainly so code that
                  * imports it doesn't error. */

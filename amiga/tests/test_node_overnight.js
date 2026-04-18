@@ -144,6 +144,52 @@ ok(URL.parse('not a url') === null, 'URL.parse returns null on invalid');
 /* url.resolve */
 ok(url.resolve('https://example.com/a/', 'b') === 'https://example.com/a/b', 'url.resolve');
 
+/* =====================================================
+ * 0.114 — util.types long tail + util.styleText + util.stripVTControlCharacters
+ * ===================================================== */
+section("util.types long tail (0.114)");
+ok(util.types.isNativeError(new Error('x')), 'isNativeError');
+ok(util.types.isAnyArrayBuffer(new ArrayBuffer(1)), 'isAnyArrayBuffer(AB)');
+ok(util.types.isDataView(new DataView(new ArrayBuffer(1))), 'isDataView');
+ok(util.types.isUint8Array(new Uint8Array(1)), 'isUint8Array');
+ok(util.types.isUint16Array(new Uint16Array(1)), 'isUint16Array');
+ok(util.types.isInt32Array(new Int32Array(1)), 'isInt32Array');
+ok(util.types.isFloat32Array(new Float32Array(1)), 'isFloat32Array');
+ok(util.types.isFloat64Array(new Float64Array(1)), 'isFloat64Array');
+ok(!util.types.isUint8Array(new ArrayBuffer(1)), 'isUint8Array rejects AB');
+ok(util.types.isBooleanObject(new Boolean(true)), 'isBooleanObject');
+ok(util.types.isNumberObject(new Number(1)), 'isNumberObject');
+ok(util.types.isStringObject(new String('x')), 'isStringObject');
+ok(util.types.isBoxedPrimitive(new Number(1)), 'isBoxedPrimitive');
+ok(!util.types.isBoxedPrimitive(1), 'isBoxedPrimitive rejects primitive');
+ok(util.types.isAsyncFunction(async () => {}), 'isAsyncFunction');
+ok(!util.types.isAsyncFunction(() => {}), 'isAsyncFunction rejects arrow');
+ok(util.types.isGeneratorFunction(function*(){}), 'isGeneratorFunction');
+ok(util.types.isGeneratorObject((function*(){})()), 'isGeneratorObject');
+ok(util.types.isProxy({}) === false, 'isProxy always false');
+
+section("util.styleText (0.114)");
+ok(typeof util.styleText === 'function', 'styleText is function');
+{
+    const s = util.styleText('red', 'hi');
+    ok(s.indexOf('\x1b[31m') === 0 && s.endsWith('\x1b[39m'), 'styleText wraps with red CSI');
+    ok(s.indexOf('hi') > 0, 'styleText preserves text');
+}
+{
+    const s = util.styleText(['bold', 'green'], 'hi');
+    ok(s.indexOf('\x1b[1m') >= 0 && s.indexOf('\x1b[32m') >= 0, 'styleText stacks styles');
+}
+{
+    let threw = false;
+    try { util.styleText('not-a-style', 'x'); } catch (_) { threw = true; }
+    ok(threw, 'styleText throws on unknown style');
+}
+
+section("util.stripVTControlCharacters (0.114)");
+ok(util.stripVTControlCharacters('\x1b[31mhi\x1b[39m') === 'hi', 'strip red');
+ok(util.stripVTControlCharacters('\x1b[1;32mhi\x1b[0m bye') === 'hi bye', 'strip semi-colon params');
+ok(util.stripVTControlCharacters('plain') === 'plain', 'passthrough plain');
+
 /* Remaining batches are appended by subsequent commits. */
 
 print("");

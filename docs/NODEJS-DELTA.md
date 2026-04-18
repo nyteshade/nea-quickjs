@@ -148,11 +148,12 @@ Implemented in `extended.js` (`util` manifest) as `globalThis.util`.
 | `util.callbackify(fn)` | ✓ | inverse |
 | `util.inherits(ctor, super)` | ✓ | legacy Node API, shim |
 | `util.types.isArray/isDate/isRegExp/isError/isPromise/isMap/isSet/isWeakMap/isWeakSet/isArrayBuffer/isTypedArray/isUint8Array/isFunction` | ✓ | |
-| `util.types.isNativeError`, `.isAnyArrayBuffer`, etc. | ○ | long tail |
+| `util.types.isNativeError`, `.isAnyArrayBuffer`, `.isSharedArrayBuffer`, `.isDataView`, Uint/Int/Float/BigInt TypedArray predicates, `.isBooleanObject`, `.isNumberObject`, `.isStringObject`, `.isSymbolObject`, `.isBoxedPrimitive`, `.isAsyncFunction`, `.isGeneratorFunction`, `.isGeneratorObject`, `.isProxy`, `.isModuleNamespaceObject`, `.isMapIterator`, `.isSetIterator` | ✓ | long tail filled at 0.114 |
 | `util.deprecate(fn, msg)` | ✓ | first-call warning on stderr (0.099) |
 | `util.debuglog(section)` | ✓ | `NODE_DEBUG=section`-gated logger to stderr (0.099) |
 | `util.parseArgs({args, options, allowPositionals})` | ✓ | supports `--key`, `--key=val`, `-shortAlias`, boolean/string/multiple types (0.099) |
-| `util.styleText` | ○ | |
+| `util.styleText(style, text, opts?)` | ✓ | 0.114 — ANSI SGR wrapper; single style or array; honors `NO_COLOR` env |
+| `util.stripVTControlCharacters(str)` | ✓ | 0.114 — strips CSI/SGR escape sequences |
 
 ### `path`
 
