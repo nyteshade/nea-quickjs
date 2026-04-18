@@ -190,7 +190,50 @@ ok(util.stripVTControlCharacters('\x1b[31mhi\x1b[39m') === 'hi', 'strip red');
 ok(util.stripVTControlCharacters('\x1b[1;32mhi\x1b[0m bye') === 'hi bye', 'strip semi-colon params');
 ok(util.stripVTControlCharacters('plain') === 'plain', 'passthrough plain');
 
-/* Remaining batches are appended by subsequent commits. */
+/* =====================================================
+ * 0.115 — assert completeness (fail/ifError/AssertionError)
+ * ===================================================== */
+section("assert module completeness (0.115)");
+ok(typeof assert.ifError === 'function', 'assert.ifError');
+ok(typeof assert.fail === 'function', 'assert.fail');
+ok(typeof assert.AssertionError === 'function', 'assert.AssertionError class');
+
+/* ifError */
+{
+    let threw = null;
+    try { assert.ifError(null); } catch (e) { threw = e; }
+    ok(threw === null, 'ifError(null) no throw');
+    try { assert.ifError(undefined); } catch (e) { threw = e; }
+    ok(threw === null, 'ifError(undefined) no throw');
+    try { assert.ifError(new Error('x')); } catch (e) { threw = e; }
+    ok(threw && threw.message === 'x', 'ifError(Error) rethrows');
+    try { assert.ifError('oh no'); } catch (e) { threw = e; }
+    ok(threw && threw.name === 'AssertionError', 'ifError(truthy non-error) throws AssertionError');
+}
+
+/* fail with 4-arg form */
+{
+    let caught = null;
+    try { assert.fail(1, 2, 'mismatch', 'strictEqual'); }
+    catch (e) { caught = e; }
+    ok(caught && caught.name === 'AssertionError', 'fail 4-arg throws AssertionError');
+    ok(caught && caught.actual === 1 && caught.expected === 2, 'fail 4-arg preserves actual/expected');
+    ok(caught && caught.operator === 'strictEqual', 'fail 4-arg preserves operator');
+}
+/* fail with single-message form */
+{
+    let caught = null;
+    try { assert.fail('bad'); } catch (e) { caught = e; }
+    ok(caught && caught.message === 'bad', 'fail single-arg preserves message');
+}
+
+/* AssertionError construction */
+{
+    const e = new assert.AssertionError({ message: 'x', actual: 1, expected: 2, operator: '===' });
+    ok(e.name === 'AssertionError', 'AssertionError.name');
+    ok(e.code === 'ERR_ASSERTION', 'AssertionError.code');
+    ok(e.actual === 1 && e.expected === 2 && e.operator === '===', 'AssertionError fields');
+}
 
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");

@@ -23,7 +23,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 
 | Node module | Status | Entry point |
 |---|---|---|
-| `assert` | ✓ | `globalThis.assert` — ok/equal/strictEqual/deepEqual/throws/rejects/match/etc. (0.101) |
+| `assert` | ✓ | `globalThis.assert` — ok/equal/strictEqual/deepEqual/notDeepEqual/throws/doesNotThrow/rejects/doesNotReject/match/doesNotMatch/fail/ifError + AssertionError class (0.101, hardened 0.115) |
 | `async_hooks` | ✗ | Node-internal, no equivalent use-case on AmigaOS |
 | `buffer` | ◐ | `globalThis.Buffer` (Tier 1 v1 — see below for omissions) |
 | `child_process` | ◐ | `globalThis.child_process` — spawnSync/spawn/exec/execSync via `dos.library SystemTagList` (sync underneath) |

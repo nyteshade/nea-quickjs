@@ -2940,10 +2940,29 @@ _manifests.push(new LocalManifest({
     globals:     ['assert'],
     standard:    false,
     install() {
-        function fail(msg) {
-            const e = new Error(msg || 'Assertion failed');
-            e.name = 'AssertionError';
-            throw e;
+        class AssertionError extends Error {
+            constructor(opts) {
+                if (typeof opts === 'string') opts = { message: opts };
+                super((opts && opts.message) || 'Assertion failed');
+                this.name = 'AssertionError';
+                this.code = 'ERR_ASSERTION';
+                if (opts) {
+                    if ('actual' in opts)   this.actual   = opts.actual;
+                    if ('expected' in opts) this.expected = opts.expected;
+                    if ('operator' in opts) this.operator = opts.operator;
+                }
+            }
+        }
+        function fail(actual, expected, message, operator) {
+            /* Node assert.fail(actual, expected, message, operator) 4-arg form,
+             * plus the common 1-arg assert.fail(msg) shortcut. */
+            if (arguments.length <= 1) {
+                throw new AssertionError(actual || 'Failed');
+            }
+            throw new AssertionError({
+                message: message || String(actual) + ' ' + (operator || 'fail') + ' ' + String(expected),
+                actual, expected, operator: operator || 'fail',
+            });
         }
         function ok(v, msg) {
             if (!v) fail(msg || `ok(${v})`);
@@ -3033,19 +3052,18 @@ _manifests.push(new LocalManifest({
         assertFn.match             = match;
         assertFn.doesNotMatch      = doesNotMatch;
         assertFn.fail              = fail;
+        assertFn.ifError           = function ifError(err) {
+            /* Node semantics: throw if err is truthy, otherwise no-op. */
+            if (err === null || err === undefined) return;
+            if (err instanceof Error) throw err;
+            throw new AssertionError({
+                message: 'ifError got unwanted exception: ' + String(err),
+                actual: err, expected: null, operator: 'ifError',
+            });
+        };
         /* Aliases */
         assertFn.strict = assertFn;
-        assertFn.AssertionError = class AssertionError extends Error {
-            constructor(opts) {
-                super((opts && opts.message) || 'Assertion failed');
-                this.name = 'AssertionError';
-                if (opts) {
-                    this.actual = opts.actual;
-                    this.expected = opts.expected;
-                    this.operator = opts.operator;
-                }
-            }
-        };
+        assertFn.AssertionError = AssertionError;
 
         globalThis.assert = assertFn;
     },
