@@ -42,7 +42,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `net` | ◐ | `qjs:net` module exposes TCP/TLS capability probe; no socket API yet |
 | `os` | ◐ | `qjs:os` exposes FD I/O, timers, stat, exec, signals, cwd/chdir, platform; not the Node `os` shape |
 | `path` | ✓ | `globalThis.path` (AmigaOS-aware: handles `Volume:` and `/`; subset of POSIX path) |
-| `perf_hooks` | ○ | `process.hrtime()` available; full API not planned |
+| `perf_hooks` | ◐ | `globalThis.performance` with now/timeOrigin/mark/measure/getEntries*/clearMarks/clearMeasures at 0.112; `PerformanceObserver` not planned |
 | `process` | ◐ | `globalThis.process` (argv, env, platform, arch, pid, ppid, exit, cwd, chdir, hrtime, nextTick) |
 | `punycode` | ✗ | deprecated in Node |
 | `querystring` | ✓ | `globalThis.querystring.parse/stringify/escape/unescape` (0.099) |
@@ -110,8 +110,8 @@ Implemented in `extended.js` (`process` manifest).
 | `process.nextTick(fn, ...args)` | ✓ | via `queueMicrotask` |
 | `process.stdout` / `.stderr` / `.stdin` | ◐ | Writable-like objects at 0.101 — `.write(chunk)`, `.end()`, columns/rows getters via `os.ttyGetWinSize`, `isTTY` true. Not full streams; no pipe/backpressure. |
 | `process.kill(pid, sig)` | ○ | no Amiga task-kill wrapper yet |
-| `process.uptime()` | ○ | |
-| `process.memoryUsage()` | ○ | partially available via `std.dumpMemoryUsage()` |
+| `process.uptime()` | ✓ | seconds since the `process` manifest applied (0.112) |
+| `process.memoryUsage()` | ◐ | 0.112 returns `{rss, heapTotal, heapUsed, external, arrayBuffers}` shape with zeros — wire to `JS_ComputeMemoryUsage` via a native LVO when demand appears |
 
 ### `events.EventEmitter`
 
@@ -330,7 +330,8 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 | `crypto.subtle.digest`, `crypto.getRandomValues` | ○ | planned — E-tier via AmiSSL |
 | `Blob`, `File` | ○ | add with fetch multipart |
 | `FormData` | ○ | |
-| `performance.now`, `.timeOrigin` | ◐ | `os.now()` covers functionality; no `globalThis.performance` object yet |
+| `performance.now`, `.timeOrigin` | ✓ | `globalThis.performance` at 0.112 — microsecond precision via `os.now()` |
+| `performance.mark/measure/getEntries*/clearMarks/clearMeasures` | ✓ | 0.112 — in-memory entry list; no PerformanceObserver |
 
 ---
 

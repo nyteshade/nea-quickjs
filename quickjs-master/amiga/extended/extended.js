@@ -223,10 +223,11 @@ _manifests.push(new LocalManifest({
     name:        'process',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'Node.js process global — argv, env, exit, platform, cwd, hrtime, nextTick',
+    description: 'Node.js process global — argv, env, exit, platform, cwd, hrtime, nextTick, uptime, memoryUsage',
     globals:     ['process'],
     standard:    false,
     install() {
+        const _startUs = os.now();
         globalThis.process = {
             argv: (globalThis.scriptArgs ? ['qjs', ...globalThis.scriptArgs] : ['qjs']),
             env: new Proxy({}, {
@@ -278,7 +279,131 @@ _manifests.push(new LocalManifest({
                 return t;
             },
             nextTick(fn, ...args) { queueMicrotask(() => fn(...args)); },
+            uptime() {
+                /* Seconds since this process initialised globalThis.process. */
+                return (os.now() - _startUs) / 1e6;
+            },
+            memoryUsage() {
+                /* Shape matches Node.js. Classic AmigaOS doesn't give us the
+                 * V8 heap telemetry Node exposes — we return the shape with
+                 * zeros so scripts that call this don't crash. Wire to a
+                 * native LVO (JS_ComputeMemoryUsage) when demand appears. */
+                return { rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 };
+            },
         };
+        globalThis.process.memoryUsage.rss = () => 0;
+    },
+}));
+
+/* ==========================================================
+ * Feature: performance  (web High Resolution Time — Node ≥16 bundles this)
+ * Tier: pure-js    Provider: nea-port    Standard: web
+ *
+ * `performance.now()` returns a DOMHighResTimeStamp — milliseconds
+ * with sub-ms precision relative to `performance.timeOrigin`.
+ * We use `os.now()` microseconds as the underlying clock, so
+ * resolution is 1µs (same as Node on Linux).
+ *
+ * User marks / measures are stored in a single Map; .getEntries
+ * family is supported for basic instrumentation. Resource timing
+ * isn't meaningful on Amiga — getEntriesByType('resource') returns
+ * an empty array.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'performance',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'performance.now / timeOrigin / mark / measure / getEntries* — web High Resolution Time',
+    globals:     ['performance'],
+    standard:    true,
+    install() {
+        const _originUs = os.now();
+        const _timeOriginMs = Date.now() - _originUs / 1000;
+        const _entries = [];
+
+        function _now() { return (os.now() - _originUs) / 1000; }
+
+        function _addEntry(entry) {
+            _entries.push(entry);
+        }
+
+        globalThis.performance = {
+            get timeOrigin() { return _timeOriginMs; },
+            now() { return _now(); },
+            mark(name, opts) {
+                const startTime = (opts && typeof opts.startTime === 'number')
+                    ? opts.startTime
+                    : _now();
+                const entry = {
+                    name: String(name),
+                    entryType: 'mark',
+                    startTime,
+                    duration: 0,
+                    detail: (opts && opts.detail !== undefined) ? opts.detail : null,
+                };
+                _addEntry(entry);
+                return entry;
+            },
+            measure(name, startOrOpts, endMark) {
+                let startTime, duration, detail = null;
+                if (typeof startOrOpts === 'object' && startOrOpts !== null) {
+                    const o = startOrOpts;
+                    const start = (o.start !== undefined) ? resolveMark(o.start) : 0;
+                    const end = (o.end !== undefined) ? resolveMark(o.end) : _now();
+                    startTime = start;
+                    duration = end - start;
+                    if (o.detail !== undefined) detail = o.detail;
+                } else if (typeof startOrOpts === 'string') {
+                    const start = resolveMark(startOrOpts);
+                    const end = endMark !== undefined ? resolveMark(endMark) : _now();
+                    startTime = start;
+                    duration = end - start;
+                } else {
+                    startTime = 0;
+                    duration = _now();
+                }
+                const entry = {
+                    name: String(name),
+                    entryType: 'measure',
+                    startTime,
+                    duration,
+                    detail,
+                };
+                _addEntry(entry);
+                return entry;
+            },
+            getEntries() { return _entries.slice(); },
+            getEntriesByName(name, type) {
+                return _entries.filter(e => e.name === name && (!type || e.entryType === type));
+            },
+            getEntriesByType(type) {
+                return _entries.filter(e => e.entryType === type);
+            },
+            clearMarks(name) {
+                for (let i = _entries.length - 1; i >= 0; i--) {
+                    const e = _entries[i];
+                    if (e.entryType === 'mark' && (!name || e.name === name))
+                        _entries.splice(i, 1);
+                }
+            },
+            clearMeasures(name) {
+                for (let i = _entries.length - 1; i >= 0; i--) {
+                    const e = _entries[i];
+                    if (e.entryType === 'measure' && (!name || e.name === name))
+                        _entries.splice(i, 1);
+                }
+            },
+            clearResourceTimings() { /* no-op on Amiga */ },
+            toJSON() { return { timeOrigin: _timeOriginMs }; },
+        };
+
+        function resolveMark(nameOrTime) {
+            if (typeof nameOrTime === 'number') return nameOrTime;
+            const mark = _entries.find(e => e.entryType === 'mark' && e.name === nameOrTime);
+            if (!mark) throw new SyntaxError(`performance: mark '${nameOrTime}' not found`);
+            return mark.startTime;
+        }
     },
 }));
 
