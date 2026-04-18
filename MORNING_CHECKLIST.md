@@ -1,80 +1,133 @@
-# Morning Checklist — 0.101 overnight batch
+# Morning Checklist — 0.112 → 0.122 overnight Node-parity batch
+
+## TL;DR
+
+**11 commits, all pushed to `main`, all pure-JS, all host-verified
+(239/239 on the new regression test).** Each is a self-contained
+manifest addition or extension in `quickjs-master/amiga/extended/
+extended.js`, so any single version can be reverted with `git revert
+<sha>` without disturbing the others.
 
 ## What landed while you slept
 
-| Ver | Commit | Change | Risk |
-|---|---|---|---|
-| 0.098 | `631d40f` | stream: Writable write-after-end emits AND calls cb | tiny |
-| 0.099 | `9d9b58f` | util.parseArgs/deprecate/debuglog + events.once + stream.pipeline + querystring + string_decoder + console.count/timeLog + fs.promises copy/truncate/utimes + Buffer swap/float | low (JS-only, host-verified) |
-| 0.100 | `b6c109b` | **True async child_process.spawn via QJS_Worker** | medium — new C code, polling loop |
-| 0.101 | pending push | assert module + timers.promises + process.stdout/stderr/stdin + path.posix/win32 aliases | low (JS-only) |
+| Ver   | Commit    | What changed                                                                     | Risk                              |
+|-------|-----------|----------------------------------------------------------------------------------|-----------------------------------|
+| 0.112 | `7575e67` | `performance` global; `process.uptime()`; `process.memoryUsage()` (zero stub)    | tiny (pure JS over `os.now()`)    |
+| 0.113 | `5d6bd32` | `globalThis.url` node module; `URL.parse()` static (Node 22)                     | tiny (pure JS)                    |
+| 0.114 | `951fb8c` | `util.types` long tail + `util.styleText` + `util.stripVTControlCharacters`      | tiny (pure JS)                    |
+| 0.115 | `f330fb3` | `assert.ifError` + AssertionError class + `assert.fail(a,e,m,op)` 4-arg          | tiny                              |
+| 0.116 | `b89b04e` | **Blob + File** (WHATWG, Uint8Array-backed)                                      | low (self-contained)              |
+| 0.117 | `0e69b4c` | **FormData** (WHATWG, Blob-aware)                                                | low (depends on 0.116)            |
+| 0.118 | `3614c51` | **fs sync namespace** (readFileSync/writeFileSync/statSync/...)                  | **medium** — real disk I/O        |
+| 0.119 | `b4f1592` | **events.on async iterator** + `globalThis.events` module                        | low                               |
+| 0.120 | `0d53b31` | **EventTarget + Event + CustomEvent** base classes (AbortSignal left untouched)  | low                               |
+| 0.121 | `0979930` | **readline** + `readline/promises` + ANSI cursor helpers                         | **medium** — uses `std.in.getline` |
+| 0.122 | `ad74dd9` | **`nodeOs`** + CommonJS `require()` stub (20+ built-ins)                         | tiny                              |
 
-All commits pushed to main. Library binaries ship with each commit.
+Total new Node surface: roughly **70+ new APIs** across 11 modules. Library
+bytecode grew ~20 KB (from 68 KB to ~88 KB).
 
 ## Validation order (priority)
 
-Run these on the real Amiga with `stack 65536`:
+Run these on the real Amiga with the usual `stack 65536` invocation:
 
 ```
-qjs tests/test_stream.js          ; 0.098 fix — should now be 13/13
-qjs tests/test_node_extras.js     ; 0.099 batch — ~25 cases
-qjs tests/test_spawn_async.js     ; 0.100 async spawn — watch for timer responsiveness
-qjs tests/test_child_process.js   ; regression — 19/19 should still pass
-qjs tests/test_fetch.js           ; regression — 22/0
-qjs tests/test_crypto.js          ; regression — crypto still green
-qjs tests/test_extended.js        ; full extended regression — 79/79
+qjs tests/test_node_overnight.js   ; THE big one — all 239 overnight cases
+qjs tests/test_node_extras.js      ; 0.099 regression — should still pass
+qjs tests/test_stream.js           ; 0.098 fix regression
+qjs tests/test_events.js           ; EE regression — MUST still pass
+qjs tests/test_util.js             ; util regression — types additions
+qjs tests/test_buffer.js           ; buffer regression — unchanged
+qjs tests/test_fs.js               ; fs regression — plus fs sync additions
+qjs tests/test_assert_timers.js    ; assert regression — ifError added
+qjs tests/test_child_process.js    ; 19/19 — unchanged
+qjs tests/test_crypto.js           ; unchanged
+qjs tests/test_fetch.js            ; 22/0 — unchanged
+qjs tests/test_fetch_signal.js     ; 2/0 — unchanged
+qjs tests/test_fetch_abort.js      ; 2/0 pre-abort — unchanged
+qjs tests/test_regex.js            ; 27/27 — unchanged
+qjs tests/test_extended.js         ; full extended regression
 ```
 
-If any fail, the failing commit is straightforward to revert since
-each is a clean single-point change:
+If any fail, the reverts are clean single-point:
 
 ```
-git revert <commit-sha>          ; clean revert
+git revert <sha>          # then regenerate bytecode + rebuild library
 git push origin main
 ```
 
-## Known risks
+## Highest-risk item: 0.121 readline (`std.in.getline`)
 
-**0.100 async spawn** is the highest-risk change:
-- New C code in `quickjs_libc_lib.c` introduces `active_spawn`
-  global state and a polling callback scheduled via `os_timers`.
-- Uses `QJS_Worker` primitive — same one fetch uses (proven).
-- `child_async_job` (worker-task entry) uses the global DOSBase for
-  Open/Close/Read/SystemTagList — dos.library is shared across
-  tasks on AmigaOS, so this should be fine, but verify with
-  `test_spawn_async.js`.
-- Single-concurrent slot — second `spawn()` while one is running
-  throws. Intentional for v1; add queueing if it bites.
+`std.in.getline()` blocks until a newline arrives from stdin. On host
+qjs this reads from terminal stdin. On Amiga this reads from the
+console window attached to the shell running qjs. **If no stdin is
+connected (e.g. running under WB `Execute`), `rl.question()` may
+block forever.** The fix if this bites: gate the manifest behind
+`os.isatty(0)` and return a dummy Interface when stdin is not a TTY.
 
-**If `test_spawn_async` crashes:** the async path is gated behind
-`typeof __qjs_spawnAsync === 'function'` in extended.js. Reverting
-just the C side (undo the three functions in quickjs_libc_lib.c)
-and rebuilding gives you back the sync-wrapped-in-Promise behavior
-at 0.099 levels.
+Tests for readline use a **fake input object** (`{getline: () =>
+'yes'}`) so host-side CI passes without any actual stdin wiring.
+Real interactive behavior is untested — the first actual user of
+`rl.question()` on Amiga is the smoke test.
 
-## What's not in this batch
+## Medium-risk item: 0.118 fs sync
 
-Deferred to future sessions:
-- **Q-tier FFI/GUI bridge** — you said "table the conversation,"
-  so I haven't touched it. `docs/AMIGA_FFI_ROADMAP.md` has the
-  design reference.
-- **AmiSSL main-task diagnostic** — crypto works via pure-JS
-  fallback; native fast-path still broken from main task.
-  `docs/AMISSL_MAINTASK_BUG.md`.
-- **Re-entrant CLI** — `docs/RESIDENT_CLI.md`.
-- **Mid-flight fetch socket close** — JS-level abort at 0.096
-  works; true socket-close on abort needs C changes.
+Performs real disk I/O through `std.open`/`os.stat`/`os.remove`/
+`os.rename`. These primitives are **already exercised** by
+`fs.promises`, so the risk is mostly I/O edge cases that the sync
+wrappers hit differently (buffer sizes, newline handling in text
+mode). Tests use `T:qjs-fs-sync-test` on Amiga — always mounted on
+any Workbench install, no requester, same pattern as the 0.090 D5
+`test_child_process.js` refactor.
 
-## Session notes
+## Not in this batch
 
-- Stream test 13/13 verified — 0.098 fix is solid.
-- All new JS manifests host-verified where possible (util.parseArgs
-  reference cases, querystring round-trips, Buffer swap/float).
-- AsyncSpawn uses the same polling pattern as fetch at 20ms — if
-  you notice lag, consider dropping to 10ms in the C code.
-- `NODEJS-DELTA.md` is current — every landing has a table row.
+- **Mid-flight fetch abort** — still hung; open-issue since 0.111.
+- **Ctrl-C twice / Ctrl-D kill-JSVM feature** — you asked for this
+  at the 0.111 checkpoint; deferred because it needs native signal
+  handling.
+- **Q-tier FFI / GUI bridge** — untouched per prior tabling.
+- **AmiSSL main-task diagnostic** — unchanged; pure-JS crypto
+  fallback still covers users without AmiSSL.
+- **True streaming child_process stdio** — still needs stream tier
+  hardening (backpressure) first.
+- **WHATWG streams** (ReadableStream / WritableStream / TransformStream)
+  — Blob's `.stream()` intentionally absent because of this.
+- **`dns` module** — needs a native `gethostbyname` binding; skipped
+  to keep the batch pure-JS.
+- **`zlib` module** — out of scope; needs miniz or xpk.library work.
+
+## Files touched
+
+Every commit modifies these five files and nothing else:
+
+- `quickjs-master/amiga/extended/extended.js` (the JS)
+- `quickjs-master/gen/extended.c` (the regenerated bytecode)
+- `library/vbcc/libraryconfig.h` (version bump + date)
+- `docs/NODEJS-DELTA.md` (table update)
+- `amiga/tests/test_node_overnight.js` (new regression test)
+
+No C code touched, no new LVOs, no `.sfd` changes, no Makefile
+changes. The library rebuild picks up the new bytecode via the
+existing `extended.o` rule in `library/vbcc/Makefile`.
 
 ## Ready for your eyes
 
-`git pull` on the repo, run the test list above, report which pass
-and which fail. I can fix-forward on any failure during the day.
+`git pull`, rebuild the library variants with the usual:
+
+```
+VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc variants
+VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc -f Makefile.cli
+```
+
+Copy `amiga/libs/quickjs.*.library` to `LIBS:` on the Amiga, then
+run the test list above. Report pass/fail per file and I'll fix
+forward.
+
+## Session metadata
+
+- **Start state**: `ced3f49` (0.111 fetch+AbortSignal careful-retry arc).
+- **End state**:   `ad74dd9` (0.122 os + require).
+- **Commits**:     11.
+- **Host tests**:  239/239 (new `test_node_overnight.js`).
+- **Branch**:      `main` (all pushed — pending you running `git pull`).
