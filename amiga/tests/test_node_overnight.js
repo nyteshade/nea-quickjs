@@ -456,6 +456,89 @@ fs.unlinkSync(renamed);
     ok(caught && caught.code === 'ENOENT', 'readFileSync missing -> ENOENT');
 }
 
+/* =====================================================
+ * 0.119 — events.on async iterator
+ * ===================================================== */
+section("events.on async iterator (0.119)");
+ok(typeof events === 'object', 'events module global');
+ok(events.EventEmitter === EventEmitter, 'events.EventEmitter');
+ok(typeof events.on === 'function', 'events.on');
+ok(typeof events.once === 'function', 'events.once');
+ok(typeof EventEmitter.on === 'function', 'EventEmitter.on static');
+
+{
+    const ee = new EventEmitter();
+    const it = EventEmitter.on(ee, 'data');
+    /* Emit after constructing iterator — emission queued. */
+    ee.emit('data', 'a');
+    ee.emit('data', 'b', 2);
+    const r1 = await it.next();
+    ok(r1.value[0] === 'a' && r1.done === false, 'events.on first emission');
+    const r2 = await it.next();
+    ok(r2.value[0] === 'b' && r2.value[1] === 2, 'events.on multi-arg emission');
+
+    /* Emission after next() is pending — should resolve immediately. */
+    const pending = it.next();
+    ee.emit('data', 'c');
+    const r3 = await pending;
+    ok(r3.value[0] === 'c', 'events.on emission while waiting');
+
+    /* .return() cleanup. */
+    const done = await it.return();
+    ok(done.done === true, 'events.on return marks done');
+}
+
+/* for-await integration */
+{
+    const ee = new EventEmitter();
+    queueMicrotask(() => { ee.emit('x', 1); ee.emit('x', 2); ee.emit('x', 3); });
+    const results = [];
+    for await (const [n] of EventEmitter.on(ee, 'x')) {
+        results.push(n);
+        if (n === 3) break;
+    }
+    ok(results.length === 3 && results[2] === 3, 'for-await iterates and breaks');
+}
+
+/* 'error' emission rejects */
+{
+    const ee = new EventEmitter();
+    const it = EventEmitter.on(ee, 'data');
+    /* Emit error AFTER subscribing so the error handler in .on's
+     * implementation catches it. Otherwise EE's emit('error') without
+     * a listener would throw synchronously. */
+    let caught = null;
+    try {
+        const p = it.next();
+        ee.emit('error', new Error('boom'));
+        await p;
+    } catch (e) { caught = e; }
+    ok(caught && caught.message === 'boom', 'error event rejects iterator');
+}
+
+/* AbortSignal integration */
+{
+    const ee = new EventEmitter();
+    const ac = new AbortController();
+    const it = EventEmitter.on(ee, 'data', { signal: ac.signal });
+    let caught = null;
+    queueMicrotask(() => ac.abort());
+    try { await it.next(); } catch (e) { caught = e; }
+    ok(caught && (caught.name === 'AbortError' || caught.message === 'Aborted'),
+       'AbortSignal rejects pending next');
+}
+
+/* Pre-aborted signal */
+{
+    const ee = new EventEmitter();
+    const ac = new AbortController();
+    ac.abort();
+    const it = EventEmitter.on(ee, 'data', { signal: ac.signal });
+    let caught = null;
+    try { await it.next(); } catch (e) { caught = e; }
+    ok(caught, 'pre-aborted signal rejects');
+}
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);

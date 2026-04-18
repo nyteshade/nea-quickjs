@@ -2528,7 +2528,140 @@ _manifests.push(new LocalManifest({
             });
         };
 
+        /* EventEmitter.on / events.on — async iterator over emissions.
+         *
+         *   for await (const [...args] of EventEmitter.on(emitter, 'data')) { ... }
+         *
+         * Queues emissions between awaits so fast producers don't lose
+         * events. Rejects on 'error' emission or AbortSignal abort.
+         * The returned object has .return() so `break` in for-await cleans up. */
+        EventEmitter.on = function (emitter, name, options) {
+            const queue = [];        /* pending emissions */
+            const waiting = [];      /* pending Promise resolvers */
+            let rejectReason = null;
+            let ended = false;
+            const signal = options && options.signal;
+
+            function onEvt(...args) {
+                if (ended) return;
+                if (waiting.length > 0) {
+                    const w = waiting.shift();
+                    w.resolve({ value: args, done: false });
+                } else {
+                    queue.push(args);
+                }
+            }
+            function onErr(err) {
+                cleanup();
+                rejectReason = err;
+                while (waiting.length > 0) {
+                    const w = waiting.shift();
+                    w.reject(err);
+                }
+            }
+            function cleanup() {
+                if (ended) return;
+                ended = true;
+                if (emitter.removeListener) {
+                    emitter.removeListener(name, onEvt);
+                    emitter.removeListener('error', onErr);
+                } else if (emitter.removeEventListener) {
+                    emitter.removeEventListener(name, onEvt);
+                    emitter.removeEventListener('error', onErr);
+                }
+                if (signal && onAbort) {
+                    /* EventTarget uses removeEventListener; our AbortSignal
+                     * also exposes this. */
+                    if (signal.removeEventListener) signal.removeEventListener('abort', onAbort);
+                    if (signal._onabortCallbacks) {
+                        /* Defensive — not all implementations expose a removal
+                         * hook; the guard in onAbort below covers the no-remove
+                         * path as well. */
+                    }
+                }
+            }
+            function onAbort() {
+                const err = (signal && signal.reason)
+                    || new DOMException('Aborted', 'AbortError');
+                cleanup();
+                rejectReason = err;
+                while (waiting.length > 0) {
+                    const w = waiting.shift();
+                    w.reject(err);
+                }
+            }
+
+            if (signal) {
+                if (signal.aborted) {
+                    const err = signal.reason || new DOMException('Aborted', 'AbortError');
+                    rejectReason = err;
+                    ended = true;
+                } else if (signal.addEventListener) {
+                    signal.addEventListener('abort', onAbort);
+                }
+            }
+
+            if (!ended) {
+                if (typeof emitter.on === 'function') {
+                    emitter.on(name, onEvt);
+                    emitter.on('error', onErr);
+                } else if (emitter.addEventListener) {
+                    emitter.addEventListener(name, onEvt);
+                    emitter.addEventListener('error', onErr);
+                }
+            }
+
+            const iter = {
+                next() {
+                    if (rejectReason) return Promise.reject(rejectReason);
+                    if (queue.length > 0) {
+                        return Promise.resolve({ value: queue.shift(), done: false });
+                    }
+                    if (ended) return Promise.resolve({ value: undefined, done: true });
+                    return new Promise((resolve, reject) => {
+                        waiting.push({ resolve, reject });
+                    });
+                },
+                return(value) {
+                    cleanup();
+                    /* Resolve any pending next()s with done=true so consumers
+                     * don't hang forever. */
+                    while (waiting.length > 0) {
+                        const w = waiting.shift();
+                        w.resolve({ value: undefined, done: true });
+                    }
+                    return Promise.resolve({ value, done: true });
+                },
+                throw(err) {
+                    cleanup();
+                    rejectReason = err;
+                    while (waiting.length > 0) {
+                        const w = waiting.shift();
+                        w.reject(err);
+                    }
+                    return Promise.reject(err);
+                },
+                [Symbol.asyncIterator]() { return this; },
+            };
+            return iter;
+        };
+
         globalThis.EventEmitter = EventEmitter;
+        /* Node also exposes these as globalThis.events.on / events.once
+         * via `node:events` import. Expose a thin module-shaped global
+         * so `import events from 'events'` style code finds what it wants. */
+        globalThis.events = {
+            EventEmitter,
+            once: EventEmitter.once,
+            on:   EventEmitter.on,
+            getEventListeners(emitter, name) {
+                if (typeof emitter.listeners === 'function') return emitter.listeners(name);
+                return [];
+            },
+            setMaxListeners(n /*, ...emitters */) {
+                EventEmitter.defaultMaxListeners = n | 0;
+            },
+        };
     },
 }));
 

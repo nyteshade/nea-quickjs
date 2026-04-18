@@ -133,7 +133,7 @@ Implemented in `extended.js` (`event-emitter` manifest) as `globalThis.EventEmit
 | meta-events (`newListener`, `removeListener`) | ✓ | |
 | `EventEmitter.defaultMaxListeners` | ✓ | |
 | `EventEmitter.once(emitter, ev)` (static) | ✓ | returns Promise resolving with emission args; rejects on 'error' (0.099) |
-| `events.on(emitter, ev)` async iter | ○ | |
+| `events.on(emitter, ev, opts?)` async iter | ✓ | 0.119 — yields args arrays; queues emissions between `next()`s; honors `opts.signal`; `.return()` cleans up |
 | `events.captureRejections` | ✗ | |
 
 ### `util`
