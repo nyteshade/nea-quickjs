@@ -3151,6 +3151,213 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: fs sync namespace (readFileSync / writeFileSync / ...)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Node's top-level fs module exposes sync primitives that return/
+ * throw directly. We wrap the same qjs:std / qjs:os calls used by
+ * fs.promises but without the Promise wrapper. All paths are
+ * AmigaOS-native (volume: and / both accepted).
+ *
+ * I/O under the hood is already synchronous — the Promise wrappers
+ * in fs.promises exist for API-shape compatibility, not real async.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'fs-sync',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'Node fs sync surface (readFileSync/writeFileSync/stat/unlink/...)',
+    requires:    ['fs-promises'],
+    standard:    false,
+    install() {
+        function _err(code, path) {
+            const e = new Error(code + (path ? ": " + path : ''));
+            e.code = code;
+            if (path !== undefined) e.path = path;
+            return e;
+        }
+        function _toBytes(data, enc) {
+            if (data instanceof Uint8Array) return data;
+            if (typeof data === 'string') {
+                return globalThis.Buffer
+                    ? globalThis.Buffer.from(data, enc || 'utf8')
+                    : new globalThis.TextEncoder().encode(data);
+            }
+            throw new TypeError('expected string or Buffer');
+        }
+
+        function readFileSync(path, options) {
+            const f = std.open(path, 'rb');
+            if (!f) throw _err('ENOENT', path);
+            try {
+                const parts = [];
+                const buf = new Uint8Array(8192);
+                let n;
+                do {
+                    n = f.read(buf.buffer, 0, buf.length) | 0;
+                    if (n > 0) parts.push(buf.slice(0, n));
+                } while (n > 0);
+                let total = 0;
+                for (const p of parts) total += p.length;
+                const data = new Uint8Array(total);
+                let off = 0;
+                for (const p of parts) { data.set(p, off); off += p.length; }
+                const encArg = (typeof options === 'string') ? options
+                             : (options && options.encoding);
+                if (encArg) {
+                    return globalThis.Buffer
+                        ? globalThis.Buffer.from(data).toString(encArg)
+                        : new globalThis.TextDecoder(encArg).decode(data);
+                }
+                return globalThis.Buffer ? globalThis.Buffer.from(data) : data;
+            } finally {
+                try { f.close(); } catch (_) {}
+            }
+        }
+
+        function writeFileSync(path, data, options) {
+            const enc = (typeof options === 'string') ? options
+                      : (options && options.encoding) || 'utf8';
+            const bytes = _toBytes(data, enc);
+            const f = std.open(path, 'wb');
+            if (!f) throw _err('EACCES', path);
+            try {
+                f.write(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            } finally {
+                try { f.close(); } catch (_) {}
+            }
+        }
+
+        function appendFileSync(path, data, options) {
+            const enc = (typeof options === 'string') ? options
+                      : (options && options.encoding) || 'utf8';
+            const bytes = _toBytes(data, enc);
+            const f = std.open(path, 'ab');
+            if (!f) throw _err('EACCES', path);
+            try {
+                f.write(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            } finally {
+                try { f.close(); } catch (_) {}
+            }
+        }
+
+        function existsSync(path) {
+            /* Node existsSync NEVER throws — returns bool. */
+            try {
+                const r = os.stat(path);
+                return !r[1];
+            } catch (_) { return false; }
+        }
+
+        function statSync(path) {
+            const r = os.stat(path);
+            const st = r[0], err = r[1];
+            if (err) throw _err('ENOENT', path);
+            const S_IFMT  = 0xF000;
+            const S_IFDIR = 0x4000;
+            const S_IFREG = 0x8000;
+            st.isFile         = () => (st.mode & S_IFMT) === S_IFREG;
+            st.isDirectory    = () => (st.mode & S_IFMT) === S_IFDIR;
+            st.isSymbolicLink = () => false;
+            st.isBlockDevice  = () => false;
+            st.isCharacterDevice = () => false;
+            st.isFIFO         = () => false;
+            st.isSocket       = () => false;
+            return st;
+        }
+
+        function lstatSync(path) { return statSync(path); }
+
+        function unlinkSync(path) {
+            const e = os.remove(path);
+            if (e) throw _err('EIO', path);
+        }
+
+        function renameSync(oldPath, newPath) {
+            const e = os.rename(oldPath, newPath);
+            if (e) throw _err('EIO', oldPath);
+        }
+
+        function mkdirSync(path, options) {
+            const mode = (options && options.mode) !== undefined ? options.mode : 0o777;
+            if (!os.mkdir) throw _err('ENOSYS', path);
+            const e = os.mkdir(path, mode);
+            if (e) throw _err('EEXIST', path);
+        }
+
+        function readdirSync(path, options) {
+            if (!os.readdir) throw _err('ENOSYS', path);
+            const r = os.readdir(path);
+            const list = r[0], err = r[1];
+            if (err) throw _err('ENOENT', path);
+            const filtered = list.filter(n => n !== '.' && n !== '..');
+            if (options && options.withFileTypes) {
+                return filtered.map(n => ({
+                    name: n,
+                    isFile:         () => { try { return statSync(_join(path, n)).isFile(); } catch (_) { return false; } },
+                    isDirectory:    () => { try { return statSync(_join(path, n)).isDirectory(); } catch (_) { return false; } },
+                    isSymbolicLink: () => false,
+                }));
+            }
+            return filtered;
+        }
+
+        function _join(a, b) {
+            if (!a) return b;
+            const last = a[a.length - 1];
+            if (last === '/' || last === ':') return a + b;
+            return a + '/' + b;
+        }
+
+        function accessSync(path /*, mode */) {
+            /* Node reports success/failure; on Amiga we just stat the path. */
+            const r = os.stat(path);
+            if (r[1]) throw _err('ENOENT', path);
+        }
+
+        function copyFileSync(src, dst /*, mode */) {
+            /* Straight read-then-write. */
+            const data = readFileSync(src);
+            writeFileSync(dst, data);
+        }
+
+        function truncateSync(path, len) {
+            const n = (len === undefined) ? 0 : (len | 0);
+            let existing;
+            try { existing = readFileSync(path); }
+            catch (_) { existing = new Uint8Array(0); }
+            const u8 = (existing instanceof Uint8Array) ? existing : new Uint8Array(existing);
+            let out;
+            if (n <= u8.length) {
+                out = u8.slice(0, n);
+            } else {
+                out = new Uint8Array(n);
+                out.set(u8);
+            }
+            writeFileSync(path, out);
+        }
+
+        function realpathSync(path) {
+            /* os.realpath may be absent; fall back to the path itself. */
+            if (os.realpath) {
+                const r = os.realpath(path);
+                if (!r[1]) return r[0];
+            }
+            return path;
+        }
+
+        globalThis.fs = globalThis.fs || {};
+        Object.assign(globalThis.fs, {
+            readFileSync, writeFileSync, appendFileSync, existsSync,
+            statSync, lstatSync, unlinkSync, renameSync, mkdirSync,
+            readdirSync, accessSync, copyFileSync, truncateSync,
+            realpathSync,
+        });
+    },
+}));
+
+/* ==========================================================
  * Feature: assert  (Node assert module — tiny subset)
  * Tier: pure-js    Provider: nea-port    Standard: node
  * ========================================================== */

@@ -364,6 +364,98 @@ ok(typeof FormData === 'function', 'FormData constructor');
     ok(seen.length === 2 && seen[0][0] === 'a' && seen[0][1] === '1', 'forEach iterates all entries in order');
 }
 
+/* =====================================================
+ * 0.118 — fs sync namespace
+ * ===================================================== */
+section("fs sync (0.118)");
+ok(typeof fs.readFileSync === 'function', 'fs.readFileSync');
+ok(typeof fs.writeFileSync === 'function', 'fs.writeFileSync');
+ok(typeof fs.statSync === 'function', 'fs.statSync');
+ok(typeof fs.existsSync === 'function', 'fs.existsSync');
+ok(typeof fs.unlinkSync === 'function', 'fs.unlinkSync');
+ok(typeof fs.accessSync === 'function', 'fs.accessSync');
+ok(typeof fs.copyFileSync === 'function', 'fs.copyFileSync');
+ok(typeof fs.truncateSync === 'function', 'fs.truncateSync');
+ok(typeof fs.realpathSync === 'function', 'fs.realpathSync');
+
+/* Pick a scratch path — use /tmp on host, T: on Amiga. */
+const scratch = (process.platform === 'amigaos') ? 'T:qjs-fs-sync-test' : '/tmp/qjs-fs-sync-test';
+try { fs.unlinkSync(scratch); } catch (_) {}
+
+/* writeFileSync + readFileSync (bytes) */
+fs.writeFileSync(scratch, 'hello, world');
+ok(fs.existsSync(scratch), 'existsSync true after write');
+{
+    const b = fs.readFileSync(scratch);
+    ok(b instanceof Uint8Array, 'readFileSync returns bytes by default');
+    ok(b.length === 12, 'readFileSync length');
+}
+/* readFileSync with encoding */
+ok(fs.readFileSync(scratch, 'utf8') === 'hello, world', 'readFileSync utf8');
+ok(fs.readFileSync(scratch, { encoding: 'utf8' }) === 'hello, world', 'readFileSync {encoding}');
+
+/* appendFileSync */
+fs.appendFileSync(scratch, '!');
+ok(fs.readFileSync(scratch, 'utf8') === 'hello, world!', 'appendFileSync');
+
+/* statSync */
+{
+    const st = fs.statSync(scratch);
+    ok(typeof st.size === 'number' && st.size === 13, 'statSync size');
+    ok(st.isFile() === true, 'statSync isFile');
+    ok(st.isDirectory() === false, 'statSync not directory');
+    ok(st.isSymbolicLink() === false, 'statSync not symlink');
+}
+
+/* truncateSync shorter */
+fs.truncateSync(scratch, 5);
+ok(fs.readFileSync(scratch, 'utf8') === 'hello', 'truncateSync shorter');
+/* truncateSync longer (zero-extend) */
+fs.truncateSync(scratch, 7);
+{
+    const b = fs.readFileSync(scratch);
+    ok(b.length === 7 && b[5] === 0 && b[6] === 0, 'truncateSync zero-extend');
+}
+
+/* accessSync */
+{
+    let ok1 = false;
+    try { fs.accessSync(scratch); ok1 = true; } catch (_) {}
+    ok(ok1, 'accessSync existing path');
+    let threw = false;
+    try { fs.accessSync(scratch + '-nope'); } catch (_) { threw = true; }
+    ok(threw, 'accessSync missing path throws');
+}
+
+/* existsSync never throws */
+ok(fs.existsSync(scratch + '-also-nope') === false, 'existsSync missing -> false');
+
+/* copyFileSync */
+const copy = scratch + '.copy';
+try { fs.unlinkSync(copy); } catch (_) {}
+fs.copyFileSync(scratch, copy);
+ok(fs.existsSync(copy), 'copyFileSync creates dest');
+ok(fs.readFileSync(copy).length === 7, 'copyFileSync contents match');
+
+/* renameSync */
+const renamed = scratch + '.renamed';
+try { fs.unlinkSync(renamed); } catch (_) {}
+fs.renameSync(copy, renamed);
+ok(fs.existsSync(renamed), 'renameSync dest exists');
+ok(fs.existsSync(copy) === false, 'renameSync src gone');
+
+/* unlinkSync */
+fs.unlinkSync(scratch);
+ok(!fs.existsSync(scratch), 'unlinkSync removes file');
+fs.unlinkSync(renamed);
+
+/* readFileSync on missing file throws with code */
+{
+    let caught = null;
+    try { fs.readFileSync(scratch + '-never'); } catch (e) { caught = e; }
+    ok(caught && caught.code === 'ENOENT', 'readFileSync missing -> ENOENT');
+}
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);

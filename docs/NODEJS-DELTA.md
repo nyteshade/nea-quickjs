@@ -34,7 +34,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `dns` | ○ | `gethostbyname` already wired through fetch; expose as module when needed |
 | `domain` | ✗ | deprecated upstream |
 | `events` | ✓ | `globalThis.EventEmitter` (full Node API: on/once/off/emit + prepend/rawListeners/eventNames/listenerCount/removeAllListeners/setMaxListeners) |
-| `fs` | ◐ | `fs.promises` subset via `globalThis.fs.promises` + `globalThis.fsPromises`; sync fs not yet exposed (use `qjs:std` / `qjs:os` directly) |
+| `fs` | ◐ | Sync surface + `fs.promises` on `globalThis.fs` — readFile/writeFile/appendFile/stat/lstat/exists/unlink/rename/mkdir/readdir/access/copyFile/truncate/realpath (all Sync + Promise at 0.118) |
 | `http` / `https` | ✗ | not a daemon platform — `fetch()` covers client needs |
 | `http2` | ✗ | same |
 | `inspector` | ✗ | no V8 inspector protocol |
@@ -287,7 +287,7 @@ synchronous under the hood.
 | `fs.promises.utimes(path, atime, mtime)` | ◐ | stub — resolves without actually updating times (no qjs:os API yet) |
 | `fs.constants` | ✓ | F_OK/R_OK/W_OK/X_OK + O_* flags (0.099) |
 | `fs.promises.cp / symlink / chmod / chown / open (FileHandle)` | ○ | add as demand appears |
-| `fs` (sync namespace) | ○ | use `qjs:std` / `qjs:os` directly for now |
+| `fs` (sync namespace) | ✓ | 0.118 — readFileSync/writeFileSync/appendFileSync/existsSync/statSync/lstatSync/unlinkSync/renameSync/mkdirSync/readdirSync/accessSync/copyFileSync/truncateSync/realpathSync; `readdirSync(p, {withFileTypes: true})` supported |
 | `fs.createReadStream/WriteStream` | ○ | streams not yet supported |
 
 ### `buffer.Buffer`
