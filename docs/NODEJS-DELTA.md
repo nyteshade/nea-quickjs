@@ -55,7 +55,7 @@ write*, not 100% parity. Anything gated `✗` has a stated rationale below.
 | `tls` | ✗ | AmiSSL-backed HTTPS through fetch covers use-case |
 | `trace_events` | ✗ | no upstream infra |
 | `tty` | ◐ | `os.isatty` / `os.ttyGetWinSize` / `os.ttySetRaw` via `qjs:os` |
-| `url` | ✓ | `globalThis.URL` + `globalThis.URLSearchParams` (WHATWG URL subset) |
+| `url` | ✓ | `globalThis.URL` + `globalThis.URLSearchParams` (WHATWG subset) + `globalThis.url` node module (format/fileURLToPath/pathToFileURL/parse/resolve) at 0.113 |
 | `util` | ◐ | `globalThis.util` — format / inspect / promisify / callbackify / inherits / types.* |
 | `v8` | ✗ | different engine |
 | `vm` | ○ | could wrap a new `JSContext`; no demand |

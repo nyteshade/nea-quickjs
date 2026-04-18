@@ -910,10 +910,203 @@ _manifests.push(new LocalManifest({
             static canParse(url, base) {
                 try { new URL(url, base); return true; } catch { return false; }
             }
+            static parse(url, base) {
+                /* Node 22 / modern-web API — returns null instead of throwing. */
+                try { return new URL(url, base); } catch { return null; }
+            }
         }
 
         globalThis.URL = URL;
         globalThis.URLSearchParams = URLSearchParams;
+    },
+}));
+
+/* ==========================================================
+ * Feature: node url module (globalThis.url)
+ * Tier: pure-js    Provider: nea-port    Standard: node
+ *
+ * Node's `url` module exposes the WHATWG URL constructor plus a
+ * legacy `url.format(obj)` function and two file:// URL helpers:
+ * `url.fileURLToPath(u)` and `url.pathToFileURL(p)`. Code that
+ * imports `node:url` expects these. We provide an AmigaOS-aware
+ * implementation of the file:// helpers — on Amiga, file URLs
+ * look like `file:///Volume:path/to/file` (three slashes after
+ * the scheme, then the device name with a colon per AmigaOS path
+ * convention).
+ *
+ * We expose the module as `globalThis.url`. Node's `URL` class
+ * itself is re-exported as a property so `url.URL` also works.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'node-url-module',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'node url module — URL, format, fileURLToPath, pathToFileURL',
+    requires:    ['url'],
+    globals:     ['url'],
+    standard:    false,
+    install() {
+        function format(urlObject) {
+            if (urlObject == null) throw new TypeError('url.format: urlObject required');
+            if (urlObject instanceof globalThis.URL) return urlObject.toString();
+
+            let s = '';
+            const o = urlObject;
+            const proto = o.protocol || o.scheme;
+            if (proto) {
+                s += proto;
+                if (!proto.endsWith(':')) s += ':';
+                /* Only add '//' if slashes explicitly requested OR host is present. */
+                if (o.slashes || o.host || o.hostname) s += '//';
+            } else if (o.slashes) {
+                s += '//';
+            }
+
+            /* auth / userinfo */
+            if (o.auth !== undefined && o.auth !== null) {
+                s += String(o.auth) + '@';
+            } else if (o.username || o.password) {
+                if (o.username) s += String(o.username);
+                if (o.password) s += ':' + String(o.password);
+                s += '@';
+            }
+
+            if (o.host) {
+                s += String(o.host);
+            } else if (o.hostname) {
+                s += String(o.hostname);
+                if (o.port) s += ':' + String(o.port);
+            }
+
+            if (o.pathname) s += String(o.pathname);
+            else if (o.path) s += String(o.path);
+
+            if (o.search !== undefined && o.search !== null && o.search !== '') {
+                const q = String(o.search);
+                s += q.startsWith('?') ? q : ('?' + q);
+            } else if (o.query !== undefined && o.query !== null && o.query !== '') {
+                if (typeof o.query === 'string') {
+                    s += '?' + o.query;
+                } else {
+                    const usp = new globalThis.URLSearchParams(o.query);
+                    const qs = usp.toString();
+                    if (qs.length) s += '?' + qs;
+                }
+            }
+
+            if (o.hash !== undefined && o.hash !== null && o.hash !== '') {
+                const h = String(o.hash);
+                s += h.startsWith('#') ? h : ('#' + h);
+            }
+            return s;
+        }
+
+        function fileURLToPath(u) {
+            /* Accept string or URL. */
+            const url = (typeof u === 'string') ? new globalThis.URL(u) : u;
+            if (!url || url.protocol !== 'file:') {
+                throw new TypeError('url.fileURLToPath: must be file: URL');
+            }
+            /* Percent-decode pathname. On Amiga, `file:///DH0:foo/bar` should
+             * yield `DH0:foo/bar` — strip the leading slash but preserve the
+             * device-colon in the path. If the first segment contains a colon
+             * we assume AmigaOS volume form. */
+            let p = url.pathname || '';
+            try { p = decodeURIComponent(p); } catch (_) {}
+            if (p.length && p[0] === '/') {
+                const rest = p.substring(1);
+                /* Amiga volume form: first char isn't a '/' and first segment
+                 * contains a ':' before any '/'. Return without leading slash. */
+                const slash = rest.indexOf('/');
+                const firstSeg = slash < 0 ? rest : rest.substring(0, slash);
+                if (firstSeg.indexOf(':') >= 0) return rest;
+                /* POSIX-style absolute path — preserve leading slash. */
+                return p;
+            }
+            return p;
+        }
+
+        function pathToFileURL(p) {
+            if (typeof p !== 'string') throw new TypeError('url.pathToFileURL: path must be a string');
+            /* AmigaOS volume form `DH0:foo/bar` → `file:///DH0:foo/bar`.
+             * POSIX absolute `/foo/bar`        → `file:///foo/bar`.
+             * Relative `foo/bar`               → prefix cwd from os.getcwd(). */
+            let path = p;
+            const colon = path.indexOf(':');
+            const slash = path.indexOf('/');
+            const hasVolume = colon > 0 && (slash < 0 || colon < slash);
+            if (!hasVolume && (path.length === 0 || path[0] !== '/')) {
+                const r = os.getcwd();
+                const cwd = r && r[0];
+                if (cwd) {
+                    const sep = cwd.endsWith('/') || cwd.endsWith(':') ? '' : '/';
+                    path = cwd + sep + path;
+                }
+            }
+            /* Build the URL. Percent-encode everything but unreserved chars
+             * and the colon (needed for Amiga volume names). */
+            let out = 'file:///';
+            if (hasVolume || (path.length && path[0] !== '/')) {
+                /* no extra leading slash — keep as-is */
+            } else if (path.length && path[0] === '/') {
+                path = path.substring(1);
+            }
+            const unreserved = "-._~:/+@";
+            for (let i = 0; i < path.length; i++) {
+                const c = path[i];
+                const code = c.charCodeAt(0);
+                if ((code >= 0x30 && code <= 0x39) ||
+                    (code >= 0x41 && code <= 0x5A) ||
+                    (code >= 0x61 && code <= 0x7A) ||
+                    unreserved.indexOf(c) >= 0) {
+                    out += c;
+                } else {
+                    out += '%' + (code < 16 ? '0' : '') + code.toString(16).toUpperCase();
+                }
+            }
+            return new globalThis.URL(out);
+        }
+
+        globalThis.url = {
+            URL:               globalThis.URL,
+            URLSearchParams:   globalThis.URLSearchParams,
+            format,
+            fileURLToPath,
+            pathToFileURL,
+            /* Legacy Node url.parse() — returns a plain object, not a URL instance.
+             * Only a minimal subset of fields is populated. */
+            parse(urlString, parseQueryString, slashesDenoteHost) {
+                const u = new globalThis.URL(urlString);
+                const out = {
+                    protocol: u.protocol || null,
+                    slashes:  true,
+                    auth:     (u.username || u.password)
+                                ? (u.username + (u.password ? (':' + u.password) : ''))
+                                : null,
+                    host:     u.host || null,
+                    port:     u.port || null,
+                    hostname: u.hostname || null,
+                    hash:     u.hash || null,
+                    search:   u.search || null,
+                    query:    parseQueryString
+                                ? Object.fromEntries(u.searchParams.entries())
+                                : (u.search ? u.search.substring(1) : null),
+                    pathname: u.pathname || null,
+                    path:     (u.pathname || '') + (u.search || ''),
+                    href:     u.href,
+                };
+                return out;
+            },
+            /* url.resolve(from, to) is deprecated — mimic via new URL(). */
+            resolve(from, to) {
+                return new globalThis.URL(to, from).toString();
+            },
+            /* url.domainToASCII/domainToUnicode — Node API.
+             * AmigaOS-domain chars are all ASCII by default; pass through. */
+            domainToASCII(domain)   { return String(domain).toLowerCase(); },
+            domainToUnicode(domain) { return String(domain); },
+        };
     },
 }));
 
