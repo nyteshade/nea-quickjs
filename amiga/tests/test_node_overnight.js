@@ -235,6 +235,75 @@ ok(typeof assert.AssertionError === 'function', 'assert.AssertionError class');
     ok(e.actual === 1 && e.expected === 2 && e.operator === '===', 'AssertionError fields');
 }
 
+/* =====================================================
+ * 0.116 — Blob + File
+ * ===================================================== */
+section("Blob (0.116)");
+ok(typeof Blob === 'function', 'Blob is constructor');
+{
+    const b = new Blob(['hi']);
+    ok(b.size === 2, 'Blob size (string)');
+    ok(b.type === '', 'Blob empty type');
+    const ab = await b.arrayBuffer();
+    ok(ab instanceof ArrayBuffer && ab.byteLength === 2, 'Blob.arrayBuffer');
+    ok(await b.text() === 'hi', 'Blob.text');
+    const bytes = await b.bytes();
+    ok(bytes instanceof Uint8Array && bytes.length === 2, 'Blob.bytes');
+}
+{
+    const b = new Blob(['hello, ', 'world'], { type: 'text/plain' });
+    ok(b.size === 12, 'Blob multi-part size');
+    ok(b.type === 'text/plain', 'Blob type');
+    ok(await b.text() === 'hello, world', 'Blob text concat');
+}
+{
+    const ab = new ArrayBuffer(4);
+    new Uint8Array(ab).set([1, 2, 3, 4]);
+    const b = new Blob([ab, 'z']);
+    ok(b.size === 5, 'Blob AB + string size');
+    const out = new Uint8Array(await b.arrayBuffer());
+    ok(out[0] === 1 && out[3] === 4 && out[4] === 'z'.charCodeAt(0), 'Blob AB + string bytes');
+}
+{
+    const b = new Blob([new Uint8Array([0x61, 0x62, 0x63])]);
+    ok(await b.text() === 'abc', 'Blob Uint8 input');
+}
+{
+    const inner = new Blob(['xy']);
+    const outer = new Blob([inner, 'Z']);
+    ok(outer.size === 3, 'Nested Blob size');
+    ok(await outer.text() === 'xyZ', 'Nested Blob text');
+}
+{
+    const b = new Blob(['abcdef']);
+    const s = b.slice(1, 4);
+    ok(s instanceof Blob, 'slice returns Blob');
+    ok(s.size === 3, 'slice size');
+    ok(await s.text() === 'bcd', 'slice contents');
+    const neg = b.slice(-3);
+    ok(await neg.text() === 'def', 'slice negative start');
+    const ct = b.slice(0, 2, 'text/html');
+    ok(ct.type === 'text/html', 'slice assigns contentType');
+}
+
+section("File (0.116)");
+ok(typeof File === 'function', 'File is constructor');
+{
+    const f = new File(['hi'], 'greeting.txt', { type: 'text/plain', lastModified: 42 });
+    ok(f instanceof Blob, 'File is a Blob');
+    ok(f.name === 'greeting.txt', 'File.name');
+    ok(f.size === 2, 'File.size');
+    ok(f.type === 'text/plain', 'File.type');
+    ok(f.lastModified === 42, 'File.lastModified');
+    ok(f.webkitRelativePath === '', 'File.webkitRelativePath default');
+    ok(await f.text() === 'hi', 'File.text');
+}
+{
+    let threw = false;
+    try { new File(['x']); } catch (_) { threw = true; }
+    ok(threw, 'File requires name');
+}
+
 print("");
 print("=== Results: " + pass + " passed, " + fail + " failed ===");
 if (fail > 0) std.exit(1);

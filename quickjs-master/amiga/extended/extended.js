@@ -2155,6 +2155,128 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: Blob + File (WHATWG — Node ≥18 bundles these too)
+ * Tier: pure-js    Provider: nea-port    Standard: web
+ *
+ * Pure-JS Blob/File stored as a single Uint8Array buffer. Supports
+ * mixed input (strings, ArrayBuffers, TypedArrays, Blobs); text
+ * parts are UTF-8 encoded. `.stream()` is intentionally not
+ * implemented — we don't have WHATWG streams, and callers that
+ * need chunked reads can `.arrayBuffer()` + slice manually.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'blob',
+    tier:        'pure-js',
+    provider:    'nea-port',
+    description: 'WHATWG Blob + File — pure-JS Uint8Array-backed',
+    requires:    ['buffer', 'text-encoding'],
+    globals:     ['Blob', 'File'],
+    standard:    true,
+    install() {
+        function _materialize(parts) {
+            if (!Array.isArray(parts)) throw new TypeError('Blob: first arg must be iterable');
+            let total = 0;
+            const chunks = [];
+            for (const p of parts) {
+                if (p instanceof Blob) {
+                    chunks.push(p._bytes); total += p._bytes.length;
+                } else if (p instanceof ArrayBuffer) {
+                    const u = new Uint8Array(p);
+                    chunks.push(u); total += u.length;
+                } else if (ArrayBuffer.isView(p)) {
+                    const u = new Uint8Array(p.buffer, p.byteOffset, p.byteLength);
+                    /* Copy so we own the memory and subsequent mutation to
+                     * the source view doesn't corrupt the Blob. */
+                    const copy = new Uint8Array(u.length);
+                    copy.set(u);
+                    chunks.push(copy); total += copy.length;
+                } else if (typeof p === 'string') {
+                    const enc = new globalThis.TextEncoder().encode(p);
+                    chunks.push(enc); total += enc.length;
+                } else {
+                    /* Per spec, other values should be coerced to string. */
+                    const enc = new globalThis.TextEncoder().encode(String(p));
+                    chunks.push(enc); total += enc.length;
+                }
+            }
+            const out = new Uint8Array(total);
+            let off = 0;
+            for (const c of chunks) { out.set(c, off); off += c.length; }
+            return out;
+        }
+
+        class Blob {
+            constructor(parts, options) {
+                parts = parts || [];
+                this._bytes = _materialize(parts);
+                const type = options && options.type;
+                this._type = type ? String(type).toLowerCase() : '';
+                /* endings option — Node/browsers accept 'transparent' or 'native'.
+                 * We treat both as transparent (no newline rewrite). */
+            }
+            get size() { return this._bytes.length; }
+            get type() { return this._type; }
+            arrayBuffer() {
+                /* Copy so consumer can't mutate our internal buffer. */
+                const copy = new Uint8Array(this._bytes.length);
+                copy.set(this._bytes);
+                return Promise.resolve(copy.buffer);
+            }
+            bytes() {
+                const copy = new Uint8Array(this._bytes.length);
+                copy.set(this._bytes);
+                return Promise.resolve(copy);
+            }
+            text() {
+                try {
+                    return Promise.resolve(new globalThis.TextDecoder().decode(this._bytes));
+                } catch (e) { return Promise.reject(e); }
+            }
+            slice(start, end, contentType) {
+                const len = this._bytes.length;
+                let s = (start === undefined) ? 0 : (start | 0);
+                let e = (end === undefined) ? len : (end | 0);
+                if (s < 0) s = Math.max(0, len + s);
+                if (e < 0) e = Math.max(0, len + e);
+                if (s > len) s = len;
+                if (e > len) e = len;
+                if (e < s) e = s;
+                const sub = new Uint8Array(this._bytes.buffer, this._bytes.byteOffset + s, e - s);
+                /* Build new Blob without re-copying via _materialize. */
+                const out = Object.create(Blob.prototype);
+                const copy = new Uint8Array(sub.length);
+                copy.set(sub);
+                out._bytes = copy;
+                out._type = contentType ? String(contentType).toLowerCase() : '';
+                return out;
+            }
+            /* .stream() is intentionally absent — no WHATWG ReadableStream. */
+        }
+
+        class File extends Blob {
+            constructor(parts, name, options) {
+                super(parts, options);
+                if (name === undefined) {
+                    throw new TypeError('File: name argument required');
+                }
+                /* Per WHATWG File spec, NUL bytes in name are stripped. */
+                this._name = String(name).replace(/\u0000/g, '');
+                this._lastModified = (options && typeof options.lastModified === 'number')
+                    ? options.lastModified
+                    : Date.now();
+            }
+            get name() { return this._name; }
+            get lastModified() { return this._lastModified; }
+            get webkitRelativePath() { return ''; }
+        }
+
+        globalThis.Blob = Blob;
+        globalThis.File = File;
+    },
+}));
+
+/* ==========================================================
  * Feature: EventEmitter  (Node.js API subset)
  * Tier: pure-js    Provider: nea-port    Standard: node
  *

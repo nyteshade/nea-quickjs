@@ -329,7 +329,7 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 | `queueMicrotask(fn)` | ✓ | `queue-microtask` manifest |
 | `structuredClone(v)` | ◐ | `structured-clone` manifest — JSON round-trip (loses Date/Map/Set) |
 | `crypto.subtle.digest`, `crypto.getRandomValues` | ○ | planned — E-tier via AmiSSL |
-| `Blob`, `File` | ○ | add with fetch multipart |
+| `Blob`, `File` | ✓ | 0.116 — pure-JS, Uint8Array-backed; `.arrayBuffer()` / `.text()` / `.bytes()` / `.slice()`; no `.stream()` (no WHATWG ReadableStream) |
 | `FormData` | ○ | |
 | `performance.now`, `.timeOrigin` | ✓ | `globalThis.performance` at 0.112 — microsecond precision via `os.now()` |
 | `performance.mark/measure/getEntries*/clearMarks/clearMeasures` | ✓ | 0.112 — in-memory entry list; no PerformanceObserver |
