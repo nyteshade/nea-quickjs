@@ -424,6 +424,8 @@
 	xref	_qjs_install_child_process_global
 	xdef	_QJS_InstallCryptoGlobal
 	xref	_qjs_install_crypto_global
+	xdef	_QJS_InstallAmigaFFIGlobal
+	xref	_qjs_install_amiga_ffi_global
 
 
 ; ===================================================================
@@ -3723,6 +3725,18 @@ _QJS_InstallCryptoGlobal:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,-(sp)
 	jsr	_qjs_install_crypto_global
+	lea	4(sp),sp
+	movem.l	(sp)+,d2-d7/a2-a6
+	rts
+
+; QJS_InstallAmigaFFIGlobal — (ctx)(a0) -> void
+; Q1 (0.124): installs globalThis.__qjs_amiga_* FFI primitives.
+; extended.js wraps these in globalThis.amiga with LVO constant tables
+; for exec/dos/intuition/graphics/gadtools.
+_QJS_InstallAmigaFFIGlobal:
+	movem.l	d2-d7/a2-a6,-(sp)
+	move.l	a0,-(sp)
+	jsr	_qjs_install_amiga_ffi_global
 	lea	4(sp),sp
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts

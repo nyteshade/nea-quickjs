@@ -41,6 +41,10 @@ echo "Running tests/test_node_extras.js and saving in output/test_node_extras.ou
 qjs tests/test_node_extras.js > output/test_node_extras.output
 echo "done"
 ;
+echo "Running tests/test_node_overnight.js and saving in output/test_node_overnight.output..." noline
+qjs tests/test_node_overnight.js > output/test_node_overnight.output
+echo "done"
+;
 echo "Running tests/test_assert_timers.js and saving in output/test_assert_timers.output..." noline
 qjs tests/test_assert_timers.js > output/test_assert_timers.output
 echo "done"
@@ -75,6 +79,10 @@ echo "done"
 ;
 echo "Running tests/test_fetch_abort.js and saving in output/test_fetch_abort.output..." noline
 qjs tests/test_fetch_abort.js > output/test_fetch_abort.output
+echo "done"
+;
+echo "Running tests/test_amiga_ffi.js and saving in output/test_amiga_ffi.output..." noline
+qjs tests/test_amiga_ffi.js > output/test_amiga_ffi.output
 echo "done"
 ;
 echo "*NAll tests complete. Results are in output/"

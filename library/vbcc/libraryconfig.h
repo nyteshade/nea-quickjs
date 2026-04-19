@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.123 (18.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.124 (19.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   123  /* packed: major=0, revision=123 (bugfix: File ctor NUL-strip used regex — replaced with split/join; unblocks test_node_overnight File section) */
+#define LIBRARY_VERSION   124  /* packed: major=0, revision=124 (Q1 Amiga FFI: openLibrary/call/peek/poke/allocMem/makeTags + 150 LVOs across exec/dos/intuition/graphics/gadtools) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
@@ -994,6 +994,18 @@ void QJS_InstallChildProcessGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
 void QJS_InstallCryptoGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
                              __reg("a0") struct JSContext *ctx);
 
+/* Q1 — install native Amiga FFI primitives on globalThis.
+ * __qjs_amiga_openLibrary(name, ver)  -> lib handle
+ * __qjs_amiga_closeLibrary(lib)       -> void
+ * __qjs_amiga_call(lib, lvo, regs)    -> d0 via asm trampoline
+ * __qjs_amiga_peek8/16/32/poke8/16/32 -> raw memory access
+ * __qjs_amiga_peekString/pokeString   -> NUL-terminated ASCII
+ * __qjs_amiga_allocMem/freeMem        -> exec MEMF_* allocation
+ * __qjs_amiga_makeTags                -> TagItem array builder
+ * extended.js wraps in globalThis.amiga with LVO constant tables. */
+void QJS_InstallAmigaFFIGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
+                               __reg("a0") struct JSContext *ctx);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -1210,6 +1222,7 @@ void QJS_Eval(
     (APTR) QJS_InitModuleNet, \
     (APTR) QJS_GetMathBase, \
     (APTR) QJS_InstallChildProcessGlobal, \
-    (APTR) QJS_InstallCryptoGlobal
+    (APTR) QJS_InstallCryptoGlobal, \
+    (APTR) QJS_InstallAmigaFFIGlobal
 
 #endif /* LIBRARYCONFIG_H */

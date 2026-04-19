@@ -58,6 +58,7 @@ extern void *bridge_InitModuleBJSON(void *ctx, const char *name);
 extern void *bridge_InitModuleNet(void *ctx, const char *name);
 extern void bridge_InstallChildProcessGlobal(void *ctx);
 extern void bridge_InstallCryptoGlobal(void *ctx);
+extern void bridge_InstallAmigaFFIGlobal(void *ctx);
 extern void  bridge_StdInitHandlers(void *rt);
 extern void  bridge_StdFreeHandlers(void *rt);
 extern void  bridge_StdAddHelpers(void *ctx, int argc, char **argv);
@@ -383,6 +384,7 @@ static JSContext *JS_NewCustomContext(JSRuntime *rt)
     bridge_InitModuleNet(ctx, "qjs:net");
     bridge_InstallChildProcessGlobal(ctx);
     bridge_InstallCryptoGlobal(ctx);
+    bridge_InstallAmigaFFIGlobal(ctx);
 #endif
 
     global = JS_GetGlobalObject(ctx);

@@ -5045,6 +5045,432 @@ _manifests.push(new LocalManifest({
 }));
 
 /* ==========================================================
+ * Feature: Q1 Amiga FFI (globalThis.amiga)
+ * Tier: pure-js + native    Provider: nea-port    Standard: amiga
+ *
+ * Raw access to AmigaOS libraries from JS. Wraps the natives
+ * installed by QJS_InstallAmigaFFIGlobal (C side in amiga_ffi.c +
+ * m68k trampoline in amiga_ffi_call.s). 150+ LVO constants across
+ * exec / dos / intuition / graphics / gadtools extracted from NDK
+ * 3.2 FD files.
+ *
+ * USE WITH CARE: direct memory access and LVO dispatch can crash
+ * the machine on bad input. This is explicit power-user territory;
+ * see docs/superpowers/specs/2026-04-19-q1-amiga-ffi-design.md for
+ * context.
+ *
+ * The manifest refuses to install if any native is missing — the
+ * feature is off entirely when running against an older library.
+ * ========================================================== */
+
+_manifests.push(new LocalManifest({
+    name:        'amiga-ffi',
+    tier:        'native-backed',
+    provider:    'nea-port',
+    description: 'Raw AmigaOS FFI — openLibrary / call / peek / poke / allocMem / makeTags + 150 LVOs',
+    globals:     ['amiga'],
+    standard:    false,
+    install() {
+        /* Feature gate: if the library didn't install our natives, skip. */
+        const N = globalThis;
+        if (typeof N.__qjs_amiga_openLibrary !== 'function' ||
+            typeof N.__qjs_amiga_call        !== 'function') {
+            return;
+        }
+
+        /* ---------- FFI primitives (thin wrappers) ---------- */
+        const amiga = {
+            /* --- libraries --- */
+            openLibrary(name, version) {
+                if (typeof name !== 'string') {
+                    throw new TypeError('amiga.openLibrary: name must be a string');
+                }
+                return N.__qjs_amiga_openLibrary(name, (version | 0) || 0);
+            },
+            closeLibrary(lib) {
+                if (!lib) return;
+                N.__qjs_amiga_closeLibrary(lib);
+            },
+
+            /* --- generic library call --- */
+            call(lib, lvo, regs) {
+                if (!lib) throw new TypeError('amiga.call: lib pointer is 0');
+                return N.__qjs_amiga_call(lib, lvo | 0, regs || {});
+            },
+
+            /* --- direct memory access --- */
+            peek8(addr)        { return N.__qjs_amiga_peek8(addr); },
+            peek16(addr)       { return N.__qjs_amiga_peek16(addr); },
+            peek32(addr)       { return N.__qjs_amiga_peek32(addr); },
+            poke8(addr, val)   { N.__qjs_amiga_poke8(addr, val | 0); },
+            poke16(addr, val)  { N.__qjs_amiga_poke16(addr, val | 0); },
+            poke32(addr, val)  { N.__qjs_amiga_poke32(addr, val | 0); },
+            peekString(addr, maxLen) {
+                return N.__qjs_amiga_peekString(addr, maxLen === undefined ? 4096 : (maxLen | 0));
+            },
+            pokeString(addr, str) {
+                return N.__qjs_amiga_pokeString(addr, String(str));
+            },
+
+            /* --- memory allocation --- */
+            allocMem(size, flags) {
+                if (flags === undefined) flags = amiga.MEMF_PUBLIC | amiga.MEMF_CLEAR;
+                return N.__qjs_amiga_allocMem(size | 0, flags | 0);
+            },
+            freeMem(ptr, size) {
+                if (!ptr || !size) return;
+                N.__qjs_amiga_freeMem(ptr, size | 0);
+            },
+
+            /* --- TagItem helpers --- */
+            makeTags(pairs) {
+                if (!Array.isArray(pairs)) {
+                    throw new TypeError('amiga.makeTags: array of [tag, data] pairs required');
+                }
+                return N.__qjs_amiga_makeTags(pairs);
+            },
+            /* ergonomic — allocates tags, runs fn(ptr), always frees. */
+            withTags(pairs, fn) {
+                const ptr = amiga.makeTags(pairs);
+                if (!ptr) throw new Error('amiga.withTags: allocation failed');
+                const size = (pairs.length + 1) * 8;
+                try { return fn(ptr); }
+                finally { amiga.freeMem(ptr, size); }
+            },
+
+            /* ---------- exec MemF_* flags ---------- */
+            MEMF_ANY:        0x00000000,
+            MEMF_PUBLIC:     0x00000001,
+            MEMF_CHIP:       0x00000002,
+            MEMF_FAST:       0x00000004,
+            MEMF_LOCAL:      0x00000100,
+            MEMF_24BITDMA:   0x00000200,
+            MEMF_KICK:       0x00000400,
+            MEMF_CLEAR:      0x00010000,
+            MEMF_LARGEST:    0x00020000,
+            MEMF_REVERSE:    0x00080000,
+            MEMF_TOTAL:      0x00040000,
+            MEMF_NO_EXPUNGE: 0x80000000,
+
+            /* ---------- TagItem terminators ---------- */
+            TAG_DONE:   0,
+            TAG_END:    0,
+            TAG_IGNORE: 1,
+            TAG_MORE:   2,
+            TAG_SKIP:   3,
+            TAG_USER:   0x80000000,
+
+            /* ---------- Selected Intuition tags (0x80000000 + offset) ---------- */
+            tags: {
+                /* Window Attributes — WA_Dummy = TAG_USER + 99 = 0x80000063 */
+                WA_Left:         0x80000064, WA_Top:           0x80000065,
+                WA_Width:        0x80000066, WA_Height:        0x80000067,
+                WA_DetailPen:    0x80000068, WA_BlockPen:      0x80000069,
+                WA_IDCMP:        0x8000006A, WA_Flags:         0x8000006B,
+                WA_Gadgets:      0x8000006C, WA_Checkmark:     0x8000006D,
+                WA_Title:        0x8000006E, WA_ScreenTitle:   0x8000006F,
+                WA_CustomScreen: 0x80000070, WA_MinWidth:      0x80000072,
+                WA_MinHeight:    0x80000073, WA_MaxWidth:      0x80000074,
+                WA_MaxHeight:    0x80000075, WA_PubScreenName: 0x80000078,
+                WA_AutoAdjust:   0x80000083, WA_SimpleRefresh: 0x80000079,
+                WA_SmartRefresh: 0x8000007A, WA_BackFill:      0x8000007F,
+
+                /* Screen Attributes — SA_Dummy = TAG_USER + 32 = 0x80000020 */
+                SA_Left:    0x80000021, SA_Top:     0x80000022,
+                SA_Width:   0x80000023, SA_Height:  0x80000024,
+                SA_Depth:   0x80000025, SA_DetailPen: 0x80000026,
+                SA_BlockPen:0x80000027, SA_Title:   0x80000028,
+                SA_Colors:  0x80000029, SA_ErrorCode: 0x8000002A,
+                SA_Font:    0x8000002B, SA_SysFont: 0x8000002C,
+                SA_Type:    0x8000002D, SA_BitMap:  0x8000002E,
+                SA_PubName: 0x8000002F, SA_PubSig:  0x80000030,
+                SA_PubTask: 0x80000031, SA_DisplayID: 0x80000032,
+
+                /* GadTools — GT_Dummy = TAG_USER + 0x7000000 + 0 */
+                GT_Underscore: 0x80000036,
+                GTCB_Checked:  0x800000B4, GTLV_Selected: 0x80000068,
+                GTST_String:   0x80000140, GTIN_Number:   0x80000180,
+
+                /* IDCMP flags (WA_IDCMP values) */
+                IDCMP_SIZEVERIFY:    0x00000001,
+                IDCMP_NEWSIZE:       0x00000002,
+                IDCMP_REFRESHWINDOW: 0x00000004,
+                IDCMP_MOUSEBUTTONS:  0x00000008,
+                IDCMP_MOUSEMOVE:     0x00000010,
+                IDCMP_GADGETDOWN:    0x00000020,
+                IDCMP_GADGETUP:      0x00000040,
+                IDCMP_MENUPICK:      0x00000100,
+                IDCMP_CLOSEWINDOW:   0x00000200,
+                IDCMP_RAWKEY:        0x00000400,
+                IDCMP_VANILLAKEY:    0x00200000,
+
+                /* WFLG — window flags (WA_Flags value) */
+                WFLG_SIZEGADGET:    0x00000001,
+                WFLG_DRAGBAR:       0x00000002,
+                WFLG_DEPTHGADGET:   0x00000004,
+                WFLG_CLOSEGADGET:   0x00000008,
+                WFLG_SIZEBRIGHT:    0x00000010,
+                WFLG_SIZEBBOTTOM:   0x00000020,
+                WFLG_BACKDROP:      0x00000100,
+                WFLG_REPORTMOUSE:   0x00000200,
+                WFLG_GIMMEZEROZERO: 0x00000400,
+                WFLG_BORDERLESS:    0x00000800,
+                WFLG_ACTIVATE:      0x00001000,
+            },
+
+            /* ---------- LVO tables (NDK 3.2 FD files) ---------- */
+            lvo: {
+                exec: {
+                    Supervisor: -30, InitCode: -72, InitStruct: -78,
+                    MakeLibrary: -84, MakeFunctions: -90, FindResident: -96,
+                    InitResident: -102, Alert: -108, Debug: -114,
+                    Disable: -120, Enable: -126, Forbid: -132, Permit: -138,
+                    SetSR: -144, SuperState: -150, UserState: -156,
+                    SetIntVector: -162, AddIntServer: -168, RemIntServer: -174,
+                    Cause: -180, Allocate: -186, Deallocate: -192,
+                    AllocMem: -198, AllocAbs: -204, FreeMem: -210,
+                    AvailMem: -216, AllocEntry: -222, FreeEntry: -228,
+                    Insert: -234, AddHead: -240, AddTail: -246,
+                    Remove: -252, RemHead: -258, RemTail: -264,
+                    Enqueue: -270, FindName: -276, AddTask: -282,
+                    RemTask: -288, FindTask: -294, SetTaskPri: -300,
+                    SetSignal: -306, SetExcept: -312, Wait: -318,
+                    Signal: -324, AllocSignal: -330, FreeSignal: -336,
+                    AllocTrap: -342, FreeTrap: -348, AddPort: -354,
+                    RemPort: -360, PutMsg: -366, GetMsg: -372,
+                    ReplyMsg: -378, WaitPort: -384, FindPort: -390,
+                    AddLibrary: -396, RemLibrary: -402, OldOpenLibrary: -408,
+                    CloseLibrary: -414, SetFunction: -420, SumLibrary: -426,
+                    AddDevice: -432, RemDevice: -438, OpenDevice: -444,
+                    CloseDevice: -450, DoIO: -456, SendIO: -462,
+                    CheckIO: -468, WaitIO: -474, AbortIO: -480,
+                    AddResource: -486, RemResource: -492, OpenResource: -498,
+                    RawDoFmt: -522, GetCC: -528, TypeOfMem: -534,
+                    Procure: -540, Vacate: -546, OpenLibrary: -552,
+                    InitSemaphore: -558, ObtainSemaphore: -564,
+                    ReleaseSemaphore: -570, AttemptSemaphore: -576,
+                    ObtainSemaphoreList: -582, ReleaseSemaphoreList: -588,
+                    FindSemaphore: -594, AddSemaphore: -600, RemSemaphore: -606,
+                    SumKickData: -612, AddMemList: -618, CopyMem: -624,
+                    CopyMemQuick: -630, CacheClearU: -636, CacheClearE: -642,
+                    CacheControl: -648, CreateIORequest: -654,
+                    DeleteIORequest: -660, CreateMsgPort: -666,
+                    DeleteMsgPort: -672, ObtainSemaphoreShared: -678,
+                    AllocVec: -684, FreeVec: -690, CreatePool: -696,
+                    DeletePool: -702, AllocPooled: -708, FreePooled: -714,
+                    AttemptSemaphoreShared: -720, ColdReboot: -726,
+                    StackSwap: -732, CachePreDMA: -762, CachePostDMA: -768,
+                    AddMemHandler: -774, RemMemHandler: -780,
+                    ObtainQuickVector: -786, NewMinList: -828,
+                },
+                dos: {
+                    Open: -30, Close: -36, Read: -42, Write: -48,
+                    Input: -54, Output: -60, Seek: -66, DeleteFile: -72,
+                    Rename: -78, Lock: -84, UnLock: -90, DupLock: -96,
+                    Examine: -102, ExNext: -108, Info: -114,
+                    CreateDir: -120, CurrentDir: -126, IoErr: -132,
+                    CreateProc: -138, Exit: -144, LoadSeg: -150,
+                    UnLoadSeg: -156, DeviceProc: -174, SetComment: -180,
+                    SetProtection: -186, DateStamp: -192, Delay: -198,
+                    WaitForChar: -204, ParentDir: -210, IsInteractive: -216,
+                    Execute: -222, AllocDosObject: -228, FreeDosObject: -234,
+                    DoPkt: -240, SendPkt: -246, WaitPkt: -252,
+                    ReplyPkt: -258, AbortPkt: -264, LockRecord: -270,
+                    LockRecords: -276, UnLockRecord: -282, UnLockRecords: -288,
+                    SelectInput: -294, SelectOutput: -300, FGetC: -306,
+                    FPutC: -312, UnGetC: -318, FRead: -324, FWrite: -330,
+                    FGets: -336, FPuts: -342, VFWritef: -348, VFPrintf: -354,
+                    Flush: -360, SetVBuf: -366, DupLockFromFH: -372,
+                    OpenFromLock: -378, ParentOfFH: -384, ExamineFH: -390,
+                    SetFileDate: -396, NameFromLock: -402, NameFromFH: -408,
+                    SplitName: -414, SameLock: -420, SetMode: -426,
+                    ExAll: -432, ReadLink: -438, MakeLink: -444,
+                    ChangeMode: -450, SetFileSize: -456, SetIoErr: -462,
+                    Fault: -468, PrintFault: -474, ErrorReport: -480,
+                    Cli: -492, CreateNewProc: -498, RunCommand: -504,
+                    GetConsoleTask: -510, SetConsoleTask: -516,
+                    GetFileSysTask: -522, SetFileSysTask: -528,
+                    GetArgStr: -534, SetArgStr: -540, FindCliProc: -546,
+                    MaxCli: -552, SetCurrentDirName: -558,
+                    GetCurrentDirName: -564, SetProgramName: -570,
+                    GetProgramName: -576, SetPrompt: -582, GetPrompt: -588,
+                    SetProgramDir: -594, GetProgramDir: -600,
+                    SystemTagList: -606, AssignLock: -612, AssignLate: -618,
+                    AssignPath: -624, AssignAdd: -630, RemAssignList: -636,
+                    GetDeviceProc: -642, FreeDeviceProc: -648,
+                    LockDosList: -654, UnLockDosList: -660,
+                    AttemptLockDosList: -666, RemDosEntry: -672,
+                    AddDosEntry: -678, FindDosEntry: -684, NextDosEntry: -690,
+                    MakeDosEntry: -696, FreeDosEntry: -702, IsFileSystem: -708,
+                    Format: -714, Relabel: -720, Inhibit: -726,
+                    AddBuffers: -732, CompareDates: -738, DateToStr: -744,
+                    StrToDate: -750, InternalLoadSeg: -756,
+                    InternalUnLoadSeg: -762, NewLoadSeg: -768,
+                    AddSegment: -774, FindSegment: -780, RemSegment: -786,
+                    CheckSignal: -792, ReadArgs: -798, FindArg: -804,
+                    ReadItem: -810, StrToLong: -816, MatchFirst: -822,
+                    MatchNext: -828, MatchEnd: -834, ParsePattern: -840,
+                    MatchPattern: -846, FreeArgs: -858, FilePart: -870,
+                    PathPart: -876, AddPart: -882, StartNotify: -888,
+                    EndNotify: -894, SetVar: -900, GetVar: -906,
+                    DeleteVar: -912, FindVar: -918, CliInitNewcli: -930,
+                    CliInitRun: -936, WriteChars: -942, PutStr: -948,
+                    VPrintf: -954, ParsePatternNoCase: -966,
+                    MatchPatternNoCase: -972, SameDevice: -984,
+                    ExAllEnd: -990, SetOwner: -996, VolumeRequestHook: -1014,
+                    GetCurrentDir: -1026, PutErrStr: -1128,
+                    ErrorOutput: -1134, SelectError: -1140,
+                    DoShellMethodTagList: -1152, ScanStackToken: -1158,
+                },
+                intuition: {
+                    OpenIntuition: -30, Intuition: -36, AddGadget: -42,
+                    ClearDMRequest: -48, ClearMenuStrip: -54,
+                    ClearPointer: -60, CloseScreen: -66, CloseWindow: -72,
+                    CloseWorkBench: -78, CurrentTime: -84, DisplayAlert: -90,
+                    DisplayBeep: -96, DoubleClick: -102, DrawBorder: -108,
+                    DrawImage: -114, EndRequest: -120, GetDefPrefs: -126,
+                    GetPrefs: -132, InitRequester: -138, ItemAddress: -144,
+                    ModifyIDCMP: -150, ModifyProp: -156, MoveScreen: -162,
+                    MoveWindow: -168, OffGadget: -174, OffMenu: -180,
+                    OnGadget: -186, OnMenu: -192, OpenScreen: -198,
+                    OpenWindow: -204, OpenWorkBench: -210, PrintIText: -216,
+                    RefreshGadgets: -222, RemoveGadget: -228,
+                    ReportMouse: -234, Request: -240, ScreenToBack: -246,
+                    ScreenToFront: -252, SetDMRequest: -258,
+                    SetMenuStrip: -264, SetPointer: -270,
+                    SetWindowTitles: -276, ShowTitle: -282, SizeWindow: -288,
+                    ViewAddress: -294, ViewPortAddress: -300,
+                    WindowToBack: -306, WindowToFront: -312, WindowLimits: -318,
+                    SetPrefs: -324, IntuiTextLength: -330, WBenchToBack: -336,
+                    WBenchToFront: -342, AutoRequest: -348, BeginRefresh: -354,
+                    BuildSysRequest: -360, EndRefresh: -366,
+                    FreeSysRequest: -372, MakeScreen: -378,
+                    RemakeDisplay: -384, RethinkDisplay: -390,
+                    AllocRemember: -396, AlohaWorkbench: -402,
+                    FreeRemember: -408, LockIBase: -414, UnlockIBase: -420,
+                    GetScreenData: -426, RefreshGList: -432, AddGList: -438,
+                    RemoveGList: -444, ActivateWindow: -450,
+                    RefreshWindowFrame: -456, ActivateGadget: -462,
+                    NewModifyProp: -468, QueryOverscan: -474,
+                    MoveWindowInFrontOf: -480, ChangeWindowBox: -486,
+                    SetEditHook: -492, SetMouseQueue: -498, ZipWindow: -504,
+                    LockPubScreen: -510, UnlockPubScreen: -516,
+                    LockPubScreenList: -522, UnlockPubScreenList: -528,
+                    NextPubScreen: -534, SetDefaultPubScreen: -540,
+                    SetPubScreenModes: -546, PubScreenStatus: -552,
+                    ObtainGIRPort: -558, ReleaseGIRPort: -564,
+                    GadgetMouse: -570, GetDefaultPubScreen: -582,
+                    EasyRequestArgs: -588, BuildEasyRequestArgs: -594,
+                    SysReqHandler: -600, OpenWindowTagList: -606,
+                    OpenScreenTagList: -612, DrawImageState: -618,
+                    PointInImage: -624, EraseImage: -630, NewObjectA: -636,
+                    DisposeObject: -642, SetAttrsA: -648, GetAttr: -654,
+                    SetGadgetAttrsA: -660, NextObject: -666, MakeClass: -678,
+                    AddClass: -684, GetScreenDrawInfo: -690,
+                    FreeScreenDrawInfo: -696, ResetMenuStrip: -702,
+                    RemoveClass: -708, FreeClass: -714, AllocScreenBuffer: -768,
+                    FreeScreenBuffer: -774, ChangeScreenBuffer: -780,
+                    ScreenDepth: -786, ScreenPosition: -792,
+                    ScrollWindowRaster: -798, LendMenus: -804,
+                    DoGadgetMethodA: -810, SetWindowPointerA: -816,
+                    TimedDisplayAlert: -822, HelpControl: -828,
+                    ShowWindow: -834, HideWindow: -840,
+                },
+                graphics: {
+                    BltBitMap: -30, BltTemplate: -36, ClearEOL: -42,
+                    ClearScreen: -48, TextLength: -54, Text: -60,
+                    SetFont: -66, OpenFont: -72, CloseFont: -78,
+                    AskSoftStyle: -84, SetSoftStyle: -90, AddBob: -96,
+                    AddVSprite: -102, DoCollision: -108, DrawGList: -114,
+                    InitGels: -120, InitMasks: -126, RemIBob: -132,
+                    RemVSprite: -138, SetCollision: -144, SortGList: -150,
+                    AddAnimOb: -156, Animate: -162, GetGBuffers: -168,
+                    InitGMasks: -174, DrawEllipse: -180, AreaEllipse: -186,
+                    LoadRGB4: -192, InitRastPort: -198, InitVPort: -204,
+                    MrgCop: -210, MakeVPort: -216, LoadView: -222,
+                    WaitBlit: -228, SetRast: -234, Move: -240, Draw: -246,
+                    AreaMove: -252, AreaDraw: -258, AreaEnd: -264,
+                    WaitTOF: -270, QBlit: -276, InitArea: -282,
+                    SetRGB4: -288, QBSBlit: -294, BltClear: -300,
+                    RectFill: -306, BltPattern: -312, ReadPixel: -318,
+                    WritePixel: -324, Flood: -330, PolyDraw: -336,
+                    SetAPen: -342, SetBPen: -348, SetDrMd: -354,
+                    InitView: -360, CBump: -366, CMove: -372, CWait: -378,
+                    VBeamPos: -384, InitBitMap: -390, ScrollRaster: -396,
+                    WaitBOVP: -402, GetSprite: -408, FreeSprite: -414,
+                    ChangeSprite: -420, MoveSprite: -426, LockLayerRom: -432,
+                    UnlockLayerRom: -438, SyncSBitMap: -444, CopySBitMap: -450,
+                    OwnBlitter: -456, DisownBlitter: -462, InitTmpRas: -468,
+                    AskFont: -474, AddFont: -480, RemFont: -486,
+                    AllocRaster: -492, FreeRaster: -498, AndRectRegion: -504,
+                    OrRectRegion: -510, NewRegion: -516, ClearRectRegion: -522,
+                    ClearRegion: -528, DisposeRegion: -534,
+                    FreeVPortCopLists: -540, FreeCopList: -546,
+                    ClipBlit: -552, XorRectRegion: -558, FreeCprList: -564,
+                    GetColorMap: -570, FreeColorMap: -576, GetRGB4: -582,
+                    ScrollVPort: -588, UCopperListInit: -594,
+                    FreeGBuffers: -600, BltBitMapRastPort: -606,
+                    OrRegionRegion: -612, XorRegionRegion: -618,
+                    AndRegionRegion: -624, SetRGB4CM: -630,
+                    BltMaskBitMapRastPort: -636, AttemptLockLayerRom: -654,
+                    GfxNew: -660, GfxFree: -666, GfxAssociate: -672,
+                    BitMapScale: -678, ScalerDiv: -684, TextExtent: -690,
+                    TextFit: -696, GfxLookUp: -702, VideoControl: -708,
+                    OpenMonitor: -714, CloseMonitor: -720,
+                    FindDisplayInfo: -726, NextDisplayInfo: -732,
+                    GetDisplayInfoData: -756, FontExtent: -762,
+                    ReadPixelLine8: -768, WritePixelLine8: -774,
+                    ReadPixelArray8: -780, WritePixelArray8: -786,
+                    GetVPModeID: -792, ModeNotAvailable: -798,
+                    WeighTAMatch: -804, EraseRect: -810, ExtendFont: -816,
+                    StripFont: -822, CalcIVG: -828, AttachPalExtra: -834,
+                    ObtainBestPenA: -840, SetRGB32: -852, GetAPen: -858,
+                    GetBPen: -864, GetDrMd: -870, GetOutlinePen: -876,
+                    LoadRGB32: -882, SetChipRev: -888, SetABPenDrMd: -894,
+                    GetRGB32: -900, AllocBitMap: -918, FreeBitMap: -924,
+                    GetExtSpriteA: -930, CoerceMode: -936,
+                    ChangeVPBitMap: -942, ReleasePen: -948, ObtainPen: -954,
+                    GetBitMapAttr: -960, AllocDBufInfo: -966,
+                    FreeDBufInfo: -972, SetOutlinePen: -978, SetWriteMask: -984,
+                    SetMaxPen: -990, SetRGB32CM: -996, ScrollRasterBF: -1002,
+                    FindColor: -1008, AllocSpriteDataA: -1020,
+                    ChangeExtSpriteA: -1026, FreeSpriteData: -1032,
+                    SetRPAttrsA: -1038, GetRPAttrsA: -1044, BestModeIDA: -1050,
+                    WriteChunkyPixels: -1056,
+                },
+                gadtools: {
+                    CreateGadgetA: -30, FreeGadgets: -36,
+                    GT_SetGadgetAttrsA: -42, CreateMenusA: -48,
+                    FreeMenus: -54, LayoutMenuItemsA: -60, LayoutMenusA: -66,
+                    GT_GetIMsg: -72, GT_ReplyIMsg: -78, GT_RefreshWindow: -84,
+                    GT_BeginRefresh: -90, GT_EndRefresh: -96,
+                    GT_FilterIMsg: -102, GT_PostFilterIMsg: -108,
+                    CreateContext: -114, DrawBevelBoxA: -120,
+                    GetVisualInfoA: -126, FreeVisualInfo: -132,
+                    SetDesignFontA: -138, ScaleGadgetRectA: -144,
+                    GT_GetGadgetAttrsA: -174,
+                },
+            },
+        };
+
+        globalThis.amiga = amiga;
+
+        /* Extend require() to resolve 'amiga' and 'node:amiga'. */
+        if (typeof globalThis.require === 'function') {
+            const origRequire = globalThis.require;
+            globalThis.require = function (id) {
+                const n = typeof id === 'string' && id.startsWith('node:') ? id.substring(5) : id;
+                if (n === 'amiga') return amiga;
+                return origRequire(id);
+            };
+            globalThis.require.resolve = origRequire.resolve;
+            globalThis.require.cache = origRequire.cache;
+            globalThis.require.extensions = origRequire.extensions;
+        }
+    },
+}));
+
+/* ==========================================================
  * Apply all features in dependency order, expose registry
  * ========================================================== */
 

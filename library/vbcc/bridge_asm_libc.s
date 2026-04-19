@@ -258,3 +258,16 @@ _bridge_InstallCryptoGlobal:
 	jsr	(a5)
 	movem.l	(sp)+,d2/a2-a6
 	rts
+
+; bridge_InstallAmigaFFIGlobal(ctx) -> void
+; LVO -1212 — Q1: install globalThis.__qjs_amiga_* FFI natives.
+	xdef	_bridge_InstallAmigaFFIGlobal
+_bridge_InstallAmigaFFIGlobal:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1212,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
