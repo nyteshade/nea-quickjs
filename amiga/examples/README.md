@@ -21,7 +21,10 @@ Requires `quickjs.library` **0.125 or later** in `LIBS:`.
 
 | File | What it shows |
 |---|---|
-| `window_hello.js` | Opens a 320×120 Intuition window, waits for close-gadget or mouse click, cleans up. Exercises openLibrary/call/makeTags/peek/event loop via exec WaitPort/GetMsg/ReplyMsg. |
+| `window_hello.js` | Opens a 320×120 Intuition window, waits for close-gadget or mouse click. Exercises openLibrary/call/makeTags/peek/event loop via exec WaitPort/GetMsg/ReplyMsg. |
+| `drawing_demo.js` | Opens a window and draws lines, rectangles, outlines, cross-hatch, text using graphics.library (SetAPen/Move/Draw/RectFill/Text). Repaints on IDCMP_REFRESHWINDOW so resizing works cleanly. |
+| `frameidemo.js` | 1:1 port of NDK 3.1 `Examples1/intuition/frameidemo.c`. Builds a classic `struct NewWindow` in allocated memory (byte-level field poking), uses NewObjectA to create four BOOPSI `frameiclass` images in both normal and recessed states, renders them with DrawImage, handles IDCMP_REFRESHWINDOW via BeginRefresh/EndRefresh. |
+| `screen_info.js` | LockPubScreen(NULL) → peek Screen struct fields (geometry, flags, title-bar height, borders, default font) → UnlockPubScreen. No window, no event loop — just demonstrates safe read-only introspection. |
 
 ## Writing your own
 
