@@ -710,6 +710,31 @@ export class Enumeration {
       if (value instanceof this) yield [key, value];
     }
   }
+
+  /**
+   * Look up an enumeration case by its value or its key. Returns the
+   * matching case or null if no case matches.
+   *
+   * Matching: `case.key === query` first (strict, keys are
+   * strings/symbols), then `case.value == query` (loose, allows
+   * string/number cross-match).
+   *
+   * @param {*} query
+   * @returns {Enumeration|null}
+   */
+  static from(query) {
+    for (const [, caseValue] of this) {
+      if (caseValue.key === query) {
+        return caseValue;
+      }
+
+      if (caseValue.value == query) {
+        return caseValue;
+      }
+    }
+
+    return null;
+  }
 }
 
 /**
