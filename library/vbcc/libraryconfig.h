@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.124 (19.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.125 (19.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   124  /* packed: major=0, revision=124 (Q1 Amiga FFI: openLibrary/call/peek/poke/allocMem/makeTags + 150 LVOs across exec/dos/intuition/graphics/gadtools) */
+#define LIBRARY_VERSION   125  /* packed: major=0, revision=125 (amiga FFI: per-library namespaces amiga.exec/dos/intuition/graphics/gadtools with .lvo + constants; C side uses JS_ToInt32 to sidestep VBCC softfloat int64 truncation quirk for 2^31+ positives) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

@@ -42,11 +42,18 @@ extern ULONG qjs_amiga_trampoline(APTR lib, LONG lvo, struct AmigaRegs *regs);
  * ----------------------------------------------------------------- */
 
 /* Convert a JSValue to an unsigned 32-bit pointer-sized integer.
- * Returns -1 on conversion failure (after throwing). */
+ * Returns -1 on conversion failure (after throwing).
+ *
+ * Uses JS_ToInt32 (not JS_ToInt64) to avoid VBCC m68k softfloat quirk
+ * where `(uint32_t)(int64_t)` truncation mis-returns 0 for positive
+ * int64 values in [2^31, 2^32). Observed at library 0.124 in makeTags
+ * with WA_Left = 0x80000064. JS_ToInt32 is spec-defined as mod 2^32
+ * with signed interpretation; reinterpreting int32 as uint32 preserves
+ * all 32 bits. */
 static int js_to_uint32_strict(JSContext *ctx, JSValueConst v, ULONG *out)
 {
-    int64_t n;
-    if (JS_ToInt64(ctx, &n, v)) return -1;
+    int32_t n;
+    if (JS_ToInt32(ctx, &n, v)) return -1;
     *out = (ULONG)(uint32_t)n;
     return 0;
 }
@@ -99,7 +106,7 @@ static int fill_reg_from_prop(JSContext *ctx, JSValueConst obj,
                               const char *name, ULONG *out)
 {
     JSValue v;
-    int64_t n;
+    int32_t n;
     v = JS_GetPropertyStr(ctx, obj, name);
     if (JS_IsException(v)) return -1;
     if (JS_IsUndefined(v) || JS_IsNull(v)) {
@@ -107,7 +114,8 @@ static int fill_reg_from_prop(JSContext *ctx, JSValueConst obj,
         JS_FreeValue(ctx, v);
         return 0;
     }
-    if (JS_ToInt64(ctx, &n, v)) {
+    /* JS_ToInt32 (not Int64) per the note on js_to_uint32_strict. */
+    if (JS_ToInt32(ctx, &n, v)) {
         JS_FreeValue(ctx, v);
         return -1;
     }
@@ -331,7 +339,7 @@ static JSValue js_amiga_makeTags(JSContext *ctx, JSValueConst this_val,
     p = (volatile ULONG*)mem;
     for (i = 0; i < arr_len; i++) {
         JSValue pair, tag_v, data_v;
-        int64_t tag, data;
+        int32_t tag32, data32;
 
         pair = JS_GetPropertyUint32(ctx, argv[0], i);
         if (JS_IsException(pair)) goto fail;
@@ -343,7 +351,12 @@ static JSValue js_amiga_makeTags(JSContext *ctx, JSValueConst this_val,
             JS_FreeValue(ctx, data_v);
             goto fail;
         }
-        if (JS_ToInt64(ctx, &tag, tag_v) || JS_ToInt64(ctx, &data, data_v)) {
+        /* Use JS_ToInt32 (not JS_ToInt64 + truncate). VBCC m68k softfloat
+         * mis-truncates `(uint32_t)(int64_t)` for positive int64 values in
+         * [2^31, 2^32) which caused 0.124 test fails on WA_* tags with the
+         * high bit set. JS_ToInt32 is spec-defined to do mod 2^32 with
+         * signed interpretation; reinterpreting as uint32 preserves bits. */
+        if (JS_ToInt32(ctx, &tag32, tag_v) || JS_ToInt32(ctx, &data32, data_v)) {
             JS_FreeValue(ctx, tag_v);
             JS_FreeValue(ctx, data_v);
             goto fail;
@@ -351,8 +364,8 @@ static JSValue js_amiga_makeTags(JSContext *ctx, JSValueConst this_val,
         JS_FreeValue(ctx, tag_v);
         JS_FreeValue(ctx, data_v);
 
-        p[i * 2]     = (ULONG)(uint32_t)tag;
-        p[i * 2 + 1] = (ULONG)(uint32_t)data;
+        p[i * 2]     = (ULONG)(uint32_t)tag32;
+        p[i * 2 + 1] = (ULONG)(uint32_t)data32;
     }
     /* TAG_DONE terminator (AllocMem MEMF_CLEAR already zeroed, but be explicit). */
     p[arr_len * 2]     = 0;

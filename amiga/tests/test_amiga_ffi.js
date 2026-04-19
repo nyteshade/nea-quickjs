@@ -22,9 +22,26 @@ import * as os  from 'qjs:os';
 
 let pass = 0, fail = 0;
 function _flush() { try { std.out.flush(); } catch (_) {} }
+function _hex(n, width) {
+    if (n === undefined || n === null) return String(n);
+    const s = (n >>> 0).toString(16).padStart(width || 8, '0');
+    return '0x' + s.toUpperCase();
+}
 function ok(cond, msg) {
     if (cond) { print("  PASS: " + msg); pass++; }
     else      { print("  FAIL: " + msg); fail++; }
+    _flush();
+}
+/* Like ok(), but on failure prints actual vs expected in hex + decimal. */
+function eqHex(actual, expected, msg) {
+    const a = actual, e = expected;
+    const ok_ = a === e;
+    if (ok_) { print("  PASS: " + msg); pass++; }
+    else {
+        print("  FAIL: " + msg + " (actual " + _hex(a) + "/" + a +
+              ", expected " + _hex(e) + "/" + e + ")");
+        fail++;
+    }
     _flush();
 }
 function section(title) { print("\n-- " + title + " --"); _flush(); }
@@ -60,22 +77,34 @@ await run("module surface (0.124)", async () => {
     for (const fn of fns) {
         ok(typeof amiga[fn] === 'function', 'amiga.' + fn + ' is function');
     }
-    ok(typeof amiga.lvo === 'object', 'amiga.lvo is object');
-    ok(typeof amiga.tags === 'object', 'amiga.tags is object');
-    ok(typeof amiga.MEMF_PUBLIC === 'number', 'amiga.MEMF_PUBLIC');
-    ok(typeof amiga.MEMF_CLEAR === 'number', 'amiga.MEMF_CLEAR');
     ok(amiga.TAG_DONE === 0, 'amiga.TAG_DONE is 0');
     ok(amiga.TAG_USER === 0x80000000, 'amiga.TAG_USER is 0x80000000');
 });
 
-await run("LVO table integrity (0.124)", async () => {
+await run("namespace structure (0.125)", async () => {
+    /* Per-library namespaces — each holds .lvo + library-specific constants. */
+    for (const name of ['exec', 'dos', 'intuition', 'graphics', 'gadtools']) {
+        ok(typeof amiga[name] === 'object', 'amiga.' + name + ' is object');
+        ok(typeof amiga[name].lvo === 'object', 'amiga.' + name + '.lvo is object');
+    }
+    /* Library-scoped constants — spot check one per namespace. */
+    ok(amiga.exec.MEMF_PUBLIC === 0x1, 'exec.MEMF_PUBLIC');
+    ok(amiga.exec.MEMF_CLEAR === 0x10000, 'exec.MEMF_CLEAR');
+    ok(amiga.dos.MODE_NEWFILE === 1006, 'dos.MODE_NEWFILE');
+    ok(amiga.intuition.WA_Left === 0x80000064, 'intuition.WA_Left');
+    ok(amiga.intuition.IDCMP_CLOSEWINDOW === 0x200, 'intuition.IDCMP_CLOSEWINDOW');
+    ok(amiga.graphics.JAM1 === 0, 'graphics.JAM1');
+    ok(amiga.gadtools.BUTTON_KIND === 1, 'gadtools.BUTTON_KIND');
+    /* Universal constants that stay flat. */
+    ok(amiga.TAG_DONE === 0, 'amiga.TAG_DONE universal');
+    ok(amiga.TAG_USER === 0x80000000, 'amiga.TAG_USER universal');
+});
+
+await run("LVO table integrity (0.125)", async () => {
     const libs = ['exec', 'dos', 'intuition', 'graphics', 'gadtools'];
     for (const libName of libs) {
-        const tbl = amiga.lvo[libName];
-        ok(typeof tbl === 'object' && tbl !== null, libName + ' LVO table present');
-
-        /* Every entry MUST be a negative number (positive would dispatch
-         * forward past a6 — immediate crash). */
+        const tbl = amiga[libName].lvo;
+        /* Every entry MUST be a negative even number. */
         let badCount = 0;
         let checked = 0;
         for (const key in tbl) {
@@ -90,21 +119,21 @@ await run("LVO table integrity (0.124)", async () => {
         ok(badCount === 0, libName + ' all LVOs negative and even');
     }
 
-    /* Critical well-known LVOs — wrong values here means docs/FD parse broke. */
-    ok(amiga.lvo.exec.OpenLibrary === -552,  'exec.OpenLibrary = -552');
-    ok(amiga.lvo.exec.CloseLibrary === -414, 'exec.CloseLibrary = -414');
-    ok(amiga.lvo.exec.AllocMem === -198,     'exec.AllocMem = -198');
-    ok(amiga.lvo.exec.FreeMem === -210,      'exec.FreeMem = -210');
-    ok(amiga.lvo.dos.Output === -60,         'dos.Output = -60');
-    ok(amiga.lvo.dos.Read === -42,           'dos.Read = -42');
-    ok(amiga.lvo.dos.Write === -48,          'dos.Write = -48');
-    ok(amiga.lvo.intuition.OpenWindow === -204, 'intuition.OpenWindow = -204');
-    ok(amiga.lvo.graphics.SetAPen === -342,  'graphics.SetAPen = -342');
-    ok(amiga.lvo.gadtools.CreateContext === -114, 'gadtools.CreateContext = -114');
+    /* Critical well-known LVOs — wrong values here means the FD parse broke. */
+    ok(amiga.exec.lvo.OpenLibrary === -552,  'exec.lvo.OpenLibrary = -552');
+    ok(amiga.exec.lvo.CloseLibrary === -414, 'exec.lvo.CloseLibrary = -414');
+    ok(amiga.exec.lvo.AllocMem === -198,     'exec.lvo.AllocMem = -198');
+    ok(amiga.exec.lvo.FreeMem === -210,      'exec.lvo.FreeMem = -210');
+    ok(amiga.dos.lvo.Output === -60,         'dos.lvo.Output = -60');
+    ok(amiga.dos.lvo.Read === -42,           'dos.lvo.Read = -42');
+    ok(amiga.dos.lvo.Write === -48,          'dos.lvo.Write = -48');
+    ok(amiga.intuition.lvo.OpenWindow === -204,   'intuition.lvo.OpenWindow');
+    ok(amiga.graphics.lvo.SetAPen === -342,       'graphics.lvo.SetAPen');
+    ok(amiga.gadtools.lvo.CreateContext === -114, 'gadtools.lvo.CreateContext');
 });
 
 await run("memory round-trip — peek8/16/32, poke8/16/32, allocMem/freeMem", async () => {
-    const ptr = amiga.allocMem(32, amiga.MEMF_PUBLIC | amiga.MEMF_CLEAR);
+    const ptr = amiga.allocMem(32, amiga.exec.MEMF_PUBLIC | amiga.exec.MEMF_CLEAR);
     ok(ptr !== 0, 'allocMem(32) returned non-zero');
     if (ptr === 0) return;
 
@@ -202,8 +231,8 @@ await run("generic trampoline — exec AllocMem/FreeMem via amiga.call", async (
     if (SysBase === 0) return;
 
     /* AllocMem via trampoline: d0 = size, d1 = flags, returns ptr in d0. */
-    const mem = amiga.call(SysBase, amiga.lvo.exec.AllocMem, {
-        d0: 64, d1: amiga.MEMF_PUBLIC | amiga.MEMF_CLEAR,
+    const mem = amiga.call(SysBase, amiga.exec.lvo.AllocMem, {
+        d0: 64, d1: amiga.exec.MEMF_PUBLIC | amiga.exec.MEMF_CLEAR,
     });
     ok(mem !== 0, 'AllocMem via trampoline returned non-zero');
 
@@ -212,7 +241,7 @@ await run("generic trampoline — exec AllocMem/FreeMem via amiga.call", async (
         amiga.poke32(mem, 0x13572468);
         ok(amiga.peek32(mem) === 0x13572468, 'trampoline-allocated memory is usable');
 
-        amiga.call(SysBase, amiga.lvo.exec.FreeMem, {
+        amiga.call(SysBase, amiga.exec.lvo.FreeMem, {
             a1: mem, d0: 64,
         });
         /* Can't verify FreeMem — memory may be recycled — but if we
@@ -230,11 +259,11 @@ await run("generic trampoline — dos.Output()", async () => {
      * the current task's standard output. It must be non-zero when
      * called from the CLI with stdout redirected (which is how
      * runtests invokes us). */
-    const out = amiga.call(doslib, amiga.lvo.dos.Output, {});
+    const out = amiga.call(doslib, amiga.dos.lvo.Output, {});
     ok(out !== 0, 'dos.Output() returned non-zero BPTR (got ' + out.toString(16) + ')');
 
     /* Also sanity check dos.Input() — same convention. */
-    const inp = amiga.call(doslib, amiga.lvo.dos.Input, {});
+    const inp = amiga.call(doslib, amiga.dos.lvo.Input, {});
     ok(inp !== 0, 'dos.Input() returned non-zero BPTR (got ' + inp.toString(16) + ')');
 
     amiga.closeLibrary(doslib);
@@ -262,9 +291,9 @@ await run("per-library reachability — exec/dos/intuition/graphics", async () =
     if (ilib) {
         /* LockIBase(0) + UnlockIBase — takes d0, returns ULONG. Safe
          * round-trip that doesn't allocate or modify state. */
-        const lock = amiga.call(ilib, amiga.lvo.intuition.LockIBase, { d0: 0 });
+        const lock = amiga.call(ilib, amiga.intuition.lvo.LockIBase, { d0: 0 });
         ok(true, 'intuition.LockIBase did not crash');
-        amiga.call(ilib, amiga.lvo.intuition.UnlockIBase, { a0: lock });
+        amiga.call(ilib, amiga.intuition.lvo.UnlockIBase, { a0: lock });
         ok(true, 'intuition.UnlockIBase did not crash');
         amiga.closeLibrary(ilib);
     }
@@ -292,11 +321,11 @@ await run("per-library reachability — exec/dos/intuition/graphics", async () =
         const ctxPtr = amiga.allocMem(4);  /* GList* storage */
         if (ctxPtr) {
             amiga.poke32(ctxPtr, 0);
-            const ctxGad = amiga.call(gtlib, amiga.lvo.gadtools.CreateContext,
+            const ctxGad = amiga.call(gtlib, amiga.gadtools.lvo.CreateContext,
                 { a0: ctxPtr });
             ok(true, 'gadtools.CreateContext did not crash');
             if (ctxGad) {
-                amiga.call(gtlib, amiga.lvo.gadtools.FreeGadgets, { a0: ctxGad });
+                amiga.call(gtlib, amiga.gadtools.lvo.FreeGadgets, { a0: ctxGad });
                 ok(true, 'gadtools.FreeGadgets did not crash');
             }
             amiga.freeMem(ctxPtr, 4);
@@ -307,26 +336,35 @@ await run("per-library reachability — exec/dos/intuition/graphics", async () =
 
 await run("makeTags — TagItem array construction", async () => {
     const tags = amiga.makeTags([
-        [amiga.tags.WA_Left,   50],
-        [amiga.tags.WA_Top,    40],
-        [amiga.tags.WA_Width,  320],
-        [amiga.tags.WA_Height, 200],
+        [amiga.intuition.WA_Left,   50],
+        [amiga.intuition.WA_Top,    40],
+        [amiga.intuition.WA_Width,  320],
+        [amiga.intuition.WA_Height, 200],
     ]);
     ok(tags !== 0, 'makeTags returned non-zero pointer');
     if (tags === 0) return;
 
+    /* Diagnostic: print the first 40 bytes of the tag array as longs so
+     * we can see exactly what was written even if the assertions fail. */
+    print("    makeTags buffer dump:");
+    for (let o = 0; o < 40; o += 4) {
+        print("      [+"+ o.toString().padStart(2, '0') + "] = " +
+              _hex(amiga.peek32(tags + o)));
+    }
+
     /* Verify layout: 4 pairs + 1 terminator = 5 * 8 = 40 bytes.
-     * TagItem is ULONG ti_Tag, ULONG ti_Data (big-endian on m68k). */
-    ok(amiga.peek32(tags +  0) === 0x80000064, 'pair[0].tag = WA_Left (0x80000064)');
-    ok(amiga.peek32(tags +  4) === 50,          'pair[0].data = 50');
-    ok(amiga.peek32(tags +  8) === 0x80000065, 'pair[1].tag = WA_Top');
-    ok(amiga.peek32(tags + 12) === 40,          'pair[1].data = 40');
-    ok(amiga.peek32(tags + 16) === 0x80000066, 'pair[2].tag = WA_Width');
-    ok(amiga.peek32(tags + 20) === 320,         'pair[2].data = 320');
-    ok(amiga.peek32(tags + 24) === 0x80000067, 'pair[3].tag = WA_Height');
-    ok(amiga.peek32(tags + 28) === 200,         'pair[3].data = 200');
-    ok(amiga.peek32(tags + 32) === 0,          'terminator tag = TAG_DONE (0)');
-    ok(amiga.peek32(tags + 36) === 0,          'terminator data = 0');
+     * TagItem is ULONG ti_Tag, ULONG ti_Data (big-endian on m68k).
+     * Using eqHex so failures print actual vs expected. */
+    eqHex(amiga.peek32(tags +  0), 0x80000064, 'pair[0].tag = WA_Left');
+    eqHex(amiga.peek32(tags +  4), 50,         'pair[0].data = 50');
+    eqHex(amiga.peek32(tags +  8), 0x80000065, 'pair[1].tag = WA_Top');
+    eqHex(amiga.peek32(tags + 12), 40,         'pair[1].data = 40');
+    eqHex(amiga.peek32(tags + 16), 0x80000066, 'pair[2].tag = WA_Width');
+    eqHex(amiga.peek32(tags + 20), 320,        'pair[2].data = 320');
+    eqHex(amiga.peek32(tags + 24), 0x80000067, 'pair[3].tag = WA_Height');
+    eqHex(amiga.peek32(tags + 28), 200,        'pair[3].data = 200');
+    eqHex(amiga.peek32(tags + 32), 0,          'terminator tag = TAG_DONE (0)');
+    eqHex(amiga.peek32(tags + 36), 0,          'terminator data = 0');
 
     /* Each pair is 8 bytes; total = (4+1) * 8 = 40. */
     amiga.freeMem(tags, 40);
@@ -335,12 +373,12 @@ await run("makeTags — TagItem array construction", async () => {
 await run("withTags — scoped tag allocation", async () => {
     let captured = 0;
     const result = amiga.withTags(
-        [[amiga.tags.WA_Width, 100], [amiga.tags.WA_Height, 50]],
+        [[amiga.intuition.WA_Width, 100], [amiga.intuition.WA_Height, 50]],
         (ptr) => {
             captured = ptr;
             ok(ptr !== 0, 'withTags callback received non-zero pointer');
-            ok(amiga.peek32(ptr)     === 0x80000066, 'withTags pair[0].tag');
-            ok(amiga.peek32(ptr + 4) === 100,         'withTags pair[0].data');
+            eqHex(amiga.peek32(ptr),     0x80000066, 'withTags pair[0].tag');
+            eqHex(amiga.peek32(ptr + 4), 100,        'withTags pair[0].data');
             return 42;  /* return value should come back from withTags */
         },
     );

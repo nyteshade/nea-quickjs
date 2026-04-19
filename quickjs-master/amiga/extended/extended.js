@@ -5114,7 +5114,7 @@ _manifests.push(new LocalManifest({
 
             /* --- memory allocation --- */
             allocMem(size, flags) {
-                if (flags === undefined) flags = amiga.MEMF_PUBLIC | amiga.MEMF_CLEAR;
+                if (flags === undefined) flags = amiga.exec.MEMF_PUBLIC | amiga.exec.MEMF_CLEAR;
                 return N.__qjs_amiga_allocMem(size | 0, flags | 0);
             },
             freeMem(ptr, size) {
@@ -5138,21 +5138,7 @@ _manifests.push(new LocalManifest({
                 finally { amiga.freeMem(ptr, size); }
             },
 
-            /* ---------- exec MemF_* flags ---------- */
-            MEMF_ANY:        0x00000000,
-            MEMF_PUBLIC:     0x00000001,
-            MEMF_CHIP:       0x00000002,
-            MEMF_FAST:       0x00000004,
-            MEMF_LOCAL:      0x00000100,
-            MEMF_24BITDMA:   0x00000200,
-            MEMF_KICK:       0x00000400,
-            MEMF_CLEAR:      0x00010000,
-            MEMF_LARGEST:    0x00020000,
-            MEMF_REVERSE:    0x00080000,
-            MEMF_TOTAL:      0x00040000,
-            MEMF_NO_EXPUNGE: 0x80000000,
-
-            /* ---------- TagItem terminators ---------- */
+            /* ---------- Truly universal (cross-library) TagItem terminators ---------- */
             TAG_DONE:   0,
             TAG_END:    0,
             TAG_IGNORE: 1,
@@ -5160,67 +5146,32 @@ _manifests.push(new LocalManifest({
             TAG_SKIP:   3,
             TAG_USER:   0x80000000,
 
-            /* ---------- Selected Intuition tags (0x80000000 + offset) ---------- */
-            tags: {
-                /* Window Attributes — WA_Dummy = TAG_USER + 99 = 0x80000063 */
-                WA_Left:         0x80000064, WA_Top:           0x80000065,
-                WA_Width:        0x80000066, WA_Height:        0x80000067,
-                WA_DetailPen:    0x80000068, WA_BlockPen:      0x80000069,
-                WA_IDCMP:        0x8000006A, WA_Flags:         0x8000006B,
-                WA_Gadgets:      0x8000006C, WA_Checkmark:     0x8000006D,
-                WA_Title:        0x8000006E, WA_ScreenTitle:   0x8000006F,
-                WA_CustomScreen: 0x80000070, WA_MinWidth:      0x80000072,
-                WA_MinHeight:    0x80000073, WA_MaxWidth:      0x80000074,
-                WA_MaxHeight:    0x80000075, WA_PubScreenName: 0x80000078,
-                WA_AutoAdjust:   0x80000083, WA_SimpleRefresh: 0x80000079,
-                WA_SmartRefresh: 0x8000007A, WA_BackFill:      0x8000007F,
+            /* ======================================================
+             * Per-library namespaces. Each holds:
+             *   .lvo.*  — the library's jump-table offsets (NDK 3.2 FD)
+             *   library-specific flags and tag constants
+             * Q1 is data-only; Q2 will add wrapper methods like
+             * `amiga.exec.allocMem(size, flags)` here as sugar over
+             * `amiga.call(exec.base, exec.lvo.AllocMem, {...})`.
+             * ====================================================== */
 
-                /* Screen Attributes — SA_Dummy = TAG_USER + 32 = 0x80000020 */
-                SA_Left:    0x80000021, SA_Top:     0x80000022,
-                SA_Width:   0x80000023, SA_Height:  0x80000024,
-                SA_Depth:   0x80000025, SA_DetailPen: 0x80000026,
-                SA_BlockPen:0x80000027, SA_Title:   0x80000028,
-                SA_Colors:  0x80000029, SA_ErrorCode: 0x8000002A,
-                SA_Font:    0x8000002B, SA_SysFont: 0x8000002C,
-                SA_Type:    0x8000002D, SA_BitMap:  0x8000002E,
-                SA_PubName: 0x8000002F, SA_PubSig:  0x80000030,
-                SA_PubTask: 0x80000031, SA_DisplayID: 0x80000032,
+            /* ---------- exec ---------- */
+            exec: {
+                /* MemF_* flags for AllocMem/AllocVec */
+                MEMF_ANY:        0x00000000,
+                MEMF_PUBLIC:     0x00000001,
+                MEMF_CHIP:       0x00000002,
+                MEMF_FAST:       0x00000004,
+                MEMF_LOCAL:      0x00000100,
+                MEMF_24BITDMA:   0x00000200,
+                MEMF_KICK:       0x00000400,
+                MEMF_CLEAR:      0x00010000,
+                MEMF_LARGEST:    0x00020000,
+                MEMF_REVERSE:    0x00080000,
+                MEMF_TOTAL:      0x00040000,
+                MEMF_NO_EXPUNGE: 0x80000000,
 
-                /* GadTools — GT_Dummy = TAG_USER + 0x7000000 + 0 */
-                GT_Underscore: 0x80000036,
-                GTCB_Checked:  0x800000B4, GTLV_Selected: 0x80000068,
-                GTST_String:   0x80000140, GTIN_Number:   0x80000180,
-
-                /* IDCMP flags (WA_IDCMP values) */
-                IDCMP_SIZEVERIFY:    0x00000001,
-                IDCMP_NEWSIZE:       0x00000002,
-                IDCMP_REFRESHWINDOW: 0x00000004,
-                IDCMP_MOUSEBUTTONS:  0x00000008,
-                IDCMP_MOUSEMOVE:     0x00000010,
-                IDCMP_GADGETDOWN:    0x00000020,
-                IDCMP_GADGETUP:      0x00000040,
-                IDCMP_MENUPICK:      0x00000100,
-                IDCMP_CLOSEWINDOW:   0x00000200,
-                IDCMP_RAWKEY:        0x00000400,
-                IDCMP_VANILLAKEY:    0x00200000,
-
-                /* WFLG — window flags (WA_Flags value) */
-                WFLG_SIZEGADGET:    0x00000001,
-                WFLG_DRAGBAR:       0x00000002,
-                WFLG_DEPTHGADGET:   0x00000004,
-                WFLG_CLOSEGADGET:   0x00000008,
-                WFLG_SIZEBRIGHT:    0x00000010,
-                WFLG_SIZEBBOTTOM:   0x00000020,
-                WFLG_BACKDROP:      0x00000100,
-                WFLG_REPORTMOUSE:   0x00000200,
-                WFLG_GIMMEZEROZERO: 0x00000400,
-                WFLG_BORDERLESS:    0x00000800,
-                WFLG_ACTIVATE:      0x00001000,
-            },
-
-            /* ---------- LVO tables (NDK 3.2 FD files) ---------- */
-            lvo: {
-                exec: {
+                lvo: {
                     Supervisor: -30, InitCode: -72, InitStruct: -78,
                     MakeLibrary: -84, MakeFunctions: -90, FindResident: -96,
                     InitResident: -102, Alert: -108, Debug: -114,
@@ -5263,7 +5214,20 @@ _manifests.push(new LocalManifest({
                     AddMemHandler: -774, RemMemHandler: -780,
                     ObtainQuickVector: -786, NewMinList: -828,
                 },
-                dos: {
+            },
+
+            /* ---------- dos ---------- */
+            dos: {
+                /* Mode flags for Open() */
+                MODE_OLDFILE: 1005,
+                MODE_NEWFILE: 1006,
+                MODE_READWRITE: 1004,
+                /* Seek origins */
+                OFFSET_BEGINNING: -1,
+                OFFSET_CURRENT:   0,
+                OFFSET_END:       1,
+
+                lvo: {
                     Open: -30, Close: -36, Read: -42, Write: -48,
                     Input: -54, Output: -60, Seek: -66, DeleteFile: -72,
                     Rename: -78, Lock: -84, UnLock: -90, DupLock: -96,
@@ -5322,7 +5286,61 @@ _manifests.push(new LocalManifest({
                     ErrorOutput: -1134, SelectError: -1140,
                     DoShellMethodTagList: -1152, ScanStackToken: -1158,
                 },
-                intuition: {
+            },
+
+            /* ---------- intuition ---------- */
+            intuition: {
+                /* Window Attributes — WA_Dummy = TAG_USER + 99 = 0x80000063 */
+                WA_Left:         0x80000064, WA_Top:           0x80000065,
+                WA_Width:        0x80000066, WA_Height:        0x80000067,
+                WA_DetailPen:    0x80000068, WA_BlockPen:      0x80000069,
+                WA_IDCMP:        0x8000006A, WA_Flags:         0x8000006B,
+                WA_Gadgets:      0x8000006C, WA_Checkmark:     0x8000006D,
+                WA_Title:        0x8000006E, WA_ScreenTitle:   0x8000006F,
+                WA_CustomScreen: 0x80000070, WA_MinWidth:      0x80000072,
+                WA_MinHeight:    0x80000073, WA_MaxWidth:      0x80000074,
+                WA_MaxHeight:    0x80000075, WA_PubScreenName: 0x80000078,
+                WA_SimpleRefresh:0x80000079, WA_SmartRefresh:  0x8000007A,
+                WA_BackFill:     0x8000007F, WA_AutoAdjust:    0x80000083,
+
+                /* Screen Attributes — SA_Dummy = TAG_USER + 32 = 0x80000020 */
+                SA_Left:    0x80000021, SA_Top:     0x80000022,
+                SA_Width:   0x80000023, SA_Height:  0x80000024,
+                SA_Depth:   0x80000025, SA_DetailPen: 0x80000026,
+                SA_BlockPen:0x80000027, SA_Title:   0x80000028,
+                SA_Colors:  0x80000029, SA_ErrorCode: 0x8000002A,
+                SA_Font:    0x8000002B, SA_SysFont: 0x8000002C,
+                SA_Type:    0x8000002D, SA_BitMap:  0x8000002E,
+                SA_PubName: 0x8000002F, SA_PubSig:  0x80000030,
+                SA_PubTask: 0x80000031, SA_DisplayID: 0x80000032,
+
+                /* IDCMP flags (WA_IDCMP values) */
+                IDCMP_SIZEVERIFY:    0x00000001,
+                IDCMP_NEWSIZE:       0x00000002,
+                IDCMP_REFRESHWINDOW: 0x00000004,
+                IDCMP_MOUSEBUTTONS:  0x00000008,
+                IDCMP_MOUSEMOVE:     0x00000010,
+                IDCMP_GADGETDOWN:    0x00000020,
+                IDCMP_GADGETUP:      0x00000040,
+                IDCMP_MENUPICK:      0x00000100,
+                IDCMP_CLOSEWINDOW:   0x00000200,
+                IDCMP_RAWKEY:        0x00000400,
+                IDCMP_VANILLAKEY:    0x00200000,
+
+                /* Window flags (WA_Flags value) */
+                WFLG_SIZEGADGET:    0x00000001,
+                WFLG_DRAGBAR:       0x00000002,
+                WFLG_DEPTHGADGET:   0x00000004,
+                WFLG_CLOSEGADGET:   0x00000008,
+                WFLG_SIZEBRIGHT:    0x00000010,
+                WFLG_SIZEBBOTTOM:   0x00000020,
+                WFLG_BACKDROP:      0x00000100,
+                WFLG_REPORTMOUSE:   0x00000200,
+                WFLG_GIMMEZEROZERO: 0x00000400,
+                WFLG_BORDERLESS:    0x00000800,
+                WFLG_ACTIVATE:      0x00001000,
+
+                lvo: {
                     OpenIntuition: -30, Intuition: -36, AddGadget: -42,
                     ClearDMRequest: -48, ClearMenuStrip: -54,
                     ClearPointer: -60, CloseScreen: -66, CloseWindow: -72,
@@ -5376,7 +5394,17 @@ _manifests.push(new LocalManifest({
                     TimedDisplayAlert: -822, HelpControl: -828,
                     ShowWindow: -834, HideWindow: -840,
                 },
-                graphics: {
+            },
+
+            /* ---------- graphics ---------- */
+            graphics: {
+                /* Draw modes */
+                JAM1:    0x00,
+                JAM2:    0x01,
+                COMPLEMENT: 0x02,
+                INVERSVID:  0x04,
+
+                lvo: {
                     BltBitMap: -30, BltTemplate: -36, ClearEOL: -42,
                     ClearScreen: -48, TextLength: -54, Text: -60,
                     SetFont: -66, OpenFont: -72, CloseFont: -78,
@@ -5438,7 +5466,23 @@ _manifests.push(new LocalManifest({
                     SetRPAttrsA: -1038, GetRPAttrsA: -1044, BestModeIDA: -1050,
                     WriteChunkyPixels: -1056,
                 },
-                gadtools: {
+            },
+
+            /* ---------- gadtools ---------- */
+            gadtools: {
+                /* GadTools tag constants */
+                GT_Underscore: 0x80000036,
+                GTCB_Checked:  0x800000B4, GTLV_Selected: 0x80000068,
+                GTST_String:   0x80000140, GTIN_Number:   0x80000180,
+
+                /* gadget kinds */
+                GENERIC_KIND:  0, BUTTON_KIND: 1, CHECKBOX_KIND: 2,
+                INTEGER_KIND:  3, LISTVIEW_KIND: 4, MX_KIND: 5,
+                NUMBER_KIND:   6, CYCLE_KIND: 7, PALETTE_KIND: 8,
+                SCROLLER_KIND: 9, SLIDER_KIND: 11, STRING_KIND: 12,
+                TEXT_KIND:    13,
+
+                lvo: {
                     CreateGadgetA: -30, FreeGadgets: -36,
                     GT_SetGadgetAttrsA: -42, CreateMenusA: -48,
                     FreeMenus: -54, LayoutMenuItemsA: -60, LayoutMenusA: -66,
