@@ -17,7 +17,10 @@ ships this kind of bridge. Three layers:
 
 ## Scope (proposed)
 
-### Q1 — Generic FFI primitives (C layer ~200 lines, JS wrapper ~100)
+### Q1 — Generic FFI primitives — LANDED at 0.124 (2026-04-19)
+
+**Status:** shipped. Commit `2437488`. See
+`docs/superpowers/specs/2026-04-19-q1-amiga-ffi-design.md`.
 
 Install `globalThis.amiga` with:
 

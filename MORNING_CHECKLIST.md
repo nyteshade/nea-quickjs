@@ -1,133 +1,120 @@
-# Morning Checklist — 0.112 → 0.122 overnight Node-parity batch
+# Morning Checklist — 0.124 Q1 Amiga FFI
 
 ## TL;DR
 
-**11 commits, all pushed to `main`, all pure-JS, all host-verified
-(239/239 on the new regression test).** Each is a self-contained
-manifest addition or extension in `quickjs-master/amiga/extended/
-extended.js`, so any single version can be reverted with `git revert
-<sha>` without disturbing the others.
+**One commit, one feature, 11 new APIs + 150 LVOs, pushed to `main`.**
+Amiga native FFI is live: JS can now open any AmigaOS library and call
+its functions with register-level arg dispatch. Foundation for the
+NodeAmiga-style Intuition/GUI wrappers (Q2/Q3).
 
-## What landed while you slept
+## What landed
 
-| Ver   | Commit    | What changed                                                                     | Risk                              |
-|-------|-----------|----------------------------------------------------------------------------------|-----------------------------------|
-| 0.112 | `7575e67` | `performance` global; `process.uptime()`; `process.memoryUsage()` (zero stub)    | tiny (pure JS over `os.now()`)    |
-| 0.113 | `5d6bd32` | `globalThis.url` node module; `URL.parse()` static (Node 22)                     | tiny (pure JS)                    |
-| 0.114 | `951fb8c` | `util.types` long tail + `util.styleText` + `util.stripVTControlCharacters`      | tiny (pure JS)                    |
-| 0.115 | `f330fb3` | `assert.ifError` + AssertionError class + `assert.fail(a,e,m,op)` 4-arg          | tiny                              |
-| 0.116 | `b89b04e` | **Blob + File** (WHATWG, Uint8Array-backed)                                      | low (self-contained)              |
-| 0.117 | `0e69b4c` | **FormData** (WHATWG, Blob-aware)                                                | low (depends on 0.116)            |
-| 0.118 | `3614c51` | **fs sync namespace** (readFileSync/writeFileSync/statSync/...)                  | **medium** — real disk I/O        |
-| 0.119 | `b4f1592` | **events.on async iterator** + `globalThis.events` module                        | low                               |
-| 0.120 | `0d53b31` | **EventTarget + Event + CustomEvent** base classes (AbortSignal left untouched)  | low                               |
-| 0.121 | `0979930` | **readline** + `readline/promises` + ANSI cursor helpers                         | **medium** — uses `std.in.getline` |
-| 0.122 | `ad74dd9` | **`nodeOs`** + CommonJS `require()` stub (20+ built-ins)                         | tiny                              |
+| Ver   | Commit    | What                                                                                           | Risk                                                    |
+|-------|-----------|------------------------------------------------------------------------------------------------|---------------------------------------------------------|
+| 0.124 | `2437488` | Q1 FFI: openLibrary/call/peek/poke/allocMem/makeTags + 150 LVOs from NDK 3.2                    | **MEDIUM** — new C + hand-written m68k asm + register-level calls |
 
-Total new Node surface: roughly **70+ new APIs** across 11 modules. Library
-bytecode grew ~20 KB (from 68 KB to ~88 KB).
+New surface on `globalThis.amiga`:
+
+- `openLibrary(name, ver=0)` / `closeLibrary(lib)`
+- `call(lib, lvo, regs)` — generic m68k dispatch (the asm trampoline)
+- `peek8/16/32(addr)` / `poke8/16/32(addr, val)`
+- `peekString(addr, maxLen?)` / `pokeString(addr, str)`
+- `allocMem(size, flags?)` / `freeMem(ptr, size)`
+- `makeTags(pairs)` / `withTags(pairs, fn)`
+- `amiga.lvo.{exec, dos, intuition, graphics, gadtools}` — 150 LVO constants
+- `amiga.MEMF_*`, `amiga.TAG_*`, `amiga.tags.{WA_*, SA_*, IDCMP_*, WFLG_*}` — 30+ common constants
+- `require('amiga')` / `require('node:amiga')` now resolves to `globalThis.amiga`
+
+## The highest-risk piece
+
+`library/vbcc/amiga_ffi_call.s` — a single hand-written m68k trampoline
+that loads 8 registers from a struct, sets a6=lib, does `jsr 0(a6, d4.l)`,
+then restores and returns d0. If it's correct, every library call works;
+if it's subtly wrong, the first call that tries to reach the trampoline
+will crash.
+
+This is **gated behind the feature check** in the `amiga-ffi` manifest:
+`if (typeof __qjs_amiga_openLibrary !== 'function') return;`. So on a
+library that doesn't expose the native, `globalThis.amiga` simply isn't
+installed and existing code keeps working.
 
 ## Validation order (priority)
 
-Run these on the real Amiga with the usual `stack 65536` invocation:
+On the Amiga with `stack 65536`:
 
 ```
-qjs tests/test_node_overnight.js   ; THE big one — all 239 overnight cases
-qjs tests/test_node_extras.js      ; 0.099 regression — should still pass
-qjs tests/test_stream.js           ; 0.098 fix regression
-qjs tests/test_events.js           ; EE regression — MUST still pass
-qjs tests/test_util.js             ; util regression — types additions
-qjs tests/test_buffer.js           ; buffer regression — unchanged
-qjs tests/test_fs.js               ; fs regression — plus fs sync additions
-qjs tests/test_assert_timers.js    ; assert regression — ifError added
-qjs tests/test_child_process.js    ; 19/19 — unchanged
-qjs tests/test_crypto.js           ; unchanged
-qjs tests/test_fetch.js            ; 22/0 — unchanged
-qjs tests/test_fetch_signal.js     ; 2/0 — unchanged
-qjs tests/test_fetch_abort.js      ; 2/0 pre-abort — unchanged
-qjs tests/test_regex.js            ; 27/27 — unchanged
-qjs tests/test_extended.js         ; full extended regression
+qjs tests/test_amiga_ffi.js        ; THE big one — 9 sections, ~50 assertions
+qjs tests/test_node_overnight.js   ; 241/0 regression — must still pass
+qjs tests/test_extended.js         ; 79/0 regression
+qjs tests/test_fetch.js            ; 22/0 regression
+qjs tests/test_crypto.js           ; 23/0 regression
+execute c/runtests                 ; everything batched
 ```
 
-If any fail, the reverts are clean single-point:
+Expected `test_amiga_ffi.output` breakdown:
+- Sections 1–5 (module surface, LVO table integrity, memory round-trip,
+  string round-trip, openLibrary round-trip) should all pass if the C
+  side is correct — no asm involved.
+- Section 6 (**generic trampoline via exec.AllocMem/FreeMem**) is the
+  critical asm test. If this passes, the trampoline is correct.
+- Sections 7–10 (dos.Output, per-library reachability, makeTags,
+  withTags) depend on section 6 working.
+
+Approximate expected pass count: **~50/0**. If section 6 fails or
+crashes, sections 7–10 will also fail/crash and the others stay clean.
+
+## If it crashes on `amiga.call`
+
+The asm trampoline is in `library/vbcc/amiga_ffi_call.s`. The most
+likely culprits (in descending likelihood):
+1. Wrong struct offsets — the C code assumes `struct AmigaRegs`
+   layout matches the asm's `0/4/8/12/16/20/24/28` byte offsets.
+   Check VBCC struct packing.
+2. LVO sign convention — asm uses `jsr 0(a6, d4.l)` which requires
+   negative d4 as 32-bit signed. Verify with a single `printf-style`
+   trace before the jsr.
+3. Callee-saved regs missed — if the library function clobbers D5/D6/D7
+   and we didn't save them, we have corruption after the call. The
+   MOVEM `d2-d7/a2-a6` should cover it.
+
+Revert recipe if needed:
 
 ```
-git revert <sha>          # then regenerate bytecode + rebuild library
+git revert 2437488          ; single-point revert
 git push origin main
 ```
 
-## Highest-risk item: 0.121 readline (`std.in.getline`)
+The revert undoes everything including the bytecode regen and the
+library binaries. The 0.123 state is the clean rollback point.
 
-`std.in.getline()` blocks until a newline arrives from stdin. On host
-qjs this reads from terminal stdin. On Amiga this reads from the
-console window attached to the shell running qjs. **If no stdin is
-connected (e.g. running under WB `Execute`), `rl.question()` may
-block forever.** The fix if this bites: gate the manifest behind
-`os.isatty(0)` and return a dummy Interface when stdin is not a TTY.
+## If `amiga.call` works but one LVO is wrong
 
-Tests for readline use a **fake input object** (`{getline: () =>
-'yes'}`) so host-side CI passes without any actual stdin wiring.
-Real interactive behavior is untested — the first actual user of
-`rl.question()` on Amiga is the smoke test.
-
-## Medium-risk item: 0.118 fs sync
-
-Performs real disk I/O through `std.open`/`os.stat`/`os.remove`/
-`os.rename`. These primitives are **already exercised** by
-`fs.promises`, so the risk is mostly I/O edge cases that the sync
-wrappers hit differently (buffer sizes, newline handling in text
-mode). Tests use `T:qjs-fs-sync-test` on Amiga — always mounted on
-any Workbench install, no requester, same pattern as the 0.090 D5
-`test_child_process.js` refactor.
+LVO constants came from NDK 3.2 FD files via a mechanical parser.
+Individual typos in the JS table are possible but don't affect any
+other LVO. Cross-reference against `sdks/NDK3.2R4/FD/<lib>_lib.fd`.
 
 ## Not in this batch
 
-- **Mid-flight fetch abort** — still hung; open-issue since 0.111.
-- **Ctrl-C twice / Ctrl-D kill-JSVM feature** — you asked for this
-  at the 0.111 checkpoint; deferred because it needs native signal
-  handling.
-- **Q-tier FFI / GUI bridge** — untouched per prior tabling.
-- **AmiSSL main-task diagnostic** — unchanged; pure-JS crypto
-  fallback still covers users without AmiSSL.
-- **True streaming child_process stdio** — still needs stream tier
-  hardening (backpressure) first.
-- **WHATWG streams** (ReadableStream / WritableStream / TransformStream)
-  — Blob's `.stream()` intentionally absent because of this.
-- **`dns` module** — needs a native `gethostbyname` binding; skipped
-  to keep the batch pure-JS.
-- **`zlib` module** — out of scope; needs miniz or xpk.library work.
-
-## Files touched
-
-Every commit modifies these five files and nothing else:
-
-- `quickjs-master/amiga/extended/extended.js` (the JS)
-- `quickjs-master/gen/extended.c` (the regenerated bytecode)
-- `library/vbcc/libraryconfig.h` (version bump + date)
-- `docs/NODEJS-DELTA.md` (table update)
-- `amiga/tests/test_node_overnight.js` (new regression test)
-
-No C code touched, no new LVOs, no `.sfd` changes, no Makefile
-changes. The library rebuild picks up the new bytecode via the
-existing `extended.o` rule in `library/vbcc/Makefile`.
-
-## Ready for your eyes
-
-`git pull`, rebuild the library variants with the usual:
-
-```
-VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc variants
-VBCC=$HOME/vbcc PATH=$HOME/vbcc/bin:$PATH make -C library/vbcc -f Makefile.cli
-```
-
-Copy `amiga/libs/quickjs.*.library` to `LIBS:` on the Amiga, then
-run the test list above. Report pass/fail per file and I'll fix
-forward.
+- **Q2 Intuition wrapper** (`intuition.openWindow({...})`) — needs
+  struct bindings for Window/Screen/NewWindow/IntuiMessage. Deferred;
+  Q1 alone lets users write their own bindings.
+- **Q3 GadTools GUI** (`gui.createWindow`/`gadgets`) — deferred; Q1 +
+  Q2 prereqs.
+- **Pre-bed menu leftovers** (Ctrl-C/Ctrl-D kill JSVM, mid-flight fetch
+  abort diagnostic, AmiSSL main-task init, etc.) — untouched.
 
 ## Session metadata
 
-- **Start state**: `ced3f49` (0.111 fetch+AbortSignal careful-retry arc).
-- **End state**:   `ad74dd9` (0.122 os + require).
-- **Commits**:     11.
-- **Host tests**:  239/239 (new `test_node_overnight.js`).
-- **Branch**:      `main` (all pushed — pending you running `git pull`).
+- **Start state:** `f300c80` (0.123 File NUL-strip fix + test resilience)
+- **End state:**   `2437488` (0.124 Q1 FFI)
+- **Commits:** 1 (large batch — C + asm + JS + test + docs together)
+- **Files changed:** 21 (5 new + 16 modified)
+- **Branch:** `main`, pushed
+
+## Ready for your eyes
+
+1. `git pull` on the Amiga. Copy `amiga/libs/quickjs.*.library` to `LIBS:`.
+2. Reboot or `avail flush` (lib_Version was 1, didn't bump — but the
+   bytecode changed substantially, so reboot is safest).
+3. `cd amiga && execute c/runtests`.
+4. Report pass/fail on `test_amiga_ffi.output` and any regressions elsewhere.
