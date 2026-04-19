@@ -132,6 +132,58 @@ await run("LVO table integrity (0.125)", async () => {
     ok(amiga.gadtools.lvo.CreateContext === -114, 'gadtools.lvo.CreateContext');
 });
 
+await run("full NDK coverage (0.126) — all 76 libraries", async () => {
+    /* 0.126 added auto-attached LVO tables for every library in the NDK 3.2
+     * FD files beyond the 5 hand-structured namespaces. Spot-check a range
+     * of them — if one is missing the bake-in is broken. */
+    const extras = [
+        ['utility',     'GetTagData'],     /* tag-list helper, hot path */
+        ['timer',       'GetSysTime'],     /* realtime tick source */
+        ['asl',         'AllocFileRequest'],
+        ['icon',        'GetDiskObject'],
+        ['iffparse',    'AllocIFF'],
+        ['commodities', 'CreateCxObj'],
+        ['locale',      'OpenLocale'],
+        ['layers',      'CreateUpfrontLayer'],
+        ['wb',          'AddAppWindowA'],
+        ['datatypes',   'ObtainDataTypeA'],
+        ['diskfont',    'OpenDiskFont'],
+        ['lowlevel',    'ReadJoyPort'],
+        ['expansion',   'FindConfigDev'],
+        ['rexxsyslib',  'CreateArgstring'],
+        ['console',     'CDInputHandler'],
+    ];
+    let libsChecked = 0, lvosChecked = 0, missing = 0;
+    for (const [lib, sampleFn] of extras) {
+        const ns = amiga[lib];
+        if (!ns || typeof ns.lvo !== 'object') {
+            missing++;
+            print('      MISSING: amiga.' + lib);
+            continue;
+        }
+        libsChecked++;
+        if (typeof ns.lvo[sampleFn] !== 'number' || ns.lvo[sampleFn] >= 0) {
+            missing++;
+            print('      MISSING: ' + lib + '.lvo.' + sampleFn + ' (got ' + ns.lvo[sampleFn] + ')');
+        } else {
+            lvosChecked++;
+        }
+    }
+    ok(libsChecked === extras.length, 'all sampled libraries have .lvo');
+    ok(lvosChecked === extras.length, 'all sampled LVOs are negative numbers');
+    ok(missing === 0, 'no missing entries across the sampled range');
+
+    /* Count total exposed libraries — should be at least 70 (NDK has ~76). */
+    let ffiLibCount = 0;
+    for (const k in amiga) {
+        if (amiga[k] && typeof amiga[k] === 'object' && typeof amiga[k].lvo === 'object') {
+            ffiLibCount++;
+        }
+    }
+    ok(ffiLibCount >= 70,
+       'at least 70 FFI-exposed libraries (got ' + ffiLibCount + ')');
+});
+
 await run("memory round-trip — peek8/16/32, poke8/16/32, allocMem/freeMem", async () => {
     const ptr = amiga.allocMem(32, amiga.exec.MEMF_PUBLIC | amiga.exec.MEMF_CLEAR);
     ok(ptr !== 0, 'allocMem(32) returned non-zero');
