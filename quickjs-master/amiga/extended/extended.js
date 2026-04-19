@@ -2406,8 +2406,11 @@ _manifests.push(new LocalManifest({
                 if (name === undefined) {
                     throw new TypeError('File: name argument required');
                 }
-                /* Per WHATWG File spec, NUL bytes in name are stripped. */
-                this._name = String(name).replace(/\u0000/g, '');
+                /* Per WHATWG File spec, NUL bytes in name are stripped.
+                 * Implemented via split/join (not regex) — extended.js
+                 * defaults to regex-free; see Fina gotcha,regex,amiga and
+                 * the url manifest comment for context. */
+                this._name = String(name).split('\u0000').join('');
                 this._lastModified = (options && typeof options.lastModified === 'number')
                     ? options.lastModified
                     : Date.now();
