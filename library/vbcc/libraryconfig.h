@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.126 (19.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.127 (19.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   126  /* packed: major=0, revision=126 (full NDK 3.2R4 FFI coverage: all 76 AmigaOS libraries exposed as amiga.<name>.lvo — 1177 LVO constants total from FD files; hand-curated exec/dos/intuition/graphics/gadtools keep their library-specific constants) */
+#define LIBRARY_VERSION   127  /* packed: major=0, revision=127 (Q2 wrapper-class FFI pilot: LibraryBase, CEnumeration, ptrOf, Struct + 5 lib wrappers (Exec/Dos/Intuition/Graphics/GadTools, ~110 methods) + 11 struct types (Window/NewWindow/Screen/RastPort/MsgPort/IntuiMessage/TextAttr/Image/Gadget/Struct/TagItem helpers); .js source committed for IDE; bundled via scripts/bundle_ffi.py to gen/ffi.c bytecode evaluated by library after extended) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

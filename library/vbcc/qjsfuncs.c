@@ -670,12 +670,22 @@ void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
  * — not just the qjs CLI — gets the full extended JS surface. */
 extern const unsigned char qjsc_extended[];
 extern const unsigned long qjsc_extended_size;
+extern const unsigned char qjsc_ffi[];
+extern const unsigned long qjsc_ffi_size;
 extern void js_std_eval_binary(struct JSContext *ctx, const unsigned char *buf,
                                unsigned long buf_len, int flags);
 
 void QJS_InstallExtended_impl(struct JSContext *ctx)
 {
+    /* Q1: extended.js — installs globalThis.amiga (raw FFI primitives,
+     * 76 LVO tables) and the rest of the Node-compat surface. */
     js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
+
+    /* Q2: ffi.js bundle — installs LibraryBase, CEnumeration,
+     * Exec/Dos/Intuition/Graphics/GadTools wrapper classes, and the
+     * 11 struct types under both globalThis and amiga.lib. Depends
+     * on globalThis.amiga.<lib>.lvo from extended above. */
+    js_std_eval_binary(ctx, qjsc_ffi,      qjsc_ffi_size,      0);
 }
 
 /* QJS_NewDate_impl — called from assembly, no __reg.

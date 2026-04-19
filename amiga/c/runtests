@@ -85,4 +85,8 @@ echo "Running tests/test_amiga_ffi.js and saving in output/test_amiga_ffi.output
 qjs tests/test_amiga_ffi.js > output/test_amiga_ffi.output
 echo "done"
 ;
+echo "Running tests/test_ffi_classes.js and saving in output/test_ffi_classes.output..." noline
+qjs tests/test_ffi_classes.js > output/test_ffi_classes.output
+echo "done"
+;
 echo "*NAll tests complete. Results are in output/"

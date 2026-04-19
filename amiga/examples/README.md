@@ -25,6 +25,7 @@ Requires `quickjs.library` **0.125 or later** in `LIBS:`.
 | `drawing_demo.js` | Opens a window and draws lines, rectangles, outlines, cross-hatch, text using graphics.library (SetAPen/Move/Draw/RectFill/Text). Repaints on IDCMP_REFRESHWINDOW so resizing works cleanly. |
 | `frameidemo.js` | 1:1 port of NDK 3.1 `Examples1/intuition/frameidemo.c`. Builds a classic `struct NewWindow` in allocated memory (byte-level field poking), uses NewObjectA to create four BOOPSI `frameiclass` images in both normal and recessed states, renders them with DrawImage, handles IDCMP_REFRESHWINDOW via BeginRefresh/EndRefresh. |
 | `screen_info.js` | LockPubScreen(NULL) → peek Screen struct fields (geometry, flags, title-bar height, borders, default font) → UnlockPubScreen. No window, no event loop — just demonstrates safe read-only introspection. |
+| `frameidemo_classes.js` | Same as `frameidemo.js` but rewritten against the Q2 wrapper-class API (library 0.127+). Demonstrates the ergonomic gain — `new NewWindow({...})`, `Intuition.OpenWindow`, `win.rastPort`, `win.screen.font.ySize`, `for (let msg of win.messages())`, `win.close()`, `nw.free()`. Same behavior as `frameidemo.js`. |
 
 ## Writing your own
 

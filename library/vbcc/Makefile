@@ -146,6 +146,7 @@ FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/quickjs_libc_lib.o \
               $(OBJDIR_FPU)/amiga_ssl_lib.o \
               $(OBJDIR_FPU)/extended.o \
+              $(OBJDIR_FPU)/ffi.o \
               $(OBJDIR_FPU)/sharedlib_worker.o \
               $(OBJDIR_FPU)/amiga_ffi.o \
               $(OBJDIR_FPU)/amiga_ffi_call.o
@@ -176,6 +177,7 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/quickjs_libc_lib.o \
               $(OBJDIR_SOFT)/amiga_ssl_lib.o \
               $(OBJDIR_SOFT)/extended.o \
+              $(OBJDIR_SOFT)/ffi.o \
               $(OBJDIR_SOFT)/sharedlib_worker.o \
               $(OBJDIR_SOFT)/amiga_ffi.o \
               $(OBJDIR_SOFT)/amiga_ffi_call.o
@@ -284,6 +286,9 @@ $(OBJDIR_FPU)/amiga_ssl_lib.o: $(LIBVBCC)/amiga_ssl_lib.c $(SRC)/amiga_ssl.c | $
 $(OBJDIR_FPU)/extended.o: $(QJS)/gen/extended.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/ffi.o: $(QJS)/gen/ffi.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
 $(OBJDIR_FPU)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
@@ -384,6 +389,9 @@ $(OBJDIR_SOFT)/amiga_ssl_lib.o: $(LIBVBCC)/amiga_ssl_lib.c $(SRC)/amiga_ssl.c | 
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/extended.o: $(QJS)/gen/extended.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/ffi.o: $(QJS)/gen/ffi.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_SOFT)
