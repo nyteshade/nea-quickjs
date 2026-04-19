@@ -44,7 +44,7 @@ Idiomatic JS, no offset arithmetic, classes match Amiga API names verbatim.
 ```
 quickjs-master/amiga/ffi/
   Enumeration patch                  # vendored class gets `static from(query)`
-  AmigaCEnumeration.js               # subclass adds structured-value semantics
+  CEnumeration.js               # subclass adds structured-value semantics
   LibraryBase.js                     # base for all library wrapper classes
   ptrOf.js                           # tiny helper module
   Exec.js                            # ~115 LVO methods, hand-pruned to common
@@ -163,7 +163,7 @@ class Intuition extends LibraryBase {
   static libraryVersion = 39;
   static lvo            = amiga.intuition.lvo;
 
-  static consts = class IntuitionConsts extends AmigaCEnumeration {
+  static consts = class IntuitionConsts extends CEnumeration {
     static {
       IntuitionConsts.define('WA_Title', {
         cName: 'WA_Title',
@@ -444,10 +444,10 @@ function withStruct(StructClass, init, fn) {
 }
 ```
 
-## `AmigaCEnumeration`
+## `CEnumeration`
 
 Subclass of vendored `Enumeration` (which itself gets only a small
-addition: `static from(query)`). `AmigaCEnumeration` adds:
+addition: `static from(query)`). `CEnumeration` adds:
 
 - `valueOf()` drills into structured `{cName, value, ...}` records
   to return the underlying numeric value, so cases pass straight to FFI
@@ -455,7 +455,7 @@ addition: `static from(query)`). `AmigaCEnumeration` adds:
 - `static from(query)` extends the base lookup to also match against
   fields on a structured value or on `associations`
 
-Library wrappers' `consts` nested class extends `AmigaCEnumeration`,
+Library wrappers' `consts` nested class extends `CEnumeration`,
 NEVER the base `Enumeration` directly.
 
 Vendored class stays pure (only the small `from`); structured-value
@@ -499,7 +499,7 @@ Generator script(s) that read NDK 3.2R4 sources and emit `.js` files:
   for JSDoc), emits `quickjs-master/amiga/ffi/<LibName>.js`.
 - `scripts/gen_ffi_consts.py` — for each library: parses relevant
   headers under `sdks/NDK3.2R4/Include_H/` for tag/flag constants,
-  emits the `static consts = class extends AmigaCEnumeration {...}`
+  emits the `static consts = class extends CEnumeration {...}`
   block.
 - Manual hand-coded `.js` files for the pilot before the generator
   exists; once shape is proven the generator catches up to the
@@ -511,7 +511,7 @@ Generator script(s) that read NDK 3.2R4 sources and emit `.js` files:
 Loader: extended.js gets a new `amiga-ffi-classes` manifest after the
 existing `amiga-ffi` manifest. The new manifest evaluates each baked-in
 `.jsbc` blob (or imports the .js source if running on host). Sets up
-`globalThis.LibraryBase`, `globalThis.AmigaCEnumeration`, and each
+`globalThis.LibraryBase`, `globalThis.CEnumeration`, and each
 library class. Registers an exit hook that calls `LibraryBase.closeAll()`.
 
 ## Migration
@@ -528,7 +528,7 @@ ergonomics gain. Other ports happen as we touch them.
 1. LibraryBase contract: subclass, ensureLibrary opens, second call
    returns cached, closeLibrary releases.
 2. ptrOf coercion: null/undefined/number/object-with-ptr.
-3. AmigaCEnumeration: structured-value coercion, from() lookups (key,
+3. CEnumeration: structured-value coercion, from() lookups (key,
    value, structured field, association).
 4. Per-library pilot: open lib via class, call one method, get expected
    return type, close.
@@ -541,7 +541,7 @@ ergonomics gain. Other ports happen as we touch them.
 ## Ship plan (this batch = library 0.127)
 
 1. Vendored Enumeration: add `static from(query)` (small).
-2. New `AmigaCEnumeration.js`.
+2. New `CEnumeration.js`.
 3. New `LibraryBase.js` + `ptrOf.js`.
 4. Hand-write 5 library wrappers + 11 struct classes per pilot scope.
 5. Wire everything into a new `amiga-ffi-classes` manifest in
