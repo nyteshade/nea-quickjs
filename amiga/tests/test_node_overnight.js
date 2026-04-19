@@ -160,14 +160,34 @@ await run("util.types long tail (0.114)", async () => {
 
 await run("util.styleText (0.114)", async () => {
     ok(typeof util.styleText === 'function', 'styleText is function');
+    /* NO_COLOR env may strip CSI on some Amigas — test both outcomes:
+     * output MUST contain 'hi' somewhere, and MAY additionally wrap it
+     * with SGR 31/39 sequences. */
     const s1 = util.styleText('red', 'hi');
-    ok(s1.indexOf('\x1b[31m') === 0 && s1.endsWith('\x1b[39m'), 'styleText wraps with red CSI');
-    ok(s1.indexOf('hi') > 0, 'styleText preserves text');
-    const s2 = util.styleText(['bold', 'green'], 'hi');
-    ok(s2.indexOf('\x1b[1m') >= 0 && s2.indexOf('\x1b[32m') >= 0, 'styleText stacks styles');
+    ok(s1.indexOf('hi') >= 0, 'styleText preserves text');
+    const noColor = (typeof process !== 'undefined' && process.env && process.env.NO_COLOR);
+    if (!noColor) {
+        ok(s1.indexOf('\x1b[31m') === 0 && s1.endsWith('\x1b[39m'),
+           'styleText wraps with red CSI');
+        const s2 = util.styleText(['bold', 'green'], 'hi');
+        ok(s2.indexOf('\x1b[1m') >= 0 && s2.indexOf('\x1b[32m') >= 0,
+           'styleText stacks styles');
+    } else {
+        /* NO_COLOR honored — should be bare text, no CSI. */
+        ok(s1.indexOf('\x1b[') === -1, 'NO_COLOR strips CSI');
+        const s2 = util.styleText(['bold', 'green'], 'hi');
+        ok(s2 === 'hi', 'NO_COLOR: stacked styles also stripped');
+    }
     let threw = false;
     try { util.styleText('not-a-style', 'x'); } catch (_) { threw = true; }
     ok(threw, 'styleText throws on unknown style');
+
+    /* Diagnostic: print what the Amiga's env thinks about NO_COLOR,
+     * so future investigations have a data point. */
+    try {
+        const raw = (typeof std !== 'undefined' && std.getenv && std.getenv('NO_COLOR'));
+        print("  info: NO_COLOR env = " + JSON.stringify(raw));
+    } catch (_) {}
 });
 
 await run("util.stripVTControlCharacters (0.114)", async () => {
