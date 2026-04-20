@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.128 (19.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.129 (19.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   128  /* packed: major=0, revision=128 (Q2 placement + IDCMP fix: wrapper classes moved from amiga.lib.X to amiga.X (case-distinct from Q1 lowercase tables that hold .lvo/constants); IntuiMessage.class returns matching IntuitionConsts CEnumeration case via reverse-lookup so `msg.class === C.IDCMP_CLOSEWINDOW` works by identity while bitwise/arithmetic coercion still yields the raw flag) */
+#define LIBRARY_VERSION   129  /* packed: major=0, revision=129 (fix regression from 0.128: index.js was overwriting Q1 natives amiga.makeTags/amiga.withTags with Q2 JS wrappers of different signatures, causing infinite self-recursion on first tag-build call. Helpers no longer get written onto the amiga namespace — they stay on globalThis only. Library classes + struct wrappers continue to live at amiga.<ClassName>) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

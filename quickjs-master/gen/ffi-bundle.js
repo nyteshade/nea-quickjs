@@ -3010,14 +3010,23 @@ const helpers = {
   ptrOf, withStruct, makeTags, withTags,
 };
 
-/* amiga.<ClassName> — always populated. Case-distinct from the Q1
- * lowercase tables (amiga.intuition, amiga.exec, ...) that hold
- * .lvo and plain flag constants. */
-for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
+/* amiga.<ClassName> — populate with library classes and struct
+ * wrappers. Case-distinct from the Q1 lowercase tables
+ * (amiga.intuition, amiga.exec, ...) that hold `.lvo` and plain
+ * flag constants.
+ *
+ * IMPORTANT: do NOT spread `helpers` into this loop. extended.js
+ * already defines `amiga.makeTags` and `amiga.withTags` as Q1
+ * natives, and the Q2 JS wrappers in structs/TagItem.js have
+ * different signatures — plus the JS `makeTags` internally calls
+ * `globalThis.amiga.makeTags`, which would infinitely self-recurse
+ * once reassigned. Helpers stay in globalThis.* only. */
+for (const [name, cls] of Object.entries({ ...libs, ...structs })) {
   globalThis.amiga[name] = cls;
 }
 
-/* globalThis.<Name> if the slot is free — convenience for scripts. */
+/* globalThis.<Name> if the slot is free — convenience for scripts.
+ * Helpers are included here since they don't collide with Q1. */
 for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
   if (!(name in globalThis)) {
     globalThis[name] = cls;

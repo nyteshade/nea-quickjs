@@ -449,77 +449,61 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
 {
     struct ExecBase *sys = aBase->iSysBase;
 
-    /* Serial-debug each step so a failed OpenLibrary is traceable via
-     * Amiberry's serial/debug window. Writes go to RawPutChar (exec
-     * LVO -516) — not visible in the Shell, but captured by the
-     * emulator host. Temporary scaffolding for diagnosing library
-     * load issues; remove once root cause is known. */
-    dbg_str(sys, "QJS INIT: enter\n");
-
     /* Set global SysBase BEFORE any code that might use proto/exec.h */
     SysBase = (struct Library *)sys;
     _qjs_lib_base = aBase;
 
-    dbg_str(sys, "QJS INIT: step 1 dos.library\n");
     aBase->iDOSBase = __OpenLibrary(sys, "dos.library", 36);
-    if (!aBase->iDOSBase) {
-        dbg_str(sys, "QJS INIT: FAIL dos.library\n");
+    if (!aBase->iDOSBase)
         return TRUE;
-    }
 
     /* Set global DOSBase for _qjs_time_us (Date.now/os.now) */
     _qjs_DOSBase = aBase->iDOSBase;
 
-    dbg_str(sys, "QJS INIT: step 2 sharedlib_time_init\n");
+    /* Init time subsystem with DOSBase for gettimeofday/DateStamp */
     sharedlib_time_init(aBase->iDOSBase);
 
-    dbg_str(sys, "QJS INIT: step 3 sharedlib_posix_init\n");
+    /* Init POSIX shim with DOSBase for file I/O, stat, getcwd, etc. */
     sharedlib_posix_init(aBase->iDOSBase);
 
-    dbg_str(sys, "QJS INIT: step 4 quickjs_libc_lib_init\n");
+    /* Init quickjs-libc DOSBase for proto/dos.h inline calls */
     quickjs_libc_lib_init(aBase->iDOSBase);
 
-    dbg_str(sys, "QJS INIT: step 5 sharedlib_stdio_init\n");
+    /* Init stdio (fopen/fclose etc.) using dos.library — must be after posix init */
     sharedlib_stdio_init();
 
-    dbg_str(sys, "QJS INIT: step 6 sharedlib_clib_init\n");
+    /* Init fd table for open/close/read/write */
     sharedlib_clib_init();
 
-    dbg_str(sys, "QJS INIT: step 7 mathieeedoubbas.library\n");
     aBase->iMathDoubBasBase = __OpenLibrary(sys,
         "mathieeedoubbas.library", 34);
-    if (!aBase->iMathDoubBasBase) {
-        dbg_str(sys, "QJS INIT: FAIL mathieeedoubbas\n");
+    if (!aBase->iMathDoubBasBase)
         return TRUE;
-    }
 
-    dbg_str(sys, "QJS INIT: step 8 mathieeedoubtrans.library\n");
     aBase->iMathDoubTransBase = __OpenLibrary(sys,
         "mathieeedoubtrans.library", 34);
-    if (!aBase->iMathDoubTransBase) {
-        dbg_str(sys, "QJS INIT: FAIL mathieeedoubtrans\n");
+    if (!aBase->iMathDoubTransBase)
         return TRUE;
-    }
 
-    dbg_str(sys, "QJS INIT: step 9 sharedlib_math_soft_init\n");
+    /* Init math subsystem — sets globals for soft-float LVO calls.
+     * No-op for FPU build (stubs in sharedlib_math.c). */
     sharedlib_math_soft_init(aBase->iMathDoubBasBase,
                               aBase->iMathDoubTransBase);
 
-    dbg_str(sys, "QJS INIT: step 10 AmigaPoolInit\n");
-    if (AmigaPoolInit(aBase)) {
-        dbg_str(sys, "QJS INIT: FAIL AmigaPoolInit\n");
+    /* Create memory pool for all engine allocations */
+    if (AmigaPoolInit(aBase))
         return TRUE;
-    }
 
+    /* Save SysBase for debug output */
     g_dbg_sys = sys;
 
-    dbg_str(sys, "QJS INIT: step 11 qjs_probe_net_caps\n");
+    /* W7: probe networking caps (non-fatal — library loads without them) */
     qjs_probe_net_caps(aBase);
 
-    dbg_str(sys, "QJS INIT: step 12 qjs_timer_init\n");
+    /* Open timer.device for µs-resolution time. Non-fatal: _qjs_time_us
+     * falls back to DateStamp's 20ms granularity if this fails. */
     qjs_timer_init(aBase);
 
-    dbg_str(sys, "QJS INIT: done OK\n");
     return FALSE;
 }
 
