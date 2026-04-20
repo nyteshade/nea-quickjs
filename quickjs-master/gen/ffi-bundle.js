@@ -5591,6 +5591,516 @@ class ImageBase extends BOOPSIBase {
 }
 
 
+/* === boopsi/images/Label.js === */
+/* quickjs-master/amiga/ffi/boopsi/images/Label.js
+ *
+ * label.image — Reaction's text label. The simplest of the bunch:
+ * inherits from imageclass, carries a text string and rendering
+ * attributes.
+ *
+ * NDK header: images/label.h. LABEL_Dummy = REACTION_Dummy+0x6000.
+ * Most commonly used: LABEL_Text, LABEL_Justification,
+ * LABEL_Underscore (key-shortcut marker char).
+ */
+
+
+/** @internal LABEL_* tag IDs (images/label.h) */
+const LABEL = Object.freeze({
+  Text:           0x85006001,
+  Image:          0x85006002,
+  Mapping:        0x85006003,
+  Justification:  0x85006004,
+  Key:            0x85006005,
+  Underscore:     0x85006006,
+  DisposeImage:   0x85006007,
+  SoftStyle:      0x85006008,
+  VerticalSpacing:0x85006009,
+});
+
+/**
+ * label.image — a renderable text label.
+ *
+ * @extends ImageBase
+ */
+class Label extends ImageBase {
+  /** @type {string} */
+  static _classLibName = 'label.image';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...IMAGE_ATTRS,
+    text:          { tagID: LABEL.Text,          type: 'string-owned' },
+    justification: { tagID: LABEL.Justification, type: 'uint32' },
+    underscore:    { tagID: LABEL.Underscore,    type: 'uint32' },
+    softStyle:     { tagID: LABEL.SoftStyle,     type: 'uint32' },
+    verticalSpacing: { tagID: LABEL.VerticalSpacing, type: 'int32' },
+  };
+
+  /** @returns {string|null} */
+  get text()    { return this.get('text'); }
+  set text(v)   { this.set({ text: v }); }
+}
+
+/**
+ * LABEL_Justification values. LJ_LEFT = 0, LJ_CENTER = 1, LJ_RIGHT = 2.
+ * Kept at module scope (not in ATTRS) since they're value constants,
+ * not attrs.
+ */
+const LabelJustify = Object.freeze({
+  LEFT:   0,
+  CENTER: 1,
+  RIGHT:  2,
+});
+
+
+/* === boopsi/gadgets/Button.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Button.js
+ *
+ * button.gadget — Reaction's push/toggle button. Extends gadgetclass
+ * (so it inherits GA_ID, GA_Text, GA_Disabled, etc.) and adds
+ * BUTTON_* attributes for visual styling.
+ *
+ * BUTTON_Dummy = TAG_USER + 0x04000000 = 0x84000000 (distinct from
+ * REACTION_Dummy because button.gadget predates the Reaction
+ * consolidation).
+ *
+ * At module load time we register BUTTON_CLICK on EventKind — the
+ * Window event pump decodes IDCMP_IDCMPUPDATE attribute-delta tag
+ * lists and yields this kind when a button reports release.
+ */
+
+
+/** @internal BUTTON_* tag IDs (gadgets/button.h) */
+const BUTTON = Object.freeze({
+  PushButton:   0x84000001,
+  Glyph:        0x84000002,
+  Array:        0x84000003,
+  TextPen:      0x84000005,
+  FillPen:      0x84000006,
+  FillTextPen:  0x84000007,
+  BgPen:        0x84000008,
+  Current:      0x84000009,
+  BevelStyle:   0x8400000D,
+  Transparent:  0x8400000F,
+  Justification:0x84000010,
+  SoftStyle:    0x84000011,
+});
+
+/**
+ * button.gadget — a Reaction push/toggle button.
+ *
+ * @extends GadgetBase
+ */
+class Button extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'button.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+
+    /* Most scripts use the inherited GA_Text ('text') + GA_ID ('id')
+     * + GA_Selected ('selected'). Additions below. */
+    pushButton:     { tagID: BUTTON.PushButton,   type: 'bool' },
+    glyph:          { tagID: BUTTON.Glyph,        type: 'ptr'  },
+    textPen:        { tagID: BUTTON.TextPen,      type: 'uint32' },
+    fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
+    fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'uint32' },
+    bgPen:          { tagID: BUTTON.BgPen,        type: 'uint32' },
+    current:        { tagID: BUTTON.Current,      type: 'bool' },
+    bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'uint32' },
+    transparent:    { tagID: BUTTON.Transparent,  type: 'bool' },
+    justification:  { tagID: BUTTON.Justification,type: 'uint32' },
+    softStyle:      { tagID: BUTTON.SoftStyle,    type: 'uint32' },
+  };
+}
+
+/* Register the button's event kind on the shared EventKind enum. The
+ * Window event pump looks up this case when it sees IDCMP_IDCMPUPDATE
+ * carrying a GA_ID whose owner is a Button. */
+EventKind.define('BUTTON_CLICK', {
+  idcmp: 0x40000000,  /* IDCMP_IDCMPUPDATE */
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'button.gadget',
+  wraps: 'GADGET_UP',
+});
+
+
+/* === boopsi/gadgets/Layout.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Layout.js
+ *
+ * layout.gadget — Reaction's horizontal/vertical arranger. Extends
+ * gadgetclass. Children are added via OM_ADDMEMBER; Reaction then
+ * handles positioning automatically based on LAYOUT_Orientation and
+ * the children's minimum sizes.
+ *
+ * LAYOUT_Dummy = REACTION_Dummy + 0x7000 = 0x85007000.
+ */
+
+
+/** @internal LAYOUT_* tag IDs (gadgets/layout.h) */
+const LAYOUT = Object.freeze({
+  Orientation:     0x85007001,
+  FixedHoriz:      0x85007002,
+  FixedVert:       0x85007003,
+  HorizAlignment:  0x85007004,
+  VertAlignment:   0x85007005,
+  ShrinkWrap:      0x85007006,
+  EvenSize:        0x85007007,
+  InnerSpacing:    0x85007009,
+  TopSpacing:      0x8500700A,
+  BottomSpacing:   0x8500700B,
+  LeftSpacing:     0x8500700C,
+  RightSpacing:    0x8500700D,
+  BevelState:      0x8500700E,
+  BevelStyle:      0x8500700F,
+  Label:           0x85007010,
+  LabelImage:      0x85007011,
+  LabelPlace:      0x85007012,
+});
+
+/**
+ * Orientation values for LAYOUT_Orientation:
+ *   LAYOUT_HORIZONTAL = 0
+ *   LAYOUT_VERTICAL   = 1
+ */
+const LayoutOrient = Object.freeze({
+  HORIZONTAL: 0,
+  VERTICAL:   1,
+});
+
+/**
+ * layout.gadget — Reaction's arranger.
+ *
+ * @extends GadgetBase
+ */
+class Layout extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'layout.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+
+    orientation:    { tagID: LAYOUT.Orientation,    type: 'uint32' },
+    horizAlignment: { tagID: LAYOUT.HorizAlignment, type: 'uint32' },
+    vertAlignment:  { tagID: LAYOUT.VertAlignment,  type: 'uint32' },
+    shrinkWrap:     { tagID: LAYOUT.ShrinkWrap,     type: 'bool'   },
+    evenSize:       { tagID: LAYOUT.EvenSize,       type: 'bool'   },
+    innerSpacing:   { tagID: LAYOUT.InnerSpacing,   type: 'int32'  },
+    topSpacing:     { tagID: LAYOUT.TopSpacing,     type: 'int32'  },
+    bottomSpacing:  { tagID: LAYOUT.BottomSpacing,  type: 'int32'  },
+    leftSpacing:    { tagID: LAYOUT.LeftSpacing,    type: 'int32'  },
+    rightSpacing:   { tagID: LAYOUT.RightSpacing,   type: 'int32'  },
+    bevelState:     { tagID: LAYOUT.BevelState,     type: 'uint32' },
+    bevelStyle:     { tagID: LAYOUT.BevelStyle,     type: 'uint32' },
+    label:          { tagID: LAYOUT.Label,          type: 'string-owned' },
+    labelImage:     { tagID: LAYOUT.LabelImage,     type: 'ptr'    },
+    labelPlace:     { tagID: LAYOUT.LabelPlace,     type: 'uint32' },
+
+    /* Convenience aliases matching a mental model where "orientation"
+     * is a string: internally they go through the same tag. Users
+     * can pass orientation: 'horizontal' / 'vertical' too. */
+  };
+
+  /**
+   * Add a child BOOPSI object to this layout via OM_ADDMEMBER. Keeps
+   * the JS-side parent/child links for the dispose cascade.
+   *
+   * @param {BOOPSIBase} child
+   * @returns {Layout} this for chaining
+   */
+  addChild(child) {
+    if (!child || !child.ptr) {
+      throw new Error(
+        'Layout.addChild: child has no ptr (disposed or wrapping-only)'
+      );
+    }
+
+    this.doMethod(OM.ADDMEMBER, child.ptr);
+    super.addChild(child);
+    return this;
+  }
+
+  /**
+   * Remove a previously-added child. Called less often than addChild.
+   *
+   * @param {BOOPSIBase} child
+   * @returns {Layout} this
+   */
+  removeChild(child) {
+    this.doMethod(OM.REMMEMBER, child.ptr);
+    let idx = this._children.indexOf(child);
+    if (idx >= 0) this._children.splice(idx, 1);
+    child._parent = null;
+    return this;
+  }
+
+  /**
+   * Pre-process init objects so that the ergonomic
+   * `orientation: 'horizontal'` form is accepted alongside numeric.
+   *
+   * @param {object|number} init
+   */
+  constructor(init) {
+    if (init && typeof init === 'object' &&
+        typeof init.orientation === 'string') {
+      let m = init.orientation.toLowerCase();
+      init = { ...init };
+      init.orientation = (m === 'vertical') ? LayoutOrient.VERTICAL
+                                             : LayoutOrient.HORIZONTAL;
+    }
+    super(init);
+  }
+}
+
+
+/* === boopsi/classes/Window.js === */
+/* quickjs-master/amiga/ffi/boopsi/classes/Window.js
+ *
+ * window.class — Reaction's top-level container. Wraps a BOOPSI
+ * object that, when sent WM_OPEN, allocates an actual Intuition
+ * window and returns its struct Window*. The BOOPSI object holds
+ * the Intuition window's lifetime — disposing it closes the window
+ * and cascades to every attached child gadget.
+ *
+ * Tag namespaces:
+ *   WA_*        — intuition/intuition.h, 0x80000063 base
+ *   WINDOW_*    — classes/window.h, 0x85025000 base
+ *
+ * Method IDs:
+ *   WM_OPEN  = 0x85025041  (WINDOW_Dummy + 0x41)
+ *   WM_CLOSE = 0x85025042
+ *   WM_HANDLEINPUT = 0x85025043
+ *
+ * Event surface: open() returns the Window wrapper itself (so the
+ * user can chain); events() + eventsAsync() + .on() iterate over
+ * IntuiMessages arriving on the underlying struct Window's
+ * UserPort, translated to rich {kind, source, sourceId, attrs, raw}
+ * event objects.
+ */
+
+
+/* Window-class attribute IDs */
+const WA = Object.freeze({
+  Title:         0x8000006E,
+  ScreenTitle:   0x8000006F,
+  CustomScreen:  0x80000070,
+  PubScreen:     0x80000079,
+  InnerWidth:    0x80000076,
+  InnerHeight:   0x80000077,
+  IDCMP:         0x8000006A,
+  Flags:         0x8000006B,
+  Width:         0x80000066,
+  Height:        0x80000067,
+  Left:          0x80000064,
+  Top:           0x80000065,
+  MinWidth:      0x80000072,
+  MinHeight:     0x80000073,
+  MaxWidth:      0x80000074,
+  MaxHeight:     0x80000075,
+});
+
+const WINDOW = Object.freeze({
+  Window:        0x85025001,
+  SigMask:       0x85025002,
+  MenuStrip:     0x85025004,
+  Layout:        0x85025005,
+  UserData:      0x85025006,
+  Zoom:          0x85025008,
+  Activate:      0x8502500A,
+  LockWidth:     0x8502500B,
+  LockHeight:    0x8502500C,
+  Position:      0x8502500E,
+  CloseGadget:   0x85025019,
+  SizeGadget:    0x8502501A,
+  DragBar:       0x8502501B,
+  DepthGadget:   0x8502501C,
+  NestedEvents:  0x8502502D,
+});
+
+/**
+ * WINDOW_Position values for quick placement.
+ *
+ *   POS_TOPLEFT      0  — upper-left of screen
+ *   POS_CENTERSCREEN 1  — center of screen
+ *   POS_CENTERWINDOW 2  — center of parent window (for child wins)
+ *   POS_MOUSEPOINTER 3  — at current mouse coords
+ */
+const WindowPosition = Object.freeze({
+  TOPLEFT:      0,
+  CENTERSCREEN: 1,
+  CENTERWINDOW: 2,
+  MOUSEPOINTER: 3,
+});
+
+const WM_OPEN  = 0x85025041;
+const WM_CLOSE = 0x85025042;
+
+/**
+ * window.class — opens/holds an Intuition window containing a
+ * Reaction gadget layout. Named `ReactionWindow` at definition to
+ * avoid a bundle-time collision with the struct-Window wrapper in
+ * amiga.intuition.Window; exposed as amiga.boopsi.Window by index.js.
+ *
+ * @extends BOOPSIBase
+ */
+class ReactionWindow extends BOOPSIBase {
+  /** @type {string} */
+  static _classLibName = 'window.class';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    /* Inherited Intuition WA_* — accepted by window.class as an
+     * alternative to flag-bitmask WA_Flags. */
+    title:         { tagID: WA.Title,       type: 'string-owned' },
+    screenTitle:   { tagID: WA.ScreenTitle, type: 'string-owned' },
+    pubScreenName: { tagID: WA.PubScreen,   type: 'string-owned' },
+    customScreen:  { tagID: WA.CustomScreen,type: 'ptr'  },
+    innerWidth:    { tagID: WA.InnerWidth,  type: 'int32' },
+    innerHeight:   { tagID: WA.InnerHeight, type: 'int32' },
+    width:         { tagID: WA.Width,       type: 'int32' },
+    height:        { tagID: WA.Height,      type: 'int32' },
+    left:          { tagID: WA.Left,        type: 'int32' },
+    top:           { tagID: WA.Top,         type: 'int32' },
+    minWidth:      { tagID: WA.MinWidth,    type: 'int32' },
+    minHeight:     { tagID: WA.MinHeight,   type: 'int32' },
+    maxWidth:      { tagID: WA.MaxWidth,    type: 'int32' },
+    maxHeight:     { tagID: WA.MaxHeight,   type: 'int32' },
+    idcmp:         { tagID: WA.IDCMP,       type: 'uint32' },
+    flags:         { tagID: WA.Flags,       type: 'uint32' },
+
+    /* WINDOW_* — Reaction additions. */
+    layout:        { tagID: WINDOW.Layout,  type: 'ptr'    },
+    position:      { tagID: WINDOW.Position,type: 'uint32' },
+    activate:      { tagID: WINDOW.Activate,type: 'bool'   },
+    lockWidth:     { tagID: WINDOW.LockWidth, type: 'bool' },
+    lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
+    closeGadget:   { tagID: WINDOW.CloseGadget, type: 'bool' },
+    sizeGadget:    { tagID: WINDOW.SizeGadget,  type: 'bool' },
+    dragBar:       { tagID: WINDOW.DragBar,   type: 'bool' },
+    depthGadget:   { tagID: WINDOW.DepthGadget,type: 'bool' },
+    nestedEvents:  { tagID: WINDOW.NestedEvents, type: 'bool' },
+    userData:      { tagID: WINDOW.UserData, type: 'uint32' },
+
+    /* Read-only; populated by window.class after open(). */
+    intuiWindow:   { tagID: WINDOW.Window,  type: 'ptr', readOnly: true },
+    sigMask:       { tagID: WINDOW.SigMask, type: 'uint32', readOnly: true },
+  };
+
+  constructor(init) {
+    super(init);
+    /* Struct-Window wrapper set on open(); null when closed. */
+    /** @type {Window|null} (struct Window wrapper) */
+    this._intuiWindow = null;
+  }
+
+  /**
+   * Send WM_OPEN. Returns the struct Window* pointer (wrapped in a
+   * Window struct wrapper internally) and caches it. Throws if the
+   * open fails.
+   *
+   * @returns {Window} this for chaining
+   */
+  open() {
+    if (this._intuiWindow) return this;
+
+    let winPtr = this.doMethod(WM_OPEN);
+
+    if (!winPtr) {
+      throw new Error('Window.open: WM_OPEN returned 0 — ' +
+        'likely missing WA_Flags bit, bad screen, or out of memory');
+    }
+
+    /* Wrap the struct Window* in our existing struct wrapper so we
+     * can reach UserPort, Font, etc. */
+    this._intuiWindow = new globalThis.amiga.intuition.Window(winPtr);
+    return this;
+  }
+
+  /**
+   * Send WM_CLOSE. The underlying Intuition window disappears but
+   * the BOOPSI object is reusable — call open() again to reopen.
+   *
+   * @returns {undefined}
+   */
+  close() {
+    if (this._intuiWindow) {
+      this.doMethod(WM_CLOSE);
+      this._intuiWindow = null;
+    }
+  }
+
+  /**
+   * The underlying struct Window wrapper (after open()). null when
+   * closed.
+   *
+   * @returns {Window|null}
+   */
+  get intuiWindow() { return this._intuiWindow; }
+
+  /**
+   * Translate one IntuiMessage into a rich event object. Matches the
+   * EventKind enum by IDCMP class; unknown classes fall through with
+   * kind=null so nothing gets swallowed.
+   *
+   * @param   {IntuiMessage} msg
+   * @returns {{kind: *|null, source: *|null, sourceId: number|null, attrs: object, raw: IntuiMessage}}
+   */
+  _translateMessage(msg) {
+    let cls = msg.classRaw;
+    let kind = EventKind.fromIdcmp(cls);
+
+    let event = {
+      kind,
+      source:   null,
+      sourceId: null,
+      attrs:    {},
+      raw:      msg,
+    };
+
+    /* IDCMP_IDCMPUPDATE carries a TagList of GA_ID + deltas. For
+     * now we don't parse it deeply — callers match on kind and
+     * read fields from raw. Future pass: walk the TagList and
+     * populate event.attrs + resolve event.source via child lookup. */
+
+    return event;
+  }
+
+  /**
+   * Synchronous event iterator. Delegates to the struct-Window's
+   * messages() iterator and translates each IntuiMessage.
+   *
+   * @yields {object} event object with {kind, source, sourceId, attrs, raw}
+   */
+  * events() {
+    if (!this._intuiWindow) {
+      throw new Error('Window.events: window is not open; call open() first');
+    }
+
+    for (let msg of this._intuiWindow.messages()) {
+      let event = this._translateMessage(msg);
+      this._fire(event);
+      yield event;
+    }
+  }
+
+  /**
+   * Close + dispose. Overrides BOOPSIBase.dispose to ensure WM_CLOSE
+   * runs before Intuition.DisposeObject cascades. Safe to call
+   * multiple times.
+   *
+   * @returns {undefined}
+   */
+  dispose() {
+    if (this._disposed) return;
+    this.close();
+    super.dispose();
+  }
+}
+
+
 /* === index.js === */
 /* quickjs-master/amiga/ffi/index.js
  *
@@ -5716,6 +6226,22 @@ globalThis.amiga.boopsi.IA           = IA;
 globalThis.amiga.boopsi.ATTR_TYPES   = ATTR_TYPES;
 globalThis.amiga.boopsi.GADGET_ATTRS = GADGET_ATTRS;
 globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
+
+/* Phase B concrete classes — both flat and origin-namespaced. */
+globalThis.amiga.boopsi.Window    = ReactionWindow;
+globalThis.amiga.boopsi.Layout    = Layout;
+globalThis.amiga.boopsi.Button    = Button;
+globalThis.amiga.boopsi.Label     = Label;
+
+globalThis.amiga.boopsi.classes.Window   = ReactionWindow;
+globalThis.amiga.boopsi.gadgets.Layout   = Layout;
+globalThis.amiga.boopsi.gadgets.Button   = Button;
+globalThis.amiga.boopsi.images.Label     = Label;
+
+/* Value enums */
+globalThis.amiga.boopsi.LayoutOrient   = LayoutOrient;
+globalThis.amiga.boopsi.LabelJustify   = LabelJustify;
+globalThis.amiga.boopsi.WindowPosition = WindowPosition;
 
 /* ------------------------------------------------------------------
  * Globals — convenience for scripts, conflict-gated.

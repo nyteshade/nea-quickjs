@@ -71,6 +71,10 @@ import { BOOPSIBase, OM, ATTR_TYPES } from './boopsi/BOOPSIBase.js';
 import { GadgetBase, GA, GADGET_ATTRS } from './boopsi/GadgetBase.js';
 import { ImageBase, IA, IMAGE_ATTRS } from './boopsi/ImageBase.js';
 import { EventKind } from './boopsi/EventKind.js';
+import { Label, LabelJustify } from './boopsi/images/Label.js';
+import { Button } from './boopsi/gadgets/Button.js';
+import { Layout, LayoutOrient } from './boopsi/gadgets/Layout.js';
+import { ReactionWindow, WindowPosition } from './boopsi/classes/Window.js';
 
 globalThis.amiga = globalThis.amiga || {};
 
@@ -158,6 +162,22 @@ globalThis.amiga.boopsi.IA           = IA;
 globalThis.amiga.boopsi.ATTR_TYPES   = ATTR_TYPES;
 globalThis.amiga.boopsi.GADGET_ATTRS = GADGET_ATTRS;
 globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
+
+/* Phase B concrete classes — both flat and origin-namespaced. */
+globalThis.amiga.boopsi.Window    = ReactionWindow;
+globalThis.amiga.boopsi.Layout    = Layout;
+globalThis.amiga.boopsi.Button    = Button;
+globalThis.amiga.boopsi.Label     = Label;
+
+globalThis.amiga.boopsi.classes.Window   = ReactionWindow;
+globalThis.amiga.boopsi.gadgets.Layout   = Layout;
+globalThis.amiga.boopsi.gadgets.Button   = Button;
+globalThis.amiga.boopsi.images.Label     = Label;
+
+/* Value enums */
+globalThis.amiga.boopsi.LayoutOrient   = LayoutOrient;
+globalThis.amiga.boopsi.LabelJustify   = LabelJustify;
+globalThis.amiga.boopsi.WindowPosition = WindowPosition;
 
 /* ------------------------------------------------------------------
  * Globals — convenience for scripts, conflict-gated.

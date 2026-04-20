@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.138 (21.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.139 (21.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   138  /* packed: major=0, revision=138 (Reaction Phase A infrastructure per decision:fdo95p76jj20vduy5hl6: BOOPSIBase (ptr, doMethod, OM_GET/SET via Intuition.getAttr/SetAttrsA, dispose cascade, addChild, owned-string tracker, ATTRS-table-driven tag-list builder, [Symbol.toStringTag], .on() handlers); GadgetBase extending BOOPSIBase with the GA_* tag set (GADGET_ATTRS); ImageBase with IA_* (IMAGE_ATTRS); EventKind CEnumeration with 10 core IDCMP cases + .fromIdcmp(code) reverse lookup. amiga.boopsi namespace established with .classes/.gadgets/.images sub-namespaces. Intuition.GetAttr + .getAttr ergonomic wrapper added. Phase B lands concrete Window/Layout/Button/Label classes.) */
+#define LIBRARY_VERSION   139  /* packed: major=0, revision=139 (Reaction Phase B — first four concrete classes: amiga.boopsi.Window (window.class; ATTRS covers WA_* + WINDOW_* surface; .open() dispatches WM_OPEN and wraps the returned struct Window*; .close() dispatches WM_CLOSE; .events() iterator delegates to struct-Window.messages() and translates each IntuiMessage into a rich {kind,source,sourceId,attrs,raw} event object with EventKind.fromIdcmp() lookup; .dispose() calls close() first then super), amiga.boopsi.Layout (layout.gadget; accepts orientation:'horizontal'/'vertical' string; .addChild dispatches OM_ADDMEMBER), amiga.boopsi.Button (button.gadget; registers BUTTON_CLICK on EventKind at module load time), amiga.boopsi.Label (label.image). Both flat and origin-namespaced placement (classes/gadgets/images) via index.js. ReactionWindow class identifier avoids bundle collision with the existing struct-Window wrapper. Example: amiga/examples/react_hello.js.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

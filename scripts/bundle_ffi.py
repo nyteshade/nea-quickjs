@@ -67,6 +67,12 @@ ORDER = [
     'boopsi/BOOPSIBase.js',        # root class; ATTRS table driver
     'boopsi/GadgetBase.js',        # extends BOOPSIBase; GA_* attrs
     'boopsi/ImageBase.js',         # extends BOOPSIBase; IA_* attrs
+    # Phase B concrete classes (load order: images/gadgets first so
+    # they're all defined when Window is constructed with a layout).
+    'boopsi/images/Label.js',
+    'boopsi/gadgets/Button.js',    # also extends EventKind at load time
+    'boopsi/gadgets/Layout.js',
+    'boopsi/classes/Window.js',
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',
 ]
