@@ -81,22 +81,24 @@ export class Asl extends LibraryBase {
   };
 
   /**
-   * AllocAslRequestA(type, tagList) — d0=type, a0=tagList. Returns
+   * AllocAslRequest(type, tagList) — d0=type, a0=tagList. Returns
    * a Requester* pointer (opaque; fields read via offsets after
-   * AslRequest).
+   * AslRequest). The NDK 3.2 FD calls this plain name (not
+   * AllocAslRequestA) — a trailing 'A' would be a wrong LVO name,
+   * resolve to undefined, and guru with an F-line emulator trap.
    *
    * @param {number}      type    — ASL_FileRequest etc.
    * @param {number|null} tagList — prepared TagItem* or NULL
    * @returns {number} requester pointer (0 on failure)
    */
-  static AllocAslRequestA(type, tagList) {
-    return this.call(this.lvo.AllocAslRequestA, {
+  static AllocAslRequest(type, tagList) {
+    return this.call(this.lvo.AllocAslRequest, {
       d0: type | 0, a0: ptrOf(tagList),
     });
   }
 
   /**
-   * Convenience over AllocAslRequestA — builds the TagItem array
+   * Convenience over AllocAslRequest — builds the TagItem array
    * from JS pairs and frees it after allocation.
    *
    * @param {number}                  type
@@ -109,7 +111,7 @@ export class Asl extends LibraryBase {
     let bytes = (p.length + 1) * 8;
 
     try {
-      return this.AllocAslRequestA(type, tags);
+      return this.AllocAslRequest(type, tags);
     }
 
     finally {
@@ -149,11 +151,12 @@ export class Asl extends LibraryBase {
    * file requesters, or {ok, requester} for other types.
    *
    * File-request layout (struct FileRequester after a successful
-   * AslRequest):
-   *   +4   fr_Drawer (STRPTR)
-   *   +8   fr_File   (STRPTR)
-   *   +16  fr_NumArgs (LONG)      — for multi-select
-   *   +20  fr_ArgList (WBArg *)
+   * AslRequest, from NDK3.2R4 libraries/asl.h:61):
+   *   +0   fr_Reserved0[4]
+   *   +4   fr_File   (STRPTR)  — contents of File gadget
+   *   +8   fr_Drawer (STRPTR)  — contents of Drawer gadget
+   *   +22  fr_LeftEdge (WORD)
+   *   ... fr_NumArgs / fr_ArgList for multi-select
    *
    * @param {Array<[number, number]>} pairs — ASLFR_* tag pairs
    * @returns {{ok: boolean, drawer: string|null, file: string|null, path: string|null, requester: number}}
@@ -175,8 +178,9 @@ export class Asl extends LibraryBase {
                  requester: req };
       }
 
-      let drawerPtr = globalThis.amiga.peek32(req + 4);
-      let filePtr   = globalThis.amiga.peek32(req + 8);
+      /* Per NDK 3.2 layout: fr_File is at +4, fr_Drawer at +8. */
+      let filePtr   = globalThis.amiga.peek32(req + 4);
+      let drawerPtr = globalThis.amiga.peek32(req + 8);
 
       let drawer = drawerPtr
         ? globalThis.amiga.peekString(drawerPtr, 512)

@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.135 (20.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.136 (20.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   135  /* packed: major=0, revision=135 (ViewPort struct (graphics, getter-based access to DWidth/DHeight/Modes/ColorMap) + Diskfont library wrapper (diskfont.library, OpenDiskFont/AvailFonts, AFF_* flags). amiga.graphics now hosts {RastPort, TextAttr, BitMap, ColorMap, ViewPort}.) */
+#define LIBRARY_VERSION   136  /* packed: major=0, revision=136 (fixes three bugs in the 0.134/0.135 overnight batch: (1) Asl.js called this.lvo.AllocAslRequestA (wrong name — the NDK FD has AllocAslRequest, no trailing A), which resolved to undefined, passed LVO=0 to the trampoline, and jumped wild into library-base memory — guru 8000 000B. (2) Asl.openFileRequest read fr_Drawer at +4 and fr_File at +8, but per libraries/asl.h it's fr_File at +4 and fr_Drawer at +8 — user saw swapped drawer/file. (3) FileInfoBlock.fileName/.comment used a BCPL counted-string decoder, but per dos/dos.h line 65/71 these are plain NUL-terminated C strings — decoder was chopping the first char (interpreted as length) and embedding nulls, causing truncated prints.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
