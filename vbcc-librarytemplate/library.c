@@ -2,6 +2,22 @@
 
 #include "library.h"
 
+/* Resident tag rt_Version is UBYTE (exec/resident.h). Some
+ * Kickstart/exec code paths (and debugging tools) signed-compare
+ * this field, so values >= 128 are treated as negative and the
+ * resident is rejected — OpenLibrary then returns NULL even though
+ * LoadSeg succeeded and `version file` can still read the $VER
+ * string. Cap rt_Version at a small stable value; the real
+ * consumer-visible version lives in lib_Version (UWORD) below via
+ * _LibInit, and in the $VER string. */
+#ifndef RESIDENT_VERSION
+#  if LIBRARY_VERSION <= 127
+#    define RESIDENT_VERSION LIBRARY_VERSION
+#  else
+#    define RESIDENT_VERSION 1
+#  endif
+#endif
+
 /**
  * Data structure identifying the library.
  */
@@ -11,7 +27,7 @@ const struct Resident RomTag =
   ( struct Resident* ) &RomTag,
   ( struct Resident* ) &RomTag + 1,
   RTF_AUTOINIT,
-  LIBRARY_VERSION,
+  RESIDENT_VERSION,
   NT_LIBRARY,
   0,
   ( BYTE* ) LibName,

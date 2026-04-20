@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.129 (19.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.130 (19.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   129  /* packed: major=0, revision=129 (fix regression from 0.128: index.js was overwriting Q1 natives amiga.makeTags/amiga.withTags with Q2 JS wrappers of different signatures, causing infinite self-recursion on first tag-build call. Helpers no longer get written onto the amiga namespace — they stay on globalThis only. Library classes + struct wrappers continue to live at amiga.<ClassName>) */
+#define LIBRARY_VERSION   130  /* packed: major=0, revision=130 (fixes the real 0.128 regression: LIBRARY_VERSION had been written into both UWORD lib_Version AND UBYTE rt_Version. 128 is 0x80 — crosses the signed-byte boundary — so some exec/LoadSeg signed-compare paths rejected the resident, causing OpenLibrary to return NULL even though the file on disk was fine. rt_Version now comes from RESIDENT_VERSION in the template: LIBRARY_VERSION when <=127, else 1. $VER string + lib_Version continue to track the real version.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
