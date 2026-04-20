@@ -16,7 +16,7 @@ stack 65536
 qjs examples/window_hello.js
 ```
 
-Requires `quickjs.library` **0.134 or later** in `LIBS:`.
+Requires `quickjs.library` **0.135 or later** in `LIBS:`.
 
 ## Examples
 
@@ -33,6 +33,7 @@ Requires `quickjs.library` **0.134 or later** in `LIBS:`.
 | `asl_filereq.js`  | Pop up a standard ASL file requester. Uses the new `amiga.Asl.openFileRequest([[ASLFR_TitleText, ...], [ASLFR_InitialDrawer, ...]])` one-call helper returning `{ok, drawer, file, path, requester}`. |
 | `dir_listing.js`  | List a directory via `Dos.Lock('SYS:', SHARED_LOCK)` + raw-FFI `Examine`/`ExNext` on a `FileInfoBlock` wrapper. Shows BCPL-string decoding for `fileName`/`comment`, plus the "raw LVO when it's not wrapped yet" escape-hatch pattern. Pass a path: `qjs examples/dir_listing.js DEVS:` |
 | `timer_demo.js`   | Open `timer.device`, call `TR_GETSYSTIME` for a start stamp, `TR_ADDREQUEST` for a 2-second delay, then `TR_GETSYSTIME` again and print elapsed. Uses the new `TimerRequest` (extends `IORequest`) wrapper with `Exec.CreateMsgPort/OpenDevice/DoIO/CloseDevice/DeleteMsgPort`. |
+| `font_loader.js`  | Load a disk font by name, install it on a window's `RastPort`, draw a pangram. Hand-built `TextAttr` (ta_Name owned allocation, ta_YSize) → `Diskfont.OpenDiskFont` → `Graphics.SetFont` → paint → `CloseFont` via raw-FFI. Pass a font name: `qjs examples/font_loader.js courier.font 13` |
 
 ## The wrapper-class API at a glance
 
