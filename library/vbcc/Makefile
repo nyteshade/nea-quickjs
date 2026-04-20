@@ -29,7 +29,7 @@
 
 VBCC ?= $(HOME)/vbcc
 VC   = $(VBCC)/bin/vc
-VASM = $(VBCC)/vasmm68k_mot
+VASM = $(VBCC)/bin/vasmm68k_mot
 VLINK = $(VBCC)/bin/vlink
 
 # Directories
@@ -149,7 +149,8 @@ FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/ffi.o \
               $(OBJDIR_FPU)/sharedlib_worker.o \
               $(OBJDIR_FPU)/amiga_ffi.o \
-              $(OBJDIR_FPU)/amiga_ffi_call.o
+              $(OBJDIR_FPU)/amiga_ffi_call.o \
+              $(OBJDIR_FPU)/amiga_boopsi_call.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
 
@@ -180,7 +181,8 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/ffi.o \
               $(OBJDIR_SOFT)/sharedlib_worker.o \
               $(OBJDIR_SOFT)/amiga_ffi.o \
-              $(OBJDIR_SOFT)/amiga_ffi_call.o
+              $(OBJDIR_SOFT)/amiga_ffi_call.o \
+              $(OBJDIR_SOFT)/amiga_boopsi_call.o
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
@@ -298,6 +300,9 @@ $(OBJDIR_FPU)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/amiga_ffi_call.o: $(LIBVBCC)/amiga_ffi_call.s | $(OBJDIR_FPU)
 	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/amiga_boopsi_call.o: $(LIBVBCC)/amiga_boopsi_call.s | $(OBJDIR_FPU)
+	$(VASM) $(ASMFLAGS_FPU) $< -o $@
+
 $(OBJDIR_FPU)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
@@ -401,6 +406,9 @@ $(OBJDIR_SOFT)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/amiga_ffi_call.o: $(LIBVBCC)/amiga_ffi_call.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/amiga_boopsi_call.o: $(LIBVBCC)/amiga_boopsi_call.s | $(OBJDIR_SOFT)
 	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_SOFT)

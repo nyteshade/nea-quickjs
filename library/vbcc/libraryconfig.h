@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.136 (20.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.137 (21.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   136  /* packed: major=0, revision=136 (fixes three bugs in the 0.134/0.135 overnight batch: (1) Asl.js called this.lvo.AllocAslRequestA (wrong name — the NDK FD has AllocAslRequest, no trailing A), which resolved to undefined, passed LVO=0 to the trampoline, and jumped wild into library-base memory — guru 8000 000B. (2) Asl.openFileRequest read fr_Drawer at +4 and fr_File at +8, but per libraries/asl.h it's fr_File at +4 and fr_Drawer at +8 — user saw swapped drawer/file. (3) FileInfoBlock.fileName/.comment used a BCPL counted-string decoder, but per dos/dos.h line 65/71 these are plain NUL-terminated C strings — decoder was chopping the first char (interpreted as length) and embedding nulls, causing truncated prints.) */
+#define LIBRARY_VERSION   137  /* packed: major=0, revision=137 (adds the IDoMethod primitive: new amiga_boopsi_call.s trampoline that hands off VBCC cdecl to BOOPSI Hook convention (A0=hook, A2=obj, A1=msg, JSR via h_Entry), new __qjs_amiga_doMethod native in amiga_ffi.c that reads obj's Class pointer from obj-4 and calls the class's cl_Dispatcher (at +36 inside IClass), and new amiga.doMethod(obj, msg) JS wrapper in extended.js. This unlocks raw BOOPSI method dispatch from JS; the idiomatic Reaction OO class layer sits on top in a separate follow-up.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

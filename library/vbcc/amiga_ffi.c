@@ -37,6 +37,12 @@ struct AmigaRegs {
 
 extern ULONG qjs_amiga_trampoline(APTR lib, LONG lvo, struct AmigaRegs *regs);
 
+/* The BOOPSI dispatcher trampoline in amiga_boopsi_call.s. Hands the
+ * class's Hook off in A0, the object in A2, the message in A1, then
+ * JSRs through h_Entry. Powers IDoMethod for the JS amiga.doMethod
+ * primitive. */
+extern ULONG qjs_boopsi_dispatch(APTR hook, APTR obj, APTR msg);
+
 /* ------------------------------------------------------------------
  * Small helpers.
  * ----------------------------------------------------------------- */
@@ -379,6 +385,62 @@ fail:
 }
 
 /* ------------------------------------------------------------------
+ * doMethod — expand the IDoMethod macro so BOOPSI dispatch works
+ * from JS. Reads the object's Class pointer from (obj - 4), then
+ * calls class->cl_Dispatcher via the Hook convention (A0=hook,
+ * A2=obj, A1=msg). The asm trampoline lives in amiga_boopsi_call.s.
+ *
+ * JS call: __qjs_amiga_doMethod(objPtr, msgPtr) → result
+ *
+ * struct IClass layout (intuition/classes.h, 2-byte aligned):
+ *   +0   cl_Node (struct Node, 14 bytes)
+ *  +14   cl_SuperClass (struct IClass *, 4)
+ *  +18   cl_ObjectSize (UWORD, 2)
+ *  +20   cl_InstOffset (UWORD, 2)
+ *  +22   cl_InstSize   (UWORD, 2)
+ *  +24   cl_SubclassCount (UWORD, 2)
+ *  +26   cl_ObjectCount   (UWORD, 2)
+ *  +28   cl_Flags   (ULONG, 4)
+ *  +32   cl_UserData (ULONG, 4)
+ *  +36   cl_Dispatcher (struct Hook) — 20 bytes
+ *
+ * struct Hook layout (utility/hooks.h):
+ *   +0   h_MinNode (8 bytes)
+ *   +8   h_Entry   (ULONG (*)(), 4)
+ *  +12   h_SubEntry (4)
+ *  +16   h_Data    (APTR, 4)
+ * ----------------------------------------------------------------- */
+static JSValue js_amiga_doMethod(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv)
+{
+    ULONG obj_addr = 0, msg_addr = 0;
+    APTR  cl, hook;
+    ULONG h_entry, result;
+
+    if (argc < 2) return JS_ThrowTypeError(ctx,
+                    "doMethod: (obj, msg) required");
+
+    if (js_to_uint32_strict(ctx, argv[0], &obj_addr)) return JS_EXCEPTION;
+    if (js_to_uint32_strict(ctx, argv[1], &msg_addr)) return JS_EXCEPTION;
+    if (obj_addr == 0) return JS_NewInt64(ctx, 0);
+
+    /* o_Class = *((APTR *)(obj - 4)); the struct _Object header sits
+     * immediately before the exposed object pointer. */
+    cl = *((APTR *)(obj_addr - 4));
+    if (!cl) return JS_NewInt64(ctx, 0);
+
+    /* cl_Dispatcher is a struct Hook at offset +36 into IClass. */
+    hook = (APTR)((UBYTE *)cl + 36);
+
+    /* h_Entry (offset +8 into Hook) is the dispatcher fn ptr. */
+    h_entry = *((ULONG *)((UBYTE *)hook + 8));
+    if (!h_entry) return JS_NewInt64(ctx, 0);
+
+    result = qjs_boopsi_dispatch(hook, (APTR)obj_addr, (APTR)msg_addr);
+    return JS_NewInt64(ctx, (int64_t)(uint32_t)result);
+}
+
+/* ------------------------------------------------------------------
  * Install globals.  Called from QJS_InstallAmigaFFIGlobal (asm LVO
  * bridge in qjsfuncs_asm_all.s).
  *
@@ -420,6 +482,8 @@ void qjs_install_amiga_ffi_global(JSContext *ctx)
     JS_SetPropertyStr(ctx, global, "__qjs_amiga_freeMem",  fn);
     fn = JS_NewCFunction(ctx, js_amiga_makeTags,     "__qjs_amiga_makeTags",     1);
     JS_SetPropertyStr(ctx, global, "__qjs_amiga_makeTags", fn);
+    fn = JS_NewCFunction(ctx, js_amiga_doMethod,     "__qjs_amiga_doMethod",     2);
+    JS_SetPropertyStr(ctx, global, "__qjs_amiga_doMethod", fn);
 
     JS_FreeValue(ctx, global);
 }

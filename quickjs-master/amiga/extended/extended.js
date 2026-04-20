@@ -5633,6 +5633,20 @@ _manifests.push(new LocalManifest({
                 N.__qjs_amiga_freeMem(ptr, size | 0);
             },
 
+            /* --- BOOPSI method dispatch --- */
+            /* Expands the IDoMethod macro: reads obj's Class ptr
+             * from (obj - 4) and dispatches through the class's
+             * cl_Dispatcher Hook. `msg` must be a pointer to a
+             * method message struct whose first ULONG is the
+             * MethodID. */
+            doMethod(obj, msg) {
+                if (typeof N.__qjs_amiga_doMethod !== 'function') {
+                    throw new Error('amiga.doMethod: native not installed — library < 0.137?');
+                }
+                if (obj === null || obj === undefined) return 0;
+                return N.__qjs_amiga_doMethod(obj | 0, (msg | 0) || 0);
+            },
+
             /* --- TagItem helpers --- */
             makeTags(pairs) {
                 if (!Array.isArray(pairs)) {
