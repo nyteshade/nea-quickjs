@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.134 (20.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.135 (20.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   134  /* packed: major=0, revision=134 (3 more struct wrappers: ColorMap (graphics, getter-only since RTG systems vary), FileInfoBlock (dos, with BCPL-string decoding for fileName/comment + 260-byte size), InputEvent (devices, IECLASS_* events). New amiga.Asl library wrapper covering AllocAslRequest/AslRequest/FreeAslRequest + the ergonomic openFileRequest({pairs}) -> {ok,drawer,file,path,requester} helper. amiga.dos namespace added.) */
+#define LIBRARY_VERSION   135  /* packed: major=0, revision=135 (ViewPort struct (graphics, getter-based access to DWidth/DHeight/Modes/ColorMap) + Diskfont library wrapper (diskfont.library, OpenDiskFont/AvailFonts, AFF_* flags). amiga.graphics now hosts {RastPort, TextAttr, BitMap, ColorMap, ViewPort}.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

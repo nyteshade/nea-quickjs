@@ -42,6 +42,7 @@ ORDER = [
     'structs/IntuiText.js',    # needs ptrOf
     'structs/BitMap.js',
     'structs/ColorMap.js',
+    'structs/ViewPort.js',       # needs ColorMap
     'structs/FileInfoBlock.js',
     'structs/InputEvent.js',
     'structs/IORequest.js',    # needs ptrOf
@@ -57,6 +58,7 @@ ORDER = [
     'Graphics.js',
     'GadTools.js',
     'Asl.js',
+    'Diskfont.js',
     'Intuition.js',  # needs Window, Screen, Image
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',

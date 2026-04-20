@@ -2270,6 +2270,88 @@ internal representation.`;
 }
 
 
+/* === structs/ViewPort.js === */
+/* quickjs-master/amiga/ffi/structs/ViewPort.js
+ *
+ * struct ViewPort (graphics/view.h). One rectangular region in a
+ * View that displays a BitMap with a ColorMap. Every Screen has a
+ * ViewPort accessible via screen.viewPort (field +68 on Screen —
+ * not yet exposed on the Screen wrapper; add if needed).
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   Next       (struct ViewPort *)
+ *   +4   ColorMap   (struct ColorMap *)
+ *   +8   DspIns     (struct CopList *)  — private
+ *  +12   SprIns     (struct CopList *)  — private
+ *  +16   ClrIns     (struct CopList *)  — private
+ *  +20   UCopIns    (struct UCopList *)
+ *  +24   DWidth     (WORD)
+ *  +26   DHeight    (WORD)
+ *  +28   DxOffset   (WORD)
+ *  +30   DyOffset   (WORD)
+ *  +32   Modes      (UWORD)
+ *  +34   SpritePriorities (UBYTE)
+ *  +35   ExtendedModes    (UBYTE)
+ *  +36   RasInfo    (struct RasInfo *)
+ *  total 40
+ */
+
+
+class ViewPort extends Struct {
+  /* Allocated as part of Screen or View; we wrap. */
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `ViewPort(ptr)
+where:
+  ptr - REQUIRED: existing ViewPort* pointer. You'll typically get
+        this via screen.viewPort (once Screen exposes the field) or
+        from graphics.library MakeVPort. No from-scratch allocation
+        via this wrapper — the display list wiring is fragile.
+
+Fields (getters):
+  nextViewPort {number}       next ViewPort* in the view, +0
+  colorMap     {ColorMap|null} ColorMap wrapper at +4
+  dWidth       {number}       display width,  +24 (WORD)
+  dHeight      {number}       display height, +26 (WORD)
+  dxOffset     {number}       horizontal offset, +28
+  dyOffset     {number}       vertical offset,   +30
+  modes        {number}       UWORD mode flags, +32
+
+Mutators for Modes live on SetChipRev/ModeNotAvailable etc.; prefer
+graphics.library calls over raw writes.`;
+  }
+
+  /** @returns {number} */
+  get nextViewPort() { return this.read32(0); }
+
+  /** @returns {ColorMap|null} */
+  get colorMap() {
+    let p = this.read32(4);
+    return p ? new ColorMap(p) : null;
+  }
+
+  /** @returns {number} */
+  get dWidth()    { return this.read16(24); }
+
+  /** @returns {number} */
+  get dHeight()   { return this.read16(26); }
+
+  /** @returns {number} */
+  get dxOffset()  { return this.read16(28); }
+
+  /** @returns {number} */
+  get dyOffset()  { return this.read16(30); }
+
+  /** @returns {number} UWORD mode flags (LORES/HIRES/HAM/DUALPF etc.) */
+  get modes()     { return this.read16(32); }
+}
+
+
 /* === structs/FileInfoBlock.js === */
 /* quickjs-master/amiga/ffi/structs/FileInfoBlock.js
  *
@@ -4185,6 +4267,85 @@ class Asl extends LibraryBase {
 }
 
 
+/* === Diskfont.js === */
+/* quickjs-master/amiga/ffi/Diskfont.js
+ *
+ * Wrapper for diskfont.library — opens disk-resident fonts and
+ * lists available fonts on the system.
+ *
+ * Pilot scope:
+ *   OpenDiskFont(ta)      — a0=ta, returns TextFont* (or 0)
+ *   AvailFonts(buf,size,flags) — a0=buf, d0=size, d1=flags
+ *
+ * Font-close is done via graphics.library CloseFont (which Graphics
+ * wrapper doesn't expose yet — use raw amiga.call to graphics.lvo
+ * CloseFont until it lands).
+ */
+
+
+/**
+ * diskfont.library — load disk fonts by TextAttr.
+ */
+class Diskfont extends LibraryBase {
+  /** @type {string} */
+  static libraryName = 'diskfont.library';
+
+  /** @type {number} */
+  static libraryVersion = 39;
+
+  /** @type {Object<string, number>} */
+  static lvo = globalThis.amiga.diskfont.lvo;
+
+  /**
+   * AFF_* flags for AvailFonts and fields on AvailFontsHeader.
+   *
+   *   AFF_MEMORY = 1 << 0   — in-memory fonts (already open)
+   *   AFF_DISK   = 1 << 1   — on-disk fonts
+   *   AFF_SCALED = 1 << 2   — scalable fonts
+   *   AFF_BITMAP = 1 << 8   — bitmap fonts
+   *   AFF_TAGGED = 1 << 16  — AFF with TagItem list
+   */
+  static consts = class DiskfontConsts extends CEnumeration {
+    static {
+      DiskfontConsts.define('AFF_MEMORY', 0x00000001);
+      DiskfontConsts.define('AFF_DISK',   0x00000002);
+      DiskfontConsts.define('AFF_SCALED', 0x00000004);
+      DiskfontConsts.define('AFF_BITMAP', 0x00000100);
+      DiskfontConsts.define('AFF_TAGGED', 0x00010000);
+    }
+  };
+
+  /**
+   * OpenDiskFont(textAttr) — load a disk-resident font described by
+   * the given TextAttr (with .ta_Name pointing at a FONT: path like
+   * "topaz.font" and .ta_YSize the point size).
+   *
+   * @param {TextAttr|number} ta — TextAttr wrapper or raw ptr
+   * @returns {number} TextFont* pointer (0 on failure)
+   */
+  static OpenDiskFont(ta) {
+    return this.call(this.lvo.OpenDiskFont, { a0: ptrOf(ta) });
+  }
+
+  /**
+   * AvailFonts(buffer, bufSize, flags) — fills buffer with a
+   * struct AvailFontsHeader followed by AvailFonts entries. Returns
+   * a nonzero byte count if the buffer was too small (= required
+   * size), or 0 on success.
+   *
+   * @param {number} buffer  — memory ptr (allocate with amiga.allocMem)
+   * @param {number} bufSize
+   * @param {number} flags   — OR of AFF_* from Diskfont.consts
+   * @returns {number} 0 on success, or required size if too small
+   */
+  static AvailFonts(buffer, bufSize, flags) {
+    return this.call(this.lvo.AvailFonts, {
+      a0: ptrOf(buffer), d0: bufSize | 0, d1: flags | 0,
+    });
+  }
+}
+
+
 /* === Intuition.js === */
 /* quickjs-master/amiga/ffi/Intuition.js
  *
@@ -4608,7 +4769,7 @@ for (const libname of ['intuition', 'graphics', 'exec', 'dos', 'devices']) {
  * Library wrappers — amiga.<ClassName>
  * ------------------------------------------------------------------ */
 const libs = {
-  Exec, Dos, Intuition, Graphics, GadTools, Asl,
+  Exec, Dos, Intuition, Graphics, GadTools, Asl, Diskfont,
 };
 
 for (const [name, cls] of Object.entries(libs)) {
@@ -4629,7 +4790,7 @@ const structsByLib = {
     Window, NewWindow, Screen, IntuiMessage, Image, Gadget,
     DrawInfo, Menu, MenuItem, IntuiText,
   },
-  graphics:  { RastPort, TextAttr, BitMap, ColorMap },
+  graphics:  { RastPort, TextAttr, BitMap, ColorMap, ViewPort },
   exec:      { MsgPort, IORequest },
   dos:       { FileInfoBlock },
   /* timer.device / inputevent.device live under "devices" in the
@@ -4657,11 +4818,11 @@ const everyGlobal = {
   /* meta */
   LibraryBase, CEnumeration, Struct,
   /* libs */
-  Exec, Dos, Intuition, Graphics, GadTools, Asl,
+  Exec, Dos, Intuition, Graphics, GadTools, Asl, Diskfont,
   /* structs */
   Window, NewWindow, Screen, RastPort, MsgPort,
   IntuiMessage, TextAttr, Image, Gadget,
-  DrawInfo, Menu, MenuItem, IntuiText, BitMap, ColorMap,
+  DrawInfo, Menu, MenuItem, IntuiText, BitMap, ColorMap, ViewPort,
   FileInfoBlock, InputEvent, IORequest, TimerRequest,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
