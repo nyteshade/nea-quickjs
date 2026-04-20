@@ -93,6 +93,8 @@ try {
     print('(Path points at a file; size=' + fib.size + ')');
     std.exit(0);
   }
+  
+  print(fib)
 
   let count = 0;
 
