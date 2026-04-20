@@ -358,6 +358,46 @@ export class Intuition extends LibraryBase {
     }
   }
 
+  /**
+   * GetAttr(attrID, obj, storagePtr) — d0=attrID, a0=obj, a1=storage.
+   * Writes the attribute's current value through `storagePtr`
+   * (typically a ULONG). Returns 1 on success, 0 if the class
+   * doesn't support that attr.
+   *
+   * @param {number}     attrID
+   * @param {number}     obj
+   * @param {number}     storagePtr — ptr to a ULONG receiver
+   * @returns {number}   1 on success, 0 on failure
+   */
+  static GetAttr(attrID, obj, storagePtr) {
+    return this.call(this.lvo.GetAttr, {
+      d0: attrID | 0, a0: ptrOf(obj), a1: ptrOf(storagePtr),
+    });
+  }
+
+  /**
+   * Ergonomic GetAttr — allocates a ULONG receiver, calls GetAttr,
+   * returns the receiver's value (or null if GetAttr returned 0).
+   *
+   * @param {number} attrID
+   * @param {number} obj
+   * @returns {number|null}
+   */
+  static getAttr(attrID, obj) {
+    let storage = globalThis.amiga.allocMem(4);
+    if (!storage) return null;
+
+    try {
+      let ok = this.GetAttr(attrID, obj, storage);
+      if (!ok) return null;
+      return globalThis.amiga.peek32(storage);
+    }
+
+    finally {
+      globalThis.amiga.freeMem(storage, 4);
+    }
+  }
+
   /* ============================================================
    * Misc
    * ============================================================ */

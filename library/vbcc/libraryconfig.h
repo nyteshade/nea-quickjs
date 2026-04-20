@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.137 (21.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.138 (21.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   137  /* packed: major=0, revision=137 (adds the IDoMethod primitive: new amiga_boopsi_call.s trampoline that hands off VBCC cdecl to BOOPSI Hook convention (A0=hook, A2=obj, A1=msg, JSR via h_Entry), new __qjs_amiga_doMethod native in amiga_ffi.c that reads obj's Class pointer from obj-4 and calls the class's cl_Dispatcher (at +36 inside IClass), and new amiga.doMethod(obj, msg) JS wrapper in extended.js. This unlocks raw BOOPSI method dispatch from JS; the idiomatic Reaction OO class layer sits on top in a separate follow-up.) */
+#define LIBRARY_VERSION   138  /* packed: major=0, revision=138 (Reaction Phase A infrastructure per decision:fdo95p76jj20vduy5hl6: BOOPSIBase (ptr, doMethod, OM_GET/SET via Intuition.getAttr/SetAttrsA, dispose cascade, addChild, owned-string tracker, ATTRS-table-driven tag-list builder, [Symbol.toStringTag], .on() handlers); GadgetBase extending BOOPSIBase with the GA_* tag set (GADGET_ATTRS); ImageBase with IA_* (IMAGE_ATTRS); EventKind CEnumeration with 10 core IDCMP cases + .fromIdcmp(code) reverse lookup. amiga.boopsi namespace established with .classes/.gadgets/.images sub-namespaces. Intuition.GetAttr + .getAttr ergonomic wrapper added. Phase B lands concrete Window/Layout/Button/Label classes.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

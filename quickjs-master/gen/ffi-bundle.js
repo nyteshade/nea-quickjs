@@ -4705,6 +4705,46 @@ class Intuition extends LibraryBase {
     }
   }
 
+  /**
+   * GetAttr(attrID, obj, storagePtr) — d0=attrID, a0=obj, a1=storage.
+   * Writes the attribute's current value through `storagePtr`
+   * (typically a ULONG). Returns 1 on success, 0 if the class
+   * doesn't support that attr.
+   *
+   * @param {number}     attrID
+   * @param {number}     obj
+   * @param {number}     storagePtr — ptr to a ULONG receiver
+   * @returns {number}   1 on success, 0 on failure
+   */
+  static GetAttr(attrID, obj, storagePtr) {
+    return this.call(this.lvo.GetAttr, {
+      d0: attrID | 0, a0: ptrOf(obj), a1: ptrOf(storagePtr),
+    });
+  }
+
+  /**
+   * Ergonomic GetAttr — allocates a ULONG receiver, calls GetAttr,
+   * returns the receiver's value (or null if GetAttr returned 0).
+   *
+   * @param {number} attrID
+   * @param {number} obj
+   * @returns {number|null}
+   */
+  static getAttr(attrID, obj) {
+    let storage = globalThis.amiga.allocMem(4);
+    if (!storage) return null;
+
+    try {
+      let ok = this.GetAttr(attrID, obj, storage);
+      if (!ok) return null;
+      return globalThis.amiga.peek32(storage);
+    }
+
+    finally {
+      globalThis.amiga.freeMem(storage, 4);
+    }
+  }
+
   /* ============================================================
    * Misc
    * ============================================================ */
@@ -4719,6 +4759,835 @@ class Intuition extends LibraryBase {
   static DisplayBeep(screen) {
     return this.call(this.lvo.DisplayBeep, { a0: ptrOf(screen) });
   }
+}
+
+
+/* === boopsi/EventKind.js === */
+/* quickjs-master/amiga/ffi/boopsi/EventKind.js
+ *
+ * The BOOPSI / Reaction event taxonomy. A CEnumeration whose cases
+ * carry structured metadata describing which raw IDCMP class they
+ * correspond to, what fields are meaningful on the event object,
+ * and which Reaction class owns them.
+ *
+ * Core IDCMP cases are pre-defined here. Each Reaction class
+ * wrapper extends the enum at module-load time with its own kinds:
+ *
+ *   // In gadgets/Button.js:
+ *   EventKind.define('BUTTON_CLICK', {
+ *     idcmp: 0x4000000,   // IDCMP_IDCMPUPDATE
+ *     rich:  { hasId: true, hasSource: true, hasPressed: true },
+ *     from:  'button.gadget',
+ *     wraps: 'GADGET_UP',   // semantic parent
+ *   });
+ *
+ * Consumers match with strict equality against the case instance:
+ *
+ *   if (evt.kind === EventKind.BUTTON_CLICK) { ... }
+ *
+ * The Window event pump translates raw IntuiMessages into event
+ * objects carrying a .kind reference to the matching case, plus
+ * decoded fields (source, sourceId, attrs, raw).
+ */
+
+
+/**
+ * BOOPSI event taxonomy. Every case value is a plain object:
+ *   {
+ *     idcmp: number,      // Raw IDCMP_* class mask
+ *     rich: {             // Which fields the event pump populates
+ *       hasId:       boolean, // GA_ID present
+ *       hasCode:     boolean, // IntuiMessage.code is meaningful
+ *       hasCoords:   boolean, // mouseX / mouseY are meaningful
+ *       hasSource:   boolean, // source BOOPSI ptr resolvable
+ *       hasPressed:  boolean, // button.gadget style pressed flag
+ *     },
+ *     from: string,       // "window.class", "button.gadget", ...
+ *     wraps: string,      // Optional: parent EventKind name
+ *   }
+ *
+ * @extends CEnumeration
+ */
+class EventKind extends CEnumeration {
+  static {
+    /* Core IDCMP events that Window produces directly without any
+     * Reaction-specific translation. These ship baked-in; additional
+     * kinds (BUTTON_CLICK, CHECKBOX_TOGGLE, ...) are define()'d by
+     * the gadget wrappers at their module-load time. */
+
+    EventKind.define('CLOSE_WINDOW', {
+      idcmp: 0x00000200,
+      rich:  { hasId: false, hasCode: false, hasCoords: false,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('REFRESH_WINDOW', {
+      idcmp: 0x00000004,
+      rich:  { hasId: false, hasCode: false, hasCoords: false,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('NEW_SIZE', {
+      idcmp: 0x00000002,
+      rich:  { hasId: false, hasCode: false, hasCoords: false,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('MOUSE_BUTTONS', {
+      idcmp: 0x00000008,
+      rich:  { hasId: false, hasCode: true, hasCoords: true,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('MOUSE_MOVE', {
+      idcmp: 0x00000010,
+      rich:  { hasId: false, hasCode: false, hasCoords: true,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('GADGET_DOWN', {
+      idcmp: 0x00000020,
+      rich:  { hasId: true, hasCode: false, hasCoords: false,
+               hasSource: true, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('GADGET_UP', {
+      idcmp: 0x00000040,
+      rich:  { hasId: true, hasCode: false, hasCoords: false,
+               hasSource: true, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('VANILLA_KEY', {
+      idcmp: 0x00200000,
+      rich:  { hasId: false, hasCode: true, hasCoords: false,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    EventKind.define('RAW_KEY', {
+      idcmp: 0x00000400,
+      rich:  { hasId: false, hasCode: true, hasCoords: false,
+               hasSource: false, hasPressed: false },
+      from:  'intuition',
+    });
+
+    /* IDCMP_IDCMPUPDATE = 0x40000000 — the big one. Reaction uses
+     * this to broadcast attribute changes via a TagList. The Window
+     * event pump parses that TagList and yields a more specific
+     * event kind matching the attribute set (e.g. BUTTON_CLICK).
+     * The raw kind stays available as a fallback when nothing
+     * matches. */
+    EventKind.define('ATTR_UPDATE', {
+      idcmp: 0x40000000,
+      rich:  { hasId: true, hasCode: false, hasCoords: false,
+               hasSource: true, hasPressed: false },
+      from:  'intuition',
+    });
+  }
+
+  /**
+   * Find the EventKind case matching an IntuiMessage's raw class
+   * value. Returns null if no case matches (caller should fall back
+   * to a raw event object).
+   *
+   * @param   {number} idcmpClass — IntuiMessage.read32(20)
+   * @returns {EventKind|null}
+   */
+  static fromIdcmp(idcmpClass) {
+    for (const [, c] of this) {
+      if (c.value && c.value.idcmp === idcmpClass) {
+        return c;
+      }
+    }
+
+    return null;
+  }
+}
+
+
+/* === boopsi/BOOPSIBase.js === */
+/* quickjs-master/amiga/ffi/boopsi/BOOPSIBase.js
+ *
+ * Root of the JS-side BOOPSI / Reaction class hierarchy. Models a
+ * single BOOPSI object by its pointer and dispatches all operations
+ * through the Intuition IDoMethod macro (implemented in JS via
+ * amiga.doMethod, backed by the amiga_boopsi_call.s trampoline in
+ * quickjs.library 0.137+).
+ *
+ * Subclasses override:
+ *   static _classLibName  — e.g. 'window.class', 'button.gadget'
+ *   static _classLibLvo   — LVO of XXX_GetClass (default -30)
+ *   static ATTRS          — per-class attribute table driving the
+ *                            property proxies and batch .set()
+ *
+ * Each concrete class mixes its own attributes into ATTRS — and
+ * optionally its own EventKind cases at module load time.
+ *
+ * Lifecycle:
+ *   new Window({ title, ..., children: [...] })
+ *     ├─ opens window.class lazily, caches Class*
+ *     ├─ builds TagItem list from init object via ATTRS table
+ *     ├─ Intuition.NewObjectA(class*, tagList) → BOOPSI ptr
+ *     └─ addChild() each child; children get _parent = this
+ *   win.dispose()
+ *     ├─ Walks children depth-first, _markDisposed on each
+ *     ├─ Root calls Intuition.DisposeObject which cascades natively
+ *     └─ sets ptr = 0, _disposed = true
+ */
+
+/**
+ * Attribute-type codec registry. Per-class ATTRS tables reference
+ * these to decide how a JS value becomes a ULONG tag value (and
+ * back on OM_GET).
+ *
+ * Types:
+ *   'bool'     — JS boolean → 0/1
+ *   'int32'    — JS number  → int32 (| 0)
+ *   'uint32'   — JS number  → uint32 (passes pointers too)
+ *   'string'   — JS string  → caller-managed STRPTR (no ownership)
+ *   'string-owned' — JS string → allocated STRPTR; wrapper frees
+ *   'enum'     — JS CEnumeration case → numeric value via valueOf
+ *   'ptr'      — JS ptr-or-{ptr} → numeric (ptrOf)
+ *   'hook'     — reserved: will accept a JS callback via a trampoline
+ */
+const ATTR_TYPES = {
+  bool:         { encode: (v) => (v ? 1 : 0),
+                   decode: (v) => v !== 0 },
+  int32:        { encode: (v) => v | 0,
+                   decode: (v) => v | 0 },
+  uint32:       { encode: (v) => (v >>> 0),
+                   decode: (v) => (v >>> 0) },
+  string:       { encode: (v) => (typeof v === 'number' ? v : 0),
+                   decode: (v) => (v ? globalThis.amiga.peekString(v, 256) : null) },
+  /* 'string-owned' is handled in BOOPSIBase._buildTagList — allocs
+   * a C-string and tracks it for later free(). Decode same as 'string'. */
+  ptr:          { encode: (v) => (v && typeof v === 'object' && 'ptr' in v) ? (v.ptr | 0) : (v | 0),
+                   decode: (v) => v | 0 },
+  enum:         { encode: (v) => (v && typeof v === 'object') ? Number(v) : (v | 0),
+                   decode: (v) => v | 0 },
+};
+
+/**
+ * Root JS class for every BOOPSI / Reaction object wrapper.
+ */
+class BOOPSIBase {
+  /** @type {string} — subclasses override */
+  static _classLibName = '';
+
+  /** @type {number} — LVO of XXX_GetClass in the backing library (NDK convention = -30) */
+  static _classLibLvo = -30;
+
+  /** @type {number} — cached pointer returned by the class library's GetClass; 0 until ensureClass() */
+  static _classPtr = 0;
+
+  /** @type {number} — cached library base for the .class/.gadget/.image lib */
+  static _libBase = 0;
+
+  /**
+   * Per-class attribute descriptor table. Each entry:
+   *   name:       { tagID: number, type: string, readOnly?: boolean }
+   *
+   * Subclasses MUST override with their own entries. GadgetBase and
+   * ImageBase contribute a superclass-level set via static getters
+   * that merge GA_* / IA_* into the concrete class's own table.
+   *
+   * @type {Object<string, {tagID: number, type: string, readOnly?: boolean}>}
+   */
+  static ATTRS = {};
+
+  /**
+   * Open the backing Reaction library and cache its Class* pointer.
+   * Most Reaction libraries expose a XXX_GetClass() function at
+   * LVO -30 that returns the Class*.
+   *
+   * @returns {number} cached Class* pointer
+   * @throws  {Error}  if the library can't be opened or GetClass fails
+   */
+  static ensureClass() {
+    if (this._classPtr) return this._classPtr;
+
+    if (!this._classLibName) {
+      throw new Error(
+        this.name + ': static _classLibName must be set'
+      );
+    }
+
+    let base = globalThis.amiga.openLibrary(this._classLibName, 40);
+    if (!base) {
+      throw new Error(
+        this.name + ': cannot open ' + this._classLibName +
+        ' (v40+ required)'
+      );
+    }
+
+    let classPtr = globalThis.amiga.call(base, this._classLibLvo, {});
+    if (!classPtr) {
+      globalThis.amiga.closeLibrary(base);
+      throw new Error(
+        this.name + ': ' + this._classLibName +
+        '.GetClass (LVO ' + this._classLibLvo + ') returned 0'
+      );
+    }
+
+    this._libBase  = base;
+    this._classPtr = classPtr;
+    return classPtr;
+  }
+
+  /**
+   * Construct a BOOPSI object.
+   *
+   * @param {object|number} init — init object (field names matching
+   *   ATTRS keys) OR a raw BOOPSI pointer to wrap without creating
+   *   a new instance.
+   */
+  constructor(init) {
+    /** @type {number} */ this.ptr         = 0;
+    /** @type {BOOPSIBase|null} */ this._parent     = null;
+    /** @type {BOOPSIBase[]} */    this._children   = [];
+    /** @type {boolean} */         this._disposed   = false;
+    /** @type {Map<string, Function>} */ this._handlers = new Map();
+
+    /* Memory we own and must free at dispose: strings allocated for
+     * 'string-owned' attrs. Each entry is { ptr, size }. */
+    /** @type {Array<{ptr: number, size: number}>} */
+    this._ownedStrings = [];
+
+    if (typeof init === 'number') {
+      this.ptr = init | 0;
+      this._wrappingOnly = true;
+      return;
+    }
+
+    /* Fresh instantiation: open the class library, build the tags,
+     * call Intuition.NewObjectA. */
+    let classPtr = this.constructor.ensureClass();
+    let initObj  = init || {};
+
+    /* Extract children BEFORE we build the tag list — they're added
+     * via OM_ADDMEMBER after construction, not as tags. */
+    let children = initObj.children;
+    let cleanInit = { ...initObj };
+    delete cleanInit.children;
+
+    let tags = this._buildTagList(cleanInit);
+    let tagBytes = tags.bytes;
+
+    try {
+      let raw = globalThis.amiga.Intuition.NewObjectA(
+        0, classPtr, tags.ptr
+      );
+
+      if (!raw) {
+        throw new Error(
+          this.constructor.name + ': NewObjectA returned 0 — ' +
+          'class ' + this.constructor._classLibName +
+          ' rejected the tag list'
+        );
+      }
+
+      this.ptr = raw;
+      this._wrappingOnly = false;
+    }
+
+    finally {
+      if (tags.ptr) globalThis.amiga.freeMem(tags.ptr, tagBytes);
+    }
+
+    /* Attach children declared in the init object. */
+    if (Array.isArray(children)) {
+      for (let child of children) {
+        this.addChild(child);
+      }
+    }
+  }
+
+  /**
+   * Build a TagItem array from an init object using this class's
+   * ATTRS table. Handles 'string-owned' by allocating + tracking for
+   * later free. Returns { ptr, bytes } for the caller's freeMem.
+   *
+   * @param   {object} initObj
+   * @returns {{ptr: number, bytes: number}}
+   */
+  _buildTagList(initObj) {
+    let attrs = this.constructor.ATTRS;
+    let pairs = [];
+
+    for (let key in initObj) {
+      let desc = attrs[key];
+
+      if (!desc) {
+        throw new Error(
+          this.constructor.name + ': unknown attribute "' + key + '"'
+        );
+      }
+
+      if (desc.readOnly) {
+        throw new Error(
+          this.constructor.name + ': attribute "' + key +
+          '" is read-only'
+        );
+      }
+
+      let value = initObj[key];
+      let tagValue;
+
+      if (desc.type === 'string-owned') {
+        if (typeof value === 'string') {
+          let bytes = value.length + 1;
+          let p = globalThis.amiga.allocMem(bytes);
+          if (!p) throw new Error('allocMem failed for ' + key);
+          globalThis.amiga.pokeString(p, value);
+          this._ownedStrings.push({ ptr: p, size: bytes });
+          tagValue = p;
+        }
+
+        else {
+          /* Number or pre-allocated STRPTR — caller-managed. */
+          tagValue = (value | 0);
+        }
+      }
+
+      else {
+        let codec = ATTR_TYPES[desc.type];
+        if (!codec) {
+          throw new Error(
+            'unknown attr type "' + desc.type + '" for ' + key
+          );
+        }
+        tagValue = codec.encode(value);
+      }
+
+      pairs.push([desc.tagID | 0, tagValue]);
+    }
+
+    if (pairs.length === 0) {
+      return { ptr: 0, bytes: 0 };
+    }
+
+    let ptr = globalThis.amiga.makeTags(pairs);
+    let bytes = (pairs.length + 1) * 8;
+    return { ptr, bytes };
+  }
+
+  /**
+   * Dispatch a BOOPSI method. `methodID` and up to 7 payload ULONGs
+   * are packed into an on-the-fly message struct, dispatched via
+   * amiga.doMethod (which reads the class pointer from obj-4 and
+   * calls cl_Dispatcher), then the struct is freed. Returns the
+   * ULONG the dispatcher returned.
+   *
+   * @param   {number} methodID
+   * @param   {...number} args — up to 7 ULONG payload slots
+   * @returns {number}
+   */
+  doMethod(methodID, ...args) {
+    if (!this.ptr) {
+      throw new Error(
+        this.constructor.name + '.doMethod: object is disposed'
+      );
+    }
+
+    let msgWords = 1 + args.length;
+    let bytes = msgWords * 4;
+    let msg = globalThis.amiga.allocMem(bytes);
+
+    if (!msg) throw new Error('doMethod: allocMem failed');
+
+    try {
+      globalThis.amiga.poke32(msg, methodID | 0);
+
+      for (let i = 0; i < args.length; i++) {
+        globalThis.amiga.poke32(msg + 4 + i * 4, args[i] | 0);
+      }
+
+      return globalThis.amiga.doMethod(this.ptr, msg);
+    }
+
+    finally {
+      globalThis.amiga.freeMem(msg, bytes);
+    }
+  }
+
+  /**
+   * Read a single attribute's current value. Falls back to
+   * Intuition.getAttr (which walks cl_Dispatcher via OM_GET
+   * internally). Returns the decoded JS value per the ATTRS table,
+   * or null if the class doesn't support the attr.
+   *
+   * @param   {string} name — attribute name from this class's ATTRS
+   * @returns {*}
+   */
+  get(name) {
+    let desc = this.constructor.ATTRS[name];
+    if (!desc) {
+      throw new Error(
+        this.constructor.name + '.get: unknown attribute "' + name + '"'
+      );
+    }
+
+    let raw = globalThis.amiga.Intuition.getAttr(desc.tagID, this.ptr);
+    if (raw === null) return null;
+
+    let codec = ATTR_TYPES[desc.type];
+    if (!codec) return raw;
+    return codec.decode(raw);
+  }
+
+  /**
+   * Batch-update attributes. Builds a single TagItem list from the
+   * supplied object and calls Intuition.SetAttrsA, which internally
+   * dispatches OM_SET. Unknown attrs throw. 'string-owned' values
+   * are tracked so they're freed when the BOOPSI object is disposed.
+   *
+   * @param   {object} patch
+   * @returns {undefined}
+   */
+  set(patch) {
+    if (!this.ptr) {
+      throw new Error(
+        this.constructor.name + '.set: object is disposed'
+      );
+    }
+
+    let tags = this._buildTagList(patch);
+
+    try {
+      if (tags.ptr) {
+        globalThis.amiga.Intuition.SetAttrsA(this.ptr, tags.ptr);
+      }
+    }
+
+    finally {
+      if (tags.ptr) globalThis.amiga.freeMem(tags.ptr, tags.bytes);
+    }
+  }
+
+  /**
+   * Attach a child BOOPSI object. Default impl just tracks it on the
+   * JS side; concrete classes (Layout, Window) override to dispatch
+   * OM_ADDMEMBER on the appropriate container.
+   *
+   * @param   {BOOPSIBase} child
+   * @returns {BOOPSIBase} this for chaining
+   */
+  addChild(child) {
+    child._parent = this;
+    this._children.push(child);
+    return this;
+  }
+
+  /**
+   * Register an event handler. The event-pump in Window.events()
+   * dispatches matching events to these handlers before yielding to
+   * the iterator.
+   *
+   * @param {EventKind|string} kind — EventKind case or case key
+   * @param {Function}         handler — fn(event) => void
+   * @returns {BOOPSIBase} this for chaining
+   */
+  on(kind, handler) {
+    let key = (typeof kind === 'string')
+      ? kind
+      : (kind && kind.key) || String(kind);
+    this._handlers.set(key, handler);
+    return this;
+  }
+
+  /**
+   * Dispatch an event to any registered handler. Used by the Window
+   * event pump. No-op if no handler is registered for that kind.
+   *
+   * @param {object} event — { kind, source, sourceId, attrs, raw }
+   * @returns {undefined}
+   */
+  _fire(event) {
+    let kindKey = event.kind && event.kind.key;
+    if (!kindKey) return;
+
+    let handler = this._handlers.get(kindKey);
+    if (handler) handler(event);
+
+    /* Bubble to children that registered on the same kind. */
+    for (let c of this._children) {
+      if (c._handlers.has(kindKey)) {
+        c._handlers.get(kindKey)(event);
+      }
+    }
+  }
+
+  /**
+   * Release this object. For child objects, just marks as disposed —
+   * the real DisposeObject happens when the root is disposed and
+   * Intuition cascades down the BOOPSI hierarchy.
+   *
+   * @returns {undefined}
+   */
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+
+    /* Only the root runs DisposeObject; children are freed by the
+     * cascade. */
+    if (this._parent === null && this.ptr && !this._wrappingOnly) {
+      globalThis.amiga.Intuition.DisposeObject(this.ptr);
+    }
+
+    /* Propagate disposed flag down so JS-side references are sane. */
+    for (let c of this._children) c._markDisposed();
+    this._children = [];
+
+    /* Release strings we own. */
+    for (let s of this._ownedStrings) {
+      globalThis.amiga.freeMem(s.ptr, s.size);
+    }
+    this._ownedStrings = [];
+
+    this.ptr = 0;
+  }
+
+  /**
+   * @internal Child-cascade helper; called by parent.dispose().
+   */
+  _markDisposed() {
+    this._disposed = true;
+    for (let c of this._children) c._markDisposed();
+    this._children = [];
+    for (let s of this._ownedStrings) {
+      globalThis.amiga.freeMem(s.ptr, s.size);
+    }
+    this._ownedStrings = [];
+    this.ptr = 0;
+  }
+
+  /**
+   * Symbol.toStringTag returns the class name so console.log and
+   * Object.prototype.toString show "[object BOOPSI.Button]" rather
+   * than the generic "[object Object]".
+   *
+   * @returns {string}
+   */
+  get [Symbol.toStringTag]() {
+    return 'BOOPSI.' + this.constructor.name;
+  }
+}
+
+/**
+ * Standard BOOPSI method IDs from intuition/classusr.h. Exported so
+ * class wrappers can reference without magic numbers.
+ */
+const OM = Object.freeze({
+  NEW:        1,
+  DISPOSE:    2,
+  SET:        3,
+  UPDATE:     4,
+  NOTIFY:     5,
+  GET:        6,
+  ADDMEMBER:  7,
+  REMMEMBER:  8,
+  ADDTAIL:   11,
+  REMOVE:    12,
+});
+
+
+/* === boopsi/GadgetBase.js === */
+/* quickjs-master/amiga/ffi/boopsi/GadgetBase.js
+ *
+ * Base class for every BOOPSI object derived from gadgetclass.
+ * Layers the GA_* attribute set (shared by every .gadget) on top of
+ * BOOPSIBase's machinery. Concrete gadget classes (Button, CheckBox,
+ * Layout, ...) extend GadgetBase and merge their own attribute
+ * entries into `ATTRS`.
+ *
+ * GA_* tag values (intuition/gadgetclass.h, TAG_USER + 0x30000 =
+ * 0x80030000 base):
+ */
+
+
+/**
+ * Tag IDs from intuition/gadgetclass.h. Frozen so subclasses can't
+ * mutate the shared set by accident.
+ */
+const GA = Object.freeze({
+  Left:        0x80030001,
+  RelRight:    0x80030002,
+  Top:         0x80030003,
+  RelBottom:   0x80030004,
+  Width:       0x80030005,
+  RelWidth:    0x80030006,
+  Height:      0x80030007,
+  RelHeight:   0x80030008,
+  Text:        0x80030009,
+  Image:       0x8003000A,
+  Border:      0x8003000B,
+  SelectRender:0x8003000C,
+  Highlight:   0x8003000D,
+  Disabled:    0x8003000E,
+  ID:          0x8003000F,
+  UserData:    0x80030010,
+  SpecialInfo: 0x80030011,
+  Selected:    0x80030012,
+  EndGadget:   0x80030013,
+  Immediate:   0x80030014,
+  RelVerify:   0x80030015,
+  FollowMouse: 0x80030016,
+  RightBorder: 0x80030017,
+  LeftBorder:  0x80030018,
+  TopBorder:   0x80030019,
+  BottomBorder:0x8003001A,
+  ToggleSelect:0x8003001B,
+  SysGadget:   0x8003001C,
+  SysGType:    0x8003001D,
+  Previous:    0x8003001E,
+  Next:        0x8003001F,
+  DrawInfo:    0x80030020,
+  IntuiText:   0x80030021,
+  LabelImage:  0x80030022,
+  TabCycle:    0x80030023,
+  GadgetHelp:  0x80030024,
+  Bounds:      0x80030025,
+  RelSpecial:  0x80030026,
+  TextAttr:    0x80030027,
+  ReadOnly:    0x80030028,
+  UserInput:   0x80030029,
+  HintInfo:    0x8003002A,
+});
+
+/**
+ * Attributes every gadgetclass subclass inherits. Concrete classes
+ * extend this with their own entries in their own ATTRS object;
+ * BOOPSIBase's tag-list builder looks up names in whichever table
+ * the subclass provides, so concrete classes effectively re-export
+ * the combined set via the static GADGET_ATTRS spread.
+ */
+const GADGET_ATTRS = Object.freeze({
+  left:        { tagID: GA.Left,     type: 'int32'  },
+  top:         { tagID: GA.Top,      type: 'int32'  },
+  width:       { tagID: GA.Width,    type: 'int32'  },
+  height:      { tagID: GA.Height,   type: 'int32'  },
+  relRight:    { tagID: GA.RelRight,  type: 'int32' },
+  relBottom:   { tagID: GA.RelBottom, type: 'int32' },
+  relWidth:    { tagID: GA.RelWidth,  type: 'int32' },
+  relHeight:   { tagID: GA.RelHeight, type: 'int32' },
+  id:          { tagID: GA.ID,        type: 'uint32' },
+  disabled:    { tagID: GA.Disabled,  type: 'bool'   },
+  selected:    { tagID: GA.Selected,  type: 'bool'   },
+  userData:    { tagID: GA.UserData,  type: 'uint32' },
+  text:        { tagID: GA.Text,      type: 'string-owned' },
+  gadgetHelp:  { tagID: GA.GadgetHelp, type: 'bool'  },
+  tabCycle:    { tagID: GA.TabCycle,  type: 'bool'   },
+  readOnly:    { tagID: GA.ReadOnly,  type: 'bool'   },
+});
+
+/**
+ * Base class for all BOOPSI gadgets.
+ *
+ * @extends BOOPSIBase
+ */
+class GadgetBase extends BOOPSIBase {
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = { ...GADGET_ATTRS };
+
+  /**
+   * Convenient property proxy: gadget.id / gadget.disabled / etc.
+   * Concrete classes inherit these through the ATTRS table; we
+   * define a handful here that apply to every gadget.
+   */
+  get id()        { return this.get('id'); }
+  set id(v)       { this.set({ id: v }); }
+
+  get disabled()  { return this.get('disabled'); }
+  set disabled(v) { this.set({ disabled: v }); }
+
+  get selected()  { return this.get('selected'); }
+  set selected(v) { this.set({ selected: v }); }
+
+  get text()      { return this.get('text'); }
+  set text(v)     { this.set({ text: v }); }
+}
+
+
+/* === boopsi/ImageBase.js === */
+/* quickjs-master/amiga/ffi/boopsi/ImageBase.js
+ *
+ * Base class for every BOOPSI object derived from imageclass. The
+ * IA_* attribute set (intuition/imageclass.h, TAG_USER + 0x20000)
+ * is shared across frameiclass, sysiclass, label.image, etc.
+ *
+ * Concrete image classes (Label, Bitmap, SysImage, FrameImage)
+ * extend ImageBase and spread IMAGE_ATTRS into their own ATTRS.
+ */
+
+
+/**
+ * Tag IDs from intuition/imageclass.h. IA_Dummy = TAG_USER+0x20000.
+ */
+const IA = Object.freeze({
+  Left:         0x80020001,
+  Top:          0x80020002,
+  Width:        0x80020003,
+  Height:       0x80020004,
+  FGPen:        0x80020005,
+  BGPen:        0x80020006,
+  Data:         0x80020007,
+  LineWidth:    0x80020008,
+  Height2:      0x80020009,
+  SupportID:    0x8002000A,
+  Mode:         0x8002000B,
+  Pens:         0x8002000E,
+  Resolution:   0x8002000F,
+  APattern:     0x80020010,
+  APatSize:     0x80020011,
+  Recessed:     0x80020015,
+  DoubleEmboss: 0x80020016,
+  EdgesOnly:    0x80020017,
+  Label:        0x80020019,
+  Scalable:     0x8002001A,
+  FrameType:    0x8002001B,
+  Translucent:  0x8002001C,
+  InBorder:     0x8002001D,
+});
+
+/**
+ * Attributes every imageclass subclass inherits.
+ */
+const IMAGE_ATTRS = Object.freeze({
+  left:    { tagID: IA.Left,   type: 'int32' },
+  top:     { tagID: IA.Top,    type: 'int32' },
+  width:   { tagID: IA.Width,  type: 'int32' },
+  height:  { tagID: IA.Height, type: 'int32' },
+  fgPen:   { tagID: IA.FGPen,  type: 'uint32' },
+  bgPen:   { tagID: IA.BGPen,  type: 'uint32' },
+});
+
+/**
+ * Base class for all BOOPSI images.
+ *
+ * @extends BOOPSIBase
+ */
+class ImageBase extends BOOPSIBase {
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = { ...IMAGE_ATTRS };
+
+  get left()   { return this.get('left'); }
+  set left(v)  { this.set({ left: v }); }
+
+  get top()    { return this.get('top'); }
+  set top(v)   { this.set({ top: v }); }
+
+  get width()  { return this.get('width'); }
+  set width(v) { this.set({ width: v }); }
+
+  get height() { return this.get('height'); }
+  set height(v){ this.set({ height: v }); }
 }
 
 
@@ -4756,6 +5625,7 @@ class Intuition extends LibraryBase {
  *      field `static lvo = globalThis.amiga.<lib>.lvo` on each
  *      library wrapper resolves cleanly.
  */
+
 
 
 
@@ -4816,6 +5686,38 @@ globalThis.amiga.CEnumeration = CEnumeration;
 globalThis.amiga.Struct       = Struct;
 
 /* ------------------------------------------------------------------
+ * BOOPSI / Reaction namespace — amiga.boopsi.*
+ *
+ * Two-tier organization per the 2026-04-21 design decision
+ * (decision:fdo95p76jj20vduy5hl6):
+ *
+ *   amiga.boopsi.Window           ← flat alias
+ *   amiga.boopsi.classes.Window   ← origin-namespaced
+ *
+ * classes.*   — .class libraries (window.class, arexx.class, ...)
+ * gadgets.*   — .gadget libraries (button.gadget, layout.gadget, ...)
+ * images.*    — .image libraries (label.image, bitmap.image, ...)
+ *
+ * Phase A ships the base classes and EventKind only; concrete class
+ * wrappers (Window, Button, Layout, Label, ...) land in Phase B+.
+ * ------------------------------------------------------------------ */
+globalThis.amiga.boopsi = globalThis.amiga.boopsi || {};
+globalThis.amiga.boopsi.classes = globalThis.amiga.boopsi.classes || {};
+globalThis.amiga.boopsi.gadgets = globalThis.amiga.boopsi.gadgets || {};
+globalThis.amiga.boopsi.images  = globalThis.amiga.boopsi.images  || {};
+
+globalThis.amiga.boopsi.BOOPSIBase   = BOOPSIBase;
+globalThis.amiga.boopsi.GadgetBase   = GadgetBase;
+globalThis.amiga.boopsi.ImageBase    = ImageBase;
+globalThis.amiga.boopsi.EventKind    = EventKind;
+globalThis.amiga.boopsi.OM           = OM;
+globalThis.amiga.boopsi.GA           = GA;
+globalThis.amiga.boopsi.IA           = IA;
+globalThis.amiga.boopsi.ATTR_TYPES   = ATTR_TYPES;
+globalThis.amiga.boopsi.GADGET_ATTRS = GADGET_ATTRS;
+globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
+
+/* ------------------------------------------------------------------
  * Globals — convenience for scripts, conflict-gated.
  * ------------------------------------------------------------------ */
 const everyGlobal = {
@@ -4828,6 +5730,8 @@ const everyGlobal = {
   IntuiMessage, TextAttr, Image, Gadget,
   DrawInfo, Menu, MenuItem, IntuiText, BitMap, ColorMap, ViewPort,
   FileInfoBlock, InputEvent, IORequest, TimerRequest,
+  /* BOOPSI bases — globalThis for discoverability at the REPL */
+  BOOPSIBase, GadgetBase, ImageBase, EventKind,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
 };

@@ -67,6 +67,11 @@ import { IORequest } from './structs/IORequest.js';
 import { TimerRequest } from './structs/TimerRequest.js';
 import { makeTags, withTags } from './structs/TagItem.js';
 
+import { BOOPSIBase, OM, ATTR_TYPES } from './boopsi/BOOPSIBase.js';
+import { GadgetBase, GA, GADGET_ATTRS } from './boopsi/GadgetBase.js';
+import { ImageBase, IA, IMAGE_ATTRS } from './boopsi/ImageBase.js';
+import { EventKind } from './boopsi/EventKind.js';
+
 globalThis.amiga = globalThis.amiga || {};
 
 /* Ensure the lowercase per-library tables exist. extended.js
@@ -123,6 +128,38 @@ globalThis.amiga.CEnumeration = CEnumeration;
 globalThis.amiga.Struct       = Struct;
 
 /* ------------------------------------------------------------------
+ * BOOPSI / Reaction namespace — amiga.boopsi.*
+ *
+ * Two-tier organization per the 2026-04-21 design decision
+ * (decision:fdo95p76jj20vduy5hl6):
+ *
+ *   amiga.boopsi.Window           ← flat alias
+ *   amiga.boopsi.classes.Window   ← origin-namespaced
+ *
+ * classes.*   — .class libraries (window.class, arexx.class, ...)
+ * gadgets.*   — .gadget libraries (button.gadget, layout.gadget, ...)
+ * images.*    — .image libraries (label.image, bitmap.image, ...)
+ *
+ * Phase A ships the base classes and EventKind only; concrete class
+ * wrappers (Window, Button, Layout, Label, ...) land in Phase B+.
+ * ------------------------------------------------------------------ */
+globalThis.amiga.boopsi = globalThis.amiga.boopsi || {};
+globalThis.amiga.boopsi.classes = globalThis.amiga.boopsi.classes || {};
+globalThis.amiga.boopsi.gadgets = globalThis.amiga.boopsi.gadgets || {};
+globalThis.amiga.boopsi.images  = globalThis.amiga.boopsi.images  || {};
+
+globalThis.amiga.boopsi.BOOPSIBase   = BOOPSIBase;
+globalThis.amiga.boopsi.GadgetBase   = GadgetBase;
+globalThis.amiga.boopsi.ImageBase    = ImageBase;
+globalThis.amiga.boopsi.EventKind    = EventKind;
+globalThis.amiga.boopsi.OM           = OM;
+globalThis.amiga.boopsi.GA           = GA;
+globalThis.amiga.boopsi.IA           = IA;
+globalThis.amiga.boopsi.ATTR_TYPES   = ATTR_TYPES;
+globalThis.amiga.boopsi.GADGET_ATTRS = GADGET_ATTRS;
+globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
+
+/* ------------------------------------------------------------------
  * Globals — convenience for scripts, conflict-gated.
  * ------------------------------------------------------------------ */
 const everyGlobal = {
@@ -135,6 +172,8 @@ const everyGlobal = {
   IntuiMessage, TextAttr, Image, Gadget,
   DrawInfo, Menu, MenuItem, IntuiText, BitMap, ColorMap, ViewPort,
   FileInfoBlock, InputEvent, IORequest, TimerRequest,
+  /* BOOPSI bases — globalThis for discoverability at the REPL */
+  BOOPSIBase, GadgetBase, ImageBase, EventKind,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
 };

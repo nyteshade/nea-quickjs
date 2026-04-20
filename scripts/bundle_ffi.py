@@ -60,6 +60,13 @@ ORDER = [
     'Asl.js',
     'Diskfont.js',
     'Intuition.js',  # needs Window, Screen, Image
+    # BOOPSI / Reaction infrastructure. Each layer depends on the
+    # previous. EventKind must come before any class wrapper so the
+    # class's module-load-time define() calls resolve.
+    'boopsi/EventKind.js',         # CEnumeration with core IDCMP kinds
+    'boopsi/BOOPSIBase.js',        # root class; ATTRS table driver
+    'boopsi/GadgetBase.js',        # extends BOOPSIBase; GA_* attrs
+    'boopsi/ImageBase.js',         # extends BOOPSIBase; IA_* attrs
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',
 ]
