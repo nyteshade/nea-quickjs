@@ -41,6 +41,7 @@ import { Dos } from './Dos.js';
 import { Intuition } from './Intuition.js';
 import { Graphics } from './Graphics.js';
 import { GadTools } from './GadTools.js';
+import { Asl } from './Asl.js';
 
 import { Struct, withStruct } from './structs/Struct.js';
 import { NewWindow } from './structs/NewWindow.js';
@@ -57,6 +58,9 @@ import { Menu } from './structs/Menu.js';
 import { MenuItem } from './structs/MenuItem.js';
 import { IntuiText } from './structs/IntuiText.js';
 import { BitMap } from './structs/BitMap.js';
+import { ColorMap } from './structs/ColorMap.js';
+import { FileInfoBlock } from './structs/FileInfoBlock.js';
+import { InputEvent } from './structs/InputEvent.js';
 import { IORequest } from './structs/IORequest.js';
 import { TimerRequest } from './structs/TimerRequest.js';
 import { makeTags, withTags } from './structs/TagItem.js';
@@ -66,7 +70,7 @@ globalThis.amiga = globalThis.amiga || {};
 /* Ensure the lowercase per-library tables exist. extended.js
  * normally creates them; this guards standalone bundle evaluation
  * during host-side testing. */
-for (const libname of ['intuition', 'graphics', 'exec', 'devices']) {
+for (const libname of ['intuition', 'graphics', 'exec', 'dos', 'devices']) {
   if (!globalThis.amiga[libname]) globalThis.amiga[libname] = {};
 }
 
@@ -74,7 +78,7 @@ for (const libname of ['intuition', 'graphics', 'exec', 'devices']) {
  * Library wrappers — amiga.<ClassName>
  * ------------------------------------------------------------------ */
 const libs = {
-  Exec, Dos, Intuition, Graphics, GadTools,
+  Exec, Dos, Intuition, Graphics, GadTools, Asl,
 };
 
 for (const [name, cls] of Object.entries(libs)) {
@@ -95,10 +99,12 @@ const structsByLib = {
     Window, NewWindow, Screen, IntuiMessage, Image, Gadget,
     DrawInfo, Menu, MenuItem, IntuiText,
   },
-  graphics:  { RastPort, TextAttr, BitMap },
+  graphics:  { RastPort, TextAttr, BitMap, ColorMap },
   exec:      { MsgPort, IORequest },
-  /* timer.device lives under "devices" in the NDK; mirror that. */
-  devices:   { TimerRequest },
+  dos:       { FileInfoBlock },
+  /* timer.device / inputevent.device live under "devices" in the
+   * NDK; mirror that. */
+  devices:   { TimerRequest, InputEvent },
 };
 
 for (const [libname, members] of Object.entries(structsByLib)) {
@@ -121,12 +127,12 @@ const everyGlobal = {
   /* meta */
   LibraryBase, CEnumeration, Struct,
   /* libs */
-  Exec, Dos, Intuition, Graphics, GadTools,
+  Exec, Dos, Intuition, Graphics, GadTools, Asl,
   /* structs */
   Window, NewWindow, Screen, RastPort, MsgPort,
   IntuiMessage, TextAttr, Image, Gadget,
-  DrawInfo, Menu, MenuItem, IntuiText, BitMap,
-  IORequest, TimerRequest,
+  DrawInfo, Menu, MenuItem, IntuiText, BitMap, ColorMap,
+  FileInfoBlock, InputEvent, IORequest, TimerRequest,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
 };

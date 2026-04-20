@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.133 (20.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.134 (20.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   133  /* packed: major=0, revision=133 (7 new struct wrappers: DrawInfo (intuition, BOOPSI descriptor), Menu + MenuItem (intuition, classic Amiga menu bar), IntuiText (intuition, renderable text with owning string field), BitMap (graphics, planar bitmap descriptor), IORequest (exec base for device I/O), TimerRequest (devices, extends IORequest). All under amiga.<libname>.<StructName> following the 0.132 placement rule. amiga.devices namespace added to host TimerRequest and future device.structs. Full signature getters on all new types.) */
+#define LIBRARY_VERSION   134  /* packed: major=0, revision=134 (3 more struct wrappers: ColorMap (graphics, getter-only since RTG systems vary), FileInfoBlock (dos, with BCPL-string decoding for fileName/comment + 260-byte size), InputEvent (devices, IECLASS_* events). New amiga.Asl library wrapper covering AllocAslRequest/AslRequest/FreeAslRequest + the ergonomic openFileRequest({pairs}) -> {ok,drawer,file,path,requester} helper. amiga.dos namespace added.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 

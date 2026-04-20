@@ -2217,6 +2217,274 @@ yet wrapped) over manual construction.`;
 }
 
 
+/* === structs/ColorMap.js === */
+/* quickjs-master/amiga/ffi/structs/ColorMap.js
+ *
+ * struct ColorMap (graphics/view.h). A ViewPort's color table —
+ * access is by library call (GetRGB4/SetRGB4/LoadRGB4) rather than
+ * raw offsets because the internal layout varies with RTG systems.
+ *
+ * This wrapper exposes only the handful of fields documented as
+ * stable across AmigaOS 3.x:
+ *   +0   Flags    (UBYTE)
+ *   +1   Type     (UBYTE)
+ *   +2   Count    (UWORD)
+ *   +4   ColorTable (UWORD *)  — do not rely on this with RTG
+ *   +8   (internal) cm_TransparencyPlane and friends
+ */
+
+
+class ColorMap extends Struct {
+  /* Allocated by graphics.library GetColorMap / attached to ViewPort. */
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `ColorMap(ptr)
+where:
+  ptr - REQUIRED: existing ColorMap* pointer, normally read from a
+        ViewPort via viewPort.colorMap (not yet wrapped) or returned
+        by Graphics.GetColorMap. Lifecycle managed by graphics.library.
+
+Fields (getters):
+  flags   {number} UBYTE, +0
+  type    {number} UBYTE, +1 (CMTYPE classic vs extended)
+  count   {number} UWORD number of entries, +2
+
+Prefer calling Graphics.GetRGB4(colorMap, i) for per-entry reads
+rather than walking ColorTable directly; RTG systems use a deeper
+internal representation.`;
+  }
+
+  /** @returns {number} UBYTE */
+  get flags() { return this.read8(0); }
+
+  /** @returns {number} UBYTE */
+  get type()  { return this.read8(1); }
+
+  /** @returns {number} UWORD */
+  get count() { return this.read16(2); }
+}
+
+
+/* === structs/FileInfoBlock.js === */
+/* quickjs-master/amiga/ffi/structs/FileInfoBlock.js
+ *
+ * struct FileInfoBlock (dos/dos.h). Filled by Examine/ExNext to
+ * describe a file or directory entry. Must be LONG-aligned
+ * (AllocDosObject handles this; our allocMem path is LONG-aligned
+ * on AmigaOS).
+ *
+ * Field offsets (2-byte alignment; all entries LONG-aligned by
+ * the AmigaOS memory allocator):
+ *   +0    fib_DiskKey      (LONG, 4)
+ *   +4    fib_DirEntryType (LONG, 4)   <0 = file, >0 = directory
+ *   +8    fib_FileName     (char[108]) — BCPL counted string: byte 0
+ *                                         is length, bytes 1..N the
+ *                                         chars. 107 max chars.
+ * +116    fib_Protection   (LONG, 4)
+ * +120    fib_EntryType    (LONG, 4)
+ * +124    fib_Size         (LONG, 4)   — bytes in the file
+ * +128    fib_NumBlocks    (LONG, 4)
+ * +132    fib_Date         (struct DateStamp) — 3 × LONG = 12 bytes
+ * +144    fib_Comment      (char[80])  — BCPL counted
+ * +224    fib_OwnerUID     (UWORD)
+ * +226    fib_OwnerGID     (UWORD)
+ * +228    fib_Reserved     (char[32])
+ *  total 260
+ */
+
+
+class FileInfoBlock extends Struct {
+  /** @type {number} */
+  static SIZE = 260;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `FileInfoBlock(ptr?)
+where:
+  ptr? - optional existing FileInfoBlock* pointer. Omit to allocate
+         a zeroed 260-byte struct. Must be LONG-aligned; allocMem
+         always returns LONG-aligned memory on AmigaOS.
+
+Fields (read-only getters):
+  diskKey        {number} LONG, +0
+  dirEntryType   {number} LONG, +4  (<0 file, >0 dir)
+  fileName       {string} BCPL string at +8, up to 107 chars
+  protection     {number} LONG, +116
+  size           {number} LONG, +124 (file bytes)
+  numBlocks      {number} LONG, +128
+  dateDays       {number} ds_Days,     +132
+  dateMinute     {number} ds_Minute,   +136
+  dateTick       {number} ds_Tick,     +140
+  comment        {string} BCPL string at +144
+  ownerUID       {number} UWORD, +224
+  ownerGID       {number} UWORD, +226
+
+Typical use:
+  let fib = new FileInfoBlock();
+  let lock = Dos.Lock('RAM:', -2 /*SHARED_LOCK*/);
+  if (Dos.Examine(lock, fib)) {
+    print(fib.fileName + ' (' + fib.size + ' bytes)');
+  }
+  Dos.UnLock(lock);
+  fib.free();`;
+  }
+
+  /**
+   * Read a BCPL-style counted string from an offset. Byte 0 is the
+   * length, bytes 1..N are the chars.
+   *
+   * @param   {number} off
+   * @param   {number} cap — max byte count at offset (incl. length)
+   * @returns {string}
+   */
+  _readBCPL(off, cap) {
+    let len = this.read8(off);
+
+    if (len <= 0) return '';
+    if (len > cap - 1) len = cap - 1;
+
+    let chars = [];
+
+    for (let i = 0; i < len; i++) {
+      chars.push(String.fromCharCode(this.read8(off + 1 + i)));
+    }
+
+    return chars.join('');
+  }
+
+  /** @returns {number} LONG */
+  get diskKey()      { return this.read32(0); }
+
+  /** @returns {number} LONG (<0 file, >0 directory) */
+  get dirEntryType() { return this.read32(4) | 0; }
+
+  /** @returns {string} */
+  get fileName()     { return this._readBCPL(8, 108); }
+
+  /** @returns {number} LONG protection bits */
+  get protection()   { return this.read32(116); }
+
+  /** @returns {number} LONG byte size */
+  get size()         { return this.read32(124); }
+
+  /** @returns {number} LONG */
+  get numBlocks()    { return this.read32(128); }
+
+  /** @returns {number} DateStamp.ds_Days */
+  get dateDays()     { return this.read32(132); }
+
+  /** @returns {number} DateStamp.ds_Minute */
+  get dateMinute()   { return this.read32(136); }
+
+  /** @returns {number} DateStamp.ds_Tick */
+  get dateTick()     { return this.read32(140); }
+
+  /** @returns {string} comment, BCPL string */
+  get comment()      { return this._readBCPL(144, 80); }
+
+  /** @returns {number} UWORD */
+  get ownerUID()     { return this.read16(224); }
+
+  /** @returns {number} UWORD */
+  get ownerGID()     { return this.read16(226); }
+}
+
+
+/* === structs/InputEvent.js === */
+/* quickjs-master/amiga/ffi/structs/InputEvent.js
+ *
+ * struct InputEvent (devices/inputevent.h). The raw input-event
+ * record passed through the input handler chain. Most JS code will
+ * use IDCMP_RAWKEY / VANILLAKEY via Window.messages() instead — this
+ * wrapper is for low-level input-handler ports.
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   NextEvent (struct InputEvent *)
+ *   +4   Class     (UBYTE)   — IECLASS_RAWKEY, RAWMOUSE, NEWPOINTERPOS...
+ *   +5   SubClass  (UBYTE)
+ *   +6   Code      (UWORD)
+ *   +8   Qualifier (UWORD)
+ *  +10   EventAddress (APTR) — union: X, Y, RawAddr, or ti_Data
+ *  +14   TimeStamp (struct timeval, 8 bytes)
+ *  total 22
+ */
+
+
+class InputEvent extends Struct {
+  /** @type {number} */
+  static SIZE = 22;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `InputEvent(ptr?)
+where:
+  ptr? - optional existing InputEvent* pointer. Omit to allocate a
+         zeroed 22-byte struct.
+
+Fields (read+write on primitives):
+  nextEvent  {number} ptr to next event in the chain, +0
+  class      {number} IECLASS_* at +4 (UBYTE)
+  subClass   {number} UBYTE, +5
+  code       {number} UWORD, +6
+  qualifier  {number} UWORD, +8
+  eventAddress {number} APTR at +10 (interpreted by class)
+  seconds    {number} TimeStamp seconds at +14
+  micros     {number} TimeStamp micros  at +18
+
+IECLASS_* codes (UBYTE):
+  0  NULL          — empty/reset event
+  1  RAWKEY        — keyboard raw key code
+  2  RAWMOUSE      — mouse movement / buttons
+  3  EVENT         — generic system event
+  4  POINTERPOS    — absolute pointer coord
+  5  TIMER         — VBL tick`;
+  }
+
+  /** @returns {number} */
+  get nextEvent()    { return this.read32(0); }
+  set nextEvent(v)   { this.write32(0, (v && v.ptr) || (v | 0)); }
+
+  /** @returns {number} UBYTE, IECLASS_* */
+  get class()        { return this.read8(4); }
+  set class(v)       { this.write8(4, v | 0); }
+
+  /** @returns {number} UBYTE */
+  get subClass()     { return this.read8(5); }
+  set subClass(v)    { this.write8(5, v | 0); }
+
+  /** @returns {number} UWORD */
+  get code()         { return this.read16(6); }
+  set code(v)        { this.write16(6, v | 0); }
+
+  /** @returns {number} UWORD */
+  get qualifier()    { return this.read16(8); }
+  set qualifier(v)   { this.write16(8, v | 0); }
+
+  /** @returns {number} APTR (class-dependent interpretation) */
+  get eventAddress() { return this.read32(10); }
+  set eventAddress(v){ this.write32(10, (v && v.ptr) || (v | 0)); }
+
+  /** @returns {number} TimeStamp tv_secs */
+  get seconds()      { return this.read32(14); }
+
+  /** @returns {number} TimeStamp tv_micro */
+  get micros()       { return this.read32(18); }
+}
+
+
 /* === structs/IORequest.js === */
 /* quickjs-master/amiga/ffi/structs/IORequest.js
  *
@@ -3708,6 +3976,215 @@ class GadTools extends LibraryBase {
 }
 
 
+/* === Asl.js === */
+/* quickjs-master/amiga/ffi/Asl.js
+ *
+ * Wrapper for asl.library. Covers the four standard requester types
+ * (file, font, screenmode, arexx) via AllocAslRequest /
+ * AslRequest / FreeAslRequest. Users can also pass a prepared tag
+ * list through AslRequestA for finer control.
+ *
+ * The raw requester-return structs (FileRequester, FontRequester,
+ * ScreenModeRequester, ArexxRequester) are accessed via their field
+ * offsets on the returned pointer; full struct wrappers are pending
+ * — for now the wrapper returns a struct-pointer + the common fields
+ * you need (path, file, numArgs, argList).
+ */
+
+
+/**
+ * asl.library — standard Amiga requester provider (file/font/
+ * screenmode).
+ */
+class Asl extends LibraryBase {
+  /** @type {string} */
+  static libraryName = 'asl.library';
+
+  /** @type {number} */
+  static libraryVersion = 39;
+
+  /** @type {Object<string, number>} */
+  static lvo = globalThis.amiga.asl.lvo;
+
+  /**
+   * Requester-type selectors and the most-used ASL_* tag IDs.
+   *
+   *   ASL_FileRequest       = 0
+   *   ASL_FontRequest       = 1
+   *   ASL_ScreenModeRequest = 2
+   *   ASL_ArexxRequest      = 3
+   *
+   * Tag IDs (ASLTAG_BASE = TAG_USER + 0x80000) common to all types:
+   *   ASLFR_Window          = 0x80080018
+   *   ASLFR_TitleText       = 0x80080001
+   *   ASLFR_InitialDrawer   = 0x80080008
+   *   ASLFR_InitialFile     = 0x8008000A
+   *   ASLFR_InitialPattern  = 0x8008000B
+   *   ASLFR_DoMultiSelect   = 0x80080020
+   *   ASLFR_DoPatterns      = 0x80080021
+   *   ASLFR_DoSaveMode      = 0x80080024
+   *
+   * ASLFO_* (font) and ASLSM_* (screenmode) follow the same scheme
+   * with +0x10000 and +0x20000 bases respectively.
+   */
+  static consts = class AslConsts extends CEnumeration {
+    static {
+      AslConsts.define('ASL_FileRequest',       0);
+      AslConsts.define('ASL_FontRequest',       1);
+      AslConsts.define('ASL_ScreenModeRequest', 2);
+      AslConsts.define('ASL_ArexxRequest',      3);
+
+      /* File-request tags (the most-used subset). */
+      AslConsts.define('ASLFR_Window',         0x80080018);
+      AslConsts.define('ASLFR_TitleText',      0x80080001);
+      AslConsts.define('ASLFR_InitialDrawer',  0x80080008);
+      AslConsts.define('ASLFR_InitialFile',    0x8008000A);
+      AslConsts.define('ASLFR_InitialPattern', 0x8008000B);
+      AslConsts.define('ASLFR_DoMultiSelect',  0x80080020);
+      AslConsts.define('ASLFR_DoPatterns',     0x80080021);
+      AslConsts.define('ASLFR_DoSaveMode',     0x80080024);
+
+      /* Font-request tags. */
+      AslConsts.define('ASLFO_Window',         0x80090018);
+      AslConsts.define('ASLFO_TitleText',      0x80090001);
+      AslConsts.define('ASLFO_InitialName',    0x80090008);
+      AslConsts.define('ASLFO_InitialSize',    0x80090009);
+
+      /* Screenmode-request tags. */
+      AslConsts.define('ASLSM_Window',         0x800A0018);
+      AslConsts.define('ASLSM_TitleText',      0x800A0001);
+    }
+  };
+
+  /**
+   * AllocAslRequestA(type, tagList) — d0=type, a0=tagList. Returns
+   * a Requester* pointer (opaque; fields read via offsets after
+   * AslRequest).
+   *
+   * @param {number}      type    — ASL_FileRequest etc.
+   * @param {number|null} tagList — prepared TagItem* or NULL
+   * @returns {number} requester pointer (0 on failure)
+   */
+  static AllocAslRequestA(type, tagList) {
+    return this.call(this.lvo.AllocAslRequestA, {
+      d0: type | 0, a0: ptrOf(tagList),
+    });
+  }
+
+  /**
+   * Convenience over AllocAslRequestA — builds the TagItem array
+   * from JS pairs and frees it after allocation.
+   *
+   * @param {number}                  type
+   * @param {Array<[number, number]>} [pairs]
+   * @returns {number} requester ptr
+   */
+  static AllocAslRequestTags(type, pairs) {
+    let p = pairs || [];
+    let tags = globalThis.amiga.makeTags(p);
+    let bytes = (p.length + 1) * 8;
+
+    try {
+      return this.AllocAslRequestA(type, tags);
+    }
+
+    finally {
+      globalThis.amiga.freeMem(tags, bytes);
+    }
+  }
+
+  /**
+   * FreeAslRequest(requester) — a0=requester.
+   *
+   * @param {number} requester
+   * @returns {undefined}
+   */
+  static FreeAslRequest(requester) {
+    return this.call(this.lvo.FreeAslRequest,
+      { a0: ptrOf(requester) });
+  }
+
+  /**
+   * AslRequest(requester, tagList) — a0=requester, a1=tagList.
+   * Returns true (non-zero) if the user clicked OK; false if
+   * cancelled or an error occurred.
+   *
+   * @param {number}      requester
+   * @param {number|null} tagList
+   * @returns {number} BOOL (0/1) as returned by asl.library
+   */
+  static AslRequest(requester, tagList) {
+    return this.call(this.lvo.AslRequest, {
+      a0: ptrOf(requester), a1: ptrOf(tagList),
+    });
+  }
+
+  /**
+   * Convenience — one call that allocates, runs the requester, and
+   * frees cleanly. Returns a {ok, drawer, file, path} object for
+   * file requesters, or {ok, requester} for other types.
+   *
+   * File-request layout (struct FileRequester after a successful
+   * AslRequest):
+   *   +4   fr_Drawer (STRPTR)
+   *   +8   fr_File   (STRPTR)
+   *   +16  fr_NumArgs (LONG)      — for multi-select
+   *   +20  fr_ArgList (WBArg *)
+   *
+   * @param {Array<[number, number]>} pairs — ASLFR_* tag pairs
+   * @returns {{ok: boolean, drawer: string|null, file: string|null, path: string|null, requester: number}}
+   */
+  static openFileRequest(pairs) {
+    let req = this.AllocAslRequestTags(this.consts.ASL_FileRequest,
+                                        pairs);
+
+    if (!req) {
+      return { ok: false, drawer: null, file: null, path: null,
+               requester: 0 };
+    }
+
+    try {
+      let ok = this.AslRequest(req, 0);
+
+      if (!ok) {
+        return { ok: false, drawer: null, file: null, path: null,
+                 requester: req };
+      }
+
+      let drawerPtr = globalThis.amiga.peek32(req + 4);
+      let filePtr   = globalThis.amiga.peek32(req + 8);
+
+      let drawer = drawerPtr
+        ? globalThis.amiga.peekString(drawerPtr, 512)
+        : null;
+
+      let file = filePtr
+        ? globalThis.amiga.peekString(filePtr, 256)
+        : null;
+
+      let path = null;
+
+      if (drawer !== null && file !== null) {
+        let sep = '';
+
+        if (drawer.length && !drawer.endsWith(':') &&
+            !drawer.endsWith('/')) {
+          sep = '/';
+        }
+
+        path = drawer + sep + file;
+      }
+
+      return { ok: true, drawer, file, path, requester: req };
+    }
+
+    finally {
+      this.FreeAslRequest(req);
+    }
+  }
+}
+
+
 /* === Intuition.js === */
 /* quickjs-master/amiga/ffi/Intuition.js
  *
@@ -4123,7 +4600,7 @@ globalThis.amiga = globalThis.amiga || {};
 /* Ensure the lowercase per-library tables exist. extended.js
  * normally creates them; this guards standalone bundle evaluation
  * during host-side testing. */
-for (const libname of ['intuition', 'graphics', 'exec', 'devices']) {
+for (const libname of ['intuition', 'graphics', 'exec', 'dos', 'devices']) {
   if (!globalThis.amiga[libname]) globalThis.amiga[libname] = {};
 }
 
@@ -4131,7 +4608,7 @@ for (const libname of ['intuition', 'graphics', 'exec', 'devices']) {
  * Library wrappers — amiga.<ClassName>
  * ------------------------------------------------------------------ */
 const libs = {
-  Exec, Dos, Intuition, Graphics, GadTools,
+  Exec, Dos, Intuition, Graphics, GadTools, Asl,
 };
 
 for (const [name, cls] of Object.entries(libs)) {
@@ -4152,10 +4629,12 @@ const structsByLib = {
     Window, NewWindow, Screen, IntuiMessage, Image, Gadget,
     DrawInfo, Menu, MenuItem, IntuiText,
   },
-  graphics:  { RastPort, TextAttr, BitMap },
+  graphics:  { RastPort, TextAttr, BitMap, ColorMap },
   exec:      { MsgPort, IORequest },
-  /* timer.device lives under "devices" in the NDK; mirror that. */
-  devices:   { TimerRequest },
+  dos:       { FileInfoBlock },
+  /* timer.device / inputevent.device live under "devices" in the
+   * NDK; mirror that. */
+  devices:   { TimerRequest, InputEvent },
 };
 
 for (const [libname, members] of Object.entries(structsByLib)) {
@@ -4178,12 +4657,12 @@ const everyGlobal = {
   /* meta */
   LibraryBase, CEnumeration, Struct,
   /* libs */
-  Exec, Dos, Intuition, Graphics, GadTools,
+  Exec, Dos, Intuition, Graphics, GadTools, Asl,
   /* structs */
   Window, NewWindow, Screen, RastPort, MsgPort,
   IntuiMessage, TextAttr, Image, Gadget,
-  DrawInfo, Menu, MenuItem, IntuiText, BitMap,
-  IORequest, TimerRequest,
+  DrawInfo, Menu, MenuItem, IntuiText, BitMap, ColorMap,
+  FileInfoBlock, InputEvent, IORequest, TimerRequest,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
 };

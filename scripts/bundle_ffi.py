@@ -41,6 +41,9 @@ ORDER = [
     'structs/MenuItem.js',     # references Menu via global lookup
     'structs/IntuiText.js',    # needs ptrOf
     'structs/BitMap.js',
+    'structs/ColorMap.js',
+    'structs/FileInfoBlock.js',
+    'structs/InputEvent.js',
     'structs/IORequest.js',    # needs ptrOf
     'structs/TimerRequest.js', # extends IORequest
     # Mid-level structs
@@ -53,6 +56,7 @@ ORDER = [
     'Dos.js',
     'Graphics.js',
     'GadTools.js',
+    'Asl.js',
     'Intuition.js',  # needs Window, Screen, Image
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',
