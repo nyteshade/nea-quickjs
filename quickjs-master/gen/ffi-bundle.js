@@ -1206,6 +1206,29 @@ class MsgPort extends Struct {
   /** @type {number} */
   static SIZE = 32;
 
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `MsgPort(ptr?)
+where:
+  ptr? - optional existing struct MsgPort pointer to wrap. Omit to
+         allocate a fresh zeroed 32-byte struct (caller must still
+         fill mp_Flags/mp_SigBit/mp_SigTask and call NewList on
+         mp_MsgList before using).
+
+Fields (read-only getters):
+  sigBit    {number}  signal bit index, +15 (UBYTE)
+  sigTask   {number}  owner Task* ptr, +16
+  sigMask   {number}  derived: 1 << sigBit
+
+Typical use:
+  let port = win.userPort;  // wraps Intuition-allocated port
+  Exec.Wait(port.sigMask);`;
+  }
+
   /** @returns {number} signal bit number this port uses */
   get sigBit() { return this.read8(15); }
 
@@ -1237,6 +1260,41 @@ class MsgPort extends Struct {
 class IntuiMessage extends Struct {
   /** @type {number} */
   static SIZE = 52;
+
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `IntuiMessage(ptr?)
+where:
+  ptr? - optional existing struct IntuiMessage pointer to wrap.
+         Intuition allocates these and delivers them to a Window's
+         UserPort; most code gets them from the win.messages()
+         iterator rather than constructing.
+
+Fields (read-only getters):
+  class       {CEnumeration|number}  IDCMP_* flag at +20, resolved
+                                     via Intuition.consts.from(raw)
+  classRaw    {number}               raw ULONG at +20
+  code        {number}               UWORD event code, +24
+  qualifier   {number}               UWORD shift/alt/ctrl bits, +26
+  iAddress    {number}               APTR of source gadget/etc, +28
+  mouseX      {number}               WORD, +32
+  mouseY      {number}               WORD, +34
+  seconds     {number}               ULONG event secs, +36
+  micros      {number}               ULONG event micros, +40
+  idcmpWindow {number}               source Window ptr, +44
+
+Methods:
+  reply()  - ReplyMsg(this) back to Intuition.
+
+Typical use:
+  for (let msg of win.messages()) {
+    if (msg.class === Intuition.consts.IDCMP_CLOSEWINDOW) break;
+  }`;
+  }
 
   /**
    * The IDCMP_* class flag for this message. Returns the matching
@@ -1322,6 +1380,29 @@ class TextAttr extends Struct {
   /** @type {number} */
   static SIZE = 8;
 
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `TextAttr(ptr?)
+where:
+  ptr? - optional existing struct TextAttr pointer to wrap (no
+         allocation, no ownership). Omit to allocate a fresh 8-byte
+         struct filled with zeroes (free() when done).
+
+Fields (read-only getters):
+  name   {string|null}  font name at +0 (STRPTR)
+  ySize  {number}       font height, +4 (UWORD)
+  style  {number}       TF_* bits, +6 (UBYTE)
+  flags  {number}       FPF_* bits, +7 (UBYTE)
+
+Typical use:
+  screen.font.name, screen.font.ySize — live view of the screen's
+  font TextAttr. Do NOT write to system-owned instances.`;
+  }
+
   /** @returns {string|null} font name */
   get name() {
     let p = this.read32(0);
@@ -1351,6 +1432,29 @@ class TextAttr extends Struct {
 class Image extends Struct {
   /* Allocated by NewObject; we just wrap. */
 
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Image(ptr)
+where:
+  ptr - REQUIRED: an existing BOOPSI image pointer returned by
+        Intuition.NewObjectTags('frameiclass'/'sysiclass'/etc, ...).
+        You cannot allocate a BOOPSI image from scratch via this
+        wrapper — use NewObjectTags and let it wrap the return.
+
+Fields (read-only getters):
+  leftEdge  {number} WORD, +0
+  topEdge   {number} WORD, +2
+  width     {number} WORD, +4
+  height    {number} WORD, +6
+  depth     {number} WORD, +8
+
+Lifecycle: call Intuition.DisposeObject(img) when done.`;
+  }
+
   /** @returns {number} */
   get leftEdge() { return this.read16(0); }
 
@@ -1378,6 +1482,30 @@ class Image extends Struct {
 
 class Gadget extends Struct {
   /* Allocated by GadTools or user; we wrap. */
+
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Gadget(ptr)
+where:
+  ptr - REQUIRED: an existing struct Gadget pointer, usually
+        returned by GadTools.CreateGadget / NewObjectTags for a
+        *.gadget class. No from-scratch allocation via this wrapper.
+
+Fields (read-only getters):
+  nextGadget {number} next ptr in the gadget list, +0
+  leftEdge   {number} +4
+  topEdge    {number} +6
+  width      {number} +8
+  height     {number} +10
+  flags      {number} GFLG_* bits, +12
+  activation {number} GACT_* bits, +14
+  gadgetType {number} GTYP_* bits, +16
+  gadgetID   {number} user-assigned id, +34`;
+  }
 
   /** @returns {number} next gadget ptr */
   get nextGadget() { return this.read32(0); }
@@ -1419,6 +1547,28 @@ class Gadget extends Struct {
 
 class RastPort extends Struct {
   /* SIZE not exposed — RastPort is allocated by Intuition. */
+
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `RastPort(ptr)
+where:
+  ptr - REQUIRED: an existing struct RastPort pointer. Typically
+        obtained as win.rastPort from a Window wrapper. You cannot
+        allocate a RastPort from scratch via this wrapper.
+
+Instance methods (delegate to graphics.library):
+  setColor(pen)              - SetAPen
+  setBgColor(pen)            - SetBPen
+  move(x, y)                 - Move (no drawing)
+  draw(x, y)                 - Draw line from cursor to (x,y)
+  rectFill(x1, y1, x2, y2)   - RectFill with A-pen
+  text(x, y, str)            - Move + render JS string (allocates
+                               and frees C-string internally)`;
+  }
 
   /**
    * Set foreground pen.
@@ -1517,6 +1667,24 @@ class RastPort extends Struct {
 
 class Screen extends Struct {
   /* SIZE not exposed — Screen is allocated by Intuition. */
+
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Screen(ptr)
+where:
+  ptr - REQUIRED: an existing struct Screen pointer from
+        Intuition.OpenScreenTags / LockPubScreen. You cannot
+        allocate a Screen from scratch — only Intuition may.
+
+Fields (read-only getters): leftEdge, topEdge, width, height,
+  flags, title, barHeight, font (TextAttr wrapper).
+
+Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
+  }
 
   /** @returns {number} */
   get leftEdge() { return this.read16( 8); }
@@ -1631,6 +1799,45 @@ function withTags(pairs, fn) {
 class NewWindow extends Struct {
   /** @type {number} */
   static SIZE = 48;
+
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `NewWindow(initOrPtr?)
+where:
+  initOrPtr? - one of:
+    - number: wrap an existing NewWindow* pointer (no allocation).
+    - object: allocate a fresh 48-byte struct and populate fields.
+    - omitted: allocate a zeroed 48-byte struct with sensible
+               defaults (detailPen=0xFF, blockPen=0xFF, type=1).
+
+Init-object fields (all optional, camelCase):
+  left, top             {number} placement on screen
+  width, height         {number}
+  detailPen, blockPen   {number} title-bar pens (default 0xFF = -1)
+  idcmp                 {number} IDCMP_* bitmask
+  flags                 {number} WFLG_* bitmask
+  title                 {string|number} JS string (owned copy) or
+                                 caller-managed STRPTR
+  minWidth, minHeight   {number}
+  maxWidth, maxHeight   {number}
+  type                  {number} 1=WBENCHSCREEN, 0xF=CUSTOMSCREEN
+
+Methods:
+  free()  - frees struct + any owned title string (idempotent).
+
+Typical use:
+  let nw = new NewWindow({
+    width: 320, height: 200, title: 'Hi',
+    flags: Intuition.consts.WFLG_CLOSEGADGET | WFLG_ACTIVATE,
+    idcmp: Intuition.consts.IDCMP_CLOSEWINDOW,
+  });
+  let win = Intuition.OpenWindow(nw);
+  try { ... } finally { win.close(); nw.free(); }`;
+  }
 
   /**
    * @param {object|number} [initOrPtr]
@@ -1790,6 +1997,30 @@ class NewWindow extends Struct {
 
 class Window extends Struct {
   /* SIZE not exposed — Window is allocated by Intuition. */
+
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Window(ptr)
+where:
+  ptr - REQUIRED: an existing struct Window pointer returned by
+        Intuition.OpenWindow / Intuition.OpenWindowTags /
+        Intuition.OpenWindowTagList. You cannot allocate a Window
+        from scratch — only Intuition may.
+
+Fields (read-only getters): leftEdge, topEdge, width, height, title,
+  screen, rastPort, userPort.
+
+Methods:
+  close()      - Intuition.CloseWindow(this). Idempotent, zeroes ptr.
+  move(dx,dy)  - MoveWindow
+  toFront()/toBack() - WindowToFront/WindowToBack
+  messages()   - generator yielding IntuiMessage instances; see
+                 Intuition.consts.IDCMP_* for flags.`;
+  }
 
   /** @returns {number} */
   get leftEdge() { return this.read16(4); }
@@ -3123,27 +3354,36 @@ class Intuition extends LibraryBase {
 /* === index.js === */
 /* quickjs-master/amiga/ffi/index.js
  *
- * Q2 FFI entry point — imports and globally exposes:
+ * Q2 FFI entry point. Places every wrapper on the `amiga` namespace
+ * under its canonical Amiga-library home, then re-exports to
+ * globalThis if the slot is free.
  *
- *   globalThis.LibraryBase
- *   globalThis.CEnumeration
- *   globalThis.Exec, Dos, Intuition, Graphics, GadTools
- *   globalThis.Window, NewWindow, Screen, RastPort, IntuiMessage,
- *     MsgPort, TextAttr, Image, Gadget
+ * Placement rule (settled):
  *
- *   amiga.Exec, amiga.Intuition, amiga.Graphics, ...  — same classes
- *     on the `amiga` namespace, case-distinct from the lowercase Q1
- *     tables at amiga.exec / amiga.intuition / etc. (the lowercase
- *     tables still hold `.lvo` and flag constants.)
+ *   Library wrappers (the class that models a .library):
+ *     amiga.<ClassName>
+ *     globalThis.<ClassName>           (if !in globalThis)
  *
- * The library evaluation order at qjs startup is:
- *   1. quickjs.library installs `globalThis.amiga` (Q1 FFI) via the
- *      `amiga-ffi` manifest in extended.js
- *   2. amiga-ffi-classes evaluates the bytecode produced from this
- *      file (qjsc_ffi)
+ *   Struct wrappers (a struct type owned by an Amiga library):
+ *     amiga.<libname>.<StructName>     — "proper home"
+ *     globalThis.<StructName>          (if !in globalThis)
  *
- * That guarantees `globalThis.amiga.<lib>.lvo` is populated before
- * any class here references it.
+ *   Meta / base classes (LibraryBase, CEnumeration, Struct):
+ *     amiga.<ClassName>
+ *     globalThis.<ClassName>           (if !in globalThis)
+ *
+ *   Helpers (ptrOf, withStruct): globalThis only.
+ *   makeTags / withTags are Q1 natives — NOT re-exposed here.
+ *
+ * Eval order at qjs startup:
+ *   1. extended.js (qjsc_extended) installs `globalThis.amiga` with
+ *      the Q1 FFI primitives and the lowercase per-library tables
+ *      (amiga.intuition, amiga.graphics, amiga.exec, …) each
+ *      holding `.lvo` and plain flag constants.
+ *   2. ffi-bundle (qjsc_ffi) evaluates this file. By now the
+ *      lowercase tables are guaranteed populated, so the static
+ *      field `static lvo = globalThis.amiga.<lib>.lvo` on each
+ *      library wrapper resolves cleanly.
  */
 
 
@@ -3151,38 +3391,68 @@ class Intuition extends LibraryBase {
 
 globalThis.amiga = globalThis.amiga || {};
 
+/* Ensure the lowercase per-library tables exist. extended.js
+ * normally creates them; this guards standalone bundle evaluation
+ * during host-side testing. */
+for (const libname of ['intuition', 'graphics', 'exec']) {
+  if (!globalThis.amiga[libname]) globalThis.amiga[libname] = {};
+}
+
+/* ------------------------------------------------------------------
+ * Library wrappers — amiga.<ClassName>
+ * ------------------------------------------------------------------ */
 const libs = {
-  LibraryBase, CEnumeration,
   Exec, Dos, Intuition, Graphics, GadTools,
 };
 
-const structs = {
-  Struct, NewWindow, Window, Screen, RastPort, MsgPort,
-  IntuiMessage, TextAttr, Image, Gadget,
-};
-
-const helpers = {
-  ptrOf, withStruct, makeTags, withTags,
-};
-
-/* amiga.<ClassName> — populate with library classes and struct
- * wrappers. Case-distinct from the Q1 lowercase tables
- * (amiga.intuition, amiga.exec, ...) that hold `.lvo` and plain
- * flag constants.
- *
- * IMPORTANT: do NOT spread `helpers` into this loop. extended.js
- * already defines `amiga.makeTags` and `amiga.withTags` as Q1
- * natives, and the Q2 JS wrappers in structs/TagItem.js have
- * different signatures — plus the JS `makeTags` internally calls
- * `globalThis.amiga.makeTags`, which would infinitely self-recurse
- * once reassigned. Helpers stay in globalThis.* only. */
-for (const [name, cls] of Object.entries({ ...libs, ...structs })) {
+for (const [name, cls] of Object.entries(libs)) {
   globalThis.amiga[name] = cls;
 }
 
-/* globalThis.<Name> if the slot is free — convenience for scripts.
- * Helpers are included here since they don't collide with Q1. */
-for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
+/* ------------------------------------------------------------------
+ * Struct wrappers — amiga.<libname>.<StructName>
+ *
+ * Ownership mapping follows NDK 3.2R4 header provenance:
+ *   intuition/screens.h,intuition.h   → Window, NewWindow, Screen,
+ *                                        IntuiMessage, Image, Gadget
+ *   graphics/rastport.h, text.h       → RastPort, TextAttr
+ *   exec/ports.h                      → MsgPort
+ * ------------------------------------------------------------------ */
+const structsByLib = {
+  intuition: { Window, NewWindow, Screen, IntuiMessage, Image, Gadget },
+  graphics:  { RastPort, TextAttr },
+  exec:      { MsgPort },
+};
+
+for (const [libname, members] of Object.entries(structsByLib)) {
+  for (const [name, cls] of Object.entries(members)) {
+    globalThis.amiga[libname][name] = cls;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * Meta / base classes — amiga.<ClassName>
+ * ------------------------------------------------------------------ */
+globalThis.amiga.LibraryBase  = LibraryBase;
+globalThis.amiga.CEnumeration = CEnumeration;
+globalThis.amiga.Struct       = Struct;
+
+/* ------------------------------------------------------------------
+ * Globals — convenience for scripts, conflict-gated.
+ * ------------------------------------------------------------------ */
+const everyGlobal = {
+  /* meta */
+  LibraryBase, CEnumeration, Struct,
+  /* libs */
+  Exec, Dos, Intuition, Graphics, GadTools,
+  /* structs */
+  Window, NewWindow, Screen, RastPort, MsgPort,
+  IntuiMessage, TextAttr, Image, Gadget,
+  /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
+  ptrOf, withStruct,
+};
+
+for (const [name, cls] of Object.entries(everyGlobal)) {
   if (!(name in globalThis)) {
     globalThis[name] = cls;
   }
@@ -3193,7 +3463,6 @@ for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
  * currently expose setExitHook on Amiga; users can call
  * LibraryBase.closeAll() manually at script end if needed. */
 try {
-  /* Future-proof: if a setExitHook ever shows up on qjs:os, use it. */
   let os = globalThis.__qjs_os;
 
   if (os && typeof os.setExitHook === 'function') {

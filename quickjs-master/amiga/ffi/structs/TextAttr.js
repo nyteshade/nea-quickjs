@@ -14,6 +14,29 @@ export class TextAttr extends Struct {
   /** @type {number} */
   static SIZE = 8;
 
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `TextAttr(ptr?)
+where:
+  ptr? - optional existing struct TextAttr pointer to wrap (no
+         allocation, no ownership). Omit to allocate a fresh 8-byte
+         struct filled with zeroes (free() when done).
+
+Fields (read-only getters):
+  name   {string|null}  font name at +0 (STRPTR)
+  ySize  {number}       font height, +4 (UWORD)
+  style  {number}       TF_* bits, +6 (UBYTE)
+  flags  {number}       FPF_* bits, +7 (UBYTE)
+
+Typical use:
+  screen.font.name, screen.font.ySize — live view of the screen's
+  font TextAttr. Do NOT write to system-owned instances.`;
+  }
+
   /** @returns {string|null} font name */
   get name() {
     let p = this.read32(0);

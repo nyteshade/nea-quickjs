@@ -34,6 +34,30 @@ import { IntuiMessage } from './IntuiMessage.js';
 export class Window extends Struct {
   /* SIZE not exposed — Window is allocated by Intuition. */
 
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Window(ptr)
+where:
+  ptr - REQUIRED: an existing struct Window pointer returned by
+        Intuition.OpenWindow / Intuition.OpenWindowTags /
+        Intuition.OpenWindowTagList. You cannot allocate a Window
+        from scratch — only Intuition may.
+
+Fields (read-only getters): leftEdge, topEdge, width, height, title,
+  screen, rastPort, userPort.
+
+Methods:
+  close()      - Intuition.CloseWindow(this). Idempotent, zeroes ptr.
+  move(dx,dy)  - MoveWindow
+  toFront()/toBack() - WindowToFront/WindowToBack
+  messages()   - generator yielding IntuiMessage instances; see
+                 Intuition.consts.IDCMP_* for flags.`;
+  }
+
   /** @returns {number} */
   get leftEdge() { return this.read16(4); }
 

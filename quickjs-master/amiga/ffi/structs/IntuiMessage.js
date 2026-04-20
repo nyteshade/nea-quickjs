@@ -20,6 +20,41 @@ export class IntuiMessage extends Struct {
   static SIZE = 52;
 
   /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `IntuiMessage(ptr?)
+where:
+  ptr? - optional existing struct IntuiMessage pointer to wrap.
+         Intuition allocates these and delivers them to a Window's
+         UserPort; most code gets them from the win.messages()
+         iterator rather than constructing.
+
+Fields (read-only getters):
+  class       {CEnumeration|number}  IDCMP_* flag at +20, resolved
+                                     via Intuition.consts.from(raw)
+  classRaw    {number}               raw ULONG at +20
+  code        {number}               UWORD event code, +24
+  qualifier   {number}               UWORD shift/alt/ctrl bits, +26
+  iAddress    {number}               APTR of source gadget/etc, +28
+  mouseX      {number}               WORD, +32
+  mouseY      {number}               WORD, +34
+  seconds     {number}               ULONG event secs, +36
+  micros      {number}               ULONG event micros, +40
+  idcmpWindow {number}               source Window ptr, +44
+
+Methods:
+  reply()  - ReplyMsg(this) back to Intuition.
+
+Typical use:
+  for (let msg of win.messages()) {
+    if (msg.class === Intuition.consts.IDCMP_CLOSEWINDOW) break;
+  }`;
+  }
+
+  /**
    * The IDCMP_* class flag for this message. Returns the matching
    * CEnumeration case from `Intuition.consts` so `===` works:
    *

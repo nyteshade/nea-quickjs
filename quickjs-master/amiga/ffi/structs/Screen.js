@@ -18,6 +18,24 @@ import { TextAttr } from './TextAttr.js';
 export class Screen extends Struct {
   /* SIZE not exposed — Screen is allocated by Intuition. */
 
+  /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Screen(ptr)
+where:
+  ptr - REQUIRED: an existing struct Screen pointer from
+        Intuition.OpenScreenTags / LockPubScreen. You cannot
+        allocate a Screen from scratch — only Intuition may.
+
+Fields (read-only getters): leftEdge, topEdge, width, height,
+  flags, title, barHeight, font (TextAttr wrapper).
+
+Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
+  }
+
   /** @returns {number} */
   get leftEdge() { return this.read16( 8); }
 

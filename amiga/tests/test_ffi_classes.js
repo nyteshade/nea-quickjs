@@ -52,17 +52,40 @@ await run('classes present', async () => {
   ok(typeof RastPort === 'function',     'RastPort struct');
   ok(typeof MsgPort === 'function',      'MsgPort struct');
 
+  /* Library wrappers — amiga.<ClassName> */
   ok(amiga.Intuition === Intuition, 'amiga.Intuition');
   ok(amiga.Exec === Exec,           'amiga.Exec');
   ok(amiga.Graphics === Graphics,   'amiga.Graphics');
   ok(amiga.GadTools === GadTools,   'amiga.GadTools');
   ok(amiga.Dos === Dos,             'amiga.Dos');
-  ok(amiga.Window === Window,       'amiga.Window');
 
-  /* Q1 lowercase namespace still holds .lvo (case-distinct). */
-  ok(typeof amiga.intuition === 'object',     'amiga.intuition (Q1) present');
-  ok(amiga.intuition !== amiga.Intuition,     'lowercase vs capitalized distinct');
+  /* Structs — amiga.<libname>.<StructName> (canonical home). */
+  ok(amiga.intuition.Window === Window,           'amiga.intuition.Window');
+  ok(amiga.intuition.Screen === Screen,           'amiga.intuition.Screen');
+  ok(amiga.intuition.NewWindow === NewWindow,     'amiga.intuition.NewWindow');
+  ok(amiga.intuition.IntuiMessage === IntuiMessage,'amiga.intuition.IntuiMessage');
+  ok(amiga.intuition.Image === Image,             'amiga.intuition.Image');
+  ok(amiga.intuition.Gadget === Gadget,           'amiga.intuition.Gadget');
+  ok(amiga.graphics.TextAttr === TextAttr,        'amiga.graphics.TextAttr');
+  ok(amiga.graphics.RastPort === RastPort,        'amiga.graphics.RastPort');
+  ok(amiga.exec.MsgPort === MsgPort,              'amiga.exec.MsgPort');
+
+  /* Flat amiga.<StructName> is intentionally not set — library
+   * nesting is the canonical home for struct wrappers. */
+  ok(amiga.Window === undefined,   'amiga.Window unset (nested only)');
+  ok(amiga.TextAttr === undefined, 'amiga.TextAttr unset (nested only)');
+  ok(amiga.MsgPort === undefined,  'amiga.MsgPort unset (nested only)');
+
+  /* Q1 lowercase namespace still holds .lvo. */
   ok(typeof amiga.intuition.lvo === 'object', 'amiga.intuition.lvo is the Q1 table');
+  ok(typeof amiga.graphics.lvo  === 'object', 'amiga.graphics.lvo is the Q1 table');
+
+  /* Constructable structs expose a human-readable signature getter. */
+  ok(typeof TextAttr.signature === 'string',     'TextAttr.signature is string');
+  ok(TextAttr.signature.startsWith('TextAttr('), 'TextAttr.signature starts with "TextAttr("');
+  ok(typeof NewWindow.signature === 'string',    'NewWindow.signature is string');
+  ok(typeof Window.signature === 'string',       'Window.signature (wrap-only)');
+  ok(typeof IntuiMessage.signature === 'string', 'IntuiMessage.signature');
 });
 
 await run('IntuiMessage.class returns CEnumeration case', async () => {

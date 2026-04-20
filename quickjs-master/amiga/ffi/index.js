@@ -1,26 +1,35 @@
 /* quickjs-master/amiga/ffi/index.js
  *
- * Q2 FFI entry point — imports and globally exposes:
+ * Q2 FFI entry point. Places every wrapper on the `amiga` namespace
+ * under its canonical Amiga-library home, then re-exports to
+ * globalThis if the slot is free.
  *
- *   globalThis.LibraryBase
- *   globalThis.CEnumeration
- *   globalThis.Exec, Dos, Intuition, Graphics, GadTools
- *   globalThis.Window, NewWindow, Screen, RastPort, IntuiMessage,
- *     MsgPort, TextAttr, Image, Gadget
+ * Placement rule (settled):
  *
- *   amiga.Exec, amiga.Intuition, amiga.Graphics, ...  — same classes
- *     on the `amiga` namespace, case-distinct from the lowercase Q1
- *     tables at amiga.exec / amiga.intuition / etc. (the lowercase
- *     tables still hold `.lvo` and flag constants.)
+ *   Library wrappers (the class that models a .library):
+ *     amiga.<ClassName>
+ *     globalThis.<ClassName>           (if !in globalThis)
  *
- * The library evaluation order at qjs startup is:
- *   1. quickjs.library installs `globalThis.amiga` (Q1 FFI) via the
- *      `amiga-ffi` manifest in extended.js
- *   2. amiga-ffi-classes evaluates the bytecode produced from this
- *      file (qjsc_ffi)
+ *   Struct wrappers (a struct type owned by an Amiga library):
+ *     amiga.<libname>.<StructName>     — "proper home"
+ *     globalThis.<StructName>          (if !in globalThis)
  *
- * That guarantees `globalThis.amiga.<lib>.lvo` is populated before
- * any class here references it.
+ *   Meta / base classes (LibraryBase, CEnumeration, Struct):
+ *     amiga.<ClassName>
+ *     globalThis.<ClassName>           (if !in globalThis)
+ *
+ *   Helpers (ptrOf, withStruct): globalThis only.
+ *   makeTags / withTags are Q1 natives — NOT re-exposed here.
+ *
+ * Eval order at qjs startup:
+ *   1. extended.js (qjsc_extended) installs `globalThis.amiga` with
+ *      the Q1 FFI primitives and the lowercase per-library tables
+ *      (amiga.intuition, amiga.graphics, amiga.exec, …) each
+ *      holding `.lvo` and plain flag constants.
+ *   2. ffi-bundle (qjsc_ffi) evaluates this file. By now the
+ *      lowercase tables are guaranteed populated, so the static
+ *      field `static lvo = globalThis.amiga.<lib>.lvo` on each
+ *      library wrapper resolves cleanly.
  */
 
 import { LibraryBase } from './LibraryBase.js';
@@ -47,38 +56,68 @@ import { makeTags, withTags } from './structs/TagItem.js';
 
 globalThis.amiga = globalThis.amiga || {};
 
+/* Ensure the lowercase per-library tables exist. extended.js
+ * normally creates them; this guards standalone bundle evaluation
+ * during host-side testing. */
+for (const libname of ['intuition', 'graphics', 'exec']) {
+  if (!globalThis.amiga[libname]) globalThis.amiga[libname] = {};
+}
+
+/* ------------------------------------------------------------------
+ * Library wrappers — amiga.<ClassName>
+ * ------------------------------------------------------------------ */
 const libs = {
-  LibraryBase, CEnumeration,
   Exec, Dos, Intuition, Graphics, GadTools,
 };
 
-const structs = {
-  Struct, NewWindow, Window, Screen, RastPort, MsgPort,
-  IntuiMessage, TextAttr, Image, Gadget,
-};
-
-const helpers = {
-  ptrOf, withStruct, makeTags, withTags,
-};
-
-/* amiga.<ClassName> — populate with library classes and struct
- * wrappers. Case-distinct from the Q1 lowercase tables
- * (amiga.intuition, amiga.exec, ...) that hold `.lvo` and plain
- * flag constants.
- *
- * IMPORTANT: do NOT spread `helpers` into this loop. extended.js
- * already defines `amiga.makeTags` and `amiga.withTags` as Q1
- * natives, and the Q2 JS wrappers in structs/TagItem.js have
- * different signatures — plus the JS `makeTags` internally calls
- * `globalThis.amiga.makeTags`, which would infinitely self-recurse
- * once reassigned. Helpers stay in globalThis.* only. */
-for (const [name, cls] of Object.entries({ ...libs, ...structs })) {
+for (const [name, cls] of Object.entries(libs)) {
   globalThis.amiga[name] = cls;
 }
 
-/* globalThis.<Name> if the slot is free — convenience for scripts.
- * Helpers are included here since they don't collide with Q1. */
-for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
+/* ------------------------------------------------------------------
+ * Struct wrappers — amiga.<libname>.<StructName>
+ *
+ * Ownership mapping follows NDK 3.2R4 header provenance:
+ *   intuition/screens.h,intuition.h   → Window, NewWindow, Screen,
+ *                                        IntuiMessage, Image, Gadget
+ *   graphics/rastport.h, text.h       → RastPort, TextAttr
+ *   exec/ports.h                      → MsgPort
+ * ------------------------------------------------------------------ */
+const structsByLib = {
+  intuition: { Window, NewWindow, Screen, IntuiMessage, Image, Gadget },
+  graphics:  { RastPort, TextAttr },
+  exec:      { MsgPort },
+};
+
+for (const [libname, members] of Object.entries(structsByLib)) {
+  for (const [name, cls] of Object.entries(members)) {
+    globalThis.amiga[libname][name] = cls;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * Meta / base classes — amiga.<ClassName>
+ * ------------------------------------------------------------------ */
+globalThis.amiga.LibraryBase  = LibraryBase;
+globalThis.amiga.CEnumeration = CEnumeration;
+globalThis.amiga.Struct       = Struct;
+
+/* ------------------------------------------------------------------
+ * Globals — convenience for scripts, conflict-gated.
+ * ------------------------------------------------------------------ */
+const everyGlobal = {
+  /* meta */
+  LibraryBase, CEnumeration, Struct,
+  /* libs */
+  Exec, Dos, Intuition, Graphics, GadTools,
+  /* structs */
+  Window, NewWindow, Screen, RastPort, MsgPort,
+  IntuiMessage, TextAttr, Image, Gadget,
+  /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
+  ptrOf, withStruct,
+};
+
+for (const [name, cls] of Object.entries(everyGlobal)) {
   if (!(name in globalThis)) {
     globalThis[name] = cls;
   }
@@ -89,7 +128,6 @@ for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
  * currently expose setExitHook on Amiga; users can call
  * LibraryBase.closeAll() manually at script end if needed. */
 try {
-  /* Future-proof: if a setExitHook ever shows up on qjs:os, use it. */
   let os = globalThis.__qjs_os;
 
   if (os && typeof os.setExitHook === 'function') {

@@ -36,6 +36,45 @@ export class NewWindow extends Struct {
   static SIZE = 48;
 
   /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `NewWindow(initOrPtr?)
+where:
+  initOrPtr? - one of:
+    - number: wrap an existing NewWindow* pointer (no allocation).
+    - object: allocate a fresh 48-byte struct and populate fields.
+    - omitted: allocate a zeroed 48-byte struct with sensible
+               defaults (detailPen=0xFF, blockPen=0xFF, type=1).
+
+Init-object fields (all optional, camelCase):
+  left, top             {number} placement on screen
+  width, height         {number}
+  detailPen, blockPen   {number} title-bar pens (default 0xFF = -1)
+  idcmp                 {number} IDCMP_* bitmask
+  flags                 {number} WFLG_* bitmask
+  title                 {string|number} JS string (owned copy) or
+                                 caller-managed STRPTR
+  minWidth, minHeight   {number}
+  maxWidth, maxHeight   {number}
+  type                  {number} 1=WBENCHSCREEN, 0xF=CUSTOMSCREEN
+
+Methods:
+  free()  - frees struct + any owned title string (idempotent).
+
+Typical use:
+  let nw = new NewWindow({
+    width: 320, height: 200, title: 'Hi',
+    flags: Intuition.consts.WFLG_CLOSEGADGET | WFLG_ACTIVATE,
+    idcmp: Intuition.consts.IDCMP_CLOSEWINDOW,
+  });
+  let win = Intuition.OpenWindow(nw);
+  try { ... } finally { win.close(); nw.free(); }`;
+  }
+
+  /**
    * @param {object|number} [initOrPtr]
    *   If a number: wrap an existing NewWindow pointer (no
    *   allocation). If an object: allocate a fresh struct, populate

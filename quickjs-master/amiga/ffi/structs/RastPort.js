@@ -11,6 +11,28 @@ export class RastPort extends Struct {
   /* SIZE not exposed — RastPort is allocated by Intuition. */
 
   /**
+   * REPL help text — a human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `RastPort(ptr)
+where:
+  ptr - REQUIRED: an existing struct RastPort pointer. Typically
+        obtained as win.rastPort from a Window wrapper. You cannot
+        allocate a RastPort from scratch via this wrapper.
+
+Instance methods (delegate to graphics.library):
+  setColor(pen)              - SetAPen
+  setBgColor(pen)            - SetBPen
+  move(x, y)                 - Move (no drawing)
+  draw(x, y)                 - Draw line from cursor to (x,y)
+  rectFill(x1, y1, x2, y2)   - RectFill with A-pen
+  text(x, y, str)            - Move + render JS string (allocates
+                               and frees C-string internally)`;
+  }
+
+  /**
    * Set foreground pen.
    *
    * @param {number} pen
