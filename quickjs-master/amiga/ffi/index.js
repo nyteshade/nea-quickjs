@@ -7,7 +7,11 @@
  *   globalThis.Exec, Dos, Intuition, Graphics, GadTools
  *   globalThis.Window, NewWindow, Screen, RastPort, IntuiMessage,
  *     MsgPort, TextAttr, Image, Gadget
- *   amiga.lib.* — same classes under the safe namespace
+ *
+ *   amiga.Exec, amiga.Intuition, amiga.Graphics, ...  — same classes
+ *     on the `amiga` namespace, case-distinct from the lowercase Q1
+ *     tables at amiga.exec / amiga.intuition / etc. (the lowercase
+ *     tables still hold `.lvo` and flag constants.)
  *
  * The library evaluation order at qjs startup is:
  *   1. quickjs.library installs `globalThis.amiga` (Q1 FFI) via the
@@ -41,9 +45,7 @@ import { Image } from './structs/Image.js';
 import { Gadget } from './structs/Gadget.js';
 import { makeTags, withTags } from './structs/TagItem.js';
 
-/* Establish amiga.lib namespace if not present. */
 globalThis.amiga = globalThis.amiga || {};
-globalThis.amiga.lib = globalThis.amiga.lib || {};
 
 const libs = {
   LibraryBase, CEnumeration,
@@ -59,12 +61,14 @@ const helpers = {
   ptrOf, withStruct, makeTags, withTags,
 };
 
-/* amiga.lib.* always populated */
-for (const [name, cls] of Object.entries(libs)) {
-  globalThis.amiga.lib[name] = cls;
+/* amiga.<ClassName> — always populated. Case-distinct from the Q1
+ * lowercase tables (amiga.intuition, amiga.exec, ...) that hold
+ * .lvo and plain flag constants. */
+for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
+  globalThis.amiga[name] = cls;
 }
 
-/* globalThis.X if the slot is free */
+/* globalThis.<Name> if the slot is free — convenience for scripts. */
 for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
   if (!(name in globalThis)) {
     globalThis[name] = cls;

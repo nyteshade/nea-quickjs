@@ -16,7 +16,7 @@ stack 65536
 qjs examples/window_hello.js
 ```
 
-Requires `quickjs.library` **0.127 or later** in `LIBS:`.
+Requires `quickjs.library` **0.128 or later** in `LIBS:`.
 
 ## Examples
 
@@ -104,10 +104,13 @@ Key references while authoring:
 
 - **`amiga.<libname>.lvo.*`** — raw LVO constants for any of the 76
   NDK 3.2R4 libraries (if you want to call something not yet in a
-  wrapper class).
-- **`amiga.lib.<ClassName>`** — the wrapper classes under a
-  namespace-safe path (use this if you've defined your own `class
-  Intuition` or `class Exec`).
+  wrapper class). Lowercase-namespace: `amiga.intuition`,
+  `amiga.exec`, ...
+- **`amiga.<ClassName>`** — the wrapper classes under the `amiga`
+  namespace. Case-distinct from the lowercase Q1 tables, so no
+  conflict: `amiga.Intuition === Intuition` (the class) while
+  `amiga.intuition.lvo.OpenWindow` is the FD constant. Useful if
+  you've shadowed the global — `globalThis.Intuition` may be yours.
 - **`LibraryBase`** — extend it to add your own library wrapper:
 
   ```js

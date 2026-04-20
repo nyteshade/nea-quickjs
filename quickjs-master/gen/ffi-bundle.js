@@ -1238,8 +1238,36 @@ class IntuiMessage extends Struct {
   /** @type {number} */
   static SIZE = 52;
 
-  /** @returns {number} the IDCMP_* class flag */
-  get class()     { return this.read32(20); }
+  /**
+   * The IDCMP_* class flag for this message. Returns the matching
+   * CEnumeration case from `Intuition.consts` so `===` works:
+   *
+   *   if (msg.class === Intuition.consts.IDCMP_CLOSEWINDOW) { ... }
+   *
+   * Falls back to the raw number if no case matches (unknown flag).
+   * The case still coerces to its numeric value in bitwise and
+   * arithmetic contexts, so `msg.class | 0`, `msg.class & MASK`, and
+   * `Number(msg.class)` all give the raw flag.
+   *
+   * @returns {CEnumeration|number}
+   */
+  get class() {
+    let raw = this.read32(20);
+    let Intuition = globalThis.amiga && globalThis.amiga.Intuition;
+
+    if (Intuition && Intuition.consts && Intuition.consts.from) {
+      let hit = Intuition.consts.from(raw);
+
+      if (hit) {
+        return hit;
+      }
+    }
+
+    return raw;
+  }
+
+  /** @returns {number} same as `class` but always the raw flag */
+  get classRaw() { return this.read32(20); }
 
   /** @returns {number} */
   get code()      { return this.read16(24); }
@@ -1273,7 +1301,7 @@ class IntuiMessage extends Struct {
    */
   reply() {
     /* Late-bound to avoid circular import — Exec is loaded before us. */
-    globalThis.amiga.lib.Exec.ReplyMsg(this);
+    globalThis.amiga.Exec.ReplyMsg(this);
   }
 }
 
@@ -1399,7 +1427,7 @@ class RastPort extends Struct {
    * @returns {undefined}
    */
   setColor(pen) {
-    globalThis.amiga.lib.Graphics.SetAPen(this, pen);
+    globalThis.amiga.Graphics.SetAPen(this, pen);
   }
 
   /**
@@ -1408,7 +1436,7 @@ class RastPort extends Struct {
    * @param {number} pen
    */
   setBgColor(pen) {
-    globalThis.amiga.lib.Graphics.SetBPen(this, pen);
+    globalThis.amiga.Graphics.SetBPen(this, pen);
   }
 
   /**
@@ -1418,7 +1446,7 @@ class RastPort extends Struct {
    * @param {number} y
    */
   move(x, y) {
-    globalThis.amiga.lib.Graphics.Move(this, x, y);
+    globalThis.amiga.Graphics.Move(this, x, y);
   }
 
   /**
@@ -1428,7 +1456,7 @@ class RastPort extends Struct {
    * @param {number} y
    */
   draw(x, y) {
-    globalThis.amiga.lib.Graphics.Draw(this, x, y);
+    globalThis.amiga.Graphics.Draw(this, x, y);
   }
 
   /**
@@ -1440,7 +1468,7 @@ class RastPort extends Struct {
    * @param {number} y2
    */
   rectFill(x1, y1, x2, y2) {
-    globalThis.amiga.lib.Graphics.RectFill(this, x1, y1, x2, y2);
+    globalThis.amiga.Graphics.RectFill(this, x1, y1, x2, y2);
   }
 
   /**
@@ -1461,7 +1489,7 @@ class RastPort extends Struct {
     try {
       globalThis.amiga.pokeString(p, str);
       this.move(x, y);
-      globalThis.amiga.lib.Graphics.Text(this, p, str.length);
+      globalThis.amiga.Graphics.Text(this, p, str.length);
     }
 
     finally {
@@ -1814,7 +1842,7 @@ class Window extends Struct {
       return;
     }
 
-    globalThis.amiga.lib.Intuition.CloseWindow(this);
+    globalThis.amiga.Intuition.CloseWindow(this);
     this.ptr = 0;
   }
 
@@ -1825,21 +1853,21 @@ class Window extends Struct {
    * @param {number} dy
    */
   move(dx, dy) {
-    return globalThis.amiga.lib.Intuition.MoveWindow(this, dx, dy);
+    return globalThis.amiga.Intuition.MoveWindow(this, dx, dy);
   }
 
   /**
    * Bring this window to the front of its screen.
    */
   toFront() {
-    return globalThis.amiga.lib.Intuition.WindowToFront(this);
+    return globalThis.amiga.Intuition.WindowToFront(this);
   }
 
   /**
    * Send to the back.
    */
   toBack() {
-    return globalThis.amiga.lib.Intuition.WindowToBack(this);
+    return globalThis.amiga.Intuition.WindowToBack(this);
   }
 
   /**
@@ -1867,7 +1895,7 @@ class Window extends Struct {
     }
 
     let sigMask = port.sigMask;
-    let Exec = globalThis.amiga.lib.Exec;
+    let Exec = globalThis.amiga.Exec;
 
     while (this.ptr) {
       Exec.Wait(sigMask);
@@ -2947,7 +2975,11 @@ class Intuition extends LibraryBase {
  *   globalThis.Exec, Dos, Intuition, Graphics, GadTools
  *   globalThis.Window, NewWindow, Screen, RastPort, IntuiMessage,
  *     MsgPort, TextAttr, Image, Gadget
- *   amiga.lib.* — same classes under the safe namespace
+ *
+ *   amiga.Exec, amiga.Intuition, amiga.Graphics, ...  — same classes
+ *     on the `amiga` namespace, case-distinct from the lowercase Q1
+ *     tables at amiga.exec / amiga.intuition / etc. (the lowercase
+ *     tables still hold `.lvo` and flag constants.)
  *
  * The library evaluation order at qjs startup is:
  *   1. quickjs.library installs `globalThis.amiga` (Q1 FFI) via the
@@ -2962,9 +2994,7 @@ class Intuition extends LibraryBase {
 
 
 
-/* Establish amiga.lib namespace if not present. */
 globalThis.amiga = globalThis.amiga || {};
-globalThis.amiga.lib = globalThis.amiga.lib || {};
 
 const libs = {
   LibraryBase, CEnumeration,
@@ -2980,12 +3010,14 @@ const helpers = {
   ptrOf, withStruct, makeTags, withTags,
 };
 
-/* amiga.lib.* always populated */
-for (const [name, cls] of Object.entries(libs)) {
-  globalThis.amiga.lib[name] = cls;
+/* amiga.<ClassName> — always populated. Case-distinct from the Q1
+ * lowercase tables (amiga.intuition, amiga.exec, ...) that hold
+ * .lvo and plain flag constants. */
+for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
+  globalThis.amiga[name] = cls;
 }
 
-/* globalThis.X if the slot is free */
+/* globalThis.<Name> if the slot is free — convenience for scripts. */
 for (const [name, cls] of Object.entries({ ...libs, ...structs, ...helpers })) {
   if (!(name in globalThis)) {
     globalThis[name] = cls;

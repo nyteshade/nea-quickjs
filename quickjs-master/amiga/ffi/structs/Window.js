@@ -85,7 +85,7 @@ export class Window extends Struct {
       return;
     }
 
-    globalThis.amiga.lib.Intuition.CloseWindow(this);
+    globalThis.amiga.Intuition.CloseWindow(this);
     this.ptr = 0;
   }
 
@@ -96,21 +96,21 @@ export class Window extends Struct {
    * @param {number} dy
    */
   move(dx, dy) {
-    return globalThis.amiga.lib.Intuition.MoveWindow(this, dx, dy);
+    return globalThis.amiga.Intuition.MoveWindow(this, dx, dy);
   }
 
   /**
    * Bring this window to the front of its screen.
    */
   toFront() {
-    return globalThis.amiga.lib.Intuition.WindowToFront(this);
+    return globalThis.amiga.Intuition.WindowToFront(this);
   }
 
   /**
    * Send to the back.
    */
   toBack() {
-    return globalThis.amiga.lib.Intuition.WindowToBack(this);
+    return globalThis.amiga.Intuition.WindowToBack(this);
   }
 
   /**
@@ -138,7 +138,7 @@ export class Window extends Struct {
     }
 
     let sigMask = port.sigMask;
-    let Exec = globalThis.amiga.lib.Exec;
+    let Exec = globalThis.amiga.Exec;
 
     while (this.ptr) {
       Exec.Wait(sigMask);

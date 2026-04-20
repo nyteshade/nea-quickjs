@@ -1,6 +1,6 @@
 /* amiga/tests/test_ffi_classes.js
  *
- * Q2 wrapper-class FFI regression test (library 0.127). Each section
+ * Q2 wrapper-class FFI regression test (library 0.128). Each section
  * runs in a resilient run() block (try/catch + stdout flush) so a
  * single exception doesn't truncate the rest.
  */
@@ -32,7 +32,7 @@ async function run(title, fn) {
 
 if (typeof LibraryBase !== 'function' ||
     typeof Intuition !== 'function') {
-  print('FATAL: Q2 wrapper classes not installed — library < 0.127?');
+  print('FATAL: Q2 wrapper classes not installed — library < 0.128?');
   std.exit(2);
 }
 
@@ -52,8 +52,45 @@ await run('classes present', async () => {
   ok(typeof RastPort === 'function',     'RastPort struct');
   ok(typeof MsgPort === 'function',      'MsgPort struct');
 
-  ok(amiga.lib.Intuition === Intuition, 'amiga.lib.Intuition');
-  ok(amiga.lib.Exec === Exec,           'amiga.lib.Exec');
+  ok(amiga.Intuition === Intuition, 'amiga.Intuition');
+  ok(amiga.Exec === Exec,           'amiga.Exec');
+  ok(amiga.Graphics === Graphics,   'amiga.Graphics');
+  ok(amiga.GadTools === GadTools,   'amiga.GadTools');
+  ok(amiga.Dos === Dos,             'amiga.Dos');
+  ok(amiga.Window === Window,       'amiga.Window');
+
+  /* Q1 lowercase namespace still holds .lvo (case-distinct). */
+  ok(typeof amiga.intuition === 'object',     'amiga.intuition (Q1) present');
+  ok(amiga.intuition !== amiga.Intuition,     'lowercase vs capitalized distinct');
+  ok(typeof amiga.intuition.lvo === 'object', 'amiga.intuition.lvo is the Q1 table');
+});
+
+await run('IntuiMessage.class returns CEnumeration case', async () => {
+  /* Allocate a fake IntuiMessage buffer, write Class = IDCMP_CLOSEWINDOW,
+   * then wrap + read via the getter. Strict === must match the case. */
+  let buf = amiga.allocMem(52);
+  ok(buf !== 0, 'allocMem for fake IntuiMessage');
+
+  amiga.poke32(buf + 20, 0x200);  /* IDCMP_CLOSEWINDOW */
+  let m = new IntuiMessage(buf);
+
+  ok(m.class === Intuition.consts.IDCMP_CLOSEWINDOW,
+     'msg.class === C.IDCMP_CLOSEWINDOW (strict ===)');
+
+  ok((m.class | 0) === 0x200,
+     'case coerces to raw flag via | 0');
+
+  ok(m.classRaw === 0x200,
+     'classRaw always returns raw flag');
+
+  /* Unknown flag falls back to raw number. */
+  amiga.poke32(buf + 20, 0x12345678);
+  let m2 = new IntuiMessage(buf);
+
+  ok(m2.class === 0x12345678,
+     'unknown flag falls back to raw number');
+
+  amiga.freeMem(buf, 52);
 });
 
 await run('LibraryBase lifecycle', async () => {

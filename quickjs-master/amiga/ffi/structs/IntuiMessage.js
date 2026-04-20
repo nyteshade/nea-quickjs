@@ -19,8 +19,36 @@ export class IntuiMessage extends Struct {
   /** @type {number} */
   static SIZE = 52;
 
-  /** @returns {number} the IDCMP_* class flag */
-  get class()     { return this.read32(20); }
+  /**
+   * The IDCMP_* class flag for this message. Returns the matching
+   * CEnumeration case from `Intuition.consts` so `===` works:
+   *
+   *   if (msg.class === Intuition.consts.IDCMP_CLOSEWINDOW) { ... }
+   *
+   * Falls back to the raw number if no case matches (unknown flag).
+   * The case still coerces to its numeric value in bitwise and
+   * arithmetic contexts, so `msg.class | 0`, `msg.class & MASK`, and
+   * `Number(msg.class)` all give the raw flag.
+   *
+   * @returns {CEnumeration|number}
+   */
+  get class() {
+    let raw = this.read32(20);
+    let Intuition = globalThis.amiga && globalThis.amiga.Intuition;
+
+    if (Intuition && Intuition.consts && Intuition.consts.from) {
+      let hit = Intuition.consts.from(raw);
+
+      if (hit) {
+        return hit;
+      }
+    }
+
+    return raw;
+  }
+
+  /** @returns {number} same as `class` but always the raw flag */
+  get classRaw() { return this.read32(20); }
 
   /** @returns {number} */
   get code()      { return this.read16(24); }
@@ -54,6 +82,6 @@ export class IntuiMessage extends Struct {
    */
   reply() {
     /* Late-bound to avoid circular import — Exec is loaded before us. */
-    globalThis.amiga.lib.Exec.ReplyMsg(this);
+    globalThis.amiga.Exec.ReplyMsg(this);
   }
 }

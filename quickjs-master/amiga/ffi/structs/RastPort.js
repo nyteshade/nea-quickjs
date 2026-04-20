@@ -17,7 +17,7 @@ export class RastPort extends Struct {
    * @returns {undefined}
    */
   setColor(pen) {
-    globalThis.amiga.lib.Graphics.SetAPen(this, pen);
+    globalThis.amiga.Graphics.SetAPen(this, pen);
   }
 
   /**
@@ -26,7 +26,7 @@ export class RastPort extends Struct {
    * @param {number} pen
    */
   setBgColor(pen) {
-    globalThis.amiga.lib.Graphics.SetBPen(this, pen);
+    globalThis.amiga.Graphics.SetBPen(this, pen);
   }
 
   /**
@@ -36,7 +36,7 @@ export class RastPort extends Struct {
    * @param {number} y
    */
   move(x, y) {
-    globalThis.amiga.lib.Graphics.Move(this, x, y);
+    globalThis.amiga.Graphics.Move(this, x, y);
   }
 
   /**
@@ -46,7 +46,7 @@ export class RastPort extends Struct {
    * @param {number} y
    */
   draw(x, y) {
-    globalThis.amiga.lib.Graphics.Draw(this, x, y);
+    globalThis.amiga.Graphics.Draw(this, x, y);
   }
 
   /**
@@ -58,7 +58,7 @@ export class RastPort extends Struct {
    * @param {number} y2
    */
   rectFill(x1, y1, x2, y2) {
-    globalThis.amiga.lib.Graphics.RectFill(this, x1, y1, x2, y2);
+    globalThis.amiga.Graphics.RectFill(this, x1, y1, x2, y2);
   }
 
   /**
@@ -79,7 +79,7 @@ export class RastPort extends Struct {
     try {
       globalThis.amiga.pokeString(p, str);
       this.move(x, y);
-      globalThis.amiga.lib.Graphics.Text(this, p, str.length);
+      globalThis.amiga.Graphics.Text(this, p, str.length);
     }
 
     finally {
