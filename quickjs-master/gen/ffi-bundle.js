@@ -1649,6 +1649,735 @@ Instance methods (delegate to graphics.library):
 }
 
 
+/* === structs/DrawInfo.js === */
+/* quickjs-master/amiga/ffi/structs/DrawInfo.js
+ *
+ * struct DrawInfo (intuition/screens.h). Read-only descriptor handed
+ * to BOOPSI images (via SYSIA_DrawInfo / IA_DrawInfo) so they can
+ * render using the correct pens and system font.
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   dri_Version    (UWORD)
+ *   +2   dri_NumPens    (UWORD)
+ *   +4   dri_Pens       (UWORD *)
+ *   +8   dri_Font       (struct TextFont *)
+ *  +12   dri_Depth      (UWORD)
+ *  +14   dri_Resolution (struct {UWORD X; UWORD Y;})  → 4 bytes
+ *  +18   dri_Flags      (ULONG)
+ *  +22   dri_CheckMark  (struct Image *)    — 3.2R4
+ *  +26   dri_AmigaKey   (struct Image *)    — 3.2R4
+ *   ...reserved / private follows
+ *
+ * Obtained via Intuition.GetScreenDrawInfo(screen) and released
+ * with Intuition.FreeScreenDrawInfo(screen, dri) — neither is
+ * wrapped yet, so use raw amiga.call for now.
+ */
+
+
+class DrawInfo extends Struct {
+  /* Allocated by Intuition; we wrap. */
+
+  /**
+   * REPL help text — human-readable constructor signature.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `DrawInfo(ptr)
+where:
+  ptr - REQUIRED: existing struct DrawInfo pointer from
+        Intuition.GetScreenDrawInfo(screen). Release with
+        Intuition.FreeScreenDrawInfo(screen, dri) when done.
+
+Fields (read-only getters):
+  version    {number}  dri_Version, +0
+  numPens    {number}  dri_NumPens, +2
+  pens       {number}  ptr to UWORD pen array, +4
+  font       {number}  TextFont* ptr, +8
+  depth      {number}  screen depth, +12
+  resolutionX {number} +14 (UWORD)
+  resolutionY {number} +16 (UWORD)
+  flags      {number}  dri_Flags, +18
+  checkMark  {Image|null} CheckMark image, +22 (3.2R4)
+  amigaKey   {Image|null} AmigaKey image, +26 (3.2R4)
+
+Typical use (raw-FFI escape hatch, wrapper pending):
+  let dri = amiga.call(IntuitionBase,
+    amiga.intuition.lvo.GetScreenDrawInfo, { a0: screen.ptr });
+  let d = new DrawInfo(dri);
+  print(d.numPens + ' pens, depth ' + d.depth);`;
+  }
+
+  /** @returns {number} */
+  get version()     { return this.read16(0); }
+
+  /** @returns {number} */
+  get numPens()     { return this.read16(2); }
+
+  /** @returns {number} UWORD* pen array pointer */
+  get pens()        { return this.read32(4); }
+
+  /** @returns {number} TextFont* pointer */
+  get font()        { return this.read32(8); }
+
+  /** @returns {number} screen depth in bit-planes */
+  get depth()       { return this.read16(12); }
+
+  /** @returns {number} horizontal resolution */
+  get resolutionX() { return this.read16(14); }
+
+  /** @returns {number} vertical resolution */
+  get resolutionY() { return this.read16(16); }
+
+  /** @returns {number} dri_Flags bitfield */
+  get flags()       { return this.read32(18); }
+
+  /**
+   * Read one entry from the pen array.
+   *
+   * @param {number} index — 0..numPens-1
+   * @returns {number}  pen number (UWORD)
+   */
+  getPen(index) {
+    let p = this.pens;
+
+    if (!p || index < 0 || index >= this.numPens) return 0;
+
+    return globalThis.amiga.peek16(p + index * 2);
+  }
+}
+
+
+/* === structs/Menu.js === */
+/* quickjs-master/amiga/ffi/structs/Menu.js
+ *
+ * struct Menu (intuition/intuition.h). One entry in a window's menu
+ * bar; holds a chain of MenuItem via FirstItem.
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   NextMenu   (struct Menu *)
+ *   +4   LeftEdge   (WORD)
+ *   +6   TopEdge    (WORD)
+ *   +8   Width      (WORD)
+ *  +10   Height     (WORD)
+ *  +12   Flags      (UWORD)
+ *  +14   MenuName   (STRPTR)
+ *  +18   FirstItem  (struct MenuItem *)
+ *  +22   JazzX, JazzY, BeatX, BeatY (UWORD × 4) — runtime layout cache
+ *  total 30
+ */
+
+
+class Menu extends Struct {
+  /** @type {number} */
+  static SIZE = 30;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `Menu(ptr?)
+where:
+  ptr? - optional existing struct Menu pointer. Omit to allocate a
+         fresh 30-byte struct. Menus are typically built statically
+         in C; from JS, use GadTools.CreateMenusA / LayoutMenus via
+         the raw-FFI escape hatch until a wrapper lands.
+
+Fields (getters):
+  nextMenu   {number} ptr to next Menu in bar, +0
+  leftEdge   {number} WORD, +4
+  topEdge    {number} WORD, +6
+  width      {number} WORD, +8
+  height     {number} WORD, +10
+  flags      {number} MENUENABLED etc., +12
+  menuName   {string|null} menu label, +14 (STRPTR)
+  firstItem  {MenuItem|null} first MenuItem in this menu, +18
+
+Setters:
+  nextMenu, firstItem, menuName, flags, leftEdge, topEdge,
+  width, height (raw numbers/ptrs only).`;
+  }
+
+  /** @returns {number} */
+  get nextMenu()   { return this.read32(0); }
+  set nextMenu(v)  { this.write32(0, v | 0); }
+
+  /** @returns {number} */
+  get leftEdge()   { return this.read16(4); }
+  set leftEdge(v)  { this.write16(4, v | 0); }
+
+  /** @returns {number} */
+  get topEdge()    { return this.read16(6); }
+  set topEdge(v)   { this.write16(6, v | 0); }
+
+  /** @returns {number} */
+  get width()      { return this.read16(8); }
+  set width(v)     { this.write16(8, v | 0); }
+
+  /** @returns {number} */
+  get height()     { return this.read16(10); }
+  set height(v)    { this.write16(10, v | 0); }
+
+  /** @returns {number} MENUENABLED = 0x0001 etc. */
+  get flags()      { return this.read16(12); }
+  set flags(v)     { this.write16(12, v | 0); }
+
+  /** @returns {string|null} */
+  get menuName() {
+    let p = this.read32(14);
+    return p ? globalThis.amiga.peekString(p, 128) : null;
+  }
+
+  /** @param {number} ptr — STRPTR (caller-managed) */
+  set menuName(ptr) { this.write32(14, ptr | 0); }
+
+  /** @returns {MenuItem|null} */
+  get firstItem() {
+    let p = this.read32(18);
+    if (!p) return null;
+
+    /* Circular-import-safe lookup through the global namespace. */
+    let MI = globalThis.amiga && globalThis.amiga.intuition
+          && globalThis.amiga.intuition.MenuItem;
+
+    return MI ? new MI(p) : null;
+  }
+
+  set firstItem(v) { this.write32(18, (v && v.ptr) || (v | 0)); }
+}
+
+
+/* === structs/MenuItem.js === */
+/* quickjs-master/amiga/ffi/structs/MenuItem.js
+ *
+ * struct MenuItem (intuition/intuition.h). Single entry in a Menu
+ * (or a submenu chain).
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   NextItem    (struct MenuItem *)
+ *   +4   LeftEdge    (WORD)
+ *   +6   TopEdge     (WORD)
+ *   +8   Width       (WORD)
+ *  +10   Height      (WORD)
+ *  +12   Flags       (UWORD)  — ITEMENABLED, HIGHCOMP, CHECKED etc.
+ *  +14   MutualExclude (LONG)
+ *  +18   ItemFill    (APTR)   — Image* or IntuiText*
+ *  +22   SelectFill  (APTR)   — highlight rendering
+ *  +26   Command     (BYTE)   — Amiga-key shortcut
+ *  +27   pad         (BYTE)
+ *  +28   SubItem     (struct MenuItem *)
+ *  +32   NextSelect  (UWORD)
+ *  total 34
+ */
+
+
+class MenuItem extends Struct {
+  /** @type {number} */
+  static SIZE = 34;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `MenuItem(ptr?)
+where:
+  ptr? - optional existing struct MenuItem pointer. Omit to allocate
+         a fresh 34-byte struct.
+
+Fields (getter+setter on each):
+  nextItem      {number} ptr to next item, +0
+  leftEdge      {number}
+  topEdge       {number}
+  width         {number}
+  height        {number}
+  flags         {number}   ITEMENABLED=1, HIGHCOMP=0x40, CHECKED=0x100,
+                           CHECKIT=0x01, COMMSEQ=0x04, ITEMTEXT=0x02 ...
+  mutualExclude {number}   LONG exclusion bitmask
+  itemFill      {number}   APTR to Image* or IntuiText*
+  selectFill    {number}   APTR for highlight
+  command       {number}   BYTE — single-char Amiga-key shortcut
+  subItem       {MenuItem|null} submenu ptr, or null
+  nextSelect    {number}   UWORD
+
+Flags conveniences: COMMSEQ | ITEMTEXT | ITEMENABLED is the typical
+"enabled text item with a right-Amiga shortcut" combination.`;
+  }
+
+  /** @returns {number} */
+  get nextItem()      { return this.read32(0); }
+  set nextItem(v)     { this.write32(0, v | 0); }
+
+  /** @returns {number} */
+  get leftEdge()      { return this.read16(4); }
+  set leftEdge(v)     { this.write16(4, v | 0); }
+
+  /** @returns {number} */
+  get topEdge()       { return this.read16(6); }
+  set topEdge(v)      { this.write16(6, v | 0); }
+
+  /** @returns {number} */
+  get width()         { return this.read16(8); }
+  set width(v)        { this.write16(8, v | 0); }
+
+  /** @returns {number} */
+  get height()        { return this.read16(10); }
+  set height(v)       { this.write16(10, v | 0); }
+
+  /** @returns {number} */
+  get flags()         { return this.read16(12); }
+  set flags(v)        { this.write16(12, v | 0); }
+
+  /** @returns {number} */
+  get mutualExclude() { return this.read32(14); }
+  set mutualExclude(v){ this.write32(14, v | 0); }
+
+  /** @returns {number} APTR (Image* or IntuiText*) */
+  get itemFill()      { return this.read32(18); }
+  set itemFill(v)     { this.write32(18, (v && v.ptr) || (v | 0)); }
+
+  /** @returns {number} APTR */
+  get selectFill()    { return this.read32(22); }
+  set selectFill(v)   { this.write32(22, (v && v.ptr) || (v | 0)); }
+
+  /** @returns {number} BYTE — Amiga-key shortcut (ASCII) */
+  get command()       { return this.read8(26); }
+  set command(v)      { this.write8(26, v | 0); }
+
+  /** @returns {MenuItem|null} */
+  get subItem() {
+    let p = this.read32(28);
+    if (!p) return null;
+
+    return new MenuItem(p);
+  }
+
+  set subItem(v) { this.write32(28, (v && v.ptr) || (v | 0)); }
+
+  /** @returns {number} */
+  get nextSelect()    { return this.read16(32); }
+  set nextSelect(v)   { this.write16(32, v | 0); }
+}
+
+
+/* === structs/IntuiText.js === */
+/* quickjs-master/amiga/ffi/structs/IntuiText.js
+ *
+ * struct IntuiText (intuition/intuition.h). A rendered text element
+ * passable anywhere Intuition wants text (menu items, gadgets,
+ * requesters) via Intuition.PrintIText.
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   FrontPen  (UBYTE)
+ *   +1   BackPen   (UBYTE)
+ *   +2   DrawMode  (UBYTE)
+ *   +3   pad       (UBYTE)
+ *   +4   LeftEdge  (WORD)
+ *   +6   TopEdge   (WORD)
+ *   +8   ITextFont (struct TextAttr *)
+ *  +12   IText     (STRPTR)
+ *  +16   NextText  (struct IntuiText *)
+ *  total 20
+ *
+ * Memory policy: if constructed with a JS string in the init object,
+ * the wrapper allocates + owns the C string and frees it in free().
+ */
+
+
+class IntuiText extends Struct {
+  /** @type {number} */
+  static SIZE = 20;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `IntuiText(initOrPtr?)
+where:
+  initOrPtr? - one of:
+    - number: wrap an existing IntuiText* pointer.
+    - object: allocate + populate. Fields:
+        frontPen, backPen, drawMode, leftEdge, topEdge,
+        font (TextAttr|number), text (string|number), nextText.
+        When 'text' is a JS string, this wrapper owns the
+        allocation and frees it in free().
+    - omitted: zeroed 20-byte struct.
+
+Fields (read+write):
+  frontPen, backPen, drawMode  {number} UBYTE
+  leftEdge, topEdge            {number} WORD
+  font                         {number} TextAttr* at +8
+  text                         {string|null}  (getter decodes STRPTR)
+                               {string|number} (setter, owning if str)
+  nextText                     {number}
+
+Methods: free() — releases struct + owned text allocation.`;
+  }
+
+  /**
+   * @param {object|number} [initOrPtr] — see `signature`
+   */
+  constructor(initOrPtr) {
+    if (typeof initOrPtr === 'number') {
+      super(initOrPtr);
+      this._textAlloc = null;
+      return;
+    }
+
+    super();
+    this._textAlloc = null;
+
+    if (!initOrPtr) return;
+
+    let i = initOrPtr;
+
+    if (i.frontPen !== undefined) this.frontPen = i.frontPen;
+    if (i.backPen  !== undefined) this.backPen  = i.backPen;
+    if (i.drawMode !== undefined) this.drawMode = i.drawMode;
+    if (i.leftEdge !== undefined) this.leftEdge = i.leftEdge;
+    if (i.topEdge  !== undefined) this.topEdge  = i.topEdge;
+    if (i.font     !== undefined) this.write32(8, ptrOf(i.font));
+    if (i.text     !== undefined) this.text = i.text;
+    if (i.nextText !== undefined) this.write32(16, ptrOf(i.nextText));
+  }
+
+  /**
+   * Release struct memory and any owned text string. Idempotent.
+   *
+   * @returns {undefined}
+   */
+  free() {
+    if (this._textAlloc) {
+      globalThis.amiga.freeMem(
+        this._textAlloc.ptr,
+        this._textAlloc.size
+      );
+      this._textAlloc = null;
+    }
+
+    super.free();
+  }
+
+  /** @returns {number} UBYTE */
+  get frontPen()  { return this.read8(0); }
+  set frontPen(v) { this.write8(0, v | 0); }
+
+  /** @returns {number} UBYTE */
+  get backPen()   { return this.read8(1); }
+  set backPen(v)  { this.write8(1, v | 0); }
+
+  /** @returns {number} JAM1/JAM2/COMPLEMENT/INVERSVID */
+  get drawMode()  { return this.read8(2); }
+  set drawMode(v) { this.write8(2, v | 0); }
+
+  /** @returns {number} */
+  get leftEdge()  { return this.read16(4); }
+  set leftEdge(v) { this.write16(4, v | 0); }
+
+  /** @returns {number} */
+  get topEdge()   { return this.read16(6); }
+  set topEdge(v)  { this.write16(6, v | 0); }
+
+  /**
+   * Text field. Set with a string to allocate + own; set with a
+   * number to use a caller-managed pointer (no auto-free).
+   *
+   * @param {string|number|null} value
+   */
+  set text(value) {
+    if (this._textAlloc) {
+      globalThis.amiga.freeMem(
+        this._textAlloc.ptr,
+        this._textAlloc.size
+      );
+      this._textAlloc = null;
+    }
+
+    if (value === null || value === undefined || value === 0) {
+      this.write32(12, 0);
+      return;
+    }
+
+    if (typeof value === 'string') {
+      let bytes = value.length + 1;
+      let p = globalThis.amiga.allocMem(bytes);
+
+      if (!p) throw new Error('IntuiText.text: allocMem failed');
+
+      globalThis.amiga.pokeString(p, value);
+      this.write32(12, p);
+      this._textAlloc = { ptr: p, size: bytes };
+      return;
+    }
+
+    this.write32(12, value | 0);
+  }
+
+  /** @returns {string|null} */
+  get text() {
+    let p = this.read32(12);
+    return p ? globalThis.amiga.peekString(p, 256) : null;
+  }
+
+  /** @returns {number} */
+  get nextText()  { return this.read32(16); }
+  set nextText(v) { this.write32(16, (v && v.ptr) || (v | 0)); }
+}
+
+
+/* === structs/BitMap.js === */
+/* quickjs-master/amiga/ffi/structs/BitMap.js
+ *
+ * struct BitMap (graphics/gfx.h). Planar bitmap descriptor.
+ *
+ * Field offsets (2-byte alignment):
+ *   +0   BytesPerRow  (UWORD)
+ *   +2   Rows         (UWORD)
+ *   +4   Flags        (UBYTE)
+ *   +5   Depth        (UBYTE)
+ *   +6   pad          (UWORD)
+ *   +8   Planes       (PLANEPTR × 8)   — first 8 bitplane pointers
+ *  +40   (end for classic BitMap; BitMap_V39 extends here)
+ *
+ * Flags: BMF_CLEAR (1), BMF_DISPLAYABLE (2), BMF_INTERLEAVED (4),
+ *        BMF_STANDARD (8), BMF_MINPLANES (0x10).
+ */
+
+
+class BitMap extends Struct {
+  /** @type {number} */
+  static SIZE = 40;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `BitMap(ptr?)
+where:
+  ptr? - optional existing BitMap* pointer. Omit to allocate a raw
+         40-byte BitMap header (caller still needs to AllocRaster
+         the planes and fill in the Planes array).
+
+Fields:
+  bytesPerRow  {number} +0 UWORD
+  rows         {number} +2 UWORD
+  flags        {number} +4 UBYTE  (BMF_CLEAR/DISPLAYABLE/INTERLEAVED...)
+  depth        {number} +5 UBYTE  bit-plane count (1..8)
+  getPlane(i)  {number} PLANEPTR for plane i (0..depth-1)
+  setPlane(i,p){undefined} write PLANEPTR
+
+For displayable/planar operations prefer Graphics.AllocBitMap (not
+yet wrapped) over manual construction.`;
+  }
+
+  /** @returns {number} */
+  get bytesPerRow() { return this.read16(0); }
+  set bytesPerRow(v){ this.write16(0, v | 0); }
+
+  /** @returns {number} */
+  get rows()        { return this.read16(2); }
+  set rows(v)       { this.write16(2, v | 0); }
+
+  /** @returns {number} UBYTE */
+  get flags()       { return this.read8(4); }
+  set flags(v)      { this.write8(4, v | 0); }
+
+  /** @returns {number} UBYTE */
+  get depth()       { return this.read8(5); }
+  set depth(v)      { this.write8(5, v | 0); }
+
+  /**
+   * Get one bit-plane pointer from the Planes[] array.
+   *
+   * @param {number} i — 0..7
+   * @returns {number} PLANEPTR (raw memory ptr)
+   */
+  getPlane(i) {
+    if (i < 0 || i > 7) return 0;
+    return this.read32(8 + i * 4);
+  }
+
+  /**
+   * Set one bit-plane pointer.
+   *
+   * @param {number} i — 0..7
+   * @param {number} ptr — PLANEPTR
+   */
+  setPlane(i, ptr) {
+    if (i < 0 || i > 7) return;
+    this.write32(8 + i * 4, ptr | 0);
+  }
+}
+
+
+/* === structs/IORequest.js === */
+/* quickjs-master/amiga/ffi/structs/IORequest.js
+ *
+ * struct IORequest (exec/io.h). Base "I/O message" passed to devices
+ * via DoIO/SendIO/WaitIO. Size 32 bytes. Concrete devices usually
+ * extend this with their own struct (see TimerRequest).
+ *
+ * Field offsets:
+ *   +0   io_Message (struct Message) — 20 bytes
+ *  +20   io_Device  (struct Device *)
+ *  +24   io_Unit    (struct Unit   *)
+ *  +28   io_Command (UWORD)
+ *  +30   io_Flags   (UBYTE)
+ *  +31   io_Error   (BYTE)
+ *  total 32
+ *
+ * The io_Message header itself has:
+ *   +0   mn_Node      (struct Node, 14 bytes)
+ *  +14   mn_ReplyPort (struct MsgPort *)
+ *  +18   mn_Length    (UWORD)
+ */
+
+
+class IORequest extends Struct {
+  /** @type {number} */
+  static SIZE = 32;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `IORequest(ptr?)
+where:
+  ptr? - optional existing IORequest* pointer. Omit to allocate 32
+         zeroed bytes (caller still needs to fill io_Message's
+         mn_ReplyPort, mn_Length, and whatever io_Command/flags the
+         target device expects).
+
+Fields:
+  replyPort   {number} MsgPort* ptr at +14 (mn_ReplyPort)
+  messageLen  {number} UWORD at +18 (mn_Length — struct byte size)
+  device      {number} Device* ptr at +20
+  unit        {number} Unit* ptr at +24
+  command     {number} UWORD at +28
+  flags       {number} UBYTE at +30
+  error       {number} BYTE at +31
+
+Setters exist for replyPort, messageLen, command, flags; device
+and unit are normally set by OpenDevice. Read 'error' after DoIO.
+
+See TimerRequest for a concrete specialization.`;
+  }
+
+  /** @returns {number} */
+  get replyPort()   { return this.read32(14); }
+  set replyPort(v)  { this.write32(14, (v && v.ptr) || (v | 0)); }
+
+  /** @returns {number} */
+  get messageLen()  { return this.read16(18); }
+  set messageLen(v) { this.write16(18, v | 0); }
+
+  /** @returns {number} */
+  get device()      { return this.read32(20); }
+
+  /** @returns {number} */
+  get unit()        { return this.read32(24); }
+
+  /** @returns {number} */
+  get command()     { return this.read16(28); }
+  set command(v)    { this.write16(28, v | 0); }
+
+  /** @returns {number} UBYTE */
+  get flags()       { return this.read8(30); }
+  set flags(v)      { this.write8(30, v | 0); }
+
+  /** @returns {number} BYTE (may be negative for error codes) */
+  get error()       {
+    let b = this.read8(31);
+    /* BYTE is signed; extend from 8-bit 2s-complement. */
+    return b >= 0x80 ? b - 0x100 : b;
+  }
+}
+
+
+/* === structs/TimerRequest.js === */
+/* quickjs-master/amiga/ffi/structs/TimerRequest.js
+ *
+ * struct timerequest (devices/timer.h). IORequest + one timeval,
+ * used by timer.device for delays.
+ *
+ * Field offsets (continues IORequest, 2-byte aligned):
+ *   +0..31  IORequest header (see IORequest.js)
+ *  +32      tv_secs   (ULONG)
+ *  +36      tv_micro  (ULONG)
+ *  total 40
+ *
+ * Units: UNIT_MICROHZ (0) = µs precision; UNIT_VBLANK (1) = VBL ticks.
+ * Commands: TR_ADDREQUEST (9) = "signal me after tv_secs.tv_micro",
+ *           TR_GETSYSTIME (11) = "fill tv with current uptime".
+ */
+
+
+class TimerRequest extends IORequest {
+  /** @type {number} */
+  static SIZE = 40;
+
+  /**
+   * REPL help text.
+   *
+   * @returns {string}
+   */
+  static get signature() {
+    return `TimerRequest(ptr?)
+where:
+  ptr? - optional existing struct timerequest pointer. Omit to
+         allocate a zeroed 40-byte TimerRequest.
+
+Fields (inherits IORequest + adds):
+  tvSecs   {number} tv_secs,  +32 (ULONG)
+  tvMicro  {number} tv_micro, +36 (ULONG)
+  setTimeval(secs, micro)     convenience setter
+
+Typical use:
+  // open timer.device first (not wrapped yet — use raw FFI).
+  let tr = new TimerRequest();
+  tr.replyPort  = port.ptr;
+  tr.messageLen = TimerRequest.SIZE;
+  tr.command = 9;            // TR_ADDREQUEST
+  tr.setTimeval(2, 0);       // 2 seconds
+  // then Exec.DoIO(tr) or SendIO.
+
+Commands:
+  TR_ADDREQUEST = 9
+  TR_GETSYSTIME = 11
+  CMD_ABORTIO   = 4`;
+  }
+
+  /** @returns {number} ULONG seconds */
+  get tvSecs()   { return this.read32(32); }
+  set tvSecs(v)  { this.write32(32, v | 0); }
+
+  /** @returns {number} ULONG microseconds (0..999999) */
+  get tvMicro()  { return this.read32(36); }
+  set tvMicro(v) { this.write32(36, v | 0); }
+
+  /**
+   * Fill both tv fields at once.
+   *
+   * @param {number} secs  — seconds
+   * @param {number} micro — microseconds (0..999999)
+   * @returns {undefined}
+   */
+  setTimeval(secs, micro) {
+    this.tvSecs  = secs;
+    this.tvMicro = micro;
+  }
+}
+
+
 /* === structs/Screen.js === */
 /* quickjs-master/amiga/ffi/structs/Screen.js
  *
@@ -3394,7 +4123,7 @@ globalThis.amiga = globalThis.amiga || {};
 /* Ensure the lowercase per-library tables exist. extended.js
  * normally creates them; this guards standalone bundle evaluation
  * during host-side testing. */
-for (const libname of ['intuition', 'graphics', 'exec']) {
+for (const libname of ['intuition', 'graphics', 'exec', 'devices']) {
   if (!globalThis.amiga[libname]) globalThis.amiga[libname] = {};
 }
 
@@ -3419,9 +4148,14 @@ for (const [name, cls] of Object.entries(libs)) {
  *   exec/ports.h                      → MsgPort
  * ------------------------------------------------------------------ */
 const structsByLib = {
-  intuition: { Window, NewWindow, Screen, IntuiMessage, Image, Gadget },
-  graphics:  { RastPort, TextAttr },
-  exec:      { MsgPort },
+  intuition: {
+    Window, NewWindow, Screen, IntuiMessage, Image, Gadget,
+    DrawInfo, Menu, MenuItem, IntuiText,
+  },
+  graphics:  { RastPort, TextAttr, BitMap },
+  exec:      { MsgPort, IORequest },
+  /* timer.device lives under "devices" in the NDK; mirror that. */
+  devices:   { TimerRequest },
 };
 
 for (const [libname, members] of Object.entries(structsByLib)) {
@@ -3448,6 +4182,8 @@ const everyGlobal = {
   /* structs */
   Window, NewWindow, Screen, RastPort, MsgPort,
   IntuiMessage, TextAttr, Image, Gadget,
+  DrawInfo, Menu, MenuItem, IntuiText, BitMap,
+  IORequest, TimerRequest,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
 };

@@ -52,6 +52,13 @@ import { IntuiMessage } from './structs/IntuiMessage.js';
 import { TextAttr } from './structs/TextAttr.js';
 import { Image } from './structs/Image.js';
 import { Gadget } from './structs/Gadget.js';
+import { DrawInfo } from './structs/DrawInfo.js';
+import { Menu } from './structs/Menu.js';
+import { MenuItem } from './structs/MenuItem.js';
+import { IntuiText } from './structs/IntuiText.js';
+import { BitMap } from './structs/BitMap.js';
+import { IORequest } from './structs/IORequest.js';
+import { TimerRequest } from './structs/TimerRequest.js';
 import { makeTags, withTags } from './structs/TagItem.js';
 
 globalThis.amiga = globalThis.amiga || {};
@@ -59,7 +66,7 @@ globalThis.amiga = globalThis.amiga || {};
 /* Ensure the lowercase per-library tables exist. extended.js
  * normally creates them; this guards standalone bundle evaluation
  * during host-side testing. */
-for (const libname of ['intuition', 'graphics', 'exec']) {
+for (const libname of ['intuition', 'graphics', 'exec', 'devices']) {
   if (!globalThis.amiga[libname]) globalThis.amiga[libname] = {};
 }
 
@@ -84,9 +91,14 @@ for (const [name, cls] of Object.entries(libs)) {
  *   exec/ports.h                      → MsgPort
  * ------------------------------------------------------------------ */
 const structsByLib = {
-  intuition: { Window, NewWindow, Screen, IntuiMessage, Image, Gadget },
-  graphics:  { RastPort, TextAttr },
-  exec:      { MsgPort },
+  intuition: {
+    Window, NewWindow, Screen, IntuiMessage, Image, Gadget,
+    DrawInfo, Menu, MenuItem, IntuiText,
+  },
+  graphics:  { RastPort, TextAttr, BitMap },
+  exec:      { MsgPort, IORequest },
+  /* timer.device lives under "devices" in the NDK; mirror that. */
+  devices:   { TimerRequest },
 };
 
 for (const [libname, members] of Object.entries(structsByLib)) {
@@ -113,6 +125,8 @@ const everyGlobal = {
   /* structs */
   Window, NewWindow, Screen, RastPort, MsgPort,
   IntuiMessage, TextAttr, Image, Gadget,
+  DrawInfo, Menu, MenuItem, IntuiText, BitMap,
+  IORequest, TimerRequest,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
   ptrOf, withStruct,
 };

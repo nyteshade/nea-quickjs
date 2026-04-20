@@ -36,6 +36,13 @@ ORDER = [
     'structs/Image.js',
     'structs/Gadget.js',
     'structs/RastPort.js',
+    'structs/DrawInfo.js',
+    'structs/Menu.js',         # MenuItem loaded later by name; circular-safe
+    'structs/MenuItem.js',     # references Menu via global lookup
+    'structs/IntuiText.js',    # needs ptrOf
+    'structs/BitMap.js',
+    'structs/IORequest.js',    # needs ptrOf
+    'structs/TimerRequest.js', # extends IORequest
     # Mid-level structs
     'structs/Screen.js',  # needs TextAttr
     'structs/TagItem.js',
@@ -47,7 +54,7 @@ ORDER = [
     'Graphics.js',
     'GadTools.js',
     'Intuition.js',  # needs Window, Screen, Image
-    # Wiring (sets up globals + amiga.lib)
+    # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',
 ]
 

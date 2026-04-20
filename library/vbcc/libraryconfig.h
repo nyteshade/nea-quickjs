@@ -104,9 +104,9 @@ struct QJSLibBase {
  * Worker API milestone is lib_Version = 70 ("0.070").
  */
 #define LIBRARY_VERSION_STRING \
-    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.132 (20.4.2026)\r\n"
+    "\0$VER: quickjs." QJS_STR(QJS_VARIANT_NAME) ".library 0.133 (20.4.2026)\r\n"
 #define LIBRARY_VERSION_OUTPUT &LIBRARY_VERSION_STRING[7]
-#define LIBRARY_VERSION   132  /* packed: major=0, revision=132 (struct placement refactor: struct wrappers now live at amiga.<libname>.<StructName> per NDK provenance — amiga.intuition.{Window,NewWindow,Screen,IntuiMessage,Image,Gadget}, amiga.graphics.{RastPort,TextAttr}, amiga.exec.MsgPort. Library wrappers stay at amiga.<ClassName>. Flat amiga.<StructName> aliases removed. Every struct class now exposes a static `signature` getter returning a human-readable constructor spec for REPL introspection.) */
+#define LIBRARY_VERSION   133  /* packed: major=0, revision=133 (7 new struct wrappers: DrawInfo (intuition, BOOPSI descriptor), Menu + MenuItem (intuition, classic Amiga menu bar), IntuiText (intuition, renderable text with owning string field), BitMap (graphics, planar bitmap descriptor), IORequest (exec base for device I/O), TimerRequest (devices, extends IORequest). All under amiga.<libname>.<StructName> following the 0.132 placement rule. amiga.devices namespace added to host TimerRequest and future device.structs. Full signature getters on all new types.) */
 #define LIBRARY_REVISION   0   /* redundant; kept for convention */
 #define LIBRARY_BASE_TYPE struct QJSLibBase
 
