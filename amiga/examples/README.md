@@ -16,7 +16,7 @@ stack 65536
 qjs examples/window_hello.js
 ```
 
-Requires `quickjs.library` **0.131 or later** in `LIBS:`.
+Requires `quickjs.library` **0.134 or later** in `LIBS:`.
 
 ## Examples
 
@@ -30,6 +30,9 @@ Requires `quickjs.library` **0.131 or later** in `LIBS:`.
 | `mouse_tracker.js` | Left-button drag-to-draw. Combines `IDCMP_MOUSEBUTTONS` (checking `msg.code` for SELECTDOWN/SELECTUP) with `IDCMP_MOUSEMOVE` (`msg.mouseX/mouseY`). Needs `WFLG_REPORTMOUSE` for continuous move events. Cycles pen colors per stroke. |
 | `keyboard_echo.js` | `IDCMP_VANILLAKEY` handling: `String.fromCharCode(msg.code)`, backspace/CR/ESC handling, wraps lines at ~55 chars and scrolls at window bottom. Repaints on damage. |
 | `sysi_gallery.js` | BOOPSI `sysiclass` gallery — 15 system glyphs (close, depth, zoom, arrows, amiga-key, lock, etc.) via `Intuition.NewObjectTags('sysiclass', [[SYSIA_Which, code], [SYSIA_Size, SYSISIZE_MEDRES]])` → `Intuition.DrawImage`. Shows using raw hex tag values when a constant isn't in `Intuition.consts` yet. |
+| `asl_filereq.js`  | Pop up a standard ASL file requester. Uses the new `amiga.Asl.openFileRequest([[ASLFR_TitleText, ...], [ASLFR_InitialDrawer, ...]])` one-call helper returning `{ok, drawer, file, path, requester}`. |
+| `dir_listing.js`  | List a directory via `Dos.Lock('SYS:', SHARED_LOCK)` + raw-FFI `Examine`/`ExNext` on a `FileInfoBlock` wrapper. Shows BCPL-string decoding for `fileName`/`comment`, plus the "raw LVO when it's not wrapped yet" escape-hatch pattern. Pass a path: `qjs examples/dir_listing.js DEVS:` |
+| `timer_demo.js`   | Open `timer.device`, call `TR_GETSYSTIME` for a start stamp, `TR_ADDREQUEST` for a 2-second delay, then `TR_GETSYSTIME` again and print elapsed. Uses the new `TimerRequest` (extends `IORequest`) wrapper with `Exec.CreateMsgPort/OpenDevice/DoIO/CloseDevice/DeleteMsgPort`. |
 
 ## The wrapper-class API at a glance
 
