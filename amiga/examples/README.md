@@ -16,7 +16,7 @@ stack 65536
 qjs examples/window_hello.js
 ```
 
-Requires `quickjs.library` **0.128 or later** in `LIBS:`.
+Requires `quickjs.library` **0.131 or later** in `LIBS:`.
 
 ## Examples
 
@@ -26,6 +26,10 @@ Requires `quickjs.library` **0.128 or later** in `LIBS:`.
 | `drawing_demo.js` | Draws lines, rects, outlines, cross-hatch, and text into a `Window.rastPort` via its instance methods (`setColor/move/draw/rectFill/text`). Repaints on `IDCMP_REFRESHWINDOW`. |
 | `frameidemo.js` | Port of NDK 3.1 `Examples1/intuition/frameidemo.c`. `new NewWindow({...})` constructor, `Intuition.OpenWindow(nw)`, `Intuition.NewObjectTags('frameiclass', pairs)` for four BOOPSI image classes × two states, `win.screen.font.ySize` chain for dynamic layout. |
 | `screen_info.js` | `Intuition.LockPubScreen(null)` → read `screen.title/width/height/barHeight/font.name/font.ySize` via struct getters → `UnlockPubScreen`. Pure introspection — no window, no event loop. |
+| `screen_custom.js` | Opens a 320×200 depth-2 custom screen with `Intuition.OpenScreenTags([...])`, pins a window to it via `WA_CustomScreen`, paints a few primitives, tears down Window then Screen. |
+| `mouse_tracker.js` | Left-button drag-to-draw. Combines `IDCMP_MOUSEBUTTONS` (checking `msg.code` for SELECTDOWN/SELECTUP) with `IDCMP_MOUSEMOVE` (`msg.mouseX/mouseY`). Needs `WFLG_REPORTMOUSE` for continuous move events. Cycles pen colors per stroke. |
+| `keyboard_echo.js` | `IDCMP_VANILLAKEY` handling: `String.fromCharCode(msg.code)`, backspace/CR/ESC handling, wraps lines at ~55 chars and scrolls at window bottom. Repaints on damage. |
+| `sysi_gallery.js` | BOOPSI `sysiclass` gallery — 15 system glyphs (close, depth, zoom, arrows, amiga-key, lock, etc.) via `Intuition.NewObjectTags('sysiclass', [[SYSIA_Which, code], [SYSIA_Size, SYSISIZE_MEDRES]])` → `Intuition.DrawImage`. Shows using raw hex tag values when a constant isn't in `Intuition.consts` yet. |
 
 ## The wrapper-class API at a glance
 
