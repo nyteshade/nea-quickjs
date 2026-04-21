@@ -10,10 +10,11 @@
  *   WA_*        — intuition/intuition.h, 0x80000063 base
  *   WINDOW_*    — classes/window.h, 0x85025000 base
  *
- * Method IDs:
- *   WM_OPEN  = 0x85025041  (WINDOW_Dummy + 0x41)
- *   WM_CLOSE = 0x85025042
- *   WM_HANDLEINPUT = 0x85025043
+ * Method IDs (classes/window.h:293-308) — BOOPSI method IDs live in
+ * their own integer namespace and are NOT offsets of WINDOW_Dummy:
+ *   WM_HANDLEINPUT = 0x570001
+ *   WM_OPEN        = 0x570002
+ *   WM_CLOSE       = 0x570003
  *
  * Event surface: open() returns the Window wrapper itself (so the
  * user can chain); events() + eventsAsync() + .on() iterate over
@@ -86,8 +87,8 @@ export const WindowPosition = Object.freeze({
   MOUSEPOINTER: 3,
 });
 
-const WM_OPEN  = 0x85025041;
-const WM_CLOSE = 0x85025042;
+const WM_OPEN  = 0x570002;
+const WM_CLOSE = 0x570003;
 
 /**
  * window.class — opens/holds an Intuition window containing a

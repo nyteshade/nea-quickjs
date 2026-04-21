@@ -610,6 +610,7 @@ long QJS_EvalSimple_impl(
 
 extern JSValue JS_EvalFunction(struct JSContext *ctx, JSValue fun_obj);
 extern int JS_ResolveModule(struct JSContext *ctx, JSValue obj);
+extern JSValue js_std_await(struct JSContext *ctx, JSValue obj);
 
 /* QJS_EvalBuf — eval with module support, runs entirely in library.
  * Returns 0 on success, -1 on exception.
@@ -627,12 +628,19 @@ long QJS_EvalBuf_impl(
 
     /* For modules: compile, resolve, then execute. For scripts: direct eval. */
     if ((eval_flags & 0x03) == 1) {
-        /* JS_EVAL_TYPE_MODULE: compile, resolve, execute */
+        /* JS_EVAL_TYPE_MODULE: compile, resolve, execute. JS_EvalFunction
+         * on a module returns a Promise — a rejected promise is not itself
+         * a JS exception, so JS_IsException(val) would be false and the
+         * caller would see silent success while the module's top-level
+         * throw is stranded as an unhandled rejection. js_std_await
+         * pumps pending jobs until the promise settles and converts a
+         * rejection into the proper JS exception. */
         val = JS_Eval(ctx, input, (size_t)input_len, filename,
                       eval_flags | 0x20); /* JS_EVAL_FLAG_COMPILE_ONLY */
         if (!JS_IsException(val)) {
             JS_ResolveModule(ctx, val);
             val = JS_EvalFunction(ctx, val);
+            val = js_std_await(ctx, val);
         }
     } else {
         val = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
