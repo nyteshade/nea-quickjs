@@ -57,7 +57,7 @@ export const LayoutOrient = Object.freeze({
  */
 export class Layout extends GadgetBase {
   /** @type {string} */
-  static _classLibName = 'layout.gadget';
+  static _classLibName = 'gadgets/layout.gadget';
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {

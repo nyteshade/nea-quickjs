@@ -31,7 +31,7 @@ const LABEL = Object.freeze({
  */
 export class Label extends ImageBase {
   /** @type {string} */
-  static _classLibName = 'label.image';
+  static _classLibName = 'images/label.image';
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {

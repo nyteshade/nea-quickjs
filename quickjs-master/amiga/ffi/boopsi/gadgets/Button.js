@@ -39,7 +39,7 @@ const BUTTON = Object.freeze({
  */
 export class Button extends GadgetBase {
   /** @type {string} */
-  static _classLibName = 'button.gadget';
+  static _classLibName = 'gadgets/button.gadget';
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {

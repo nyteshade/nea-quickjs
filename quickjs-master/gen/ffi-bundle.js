@@ -5637,7 +5637,7 @@ const LABEL = Object.freeze({
  */
 class Label extends ImageBase {
   /** @type {string} */
-  static _classLibName = 'label.image';
+  static _classLibName = 'images/label.image';
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
@@ -5706,7 +5706,7 @@ const BUTTON = Object.freeze({
  */
 class Button extends GadgetBase {
   /** @type {string} */
-  static _classLibName = 'button.gadget';
+  static _classLibName = 'gadgets/button.gadget';
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
@@ -5798,7 +5798,7 @@ const LayoutOrient = Object.freeze({
  */
 class Layout extends GadgetBase {
   /** @type {string} */
-  static _classLibName = 'layout.gadget';
+  static _classLibName = 'gadgets/layout.gadget';
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
