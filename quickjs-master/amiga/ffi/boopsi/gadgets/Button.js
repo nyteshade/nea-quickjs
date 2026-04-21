@@ -59,6 +59,19 @@ export class Button extends GadgetBase {
     justification:  { tagID: BUTTON.Justification,type: 'uint32' },
     softStyle:      { tagID: BUTTON.SoftStyle,    type: 'uint32' },
   };
+
+  /**
+   * Default relVerify=true so clicks actually produce events. The NDK
+   * PushButton macro (reaction_macros.h:249) always sets
+   * GA_RelVerify=TRUE; without it the button renders but is silent.
+   *
+   * @param {object} init
+   */
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
 }
 
 /* Register the button's event kind on the shared EventKind enum. The

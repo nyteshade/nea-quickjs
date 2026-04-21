@@ -5501,6 +5501,12 @@ const GADGET_ATTRS = Object.freeze({
   gadgetHelp:  { tagID: GA.GadgetHelp, type: 'bool'  },
   tabCycle:    { tagID: GA.TabCycle,  type: 'bool'   },
   readOnly:    { tagID: GA.ReadOnly,  type: 'bool'   },
+  /* GA_RelVerify enables release-verify events. Without it a gadget
+   * renders but never reports clicks via IDCMP_GADGETUP /
+   * IDCMP_IDCMPUPDATE. Button defaults this to true in its own ctor
+   * to match the NDK PushButton macro. */
+  relVerify:   { tagID: GA.RelVerify, type: 'bool'   },
+  immediate:   { tagID: GA.Immediate, type: 'bool'   },
 });
 
 /**
@@ -5729,6 +5735,19 @@ class Button extends GadgetBase {
     justification:  { tagID: BUTTON.Justification,type: 'uint32' },
     softStyle:      { tagID: BUTTON.SoftStyle,    type: 'uint32' },
   };
+
+  /**
+   * Default relVerify=true so clicks actually produce events. The NDK
+   * PushButton macro (reaction_macros.h:249) always sets
+   * GA_RelVerify=TRUE; without it the button renders but is silent.
+   *
+   * @param {object} init
+   */
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
 }
 
 /* Register the button's event kind on the shared EventKind enum. The

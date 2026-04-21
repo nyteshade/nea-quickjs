@@ -85,6 +85,12 @@ export const GADGET_ATTRS = Object.freeze({
   gadgetHelp:  { tagID: GA.GadgetHelp, type: 'bool'  },
   tabCycle:    { tagID: GA.TabCycle,  type: 'bool'   },
   readOnly:    { tagID: GA.ReadOnly,  type: 'bool'   },
+  /* GA_RelVerify enables release-verify events. Without it a gadget
+   * renders but never reports clicks via IDCMP_GADGETUP /
+   * IDCMP_IDCMPUPDATE. Button defaults this to true in its own ctor
+   * to match the NDK PushButton macro. */
+  relVerify:   { tagID: GA.RelVerify, type: 'bool'   },
+  immediate:   { tagID: GA.Immediate, type: 'bool'   },
 });
 
 /**
