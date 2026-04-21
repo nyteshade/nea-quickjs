@@ -5896,6 +5896,254 @@ const LabelJustify = Object.freeze({
 });
 
 
+/* === boopsi/images/Led.js === */
+/* quickjs-master/amiga/ffi/boopsi/images/Led.js
+ *
+ * led.image — Reaction's segmented-LED digit display. Renders
+ * 7-segment "LED"-style numbers/text; useful for clocks, counters,
+ * fuel gauges, tape decks. Extends imageclass.
+ *
+ * LED_Dummy = TAG_USER + 0x04000000 = 0x84000000 (shares the
+ * pre-Reaction range since led.image predates Reaction).
+ */
+
+
+/** @internal LED_* tag IDs (images/led.h). */
+const LED = Object.freeze({
+  Pairs:       0x84000001,  /* (WORD) number of digit pairs */
+  Values:      0x84000002,  /* (UBYTE*) array of digit values */
+  Colon:       0x84000003,  /* (BOOL) show colon between pairs */
+  Negative:    0x84000004,  /* (BOOL) display as negative */
+  Signed:      0x84000005,  /* (BOOL) signed display */
+  Time:        0x84000006,  /* (BOOL) time-style formatting */
+  Hexadecimal: 0x84000007,  /* (BOOL) hex digits */
+  Raw:         0x84000008,  /* (STRPTR) raw display string */
+});
+
+/**
+ * led.image — segmented-digit display.
+ *
+ * @extends ImageBase
+ */
+class Led extends ImageBase {
+  /** @type {string} */
+  static _classLibName = 'images/led.image';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...IMAGE_ATTRS,
+    pairs:       { tagID: LED.Pairs,       type: 'int32' },
+    values:      { tagID: LED.Values,      type: 'ptr'   },
+    colon:       { tagID: LED.Colon,       type: 'bool'  },
+    negative:    { tagID: LED.Negative,    type: 'bool'  },
+    signed:      { tagID: LED.Signed,      type: 'bool'  },
+    time:        { tagID: LED.Time,        type: 'bool'  },
+    hexadecimal: { tagID: LED.Hexadecimal, type: 'bool'  },
+    raw:         { tagID: LED.Raw,         type: 'string-owned' },
+  };
+}
+
+
+/* === boopsi/images/Bevel.js === */
+/* quickjs-master/amiga/ffi/boopsi/images/Bevel.js
+ *
+ * bevel.image — Reaction's bevel/frame decorator. Used by LayoutObject
+ * to draw bevels around groups, and usable standalone. Extends
+ * imageclass.
+ *
+ * BEVEL_Dummy = REACTION_Dummy + 0x16000 = 0x85016000.
+ */
+
+
+/** @internal BEVEL_* tag IDs (images/bevel.h). */
+const BEVEL = Object.freeze({
+  Style:       0x85016001,
+  Label:       0x85016003,  /* (STRPTR) label text */
+  LabelImage:  0x85016004,  /* (Object*) label.image child */
+  LabelPlace:  0x85016005,  /* (UWORD) placement constant */
+  InnerTop:    0x85016006,
+  InnerLeft:   0x85016007,
+  InnerWidth:  0x85016008,
+  InnerHeight: 0x85016009,
+  HorizSize:   0x8501600A,
+  VertSize:    0x8501600B,
+  FillPen:     0x8501600C,
+  FillPattern: 0x8501600D,
+  TextPen:     0x8501600E,
+  Transparent: 0x8501600F,
+  SoftStyle:   0x85016010,
+  ColorMap:    0x85016011,
+  Flags:       0x85016012,
+});
+
+/**
+ * BEVEL_Style values.
+ */
+const BevelStyle = Object.freeze({
+  NONE:      0,
+  XEN:       1,   /* XEN-style embossed frame */
+  RIDGE:     2,
+  GROOVE:    3,
+  BUTTON:    4,
+  DROPBOX:   5,
+  FIELD:     6,
+  TAB:       7,
+  ICON:      8,
+});
+
+/**
+ * bevel.image — frame/bevel decorator.
+ *
+ * @extends ImageBase
+ */
+class Bevel extends ImageBase {
+  /** @type {string} */
+  static _classLibName = 'images/bevel.image';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...IMAGE_ATTRS,
+    style:        { tagID: BEVEL.Style,       type: 'uint32' },
+    label:        { tagID: BEVEL.Label,       type: 'string-owned' },
+    labelImage:   { tagID: BEVEL.LabelImage,  type: 'ptr' },
+    labelPlace:   { tagID: BEVEL.LabelPlace,  type: 'uint32' },
+    innerTop:     { tagID: BEVEL.InnerTop,    type: 'int32' },
+    innerLeft:    { tagID: BEVEL.InnerLeft,   type: 'int32' },
+    innerWidth:   { tagID: BEVEL.InnerWidth,  type: 'int32' },
+    innerHeight:  { tagID: BEVEL.InnerHeight, type: 'int32' },
+    horizSize:    { tagID: BEVEL.HorizSize,   type: 'int32' },
+    vertSize:     { tagID: BEVEL.VertSize,    type: 'int32' },
+    fillPen:      { tagID: BEVEL.FillPen,     type: 'uint32' },
+    fillPattern:  { tagID: BEVEL.FillPattern, type: 'uint32' },
+    textPen:      { tagID: BEVEL.TextPen,     type: 'uint32' },
+    transparent:  { tagID: BEVEL.Transparent, type: 'bool' },
+    softStyle:    { tagID: BEVEL.SoftStyle,   type: 'uint32' },
+    colorMap:     { tagID: BEVEL.ColorMap,    type: 'ptr' },
+    flags:        { tagID: BEVEL.Flags,       type: 'uint32' },
+  };
+}
+
+
+/* === boopsi/images/Glyph.js === */
+/* quickjs-master/amiga/ffi/boopsi/images/Glyph.js
+ *
+ * glyph.image — standard OS3 system glyph (up-arrow, close-gadget,
+ * drag-bar hatch, etc). Extends imageclass. Often used as BUTTON_Glyph
+ * for arrow-style controls, or embedded directly in windows.
+ *
+ * GLYPH_Dummy = REACTION_Dummy + 0x15000 = 0x85015000.
+ */
+
+
+/** @internal GLYPH_* tag IDs (images/glyph.h). */
+const GLYPH = Object.freeze({
+  Glyph:     0x85015001,  /* (UWORD) which glyph, see GlyphKind */
+  DrawInfo:  0x85015002,  /* (struct DrawInfo*) for pen lookup */
+});
+
+/**
+ * GLYPH_Glyph values. Subset from images/glyph.h GLYPH_* enum.
+ */
+const GlyphKind = Object.freeze({
+  UPARROW:       1,
+  DOWNARROW:     2,
+  LEFTARROW:     3,
+  RIGHTARROW:    4,
+  CHECKMARK:     5,
+  RADIOBUTTON:   6,
+  POPUP:         7,
+  MX:            8,
+  HATCHFILL:     9,
+  SIZE:         10,
+  CLOSE:        11,
+  DEPTH:        12,
+  ZOOM:         13,
+  ICONIFY:      14,
+  DROPBOX:      15,
+});
+
+/**
+ * glyph.image — OS3 system glyph.
+ *
+ * @extends ImageBase
+ */
+class Glyph extends ImageBase {
+  /** @type {string} */
+  static _classLibName = 'images/glyph.image';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...IMAGE_ATTRS,
+    glyph:    { tagID: GLYPH.Glyph,    type: 'uint32' },
+    drawInfo: { tagID: GLYPH.DrawInfo, type: 'ptr' },
+  };
+}
+
+
+/* === boopsi/images/Bitmap.js === */
+/* quickjs-master/amiga/ffi/boopsi/images/Bitmap.js
+ *
+ * bitmap.image — Reaction's general bitmap renderer. Can load from
+ * a datatype-compatible file path (IFF ILBM most commonly) or wrap
+ * an in-memory struct BitMap. Extends imageclass.
+ *
+ * BITMAP_Dummy = REACTION_Dummy + 0x19000 = 0x85019000.
+ */
+
+
+/** @internal BITMAP_* tag IDs (images/bitmap.h). */
+const BITMAP = Object.freeze({
+  SourceFile:       0x85019001,
+  Screen:           0x85019002,
+  Precision:        0x85019003,
+  Masking:          0x85019004,
+  BitMap:           0x85019005,
+  Width:            0x85019006,
+  Height:           0x85019007,
+  MaskPlane:        0x85019008,
+  SelectSourceFile: 0x85019009,
+  SelectBitMap:     0x8501900A,
+  SelectWidth:      0x8501900B,
+  SelectHeight:     0x8501900C,
+  SelectMaskPlane:  0x8501900D,
+  OffsetX:          0x8501900E,
+  OffsetY:          0x8501900F,
+  SelectOffsetX:    0x85019010,
+  SelectOffsetY:    0x85019011,
+  Transparent:      0x85019012,
+});
+
+/**
+ * bitmap.image — general bitmap renderer.
+ *
+ * @extends ImageBase
+ */
+class Bitmap extends ImageBase {
+  /** @type {string} */
+  static _classLibName = 'images/bitmap.image';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...IMAGE_ATTRS,
+    sourceFile:       { tagID: BITMAP.SourceFile,       type: 'string-owned' },
+    screen:           { tagID: BITMAP.Screen,           type: 'ptr' },
+    precision:        { tagID: BITMAP.Precision,        type: 'uint32' },
+    masking:          { tagID: BITMAP.Masking,          type: 'bool' },
+    bitMap:           { tagID: BITMAP.BitMap,           type: 'ptr' },
+    width:            { tagID: BITMAP.Width,            type: 'int32' },
+    height:           { tagID: BITMAP.Height,           type: 'int32' },
+    maskPlane:        { tagID: BITMAP.MaskPlane,        type: 'ptr' },
+    selectSourceFile: { tagID: BITMAP.SelectSourceFile, type: 'string-owned' },
+    selectBitMap:     { tagID: BITMAP.SelectBitMap,     type: 'ptr' },
+    selectWidth:      { tagID: BITMAP.SelectWidth,      type: 'int32' },
+    selectHeight:     { tagID: BITMAP.SelectHeight,     type: 'int32' },
+    offsetX:          { tagID: BITMAP.OffsetX,          type: 'int32' },
+    offsetY:          { tagID: BITMAP.OffsetY,          type: 'int32' },
+    transparent:      { tagID: BITMAP.Transparent,      type: 'bool' },
+  };
+}
+
+
 /* === boopsi/gadgets/Button.js === */
 /* quickjs-master/amiga/ffi/boopsi/gadgets/Button.js
  *
@@ -5980,6 +6228,1683 @@ EventKind.define('BUTTON_CLICK', {
            hasCode: false, hasCoords: false },
   from:  'gadgets/button.gadget',
   wraps: 'GADGET_UP',
+});
+
+
+/* === boopsi/gadgets/CheckBox.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/CheckBox.js
+ *
+ * checkbox.gadget — Reaction toggle checkbox. Extends gadgetclass.
+ * Use GA_Selected + on('CHECKBOX_TOGGLE') to observe state changes.
+ *
+ * CHECKBOX_Dummy = REACTION_Dummy + 0x11000 = 0x85011000.
+ */
+
+
+/** @internal CHECKBOX_* tag IDs (gadgets/checkbox.h). */
+const CHECKBOX = Object.freeze({
+  Invert:  0x85011006,   /* (BOOL) invert the displayed sense */
+});
+
+/**
+ * checkbox.gadget — toggle box.
+ *
+ * @extends GadgetBase
+ */
+class CheckBox extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/checkbox.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    invert: { tagID: CHECKBOX.Invert, type: 'bool' },
+  };
+
+  /**
+   * Default relVerify=true so toggles fire events.
+   *
+   * @param {object} init
+   */
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+
+  /** Current toggle state. */
+  get checked()  { return this.get('selected'); }
+  set checked(v) { this.set({ selected: !!v }); }
+}
+
+EventKind.define('CHECKBOX_TOGGLE', {
+  idcmp: 0x00800000,   /* IDCMP_IDCMPUPDATE */
+  rich:  { hasId: true, hasSource: true, hasPressed: true,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/checkbox.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/RadioButton.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/RadioButton.js
+ *
+ * radiobutton.gadget — Reaction exclusive-group selector. Extends
+ * gadgetclass. Label list is supplied via RADIOBUTTON_Labels (an
+ * array of strings) or for OS4+ RADIOBUTTON_LabelArray. Current
+ * selection is RADIOBUTTON_Selected (ULONG index).
+ *
+ * RADIOBUTTON_Dummy = REACTION_Dummy + 0x14000 = 0x85014000.
+ */
+
+
+/** @internal RADIOBUTTON_* tag IDs (gadgets/radiobutton.h). */
+const RADIOBUTTON = Object.freeze({
+  Labels:     0x85014001,  /* (struct List*) List of label Nodes */
+  Strings:    0x85014002,  /* (STRPTR*) array of C strings, NULL-terminated */
+  Spacing:    0x85014003,  /* (ULONG) between buttons */
+  Selected:   0x85014004,  /* (ULONG) current index */
+  LabelPlace: 0x85014005,  /* (ULONG) left/right of dot */
+  LabelArray: 0x85014006,  /* OS4ONLY — nested array of labels */
+});
+
+/**
+ * radiobutton.gadget — exclusive-select group.
+ *
+ * @extends GadgetBase
+ */
+class RadioButton extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/radiobutton.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    labels:     { tagID: RADIOBUTTON.Labels,     type: 'ptr' },
+    strings:    { tagID: RADIOBUTTON.Strings,    type: 'ptr' },
+    spacing:    { tagID: RADIOBUTTON.Spacing,    type: 'int32' },
+    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'uint32' },
+    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'uint32' },
+    labelArray: { tagID: RADIOBUTTON.LabelArray, type: 'ptr' },
+  };
+
+  /**
+   * Default relVerify=true so selection changes fire events.
+   *
+   * @param {object} init
+   */
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('RADIO_SELECT', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/radiobutton.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/Slider.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Slider.js
+ *
+ * slider.gadget — Reaction horizontal/vertical value slider.
+ * Extends gadgetclass. SLIDER_Level is the current value in
+ * [SLIDER_Min, SLIDER_Max].
+ *
+ * SLIDER_Dummy = REACTION_Dummy + 0x28000 = 0x85028000.
+ */
+
+
+/** @internal SLIDER_* tag IDs (gadgets/slider.h). */
+const SLIDER = Object.freeze({
+  Min:           0x85028001,
+  Max:           0x85028002,
+  Level:         0x85028003,
+  Orientation:   0x85028004,
+  DispHook:      0x85028005,  /* formatting hook */
+  Ticks:         0x85028006,
+  ShortTicks:    0x85028007,
+  TickSize:      0x85028008,
+  KnobImage:     0x85028009,
+  BodyFill:      0x8502800A,
+  BodyImage:     0x8502800B,
+  Gradient:      0x8502800C,
+  PenArray:      0x8502800D,
+  Invert:        0x8502800E,
+  KnobDelta:     0x8502800F,
+  LevelFormat:   0x85028010,
+  LevelPlace:    0x85028011,
+  LevelJustify:  0x85028012,
+  LevelDomain:   0x85028013,
+  LevelSpace:    0x85028014,
+  LevelHook:     0x85028015,
+  LevelMaxLen:   0x85028016,
+  NotifyDisable: 0x85028017,
+  InitDispHook:  0x85028018,
+});
+
+/** SLIDER_Orientation values (FREEHORIZ / FREEVERT from propgclass). */
+const SliderOrient = Object.freeze({
+  HORIZONTAL: 0x1,
+  VERTICAL:   0x2,
+});
+
+/** SLIDER_LevelJustify (SLJ_*). */
+const SliderJustify = Object.freeze({
+  LEFT:   0,
+  CENTER: 1,
+  RIGHT:  2,
+});
+
+/**
+ * slider.gadget — value slider.
+ *
+ * @extends GadgetBase
+ */
+class Slider extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/slider.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    min:         { tagID: SLIDER.Min,         type: 'int32' },
+    max:         { tagID: SLIDER.Max,         type: 'int32' },
+    level:       { tagID: SLIDER.Level,       type: 'int32' },
+    orientation: { tagID: SLIDER.Orientation, type: 'uint32' },
+    ticks:       { tagID: SLIDER.Ticks,       type: 'int32' },
+    shortTicks:  { tagID: SLIDER.ShortTicks,  type: 'int32' },
+    tickSize:    { tagID: SLIDER.TickSize,    type: 'int32' },
+    knobImage:   { tagID: SLIDER.KnobImage,   type: 'ptr' },
+    gradient:    { tagID: SLIDER.Gradient,    type: 'bool' },
+    invert:      { tagID: SLIDER.Invert,      type: 'bool' },
+    knobDelta:   { tagID: SLIDER.KnobDelta,   type: 'int32' },
+    levelFormat: { tagID: SLIDER.LevelFormat, type: 'string-owned' },
+    levelPlace:  { tagID: SLIDER.LevelPlace,  type: 'uint32' },
+    levelJustify:{ tagID: SLIDER.LevelJustify,type: 'uint32' },
+    levelDomain: { tagID: SLIDER.LevelDomain, type: 'string-owned' },
+    levelSpace:  { tagID: SLIDER.LevelSpace,  type: 'int32' },
+    levelMaxLen: { tagID: SLIDER.LevelMaxLen, type: 'int32' },
+    notifyDisable:{tagID: SLIDER.NotifyDisable,type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (typeof clean.orientation === 'string') {
+      clean.orientation = clean.orientation.toLowerCase() === 'vertical'
+        ? SliderOrient.VERTICAL : SliderOrient.HORIZONTAL;
+    }
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('SLIDER_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/slider.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/Scroller.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Scroller.js
+ *
+ * scroller.gadget — Reaction scrollbar. Extends propgclass. The
+ * "Top / Visible / Total" triplet defines position within a larger
+ * virtual range.
+ *
+ * SCROLLER_Dummy = REACTION_Dummy + 0x5000 = 0x85005000.
+ */
+
+
+const SCROLLER = Object.freeze({
+  Top:            0x85005001,
+  Visible:        0x85005002,
+  Total:          0x85005003,
+  Orientation:    0x85005004,
+  Arrows:         0x85005005,
+  Stretch:        0x85005006,
+  ArrowDelta:     0x85005007,
+  SignalTask:     0x8500500A,
+  SignalTaskBit:  0x8500500B,
+});
+
+const ScrollerOrient = Object.freeze({
+  HORIZONTAL: 0x1,
+  VERTICAL:   0x2,
+});
+
+/**
+ * scroller.gadget — scrollbar.
+ *
+ * @extends GadgetBase
+ */
+class Scroller extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/scroller.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    top:         { tagID: SCROLLER.Top,         type: 'int32' },
+    visible:     { tagID: SCROLLER.Visible,     type: 'int32' },
+    total:       { tagID: SCROLLER.Total,       type: 'int32' },
+    orientation: { tagID: SCROLLER.Orientation, type: 'uint32' },
+    arrows:      { tagID: SCROLLER.Arrows,      type: 'int32' },
+    stretch:     { tagID: SCROLLER.Stretch,     type: 'bool' },
+    arrowDelta:  { tagID: SCROLLER.ArrowDelta,  type: 'int32' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (typeof clean.orientation === 'string') {
+      clean.orientation = clean.orientation.toLowerCase() === 'vertical'
+        ? ScrollerOrient.VERTICAL : ScrollerOrient.HORIZONTAL;
+    }
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('SCROLLER_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/scroller.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/Integer.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Integer.js
+ *
+ * integer.gadget — numeric-only string gadget with optional spinner
+ * arrows. Subclass of string.gadget. Extends gadgetclass.
+ *
+ * INTEGER_Dummy = REACTION_Dummy + 0x2000 = 0x85002000.
+ */
+
+
+const INTEGER = Object.freeze({
+  Number:     0x85002001,  /* (LONG) current value */
+  MaxChars:   0x85002002,
+  Minimum:    0x85002003,
+  Maximum:    0x85002004,
+  Arrows:     0x85002005,
+  MinVisible: 0x85002006,
+  SkipVal:    0x85002007,
+});
+
+/**
+ * integer.gadget — numeric text field.
+ *
+ * @extends GadgetBase
+ */
+class Integer extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/integer.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    value:      { tagID: INTEGER.Number,     type: 'int32' },
+    maxChars:   { tagID: INTEGER.MaxChars,   type: 'int32' },
+    minimum:    { tagID: INTEGER.Minimum,    type: 'int32' },
+    maximum:    { tagID: INTEGER.Maximum,    type: 'int32' },
+    arrows:     { tagID: INTEGER.Arrows,     type: 'bool' },
+    minVisible: { tagID: INTEGER.MinVisible, type: 'int32' },
+    skipVal:    { tagID: INTEGER.SkipVal,    type: 'int32' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('INTEGER_CHANGED', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/integer.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/StringGadget.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/StringGadget.js
+ *
+ * string.gadget — Reaction text entry field. Named StringGadget on
+ * the JS side to avoid colliding with the built-in String constructor.
+ * Extends gadgetclass.
+ *
+ * STRINGA_* (gadgets/string.h) — some tags are REACTION_Dummy+0x55000,
+ * others inherit from strgclass. The distinct STRINGA_ base supports
+ * both pre-Reaction OS2 strgclass and Reaction's string.gadget.
+ */
+
+
+/** @internal STRINGA_* tag IDs (gadgets/string.h). */
+const STRINGA = Object.freeze({
+  /* strgclass tags (STRINGA_Dummy = TAG_USER+0x32000 per gadgets/strgclass.h) */
+  MaxChars:     0x80032000 + 1,
+  Buffer:       0x80032000 + 2,
+  UndoBuffer:   0x80032000 + 3,
+  WorkBuffer:   0x80032000 + 4,
+  BufferPos:    0x80032000 + 5,
+  DispPos:      0x80032000 + 6,
+  AltKeyMap:    0x80032000 + 7,
+  Font:         0x80032000 + 8,
+  Pens:         0x80032000 + 9,
+  ActivePens:   0x80032000 + 10,
+  EditHook:     0x80032000 + 11,
+  EditModes:    0x80032000 + 12,
+  ReplaceMode:  0x80032000 + 13,
+  FixedFieldMode:0x80032000 + 14,
+  NoFilterMode: 0x80032000 + 15,
+  Justification:0x80032000 + 16,
+  LongVal:      0x80032000 + 17,
+  FloatVal:     0x80032000 + 18,
+  TextVal:      0x80032000 + 19,
+
+  /* Reaction-specific additions */
+  MinVisible:          0x85055000,
+  HookType:            0x85055001,
+  GetBlockPos:         0x85055010,
+  Mark:                0x85055011,
+  AllowMarking:        0x85055012,
+  InterimUpdates:      0x85055013,
+});
+
+/** String.HookType values (SHK_*). */
+const StringHookType = Object.freeze({
+  CUSTOM:       0,
+  PASSWORD:     1,
+  IPADDRESS:    2,
+  FLOAT:        3,
+  HEXADECIMAL:  4,
+  TELEPHONE:    5,
+  POSTALCODE:   6,
+  AMOUNT:       7,
+  UPPERCASE:    8,
+  HOTKEY:       9,  /* v45+ */
+});
+
+/**
+ * string.gadget — text entry field.
+ *
+ * @extends GadgetBase
+ */
+class StringGadget extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/string.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    maxChars:       { tagID: STRINGA.MaxChars,     type: 'int32' },
+    buffer:         { tagID: STRINGA.Buffer,       type: 'ptr' },  /* caller-owned */
+    textVal:        { tagID: STRINGA.TextVal,      type: 'ptr' },
+    longVal:        { tagID: STRINGA.LongVal,      type: 'int32' },
+    bufferPos:      { tagID: STRINGA.BufferPos,    type: 'int32' },
+    dispPos:        { tagID: STRINGA.DispPos,      type: 'int32' },
+    replaceMode:    { tagID: STRINGA.ReplaceMode,  type: 'bool' },
+    justification:  { tagID: STRINGA.Justification,type: 'uint32' },
+    minVisible:     { tagID: STRINGA.MinVisible,   type: 'int32' },
+    hookType:       { tagID: STRINGA.HookType,     type: 'uint32' },
+    allowMarking:   { tagID: STRINGA.AllowMarking, type: 'bool' },
+    interimUpdates: { tagID: STRINGA.InterimUpdates,type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('STRING_CHANGED', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/string.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/Chooser.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Chooser.js
+ *
+ * chooser.gadget — Reaction dropdown / popup selector. Extends
+ * gadgetclass. Labels are supplied as a struct List of nodes; each
+ * node's CNA_* attributes describe text/image/user-data.
+ *
+ * CHOOSER_Dummy = REACTION_Dummy + 0x1000 = 0x85001000.
+ */
+
+
+const CHOOSER = Object.freeze({
+  PopUp:                      0x85001001,
+  DropDown:                   0x85001002,
+  Title:                      0x85001003,
+  Labels:                     0x85001004,
+  Active:                     0x85001005,  /* alias of CHOOSER_Selected */
+  Width:                      0x85001006,
+  AutoFit:                    0x85001007,
+  MaxLabels:                  0x85001009,
+  Offset:                     0x8500100A,
+  Hidden:                     0x8500100B,
+  LabelArray:                 0x8500100C,
+  Justification:              0x8500100D,
+  ImageJustification:         0x8500100E,  /* OS4ONLY */
+  SelectedNode:               0x8500100F,  /* OS4ONLY */
+  DeactivateOnMostRawKeys:    0x85001010,
+});
+
+/** CHOOSER_Justification (CHJ_*). */
+const ChooserJustify = Object.freeze({
+  LEFT: 0, CENTER: 1, RIGHT: 2,
+});
+
+/** Node-attribute tags (CNA_Dummy = TAG_USER+0x5001500). */
+const CNA = Object.freeze({
+  Text:     0x85001501,
+  Image:    0x85001502,
+  SelImage: 0x85001503,
+  UserData: 0x85001504,
+  Separator:0x85001505,
+  Disabled: 0x85001506,
+  BGPen:    0x85001507,
+  FGPen:    0x85001508,
+  ReadOnly: 0x85001509,
+});
+
+/**
+ * chooser.gadget — dropdown / popup selector.
+ *
+ * @extends GadgetBase
+ */
+class Chooser extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/chooser.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    popUp:          { tagID: CHOOSER.PopUp,         type: 'bool' },
+    dropDown:       { tagID: CHOOSER.DropDown,      type: 'bool' },
+    title:          { tagID: CHOOSER.Title,         type: 'string-owned' },
+    labels:         { tagID: CHOOSER.Labels,        type: 'ptr' },  /* struct List* */
+    active:         { tagID: CHOOSER.Active,        type: 'uint32' },
+    autoFit:        { tagID: CHOOSER.AutoFit,       type: 'bool' },
+    maxLabels:      { tagID: CHOOSER.MaxLabels,     type: 'int32' },
+    justification:  { tagID: CHOOSER.Justification, type: 'uint32' },
+    labelArray:     { tagID: CHOOSER.LabelArray,    type: 'ptr' },
+    deactivateOnMostRawKeys: { tagID: CHOOSER.DeactivateOnMostRawKeys, type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('CHOOSER_SELECT', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/chooser.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/ClickTab.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/ClickTab.js
+ *
+ * clicktab.gadget — Reaction tab control. Extends gadgetclass. Tabs
+ * are supplied via CLICKTAB_Labels (struct List of nodes with TNA_*
+ * attributes per tab).
+ *
+ * CLICKTAB_Dummy = REACTION_Dummy + 0x27000 = 0x85027000.
+ */
+
+
+const CLICKTAB = Object.freeze({
+  Labels:         0x85027001,
+  Current:        0x85027002,
+  PageGroup:      0x85027003,
+  CaptureHeight:  0x85027004,
+  TruncateLabels: 0x85027005,
+  CurrentNode:    0x85027006,
+  TabsBar:        0x85027007,
+  AutoFit:        0x85027008,
+});
+
+/** Tab-node attributes (TNA_Dummy = TAG_USER+0x010000). */
+const TNA = Object.freeze({
+  Text:      0x80010001,
+  Number:    0x80010002,
+  UserData:  0x80010003,
+  Image:     0x80010004,
+  Disabled:  0x80010005,
+  TextPen:   0x80010006,
+  HintInfo:  0x80010007,
+  Flagged:   0x80010008,
+  Spacing:   0x80010009,
+  CloseGadget:0x8001000A,
+});
+
+/**
+ * clicktab.gadget — tab switcher.
+ *
+ * @extends GadgetBase
+ */
+class ClickTab extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/clicktab.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    labels:         { tagID: CLICKTAB.Labels,         type: 'ptr' },
+    current:        { tagID: CLICKTAB.Current,        type: 'int32' },
+    pageGroup:      { tagID: CLICKTAB.PageGroup,      type: 'ptr' },
+    captureHeight:  { tagID: CLICKTAB.CaptureHeight,  type: 'bool' },
+    truncateLabels: { tagID: CLICKTAB.TruncateLabels, type: 'bool' },
+    currentNode:    { tagID: CLICKTAB.CurrentNode,    type: 'ptr' },
+    tabsBar:        { tagID: CLICKTAB.TabsBar,        type: 'bool' },
+    autoFit:        { tagID: CLICKTAB.AutoFit,        type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('CLICKTAB_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/clicktab.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/ListBrowser.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/ListBrowser.js
+ *
+ * listbrowser.gadget — Reaction scrollable list with columns, sort,
+ * selection. Extends gadgetclass. Rows are LBNA_* nodes in a struct
+ * List; columns defined via LBCIA_*.
+ *
+ * LISTBROWSER_Dummy = REACTION_Dummy + 0x3000 = 0x85003000.
+ */
+
+
+const LISTBROWSER = Object.freeze({
+  Labels:           0x85003001,
+  Top:              0x85003002,
+  MakeVisible:      0x85003003,
+  TopPixel:         0x85003004,
+  SortColumn:       0x85003005,
+  ShowSelected:     0x85003006,
+  Selected:         0x85003007,
+  MultiSelect:      0x85003008,
+  AutoFit:          0x85003009,
+  HorizontalProp:   0x8500300A,
+  VerticalProp:     0x8500300B,
+  ColumnInfo:       0x8500300C,
+  ColumnTitles:     0x8500300D,
+  TitleClickable:   0x8500300E,
+  RefreshImmediate: 0x8500300F,
+  AutoWidth:        0x85003010,
+  RowHeight:        0x85003011,
+  MinHeight:        0x85003012,
+  MinWidth:         0x85003013,
+  HierarchicalTree: 0x85003014,
+  HierarchyHook:    0x85003015,
+  ScrollMultiplier: 0x85003016,
+});
+
+/**
+ * listbrowser.gadget — scrollable columnar list.
+ *
+ * @extends GadgetBase
+ */
+class ListBrowser extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/listbrowser.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    labels:           { tagID: LISTBROWSER.Labels,           type: 'ptr' },
+    top:              { tagID: LISTBROWSER.Top,              type: 'int32' },
+    makeVisible:      { tagID: LISTBROWSER.MakeVisible,      type: 'int32' },
+    sortColumn:       { tagID: LISTBROWSER.SortColumn,       type: 'int32' },
+    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'ptr' },
+    selected:         { tagID: LISTBROWSER.Selected,         type: 'int32' },
+    multiSelect:      { tagID: LISTBROWSER.MultiSelect,      type: 'uint32' },
+    autoFit:          { tagID: LISTBROWSER.AutoFit,          type: 'bool' },
+    columnInfo:       { tagID: LISTBROWSER.ColumnInfo,       type: 'ptr' },
+    columnTitles:     { tagID: LISTBROWSER.ColumnTitles,     type: 'bool' },
+    titleClickable:   { tagID: LISTBROWSER.TitleClickable,   type: 'bool' },
+    autoWidth:        { tagID: LISTBROWSER.AutoWidth,        type: 'bool' },
+    rowHeight:        { tagID: LISTBROWSER.RowHeight,        type: 'int32' },
+    minHeight:        { tagID: LISTBROWSER.MinHeight,        type: 'int32' },
+    minWidth:         { tagID: LISTBROWSER.MinWidth,         type: 'int32' },
+    hierarchicalTree: { tagID: LISTBROWSER.HierarchicalTree, type: 'bool' },
+    scrollMultiplier: { tagID: LISTBROWSER.ScrollMultiplier, type: 'int32' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('LIST_SELECT', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/listbrowser.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/Palette.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Palette.js
+ *
+ * palette.gadget — Reaction color picker grid. Extends gadgetclass.
+ *
+ * PALETTE_Dummy = REACTION_Dummy + 0x4000 = 0x85004000.
+ */
+
+
+const PALETTE = Object.freeze({
+  Color:        0x85004001,
+  NumColors:    0x85004002,
+  ColorOffset:  0x85004003,
+  Depth:        0x85004004,
+  ColorTable:   0x85004005,
+  Indicator:    0x85004006,
+  IndicatorWidth: 0x85004007,
+  IndicatorHeight:0x85004008,
+  RenderPen:    0x85004009,
+  UseScrnPalette:0x8500400A,
+});
+
+/**
+ * palette.gadget — color picker.
+ *
+ * @extends GadgetBase
+ */
+class Palette extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/palette.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    color:            { tagID: PALETTE.Color,           type: 'uint32' },
+    numColors:        { tagID: PALETTE.NumColors,       type: 'int32' },
+    colorOffset:      { tagID: PALETTE.ColorOffset,     type: 'int32' },
+    depth:            { tagID: PALETTE.Depth,           type: 'int32' },
+    colorTable:       { tagID: PALETTE.ColorTable,      type: 'ptr' },
+    indicator:        { tagID: PALETTE.Indicator,       type: 'bool' },
+    indicatorWidth:   { tagID: PALETTE.IndicatorWidth,  type: 'int32' },
+    indicatorHeight:  { tagID: PALETTE.IndicatorHeight, type: 'int32' },
+    renderPen:        { tagID: PALETTE.RenderPen,       type: 'uint32' },
+    useScrnPalette:   { tagID: PALETTE.UseScrnPalette,  type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('PALETTE_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/palette.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/Space.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Space.js
+ *
+ * space.gadget — Reaction visual spacer / manual-draw area. Extends
+ * gadgetclass. Useful for layout padding or as a canvas for custom
+ * rendering via SPACE_RenderHook.
+ *
+ * SPACE_Dummy = REACTION_Dummy + 0x9000 = 0x85009000.
+ */
+
+
+const SPACE = Object.freeze({
+  MinWidth:    0x85009001,
+  MinHeight:   0x85009002,
+  Transparent: 0x85009003,
+  AreaBox:     0x85009004,
+  BevelStyle:  0x85009005,
+  RenderHook:  0x85009006,
+});
+
+/**
+ * space.gadget — visual spacer / custom canvas.
+ *
+ * @extends GadgetBase
+ */
+class Space extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/space.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    minWidth:    { tagID: SPACE.MinWidth,    type: 'int32' },
+    minHeight:   { tagID: SPACE.MinHeight,   type: 'int32' },
+    transparent: { tagID: SPACE.Transparent, type: 'bool' },
+    areaBox:     { tagID: SPACE.AreaBox,     type: 'ptr' },
+    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'uint32' },
+    renderHook:  { tagID: SPACE.RenderHook,  type: 'ptr' },
+  };
+}
+
+
+/* === boopsi/gadgets/FuelGauge.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/FuelGauge.js
+ *
+ * fuelgauge.gadget — Reaction progress bar / fuel gauge.
+ *
+ * FUELGAUGE_Dummy = REACTION_Dummy + 0x12000 = 0x85012000.
+ */
+
+
+const FUELGAUGE = Object.freeze({
+  Min:            0x85012001,
+  Max:            0x85012002,
+  Level:          0x85012003,
+  Percent:        0x85012004,
+  Justification:  0x85012005,
+  Ticks:          0x85012006,
+  ShortTicks:     0x85012007,
+  TickSize:       0x85012008,
+  VariableWidth:  0x85012009,
+  Orientation:    0x8501200A,
+  LowColor:       0x8501200B,
+  HighColor:      0x8501200C,
+  ColorOffset:    0x8501200D,
+});
+
+const FuelGaugeOrient = Object.freeze({
+  HORIZONTAL: 0x1, VERTICAL: 0x2,
+});
+
+/**
+ * fuelgauge.gadget — progress bar.
+ *
+ * @extends GadgetBase
+ */
+class FuelGauge extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/fuelgauge.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    min:            { tagID: FUELGAUGE.Min,            type: 'int32' },
+    max:            { tagID: FUELGAUGE.Max,            type: 'int32' },
+    level:          { tagID: FUELGAUGE.Level,          type: 'int32' },
+    percent:        { tagID: FUELGAUGE.Percent,        type: 'bool' },
+    justification:  { tagID: FUELGAUGE.Justification,  type: 'uint32' },
+    ticks:          { tagID: FUELGAUGE.Ticks,          type: 'int32' },
+    shortTicks:     { tagID: FUELGAUGE.ShortTicks,     type: 'int32' },
+    tickSize:       { tagID: FUELGAUGE.TickSize,       type: 'int32' },
+    variableWidth:  { tagID: FUELGAUGE.VariableWidth,  type: 'bool' },
+    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'uint32' },
+    lowColor:       { tagID: FUELGAUGE.LowColor,       type: 'uint32' },
+    highColor:      { tagID: FUELGAUGE.HighColor,      type: 'uint32' },
+    colorOffset:    { tagID: FUELGAUGE.ColorOffset,    type: 'int32' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (typeof clean.orientation === 'string') {
+      clean.orientation = clean.orientation.toLowerCase() === 'vertical'
+        ? FuelGaugeOrient.VERTICAL : FuelGaugeOrient.HORIZONTAL;
+    }
+    super(clean);
+  }
+}
+
+
+/* === boopsi/gadgets/SpeedBar.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/SpeedBar.js
+ *
+ * speedbar.gadget — Reaction toolbar strip. Extends gadgetclass.
+ * Buttons are supplied as a struct List of nodes with SBNA_* attrs.
+ *
+ * SPEEDBAR_Dummy = REACTION_Dummy + 0x13000 = 0x85013000.
+ */
+
+
+const SPEEDBAR = Object.freeze({
+  Buttons:         0x85013001,
+  Selected:        0x85013002,
+  SmallButtons:    0x85013003,
+  Orientation:     0x85013004,
+  Spacing:         0x85013005,
+  Justification:   0x85013006,
+  RenderHook:      0x85013007,
+  Multiple:        0x85013008,
+  HintInfo:        0x85013009,
+  EvenSize:        0x8501300A,
+  Labels:          0x8501300B,
+  StripUp:         0x8501300C,
+  StripDown:       0x8501300D,
+  EraseBackground: 0x8501300E,
+});
+
+/** SpeedBar button-node attributes (SBNA_Dummy = TAG_USER+0x010000). */
+const SBNA = Object.freeze({
+  Ordinal:   0x80010001,
+  Image:     0x80010002,
+  SelImage:  0x80010003,
+  DisImage:  0x80010004,
+  Label:     0x80010005,
+  HintInfo:  0x80010006,
+  UserData:  0x80010007,
+  Flags:     0x80010008,
+});
+
+/**
+ * speedbar.gadget — toolbar.
+ *
+ * @extends GadgetBase
+ */
+class SpeedBar extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/speedbar.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    buttons:         { tagID: SPEEDBAR.Buttons,        type: 'ptr' },
+    selected:        { tagID: SPEEDBAR.Selected,       type: 'int32' },
+    smallButtons:    { tagID: SPEEDBAR.SmallButtons,   type: 'bool' },
+    orientation:     { tagID: SPEEDBAR.Orientation,    type: 'uint32' },
+    spacing:         { tagID: SPEEDBAR.Spacing,        type: 'int32' },
+    justification:   { tagID: SPEEDBAR.Justification,  type: 'uint32' },
+    multiple:        { tagID: SPEEDBAR.Multiple,       type: 'bool' },
+    evenSize:        { tagID: SPEEDBAR.EvenSize,       type: 'bool' },
+    labels:          { tagID: SPEEDBAR.Labels,         type: 'bool' },
+    eraseBackground: { tagID: SPEEDBAR.EraseBackground,type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('SPEEDBAR_CLICK', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/speedbar.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/GetFile.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/GetFile.js
+ *
+ * getfile.gadget — Reaction file-requester popup button. Extends
+ * gadgetclass. Click opens an ASL file requester; selected path is
+ * readable via GETFILE_FullFile / GETFILE_File + GETFILE_Drawer.
+ *
+ * GETFILE_Dummy = REACTION_Dummy + 0x60000 = 0x85060000.
+ */
+
+
+const GETFILE = Object.freeze({
+  TitleText:      0x85060001,
+  LeftEdge:       0x85060002,
+  TopEdge:        0x85060003,
+  Width:          0x85060004,
+  Height:         0x85060005,
+  File:           0x85060006,
+  Drawer:         0x85060007,
+  FullFile:       0x85060008,
+  FullFileExpand: 0x85060009,
+  Pattern:        0x8506000A,
+  DoSaveMode:     0x8506000B,
+  DoMultiSelect:  0x8506000C,
+  DoPatterns:     0x8506000D,
+  DrawersOnly:    0x8506000E,
+  NoIcons:        0x8506000F,
+  RejectIcons:    0x85060010,
+  ImageHook:      0x85060011,
+  FilterFunc:     0x85060012,
+  FilterDrawers:  0x85060013,
+  ModalRequest:   0x85060014,
+  NegativeText:   0x85060015,
+  PositiveText:   0x85060016,
+});
+
+/**
+ * getfile.gadget — file-requester popup button.
+ *
+ * @extends GadgetBase
+ */
+class GetFile extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/getfile.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    titleText:      { tagID: GETFILE.TitleText,      type: 'string-owned' },
+    file:           { tagID: GETFILE.File,           type: 'string-owned' },
+    drawer:         { tagID: GETFILE.Drawer,         type: 'string-owned' },
+    fullFile:       { tagID: GETFILE.FullFile,       type: 'string-owned' },
+    fullFileExpand: { tagID: GETFILE.FullFileExpand, type: 'bool' },
+    pattern:        { tagID: GETFILE.Pattern,        type: 'string-owned' },
+    doSaveMode:     { tagID: GETFILE.DoSaveMode,     type: 'bool' },
+    doMultiSelect:  { tagID: GETFILE.DoMultiSelect,  type: 'bool' },
+    doPatterns:     { tagID: GETFILE.DoPatterns,     type: 'bool' },
+    drawersOnly:    { tagID: GETFILE.DrawersOnly,    type: 'bool' },
+    noIcons:        { tagID: GETFILE.NoIcons,        type: 'bool' },
+    rejectIcons:    { tagID: GETFILE.RejectIcons,    type: 'bool' },
+    modalRequest:   { tagID: GETFILE.ModalRequest,   type: 'bool' },
+    negativeText:   { tagID: GETFILE.NegativeText,   type: 'string-owned' },
+    positiveText:   { tagID: GETFILE.PositiveText,   type: 'string-owned' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('FILE_SELECTED', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/getfile.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/GetFont.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/GetFont.js
+ *
+ * getfont.gadget — Reaction font-requester popup.
+ *
+ * GETFONT_Dummy = REACTION_Dummy + 0x40000 = 0x85040000.
+ */
+
+
+const GETFONT = Object.freeze({
+  TitleText:       0x85040001,
+  TextAttr:        0x85040002,
+  FontName:        0x85040003,
+  FontHeight:      0x85040004,
+  FontStyle:       0x85040005,
+  FontFlags:       0x85040006,
+  DoFrontPen:      0x85040007,
+  DoBackPen:       0x85040008,
+  DoDrawMode:      0x85040009,
+  DoStyle:         0x8504000A,
+  FixedWidthOnly:  0x8504000B,
+  MinHeight:       0x8504000C,
+  MaxHeight:       0x8504000D,
+  FrontPen:        0x8504000E,
+  BackPen:         0x8504000F,
+  DrawMode:        0x85040010,
+  ModalRequest:    0x85040011,
+  NegativeText:    0x85040012,
+  PositiveText:    0x85040013,
+});
+
+/**
+ * getfont.gadget — font-requester popup button.
+ *
+ * @extends GadgetBase
+ */
+class GetFont extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/getfont.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    titleText:      { tagID: GETFONT.TitleText,      type: 'string-owned' },
+    textAttr:       { tagID: GETFONT.TextAttr,       type: 'ptr' },
+    fontName:       { tagID: GETFONT.FontName,       type: 'string-owned' },
+    fontHeight:     { tagID: GETFONT.FontHeight,     type: 'int32' },
+    fontStyle:      { tagID: GETFONT.FontStyle,      type: 'uint32' },
+    fontFlags:      { tagID: GETFONT.FontFlags,      type: 'uint32' },
+    doFrontPen:     { tagID: GETFONT.DoFrontPen,     type: 'bool' },
+    doBackPen:      { tagID: GETFONT.DoBackPen,      type: 'bool' },
+    doDrawMode:     { tagID: GETFONT.DoDrawMode,     type: 'bool' },
+    doStyle:        { tagID: GETFONT.DoStyle,        type: 'bool' },
+    fixedWidthOnly: { tagID: GETFONT.FixedWidthOnly, type: 'bool' },
+    minHeight:      { tagID: GETFONT.MinHeight,      type: 'int32' },
+    maxHeight:      { tagID: GETFONT.MaxHeight,      type: 'int32' },
+    frontPen:       { tagID: GETFONT.FrontPen,       type: 'uint32' },
+    backPen:        { tagID: GETFONT.BackPen,        type: 'uint32' },
+    drawMode:       { tagID: GETFONT.DrawMode,       type: 'uint32' },
+    modalRequest:   { tagID: GETFONT.ModalRequest,   type: 'bool' },
+    negativeText:   { tagID: GETFONT.NegativeText,   type: 'string-owned' },
+    positiveText:   { tagID: GETFONT.PositiveText,   type: 'string-owned' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('FONT_SELECTED', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/getfont.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/GetScreenMode.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/GetScreenMode.js
+ *
+ * getscreenmode.gadget — Reaction screenmode-requester popup.
+ *
+ * GETSCREENMODE_Dummy = REACTION_Dummy + 0x41000 = 0x85041000.
+ */
+
+
+const GETSCREENMODE = Object.freeze({
+  TitleText:          0x85041001,
+  DisplayID:          0x85041002,
+  DisplayWidth:       0x85041003,
+  DisplayHeight:      0x85041004,
+  DisplayDepth:       0x85041005,
+  AutoScroll:         0x85041006,
+  OverscanType:       0x85041007,
+  DoWidth:            0x85041008,
+  DoHeight:           0x85041009,
+  DoDepth:            0x8504100A,
+  DoOverscanType:     0x8504100B,
+  DoAutoScroll:       0x8504100C,
+  FilterFunc:         0x8504100D,
+  MinWidth:           0x8504100E,
+  MaxWidth:           0x8504100F,
+  MinHeight:          0x85041010,
+  MaxHeight:          0x85041011,
+  MinDepth:           0x85041012,
+  MaxDepth:           0x85041013,
+  CustomSMList:       0x85041014,
+  PropertyFlags:      0x85041015,
+  PropertyMask:       0x85041016,
+  ModalRequest:       0x85041017,
+  NegativeText:       0x85041018,
+  PositiveText:       0x85041019,
+});
+
+/**
+ * getscreenmode.gadget — screenmode-requester popup button.
+ *
+ * @extends GadgetBase
+ */
+class GetScreenMode extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/getscreenmode.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    titleText:      { tagID: GETSCREENMODE.TitleText,     type: 'string-owned' },
+    displayID:      { tagID: GETSCREENMODE.DisplayID,     type: 'uint32' },
+    displayWidth:   { tagID: GETSCREENMODE.DisplayWidth,  type: 'int32' },
+    displayHeight:  { tagID: GETSCREENMODE.DisplayHeight, type: 'int32' },
+    displayDepth:   { tagID: GETSCREENMODE.DisplayDepth,  type: 'int32' },
+    autoScroll:     { tagID: GETSCREENMODE.AutoScroll,    type: 'bool' },
+    overscanType:   { tagID: GETSCREENMODE.OverscanType,  type: 'uint32' },
+    doWidth:        { tagID: GETSCREENMODE.DoWidth,       type: 'bool' },
+    doHeight:       { tagID: GETSCREENMODE.DoHeight,      type: 'bool' },
+    doDepth:        { tagID: GETSCREENMODE.DoDepth,       type: 'bool' },
+    doOverscanType: { tagID: GETSCREENMODE.DoOverscanType,type: 'bool' },
+    doAutoScroll:   { tagID: GETSCREENMODE.DoAutoScroll,  type: 'bool' },
+    minWidth:       { tagID: GETSCREENMODE.MinWidth,      type: 'int32' },
+    maxWidth:       { tagID: GETSCREENMODE.MaxWidth,      type: 'int32' },
+    minHeight:      { tagID: GETSCREENMODE.MinHeight,     type: 'int32' },
+    maxHeight:      { tagID: GETSCREENMODE.MaxHeight,     type: 'int32' },
+    minDepth:       { tagID: GETSCREENMODE.MinDepth,      type: 'int32' },
+    maxDepth:       { tagID: GETSCREENMODE.MaxDepth,      type: 'int32' },
+    modalRequest:   { tagID: GETSCREENMODE.ModalRequest,  type: 'bool' },
+    negativeText:   { tagID: GETSCREENMODE.NegativeText,  type: 'string-owned' },
+    positiveText:   { tagID: GETSCREENMODE.PositiveText,  type: 'string-owned' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('SCREENMODE_SELECTED', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/getscreenmode.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/GetColor.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/GetColor.js
+ *
+ * getcolor.gadget — Reaction color-picker popup.
+ *
+ * GETCOLOR_Dummy = REACTION_Dummy + 0x43000 = 0x85043000.
+ */
+
+
+const GETCOLOR = Object.freeze({
+  TitleText:   0x85043001,
+  Screen:      0x85043002,
+  Color:       0x85043003,
+  Red:         0x85043004,
+  Green:       0x85043005,
+  Blue:        0x85043006,
+  Hue:         0x85043007,
+  Saturation:  0x85043008,
+  Brightness:  0x85043009,
+  RGB:         0x8504300A,
+  HSB:         0x8504300B,
+  ColorWheel:  0x8504300C,
+  RGBSliders:  0x8504300D,
+  HSBSliders:  0x8504300E,
+  SwitchMode:  0x8504300F,
+  Initial:     0x85043010,
+  ShowRGB:     0x85043011,
+  ShowHSB:     0x85043012,
+  SmallTextAttr:0x85043013,
+});
+
+/**
+ * getcolor.gadget — color-picker popup.
+ *
+ * @extends GadgetBase
+ */
+class GetColor extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/getcolor.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    titleText:   { tagID: GETCOLOR.TitleText,    type: 'string-owned' },
+    screen:      { tagID: GETCOLOR.Screen,       type: 'ptr' },
+    color:       { tagID: GETCOLOR.Color,        type: 'uint32' },
+    red:         { tagID: GETCOLOR.Red,          type: 'uint32' },
+    green:       { tagID: GETCOLOR.Green,        type: 'uint32' },
+    blue:        { tagID: GETCOLOR.Blue,         type: 'uint32' },
+    hue:         { tagID: GETCOLOR.Hue,          type: 'uint32' },
+    saturation:  { tagID: GETCOLOR.Saturation,   type: 'uint32' },
+    brightness:  { tagID: GETCOLOR.Brightness,   type: 'uint32' },
+    rgb:         { tagID: GETCOLOR.RGB,          type: 'uint32' },
+    hsb:         { tagID: GETCOLOR.HSB,          type: 'uint32' },
+    colorWheel:  { tagID: GETCOLOR.ColorWheel,   type: 'bool' },
+    rgbSliders:  { tagID: GETCOLOR.RGBSliders,   type: 'bool' },
+    hsbSliders:  { tagID: GETCOLOR.HSBSliders,   type: 'bool' },
+    switchMode:  { tagID: GETCOLOR.SwitchMode,   type: 'bool' },
+    initial:     { tagID: GETCOLOR.Initial,      type: 'uint32' },
+    showRGB:     { tagID: GETCOLOR.ShowRGB,      type: 'bool' },
+    showHSB:     { tagID: GETCOLOR.ShowHSB,      type: 'bool' },
+    smallTextAttr:{tagID: GETCOLOR.SmallTextAttr,type: 'ptr' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('COLOR_SELECTED', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/getcolor.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/DateBrowser.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/DateBrowser.js
+ *
+ * datebrowser.gadget — Reaction calendar / date picker. Extends
+ * gadgetclass.
+ *
+ * DATEBROWSER_Dummy = REACTION_Dummy + 0x61000 = 0x85061000.
+ */
+
+
+const DATEBROWSER = Object.freeze({
+  Year:          0x85061001,
+  Month:         0x85061002,
+  Day:           0x85061003,
+  WeekDay:       0x85061004,
+  FirstWeekDay:  0x85061005,
+  Locale:        0x85061006,
+  WeekNumbers:   0x85061007,
+  HighlightToday:0x85061008,
+  ShowDays:      0x85061009,
+  TopLabel:      0x8506100A,
+  TopLabelPlace: 0x8506100B,
+  HeaderGadget:  0x8506100C,
+  ReadOnly:      0x8506100D,
+});
+
+/**
+ * datebrowser.gadget — calendar picker.
+ *
+ * @extends GadgetBase
+ */
+class DateBrowser extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/datebrowser.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    year:           { tagID: DATEBROWSER.Year,          type: 'int32' },
+    month:          { tagID: DATEBROWSER.Month,         type: 'int32' },
+    day:            { tagID: DATEBROWSER.Day,           type: 'int32' },
+    weekDay:        { tagID: DATEBROWSER.WeekDay,       type: 'int32' },
+    firstWeekDay:   { tagID: DATEBROWSER.FirstWeekDay,  type: 'int32' },
+    locale:         { tagID: DATEBROWSER.Locale,        type: 'ptr' },
+    weekNumbers:    { tagID: DATEBROWSER.WeekNumbers,   type: 'bool' },
+    highlightToday: { tagID: DATEBROWSER.HighlightToday,type: 'bool' },
+    showDays:       { tagID: DATEBROWSER.ShowDays,      type: 'bool' },
+    topLabel:       { tagID: DATEBROWSER.TopLabel,      type: 'string-owned' },
+    topLabelPlace:  { tagID: DATEBROWSER.TopLabelPlace, type: 'uint32' },
+    headerGadget:   { tagID: DATEBROWSER.HeaderGadget,  type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('DATE_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/datebrowser.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/TextEditor.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/TextEditor.js
+ *
+ * texteditor.gadget — multi-line text edit / code editor control.
+ * One of the most complex Reaction classes.
+ *
+ * TEXTEDITOR_Dummy = REACTION_Dummy + 0x26000 = 0x85026000.
+ */
+
+
+const TEXTEDITOR = Object.freeze({
+  Contents:         0x85026001,
+  ExportHook:       0x85026002,
+  ImportHook:       0x85026003,
+  Flow:             0x85026004,
+  KeyBindings:      0x85026005,
+  Pen:              0x85026006,
+  Quiet:            0x85026007,
+  ReadOnly:         0x85026008,
+  StyleBold:        0x85026009,
+  StyleItalic:      0x8502600A,
+  StyleUnderline:   0x8502600B,
+  FixedFont:        0x8502600C,
+  Columns:          0x8502600D,
+  DoubleClickHook:  0x8502600E,
+  HasChanged:       0x8502600F,
+  Separator:        0x85026010,
+  CursorPosition:   0x85026011,
+  CursorX:          0x85026012,
+  CursorY:          0x85026013,
+  Prop_First:       0x85026014,
+  Prop_Entries:     0x85026015,
+  Prop_Visible:     0x85026016,
+  Pen_FG:           0x85026017,
+  Pen_BG:           0x85026018,
+  CheckWordFunction:0x85026019,
+  FormatCode:       0x8502601A,
+  Slider:           0x8502601B,
+  ColorMap:         0x8502601C,
+  TypeAndSpell:     0x8502601D,
+  InVirtualGroup:   0x8502601E,
+  UndoAvailable:    0x8502601F,
+  RedoAvailable:    0x85026020,
+  AreaMarked:       0x85026021,
+  HasChanged_ACK:   0x85026022,
+  WrapBorder:       0x85026023,
+  StopCursorBlink:  0x85026024,
+  SmoothScroll:     0x85026025,
+});
+
+/**
+ * texteditor.gadget — multi-line text editor.
+ *
+ * @extends GadgetBase
+ */
+class TextEditor extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/texteditor.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    contents:        { tagID: TEXTEDITOR.Contents,        type: 'string-owned' },
+    flow:            { tagID: TEXTEDITOR.Flow,            type: 'uint32' },
+    pen:             { tagID: TEXTEDITOR.Pen,             type: 'uint32' },
+    quiet:           { tagID: TEXTEDITOR.Quiet,           type: 'bool' },
+    readOnly:        { tagID: TEXTEDITOR.ReadOnly,        type: 'bool' },
+    styleBold:       { tagID: TEXTEDITOR.StyleBold,       type: 'bool' },
+    styleItalic:     { tagID: TEXTEDITOR.StyleItalic,     type: 'bool' },
+    styleUnderline:  { tagID: TEXTEDITOR.StyleUnderline,  type: 'bool' },
+    fixedFont:       { tagID: TEXTEDITOR.FixedFont,       type: 'bool' },
+    columns:         { tagID: TEXTEDITOR.Columns,         type: 'int32' },
+    hasChanged:      { tagID: TEXTEDITOR.HasChanged,      type: 'bool' },
+    cursorPosition:  { tagID: TEXTEDITOR.CursorPosition,  type: 'int32' },
+    cursorX:         { tagID: TEXTEDITOR.CursorX,         type: 'int32' },
+    cursorY:         { tagID: TEXTEDITOR.CursorY,         type: 'int32' },
+    penFG:           { tagID: TEXTEDITOR.Pen_FG,          type: 'uint32' },
+    penBG:           { tagID: TEXTEDITOR.Pen_BG,          type: 'uint32' },
+    typeAndSpell:    { tagID: TEXTEDITOR.TypeAndSpell,    type: 'bool' },
+    undoAvailable:   { tagID: TEXTEDITOR.UndoAvailable,   type: 'bool' },
+    redoAvailable:   { tagID: TEXTEDITOR.RedoAvailable,   type: 'bool' },
+    areaMarked:      { tagID: TEXTEDITOR.AreaMarked,      type: 'bool' },
+    wrapBorder:      { tagID: TEXTEDITOR.WrapBorder,      type: 'uint32' },
+    stopCursorBlink: { tagID: TEXTEDITOR.StopCursorBlink, type: 'bool' },
+    smoothScroll:    { tagID: TEXTEDITOR.SmoothScroll,    type: 'bool' },
+    slider:          { tagID: TEXTEDITOR.Slider,          type: 'ptr' },
+  };
+}
+
+EventKind.define('TEXT_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/texteditor.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/SketchBoard.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/SketchBoard.js
+ *
+ * sketchboard.gadget — Reaction free-draw canvas.
+ *
+ * SKETCHBOARD_Dummy = REACTION_Dummy + 0x24600 = 0x85024600.
+ */
+
+
+const SKETCHBOARD = Object.freeze({
+  MinWidth:     0x85024601,
+  MinHeight:    0x85024602,
+  RenderHook:   0x85024603,
+  AreaBox:      0x85024604,
+  BevelStyle:   0x85024605,
+  PenFG:        0x85024606,
+  PenBG:        0x85024607,
+  PenColor:     0x85024608,
+  Drawing:      0x85024609,
+});
+
+/**
+ * sketchboard.gadget — free-draw canvas.
+ *
+ * @extends GadgetBase
+ */
+class SketchBoard extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/sketchboard.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    minWidth:   { tagID: SKETCHBOARD.MinWidth,   type: 'int32' },
+    minHeight:  { tagID: SKETCHBOARD.MinHeight,  type: 'int32' },
+    renderHook: { tagID: SKETCHBOARD.RenderHook, type: 'ptr' },
+    areaBox:    { tagID: SKETCHBOARD.AreaBox,    type: 'ptr' },
+    bevelStyle: { tagID: SKETCHBOARD.BevelStyle, type: 'uint32' },
+    penFG:      { tagID: SKETCHBOARD.PenFG,      type: 'uint32' },
+    penBG:      { tagID: SKETCHBOARD.PenBG,      type: 'uint32' },
+    penColor:   { tagID: SKETCHBOARD.PenColor,   type: 'uint32' },
+    drawing:    { tagID: SKETCHBOARD.Drawing,    type: 'bool' },
+  };
+}
+
+EventKind.define('SKETCH_UPDATE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: true },
+  from:  'gadgets/sketchboard.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/TapeDeck.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/TapeDeck.js
+ *
+ * tapedeck.gadget — Reaction VCR-style transport button group
+ * (play / stop / rew / fwd / record / etc). Extends gadgetclass.
+ *
+ * TDECK_Dummy = TAG_USER + 0x05000000 = 0x85000000 (shares the
+ * Reaction base range).
+ */
+
+
+const TDECK = Object.freeze({
+  Mode:     0x85000001,
+  Paused:   0x85000002,
+  Tape:     0x85000003,
+  Buttons:  0x85000004,
+  Disabled: 0x85000005,
+  Step:     0x85000006,
+});
+
+/** TDECK_Mode values. */
+const TapeDeckMode = Object.freeze({
+  STOP:    0,
+  PLAY:    1,
+  FFWD:    2,
+  REW:     3,
+  RECORD:  4,
+  EJECT:   5,
+  PAUSE:   6,
+  STEP_FWD:7,
+  STEP_REW:8,
+});
+
+/**
+ * tapedeck.gadget — VCR transport.
+ *
+ * @extends GadgetBase
+ */
+class TapeDeck extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/tapedeck.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    mode:     { tagID: TDECK.Mode,     type: 'uint32' },
+    paused:   { tagID: TDECK.Paused,   type: 'bool' },
+    tape:     { tagID: TDECK.Tape,     type: 'bool' },
+    buttons:  { tagID: TDECK.Buttons,  type: 'uint32' },
+    step:     { tagID: TDECK.Step,     type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('TAPEDECK_CLICK', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: true, hasCoords: false },
+  from:  'gadgets/tapedeck.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/ColorWheel.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/ColorWheel.js
+ *
+ * colorwheel.gadget — circular HSB color-picker wheel.
+ *
+ * WHEEL_Dummy = TAG_USER + 0x04000000 = 0x84000000 (shares pre-Reaction
+ * base, distinct from REACTION_Dummy namespace).
+ */
+
+
+const WHEEL = Object.freeze({
+  Screen:      0x84000001,
+  ColorMap:    0x84000002,
+  Saturation:  0x84000003,
+  Hue:         0x84000004,
+  Brightness:  0x84000005,
+  HSB:         0x84000006,
+  RGB:         0x84000007,
+  Silent:      0x84000008,
+  BevelBox:    0x84000009,
+  Screen2:     0x8400000A,
+});
+
+/**
+ * colorwheel.gadget — circular HSB color picker.
+ *
+ * @extends GadgetBase
+ */
+class ColorWheel extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/colorwheel.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    screen:     { tagID: WHEEL.Screen,     type: 'ptr' },
+    colorMap:   { tagID: WHEEL.ColorMap,   type: 'ptr' },
+    saturation: { tagID: WHEEL.Saturation, type: 'uint32' },
+    hue:        { tagID: WHEEL.Hue,        type: 'uint32' },
+    brightness: { tagID: WHEEL.Brightness, type: 'uint32' },
+    hsb:        { tagID: WHEEL.HSB,        type: 'ptr' },
+    rgb:        { tagID: WHEEL.RGB,        type: 'ptr' },
+    silent:     { tagID: WHEEL.Silent,     type: 'bool' },
+    bevelBox:   { tagID: WHEEL.BevelBox,   type: 'bool' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('COLORWHEEL_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/colorwheel.gadget',
+  wraps: 'ATTR_UPDATE',
+});
+
+
+/* === boopsi/gadgets/GradientSlider.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/GradientSlider.js
+ *
+ * gradientslider.gadget — color-gradient strip with a slider knob;
+ * typically used inside ColorWheel's HSB controls.
+ *
+ * GRAD_Dummy = TAG_USER + 0x05000000 = 0x85000000.
+ */
+
+
+const GRAD = Object.freeze({
+  MaxVal:     0x85000001,
+  CurVal:     0x85000002,
+  SkipVal:    0x85000003,
+  KnobPixels: 0x85000004,
+  PenArray:   0x85000005,
+  Orientation:0x85000006,
+});
+
+/**
+ * gradientslider.gadget — gradient slider.
+ *
+ * @extends GadgetBase
+ */
+class GradientSlider extends GadgetBase {
+  /** @type {string} */
+  static _classLibName = 'gadgets/gradientslider.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...GADGET_ATTRS,
+    maxVal:     { tagID: GRAD.MaxVal,      type: 'uint32' },
+    curVal:     { tagID: GRAD.CurVal,      type: 'uint32' },
+    skipVal:    { tagID: GRAD.SkipVal,     type: 'int32' },
+    knobPixels: { tagID: GRAD.KnobPixels,  type: 'int32' },
+    penArray:   { tagID: GRAD.PenArray,    type: 'ptr' },
+    orientation:{ tagID: GRAD.Orientation, type: 'uint32' },
+  };
+
+  constructor(init) {
+    let clean = (init && typeof init === 'object') ? { ...init } : {};
+    if (clean.relVerify === undefined) clean.relVerify = true;
+    super(clean);
+  }
+}
+
+EventKind.define('GRADIENT_CHANGE', {
+  idcmp: 0x00800000,
+  rich:  { hasId: true, hasSource: true, hasPressed: false,
+           hasCode: false, hasCoords: false },
+  from:  'gadgets/gradientslider.gadget',
+  wraps: 'ATTR_UPDATE',
 });
 
 
@@ -6163,6 +8088,88 @@ class Layout extends GadgetBase {
     child._parent = null;
     return this;
   }
+}
+
+
+/* === boopsi/gadgets/Page.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Page.js
+ *
+ * page.gadget — Reaction multi-page container (stackable panels).
+ * Typically paired with a ClickTab for tabbed navigation.
+ *
+ * PAGE_Dummy = LAYOUT_Dummy + 0x200 = REACTION_Dummy + 0x7200 =
+ * 0x85007200.
+ */
+
+
+const PAGE = Object.freeze({
+  Add:     0x85007201,
+  Current: 0x85007202,
+});
+
+/**
+ * page.gadget — multi-page container.
+ *
+ * Extends Layout (which is itself a gadget) with page-switching.
+ *
+ * @extends Layout
+ */
+class Page extends Layout {
+  /** @type {string} */
+  static _classLibName = 'gadgets/page.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...Layout.ATTRS,
+    add:     { tagID: PAGE.Add,     type: 'ptr' },
+    current: { tagID: PAGE.Current, type: 'int32' },
+  };
+}
+
+
+/* === boopsi/gadgets/Virtual.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/Virtual.js
+ *
+ * virtual.gadget — Reaction scrollable virtual container. Wraps a
+ * child layout that's larger than the visible area and supplies
+ * scroller gadgets to pan around.
+ *
+ * VIRTUAL_Dummy = REACTION_Dummy + 0x62000 = 0x85062000.
+ */
+
+
+const VIRTUAL = Object.freeze({
+  NoHorizScroller: 0x85062001,
+  NoVertScroller:  0x85062002,
+  HorizScroller:   0x85062003,
+  VertScroller:    0x85062004,
+  TopPixel:        0x85062005,
+  LeftPixel:       0x85062006,
+  TotalPixels:     0x85062007,
+  VisiblePixels:   0x85062008,
+});
+
+/**
+ * virtual.gadget — scrollable virtual container.
+ *
+ * @extends Layout
+ */
+class Virtual extends Layout {
+  /** @type {string} */
+  static _classLibName = 'gadgets/virtual.gadget';
+
+  /** @type {Object<string, {tagID: number, type: string}>} */
+  static ATTRS = {
+    ...Layout.ATTRS,
+    noHorizScroller: { tagID: VIRTUAL.NoHorizScroller, type: 'bool' },
+    noVertScroller:  { tagID: VIRTUAL.NoVertScroller,  type: 'bool' },
+    horizScroller:   { tagID: VIRTUAL.HorizScroller,   type: 'ptr' },
+    vertScroller:    { tagID: VIRTUAL.VertScroller,    type: 'ptr' },
+    topPixel:        { tagID: VIRTUAL.TopPixel,        type: 'int32' },
+    leftPixel:       { tagID: VIRTUAL.LeftPixel,       type: 'int32' },
+    totalPixels:     { tagID: VIRTUAL.TotalPixels,     type: 'int32' },
+    visiblePixels:   { tagID: VIRTUAL.VisiblePixels,   type: 'int32' },
+  };
 }
 
 
@@ -6646,21 +8653,71 @@ globalThis.amiga.boopsi.ATTR_TYPES   = ATTR_TYPES;
 globalThis.amiga.boopsi.GADGET_ATTRS = GADGET_ATTRS;
 globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
 
-/* Phase B concrete classes — both flat and origin-namespaced. */
-globalThis.amiga.boopsi.Window    = ReactionWindow;
-globalThis.amiga.boopsi.Layout    = Layout;
-globalThis.amiga.boopsi.Button    = Button;
-globalThis.amiga.boopsi.Label     = Label;
+/* Concrete classes — flat aliases under amiga.boopsi plus origin-
+ * namespaced locations under amiga.boopsi.{classes,gadgets,images}. */
+const flat = {
+  Window: ReactionWindow, Layout, Button, Label,
+  Led, Bevel, Glyph, Bitmap,
+  CheckBox, RadioButton, Slider, Scroller, Integer, StringGadget,
+  Chooser, ClickTab, ListBrowser, Palette, Space, FuelGauge, SpeedBar,
+  GetFile, GetFont, GetScreenMode, GetColor,
+  DateBrowser, TextEditor, SketchBoard, TapeDeck,
+  ColorWheel, GradientSlider, Page, Virtual,
+};
+for (const [name, cls] of Object.entries(flat)) {
+  globalThis.amiga.boopsi[name] = cls;
+}
 
 globalThis.amiga.boopsi.classes.Window   = ReactionWindow;
-globalThis.amiga.boopsi.gadgets.Layout   = Layout;
-globalThis.amiga.boopsi.gadgets.Button   = Button;
 globalThis.amiga.boopsi.images.Label     = Label;
+globalThis.amiga.boopsi.images.Led       = Led;
+globalThis.amiga.boopsi.images.Bevel     = Bevel;
+globalThis.amiga.boopsi.images.Glyph     = Glyph;
+globalThis.amiga.boopsi.images.Bitmap    = Bitmap;
+globalThis.amiga.boopsi.gadgets.Button         = Button;
+globalThis.amiga.boopsi.gadgets.CheckBox       = CheckBox;
+globalThis.amiga.boopsi.gadgets.RadioButton    = RadioButton;
+globalThis.amiga.boopsi.gadgets.Slider         = Slider;
+globalThis.amiga.boopsi.gadgets.Scroller       = Scroller;
+globalThis.amiga.boopsi.gadgets.Integer        = Integer;
+globalThis.amiga.boopsi.gadgets.StringGadget   = StringGadget;
+globalThis.amiga.boopsi.gadgets.Chooser        = Chooser;
+globalThis.amiga.boopsi.gadgets.ClickTab       = ClickTab;
+globalThis.amiga.boopsi.gadgets.ListBrowser    = ListBrowser;
+globalThis.amiga.boopsi.gadgets.Palette        = Palette;
+globalThis.amiga.boopsi.gadgets.Space          = Space;
+globalThis.amiga.boopsi.gadgets.FuelGauge      = FuelGauge;
+globalThis.amiga.boopsi.gadgets.SpeedBar       = SpeedBar;
+globalThis.amiga.boopsi.gadgets.GetFile        = GetFile;
+globalThis.amiga.boopsi.gadgets.GetFont        = GetFont;
+globalThis.amiga.boopsi.gadgets.GetScreenMode  = GetScreenMode;
+globalThis.amiga.boopsi.gadgets.GetColor       = GetColor;
+globalThis.amiga.boopsi.gadgets.DateBrowser    = DateBrowser;
+globalThis.amiga.boopsi.gadgets.TextEditor     = TextEditor;
+globalThis.amiga.boopsi.gadgets.SketchBoard    = SketchBoard;
+globalThis.amiga.boopsi.gadgets.TapeDeck       = TapeDeck;
+globalThis.amiga.boopsi.gadgets.ColorWheel     = ColorWheel;
+globalThis.amiga.boopsi.gadgets.GradientSlider = GradientSlider;
+globalThis.amiga.boopsi.gadgets.Layout         = Layout;
+globalThis.amiga.boopsi.gadgets.Page           = Page;
+globalThis.amiga.boopsi.gadgets.Virtual        = Virtual;
 
 /* Value enums */
-globalThis.amiga.boopsi.LayoutOrient   = LayoutOrient;
-globalThis.amiga.boopsi.LabelJustify   = LabelJustify;
-globalThis.amiga.boopsi.WindowPosition = WindowPosition;
+globalThis.amiga.boopsi.LayoutOrient    = LayoutOrient;
+globalThis.amiga.boopsi.LabelJustify    = LabelJustify;
+globalThis.amiga.boopsi.WindowPosition  = WindowPosition;
+globalThis.amiga.boopsi.BevelStyle      = BevelStyle;
+globalThis.amiga.boopsi.GlyphKind       = GlyphKind;
+globalThis.amiga.boopsi.SliderOrient    = SliderOrient;
+globalThis.amiga.boopsi.SliderJustify   = SliderJustify;
+globalThis.amiga.boopsi.ScrollerOrient  = ScrollerOrient;
+globalThis.amiga.boopsi.StringHookType  = StringHookType;
+globalThis.amiga.boopsi.ChooserJustify  = ChooserJustify;
+globalThis.amiga.boopsi.FuelGaugeOrient = FuelGaugeOrient;
+globalThis.amiga.boopsi.TapeDeckMode    = TapeDeckMode;
+globalThis.amiga.boopsi.CNA             = CNA;
+globalThis.amiga.boopsi.TNA             = TNA;
+globalThis.amiga.boopsi.SBNA            = SBNA;
 
 /* ------------------------------------------------------------------
  * Globals — convenience for scripts, conflict-gated.

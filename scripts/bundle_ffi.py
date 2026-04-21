@@ -67,11 +67,41 @@ ORDER = [
     'boopsi/BOOPSIBase.js',        # root class; ATTRS table driver
     'boopsi/GadgetBase.js',        # extends BOOPSIBase; GA_* attrs
     'boopsi/ImageBase.js',         # extends BOOPSIBase; IA_* attrs
-    # Phase B concrete classes (load order: images/gadgets first so
-    # they're all defined when Window is constructed with a layout).
+    # Images — pure imageclass subclasses, simplest to load first.
     'boopsi/images/Label.js',
+    'boopsi/images/Led.js',
+    'boopsi/images/Bevel.js',
+    'boopsi/images/Glyph.js',
+    'boopsi/images/Bitmap.js',
+    # Interactive gadgets (all extend GadgetBase directly).
     'boopsi/gadgets/Button.js',    # also extends EventKind at load time
+    'boopsi/gadgets/CheckBox.js',
+    'boopsi/gadgets/RadioButton.js',
+    'boopsi/gadgets/Slider.js',
+    'boopsi/gadgets/Scroller.js',
+    'boopsi/gadgets/Integer.js',
+    'boopsi/gadgets/StringGadget.js',
+    'boopsi/gadgets/Chooser.js',
+    'boopsi/gadgets/ClickTab.js',
+    'boopsi/gadgets/ListBrowser.js',
+    'boopsi/gadgets/Palette.js',
+    'boopsi/gadgets/Space.js',
+    'boopsi/gadgets/FuelGauge.js',
+    'boopsi/gadgets/SpeedBar.js',
+    'boopsi/gadgets/GetFile.js',
+    'boopsi/gadgets/GetFont.js',
+    'boopsi/gadgets/GetScreenMode.js',
+    'boopsi/gadgets/GetColor.js',
+    'boopsi/gadgets/DateBrowser.js',
+    'boopsi/gadgets/TextEditor.js',
+    'boopsi/gadgets/SketchBoard.js',
+    'boopsi/gadgets/TapeDeck.js',
+    'boopsi/gadgets/ColorWheel.js',
+    'boopsi/gadgets/GradientSlider.js',
+    # Layout containers — must load before Window (which holds a Layout).
     'boopsi/gadgets/Layout.js',
+    'boopsi/gadgets/Page.js',      # extends Layout
+    'boopsi/gadgets/Virtual.js',   # extends Layout
     'boopsi/classes/Window.js',
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',

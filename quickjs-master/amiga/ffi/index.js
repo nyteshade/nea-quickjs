@@ -72,8 +72,37 @@ import { GadgetBase, GA, GADGET_ATTRS } from './boopsi/GadgetBase.js';
 import { ImageBase, IA, IMAGE_ATTRS } from './boopsi/ImageBase.js';
 import { EventKind, IDCMP, IDCMP_REACTION_DEFAULT } from './boopsi/EventKind.js';
 import { Label, LabelJustify } from './boopsi/images/Label.js';
+import { Led } from './boopsi/images/Led.js';
+import { Bevel, BevelStyle } from './boopsi/images/Bevel.js';
+import { Glyph, GlyphKind } from './boopsi/images/Glyph.js';
+import { Bitmap } from './boopsi/images/Bitmap.js';
 import { Button } from './boopsi/gadgets/Button.js';
+import { CheckBox } from './boopsi/gadgets/CheckBox.js';
+import { RadioButton } from './boopsi/gadgets/RadioButton.js';
+import { Slider, SliderOrient, SliderJustify } from './boopsi/gadgets/Slider.js';
+import { Scroller, ScrollerOrient } from './boopsi/gadgets/Scroller.js';
+import { Integer } from './boopsi/gadgets/Integer.js';
+import { StringGadget, StringHookType } from './boopsi/gadgets/StringGadget.js';
+import { Chooser, ChooserJustify, CNA } from './boopsi/gadgets/Chooser.js';
+import { ClickTab, TNA } from './boopsi/gadgets/ClickTab.js';
+import { ListBrowser } from './boopsi/gadgets/ListBrowser.js';
+import { Palette } from './boopsi/gadgets/Palette.js';
+import { Space } from './boopsi/gadgets/Space.js';
+import { FuelGauge, FuelGaugeOrient } from './boopsi/gadgets/FuelGauge.js';
+import { SpeedBar, SBNA } from './boopsi/gadgets/SpeedBar.js';
+import { GetFile } from './boopsi/gadgets/GetFile.js';
+import { GetFont } from './boopsi/gadgets/GetFont.js';
+import { GetScreenMode } from './boopsi/gadgets/GetScreenMode.js';
+import { GetColor } from './boopsi/gadgets/GetColor.js';
+import { DateBrowser } from './boopsi/gadgets/DateBrowser.js';
+import { TextEditor } from './boopsi/gadgets/TextEditor.js';
+import { SketchBoard } from './boopsi/gadgets/SketchBoard.js';
+import { TapeDeck, TapeDeckMode } from './boopsi/gadgets/TapeDeck.js';
+import { ColorWheel } from './boopsi/gadgets/ColorWheel.js';
+import { GradientSlider } from './boopsi/gadgets/GradientSlider.js';
 import { Layout, LayoutOrient } from './boopsi/gadgets/Layout.js';
+import { Page } from './boopsi/gadgets/Page.js';
+import { Virtual } from './boopsi/gadgets/Virtual.js';
 import { ReactionWindow, WindowPosition } from './boopsi/classes/Window.js';
 
 globalThis.amiga = globalThis.amiga || {};
@@ -165,21 +194,71 @@ globalThis.amiga.boopsi.ATTR_TYPES   = ATTR_TYPES;
 globalThis.amiga.boopsi.GADGET_ATTRS = GADGET_ATTRS;
 globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
 
-/* Phase B concrete classes — both flat and origin-namespaced. */
-globalThis.amiga.boopsi.Window    = ReactionWindow;
-globalThis.amiga.boopsi.Layout    = Layout;
-globalThis.amiga.boopsi.Button    = Button;
-globalThis.amiga.boopsi.Label     = Label;
+/* Concrete classes — flat aliases under amiga.boopsi plus origin-
+ * namespaced locations under amiga.boopsi.{classes,gadgets,images}. */
+const flat = {
+  Window: ReactionWindow, Layout, Button, Label,
+  Led, Bevel, Glyph, Bitmap,
+  CheckBox, RadioButton, Slider, Scroller, Integer, StringGadget,
+  Chooser, ClickTab, ListBrowser, Palette, Space, FuelGauge, SpeedBar,
+  GetFile, GetFont, GetScreenMode, GetColor,
+  DateBrowser, TextEditor, SketchBoard, TapeDeck,
+  ColorWheel, GradientSlider, Page, Virtual,
+};
+for (const [name, cls] of Object.entries(flat)) {
+  globalThis.amiga.boopsi[name] = cls;
+}
 
 globalThis.amiga.boopsi.classes.Window   = ReactionWindow;
-globalThis.amiga.boopsi.gadgets.Layout   = Layout;
-globalThis.amiga.boopsi.gadgets.Button   = Button;
 globalThis.amiga.boopsi.images.Label     = Label;
+globalThis.amiga.boopsi.images.Led       = Led;
+globalThis.amiga.boopsi.images.Bevel     = Bevel;
+globalThis.amiga.boopsi.images.Glyph     = Glyph;
+globalThis.amiga.boopsi.images.Bitmap    = Bitmap;
+globalThis.amiga.boopsi.gadgets.Button         = Button;
+globalThis.amiga.boopsi.gadgets.CheckBox       = CheckBox;
+globalThis.amiga.boopsi.gadgets.RadioButton    = RadioButton;
+globalThis.amiga.boopsi.gadgets.Slider         = Slider;
+globalThis.amiga.boopsi.gadgets.Scroller       = Scroller;
+globalThis.amiga.boopsi.gadgets.Integer        = Integer;
+globalThis.amiga.boopsi.gadgets.StringGadget   = StringGadget;
+globalThis.amiga.boopsi.gadgets.Chooser        = Chooser;
+globalThis.amiga.boopsi.gadgets.ClickTab       = ClickTab;
+globalThis.amiga.boopsi.gadgets.ListBrowser    = ListBrowser;
+globalThis.amiga.boopsi.gadgets.Palette        = Palette;
+globalThis.amiga.boopsi.gadgets.Space          = Space;
+globalThis.amiga.boopsi.gadgets.FuelGauge      = FuelGauge;
+globalThis.amiga.boopsi.gadgets.SpeedBar       = SpeedBar;
+globalThis.amiga.boopsi.gadgets.GetFile        = GetFile;
+globalThis.amiga.boopsi.gadgets.GetFont        = GetFont;
+globalThis.amiga.boopsi.gadgets.GetScreenMode  = GetScreenMode;
+globalThis.amiga.boopsi.gadgets.GetColor       = GetColor;
+globalThis.amiga.boopsi.gadgets.DateBrowser    = DateBrowser;
+globalThis.amiga.boopsi.gadgets.TextEditor     = TextEditor;
+globalThis.amiga.boopsi.gadgets.SketchBoard    = SketchBoard;
+globalThis.amiga.boopsi.gadgets.TapeDeck       = TapeDeck;
+globalThis.amiga.boopsi.gadgets.ColorWheel     = ColorWheel;
+globalThis.amiga.boopsi.gadgets.GradientSlider = GradientSlider;
+globalThis.amiga.boopsi.gadgets.Layout         = Layout;
+globalThis.amiga.boopsi.gadgets.Page           = Page;
+globalThis.amiga.boopsi.gadgets.Virtual        = Virtual;
 
 /* Value enums */
-globalThis.amiga.boopsi.LayoutOrient   = LayoutOrient;
-globalThis.amiga.boopsi.LabelJustify   = LabelJustify;
-globalThis.amiga.boopsi.WindowPosition = WindowPosition;
+globalThis.amiga.boopsi.LayoutOrient    = LayoutOrient;
+globalThis.amiga.boopsi.LabelJustify    = LabelJustify;
+globalThis.amiga.boopsi.WindowPosition  = WindowPosition;
+globalThis.amiga.boopsi.BevelStyle      = BevelStyle;
+globalThis.amiga.boopsi.GlyphKind       = GlyphKind;
+globalThis.amiga.boopsi.SliderOrient    = SliderOrient;
+globalThis.amiga.boopsi.SliderJustify   = SliderJustify;
+globalThis.amiga.boopsi.ScrollerOrient  = ScrollerOrient;
+globalThis.amiga.boopsi.StringHookType  = StringHookType;
+globalThis.amiga.boopsi.ChooserJustify  = ChooserJustify;
+globalThis.amiga.boopsi.FuelGaugeOrient = FuelGaugeOrient;
+globalThis.amiga.boopsi.TapeDeckMode    = TapeDeckMode;
+globalThis.amiga.boopsi.CNA             = CNA;
+globalThis.amiga.boopsi.TNA             = TNA;
+globalThis.amiga.boopsi.SBNA            = SBNA;
 
 /* ------------------------------------------------------------------
  * Globals — convenience for scripts, conflict-gated.
