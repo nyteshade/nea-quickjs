@@ -387,28 +387,37 @@ fail:
 /* ------------------------------------------------------------------
  * doMethod — expand the IDoMethod macro so BOOPSI dispatch works
  * from JS. Reads the object's Class pointer from (obj - 4), then
- * calls class->cl_Dispatcher via the Hook convention (A0=hook,
- * A2=obj, A1=msg). The asm trampoline lives in amiga_boopsi_call.s.
+ * dispatches via the Class's cl_Dispatcher Hook.
  *
- * JS call: __qjs_amiga_doMethod(objPtr, msgPtr) → result
- *
- * struct IClass layout (intuition/classes.h, 2-byte aligned):
- *   +0   cl_Node (struct Node, 14 bytes)
- *  +14   cl_SuperClass (struct IClass *, 4)
- *  +18   cl_ObjectSize (UWORD, 2)
- *  +20   cl_InstOffset (UWORD, 2)
- *  +22   cl_InstSize   (UWORD, 2)
- *  +24   cl_SubclassCount (UWORD, 2)
- *  +26   cl_ObjectCount   (UWORD, 2)
- *  +28   cl_Flags   (ULONG, 4)
- *  +32   cl_UserData (ULONG, 4)
- *  +36   cl_Dispatcher (struct Hook) — 20 bytes
+ * struct IClass layout (intuition/classes.h:31-42, NDK 3.2R4):
+ *   +0   cl_Dispatcher (struct Hook) — 20 bytes (FIRST field)
+ *  +20   cl_Reserved   (ULONG, 4)
+ *  +24   cl_Super      (struct IClass *, 4)
+ *  +28   cl_ID         (STRPTR, 4)
+ *  +32   cl_InstOffset (UWORD, 2)
+ *  +34   cl_InstSize   (UWORD, 2)
+ *  +36   cl_UserData   (ULONG, 4)
+ *  ...
  *
  * struct Hook layout (utility/hooks.h):
- *   +0   h_MinNode (8 bytes)
- *   +8   h_Entry   (ULONG (*)(), 4)
- *  +12   h_SubEntry (4)
+ *   +0   h_MinNode (struct MinNode, 8 bytes)
+ *   +8   h_Entry   (ULONG (*)(), 4) — the dispatcher function
+ *  +12   h_SubEntry (ULONG (*)(), 4)
  *  +16   h_Data    (APTR, 4)
+ *
+ * The Hook address is therefore `cl` itself (first field — same address
+ * as the struct). h_Entry lives at cl+8.
+ *
+ * NOTE: this function had a bug (fixed 0.144) where it computed
+ * `hook = cl + 36` and then `h_entry = *(hook + 8)` = *(cl + 44),
+ * reading garbage past cl_UserData. Jumping to that garbage address
+ * produced a CPU Address Error (Guru 80000003) as soon as any BOOPSI
+ * doMethod fired — typically WM_OPEN, since object *construction*
+ * goes through Intuition.NewObjectA (library LVO), bypassing this path.
+ *
+ * Hook convention passed to the asm trampoline: A0=hook, A2=obj, A1=msg.
+ *
+ * JS call: __qjs_amiga_doMethod(objPtr, msgPtr) → result
  * ----------------------------------------------------------------- */
 static JSValue js_amiga_doMethod(JSContext *ctx, JSValueConst this_val,
                                  int argc, JSValueConst *argv)
@@ -429,11 +438,11 @@ static JSValue js_amiga_doMethod(JSContext *ctx, JSValueConst this_val,
     cl = *((APTR *)(obj_addr - 4));
     if (!cl) return JS_NewInt64(ctx, 0);
 
-    /* cl_Dispatcher is a struct Hook at offset +36 into IClass. */
-    hook = (APTR)((UBYTE *)cl + 36);
-
-    /* h_Entry (offset +8 into Hook) is the dispatcher fn ptr. */
-    h_entry = *((ULONG *)((UBYTE *)hook + 8));
+    /* cl_Dispatcher is the FIRST field of struct IClass (offset 0), so
+     * the Hook and the Class share the same address. h_Entry lives at
+     * offset +8 inside the Hook. */
+    hook = cl;
+    h_entry = *((ULONG *)((UBYTE *)cl + 8));
     if (!h_entry) return JS_NewInt64(ctx, 0);
 
     result = qjs_boopsi_dispatch(hook, (APTR)obj_addr, (APTR)msg_addr);
