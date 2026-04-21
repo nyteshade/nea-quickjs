@@ -197,9 +197,83 @@ export class ReactionWindow extends BOOPSIBase {
   get intuiWindow() { return this._intuiWindow; }
 
   /**
+   * Walk `_children` depth-first, collecting every descendant keyed
+   * by its `_id` (GA_ID set at construction time). Used by the
+   * IDCMPUPDATE translator to resolve a source gadget by ID.
+   *
+   * @returns {Map<number, BOOPSIBase>}
+   */
+  _buildIdMap() {
+    let map = new Map();
+    let walk = (node) => {
+      if (node._id !== null && node._id !== undefined) {
+        map.set(node._id >>> 0, node);
+      }
+      for (let c of node._children) walk(c);
+    };
+    for (let c of this._children) walk(c);
+    return map;
+  }
+
+  /**
+   * Parse the TagList carried by IDCMP_IDCMPUPDATE (IntuiMessage.
+   * iaddress). Walks TagItems until ti_Tag == TAG_END (0), populating
+   * the supplied `out` object with every tag we recognize:
+   *   GA_ID       → out.id
+   *   ICA_TARGET  → out.icaTarget
+   *   plus any raw tag IDs into out.tags[tagID] = ti_Data (so callers
+   *   can introspect class-specific tags via attrs without us having
+   *   to enumerate every Reaction class's attribute set here).
+   *
+   * @param {number} tagListPtr
+   * @param {object} out
+   * @returns {undefined}
+   */
+  static _walkUpdateTags(tagListPtr, out) {
+    if (!tagListPtr) return;
+    const peek = globalThis.amiga.peek32;
+
+    /* Safety cap — Reaction tag lists are short (< 32 items), but
+     * bail out if something is corrupt to avoid a runaway loop. */
+    const MAX_TAGS = 256;
+    let p = tagListPtr;
+    let i = 0;
+
+    for (; i < MAX_TAGS; i++, p += 8) {
+      let tag  = peek(p);
+      let data = peek(p + 4);
+
+      /* TAG_END = 0 */
+      if (tag === 0) break;
+
+      /* TAG_IGNORE = 1 — skip this slot */
+      if (tag === 1) continue;
+
+      /* TAG_MORE = 2 — ti_Data points to continuation TagList. */
+      if (tag === 2) { p = (data >>> 0) - 8; continue; }
+
+      /* TAG_SKIP = 3 — skip ti_Data more items */
+      if (tag === 3) { p += (data | 0) * 8; continue; }
+
+      /* GA_ID = 0x8003000F */
+      if (tag === 0x8003000F) { out.id = data >>> 0; continue; }
+
+      /* ICA_TARGET = 0x80040001 (ICA_Dummy = TAG_USER+0x40000, +1) */
+      if (tag === 0x80040001) { out.icaTarget = data >>> 0; continue; }
+
+      /* Anything else — record by tag ID for class-specific parsing. */
+      if (!out.tags) out.tags = {};
+      out.tags[tag >>> 0] = data >>> 0;
+    }
+  }
+
+  /**
    * Translate one IntuiMessage into a rich event object. Matches the
    * EventKind enum by IDCMP class; unknown classes fall through with
-   * kind=null so nothing gets swallowed.
+   * kind=null so nothing gets swallowed. For IDCMP_IDCMPUPDATE walks
+   * the TagList and resolves event.source / event.sourceId / event.attrs,
+   * then upgrades event.kind to a class-specific case where possible
+   * (e.g. a BUTTON_CLICK when the source is a Button).
    *
    * @param   {IntuiMessage} msg
    * @returns {{kind: *|null, source: *|null, sourceId: number|null, attrs: object, raw: IntuiMessage}}
@@ -216,10 +290,30 @@ export class ReactionWindow extends BOOPSIBase {
       raw:      msg,
     };
 
-    /* IDCMP_IDCMPUPDATE carries a TagList of GA_ID + deltas. For
-     * now we don't parse it deeply — callers match on kind and
-     * read fields from raw. Future pass: walk the TagList and
-     * populate event.attrs + resolve event.source via child lookup. */
+    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iaddress TagList, pull GA_ID,
+     * resolve source from JS-side child registry, upgrade event.kind
+     * to the most specific class-level case (BUTTON_CLICK,
+     * CHECKBOX_TOGGLE, ...) if any is registered. */
+    if (cls === 0x00800000 && msg.iaddress) {
+      let parsed = {};
+      ReactionWindow._walkUpdateTags(msg.iaddress, parsed);
+
+      if (typeof parsed.id === 'number') {
+        event.sourceId = parsed.id;
+        let map = this._buildIdMap();
+        event.source = map.get(parsed.id) || null;
+
+        /* Upgrade kind based on source class. Button → BUTTON_CLICK,
+         * etc. Falls through to ATTR_UPDATE if no class match. */
+        if (event.source) {
+          let className = event.source.constructor._classLibName;
+          let classKind = EventKind.fromGadgetClass(className);
+          if (classKind) event.kind = classKind;
+        }
+      }
+
+      if (parsed.tags) event.attrs = parsed.tags;
+    }
 
     return event;
   }

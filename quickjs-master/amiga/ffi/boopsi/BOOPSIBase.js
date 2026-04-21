@@ -140,6 +140,13 @@ export class BOOPSIBase {
     /** @type {boolean} */         this._disposed   = false;
     /** @type {Map<string, Function>} */ this._handlers = new Map();
 
+    /* GA_ID assigned via init.id (if any). Tracked on the JS side so
+     * Window._translateMessage can resolve event.source from the
+     * IDCMPUPDATE TagList without round-tripping to OM_GET. */
+    /** @type {number|null} */
+    this._id = (init && typeof init === 'object' &&
+                typeof init.id === 'number') ? (init.id >>> 0) : null;
+
     /* Memory we own and must free at dispose: strings allocated for
      * 'string-owned' attrs. Each entry is { ptr, size }. */
     /** @type {Array<{ptr: number, size: number}>} */

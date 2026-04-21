@@ -24,7 +24,7 @@ if (!amiga.boopsi || !amiga.boopsi.Window) {
   std.exit(1);
 }
 
-const { Window, Layout, Button, Label, EventKind } = amiga.boopsi;
+const { Window, Layout, Button, Label, EventKind, IDCMP } = amiga.boopsi;
 
 /* Build the UI declaratively. Every `new` call opens the underlying
  * .class/.gadget/.image library lazily and caches the Class*. */
@@ -40,9 +40,9 @@ let win = new Window({
 
   /* Default IDCMP — include IDCMP_IDCMPUPDATE so button clicks get
    * routed to us via Reaction's attribute-delta broadcast. */
-  idcmp: 0x00000200           /* CLOSE_WINDOW */
-       | 0x00000004           /* REFRESH_WINDOW */
-       | 0x40000000,          /* IDCMPUPDATE (Reaction) */
+  idcmp: IDCMP.CLOSE_WINDOW
+       | IDCMP.REFRESH_WINDOW
+       | IDCMP.IDCMPUPDATE,   /* = 0x00800000, the real Reaction bit */
 
   layout: new Layout({
     orientation: 'vertical',
@@ -70,11 +70,15 @@ try {
       break;
     }
 
-    if (evt.kind === EventKind.ATTR_UPDATE) {
-      /* Reaction IDCMP_IDCMPUPDATE carrying a GA_ID. Phase B reports
-       * the raw IntuiMessage; full TagList parsing to extract the
-       * source GadgetID lands in Phase D refinement. */
-      print('ATTR_UPDATE — code=0x' + evt.raw.code.toString(16));
+    if (evt.kind === EventKind.BUTTON_CLICK) {
+      print('BUTTON_CLICK — id=' + evt.sourceId +
+            ' text="' + (evt.source ? evt.source.text : '?') + '"');
+      if (evt.sourceId === 2) break;   /* Quit */
+    }
+
+    else if (evt.kind === EventKind.ATTR_UPDATE) {
+      print('ATTR_UPDATE — id=' + evt.sourceId +
+            ' code=0x' + evt.raw.code.toString(16));
     }
 
     else {

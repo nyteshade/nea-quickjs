@@ -78,9 +78,9 @@ export class Button extends GadgetBase {
  * Window event pump looks up this case when it sees IDCMP_IDCMPUPDATE
  * carrying a GA_ID whose owner is a Button. */
 EventKind.define('BUTTON_CLICK', {
-  idcmp: 0x40000000,  /* IDCMP_IDCMPUPDATE */
+  idcmp: 0x00800000,  /* IDCMP_IDCMPUPDATE — correct value per intuition.h:887 */
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
-  from:  'button.gadget',
+  from:  'gadgets/button.gadget',
   wraps: 'GADGET_UP',
 });
