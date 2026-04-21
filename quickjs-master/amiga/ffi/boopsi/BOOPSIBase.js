@@ -166,8 +166,11 @@ export class BOOPSIBase {
     let tagBytes = tags.bytes;
 
     try {
+      /* Intuition.NewObjectA(class, classID, tagList) — a0/a1/a2.
+       * We always instantiate from a private Class* (returned by the
+       * class library's XXX_GetClass), so classID is NULL. */
       let raw = globalThis.amiga.Intuition.NewObjectA(
-        0, classPtr, tags.ptr
+        classPtr, 0, tags.ptr
       );
 
       if (!raw) {
