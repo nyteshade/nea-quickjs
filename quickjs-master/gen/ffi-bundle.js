@@ -5122,6 +5122,11 @@ class BOOPSIBase {
     let pairs = [];
 
     for (let key in initObj) {
+      /* `_extraPairs` is a caller-supplied escape hatch for repeated
+       * tag IDs that the ATTRS-key-map can't express (e.g. Reaction's
+       * LAYOUT_AddChild, which appears once per child in the tag list). */
+      if (key === '_extraPairs') continue;
+
       let desc = attrs[key];
 
       if (!desc) {
@@ -5167,6 +5172,14 @@ class BOOPSIBase {
       }
 
       pairs.push([desc.tagID | 0, tagValue]);
+    }
+
+    /* Append the escape-hatch pairs verbatim. Each entry is
+     * [tagID, value] with both already encoded. */
+    if (Array.isArray(initObj._extraPairs)) {
+      for (let p of initObj._extraPairs) {
+        pairs.push(p);
+      }
     }
 
     if (pairs.length === 0) {
@@ -5758,6 +5771,14 @@ const LAYOUT = Object.freeze({
   Label:           0x85007010,
   LabelImage:      0x85007011,
   LabelPlace:      0x85007012,
+  /* LAYOUT_AddChild is the canonical way to add a child to a
+   * layout.gadget — pass it as a tag at NewObject time with the
+   * child Object* as value. It may appear multiple times in the
+   * same tag list; Reaction accumulates each into the child chain.
+   * Our ATTRS-key-map can't express a repeated tag, so we handle
+   * this specially in Layout.constructor via BOOPSIBase._extraPairs. */
+  AddChild:        0x85007014,
+  AddImage:        0x85007015,
 });
 
 /**
@@ -5805,8 +5826,70 @@ class Layout extends GadgetBase {
   };
 
   /**
-   * Add a child BOOPSI object to this layout via OM_ADDMEMBER. Keeps
-   * the JS-side parent/child links for the dispose cascade.
+   * Construct a Layout. Accepts:
+   *   - orientation as 'horizontal' | 'vertical' string OR numeric
+   *   - children: [] — each child's pointer goes into the tag list
+   *     as a LAYOUT_AddChild pair, which is Reaction's canonical
+   *     way to install children at construction time. Repeat-tag
+   *     pairs are injected through BOOPSIBase._extraPairs.
+   *
+   * Children are still tracked on the JS side via `_children` for
+   * the dispose cascade, but no OM_ADDMEMBER dispatch is issued —
+   * the layout.gadget handles member-insertion when it sees the
+   * LAYOUT_AddChild tags during NewObject.
+   *
+   * @param {object|number} init
+   */
+  constructor(init) {
+    /* Normalize the input object without mutating the caller's copy. */
+    let rawInit = (init && typeof init === 'object') ? { ...init } : {};
+
+    if (typeof rawInit.orientation === 'string') {
+      let m = rawInit.orientation.toLowerCase();
+      rawInit.orientation = (m === 'vertical') ? LayoutOrient.VERTICAL
+                                                : LayoutOrient.HORIZONTAL;
+    }
+
+    /* Extract children; convert to LAYOUT_AddChild tag pairs. */
+    let children = rawInit.children;
+    delete rawInit.children;
+
+    let pairs = [];
+
+    if (Array.isArray(children)) {
+      for (let c of children) {
+        if (!c || !c.ptr) {
+          throw new Error(
+            'Layout: child in children[] has no ptr ' +
+            '(disposed, wrapping-only, or not a BOOPSIBase)'
+          );
+        }
+        pairs.push([LAYOUT.AddChild, c.ptr]);
+      }
+    }
+
+    if (pairs.length) rawInit._extraPairs = pairs;
+
+    /* Pointer-or-number; _extraPairs is detected + consumed by
+     * BOOPSIBase._buildTagList. */
+    super(rawInit);
+
+    /* Track children for dispose cascade (no second OM dispatch —
+     * they're already registered through the LAYOUT_AddChild tags). */
+    if (Array.isArray(children)) {
+      for (let c of children) {
+        c._parent = this;
+        this._children.push(c);
+      }
+    }
+  }
+
+  /**
+   * Add a child to an already-constructed layout. Uses OM_ADDMEMBER,
+   * the generic BOOPSI method; layout.gadget routes this to its own
+   * insertion logic. Less reliable than LAYOUT_AddChild at
+   * construction — prefer `new Layout({children:[...]})` when you
+   * can. Needed for dynamic UIs that add/remove gadgets at runtime.
    *
    * @param {BOOPSIBase} child
    * @returns {Layout} this for chaining
@@ -5819,12 +5902,13 @@ class Layout extends GadgetBase {
     }
 
     this.doMethod(OM.ADDMEMBER, child.ptr);
-    super.addChild(child);
+    child._parent = this;
+    this._children.push(child);
     return this;
   }
 
   /**
-   * Remove a previously-added child. Called less often than addChild.
+   * Remove a previously-added child. Less-common runtime op.
    *
    * @param {BOOPSIBase} child
    * @returns {Layout} this
@@ -5835,23 +5919,6 @@ class Layout extends GadgetBase {
     if (idx >= 0) this._children.splice(idx, 1);
     child._parent = null;
     return this;
-  }
-
-  /**
-   * Pre-process init objects so that the ergonomic
-   * `orientation: 'horizontal'` form is accepted alongside numeric.
-   *
-   * @param {object|number} init
-   */
-  constructor(init) {
-    if (init && typeof init === 'object' &&
-        typeof init.orientation === 'string') {
-      let m = init.orientation.toLowerCase();
-      init = { ...init };
-      init.orientation = (m === 'vertical') ? LayoutOrient.VERTICAL
-                                             : LayoutOrient.HORIZONTAL;
-    }
-    super(init);
   }
 }
 
@@ -5882,24 +5949,36 @@ class Layout extends GadgetBase {
  */
 
 
-/* Window-class attribute IDs */
+/* Window-class attribute IDs. WA_* comes from intuition/intuition.h
+ * (WA_Dummy = TAG_USER + 99 = 0x80000063). WINDOW_* comes from
+ * classes/window.h (WINDOW_Dummy = REACTION_Dummy + 0x25000 =
+ * 0x85025000). Both are accepted by window.class at NewObject time. */
 const WA = Object.freeze({
+  Left:          0x80000064,
+  Top:           0x80000065,
+  Width:         0x80000066,
+  Height:        0x80000067,
+  IDCMP:         0x8000006A,
+  Flags:         0x8000006B,
   Title:         0x8000006E,
   ScreenTitle:   0x8000006F,
   CustomScreen:  0x80000070,
-  PubScreen:     0x80000079,
-  InnerWidth:    0x80000076,
-  InnerHeight:   0x80000077,
-  IDCMP:         0x8000006A,
-  Flags:         0x8000006B,
-  Width:         0x80000066,
-  Height:        0x80000067,
-  Left:          0x80000064,
-  Top:           0x80000065,
   MinWidth:      0x80000072,
   MinHeight:     0x80000073,
   MaxWidth:      0x80000074,
   MaxHeight:     0x80000075,
+  InnerWidth:    0x80000076,
+  InnerHeight:   0x80000077,
+  PubScreen:     0x80000079,
+  /* Individual gadget-flag tags (WA_Dummy + 0x1E..0x21). These are
+   * the CORRECT tags to enable sizing/drag/depth/close gadgets at
+   * NewObject time — an earlier (0.139) version of this file used
+   * non-existent WINDOW_CloseGadget/... values instead, which
+   * silently did nothing and produced invisible windows. */
+  SizeGadget:    0x80000081,
+  DragBar:       0x80000082,
+  DepthGadget:   0x80000083,
+  CloseGadget:   0x80000084,
 });
 
 const WINDOW = Object.freeze({
@@ -5913,10 +5992,6 @@ const WINDOW = Object.freeze({
   LockWidth:     0x8502500B,
   LockHeight:    0x8502500C,
   Position:      0x8502500E,
-  CloseGadget:   0x85025019,
-  SizeGadget:    0x8502501A,
-  DragBar:       0x8502501B,
-  DepthGadget:   0x8502501C,
   NestedEvents:  0x8502502D,
 });
 
@@ -5971,16 +6046,20 @@ class ReactionWindow extends BOOPSIBase {
     idcmp:         { tagID: WA.IDCMP,       type: 'uint32' },
     flags:         { tagID: WA.Flags,       type: 'uint32' },
 
+    /* Gadget-flag tags — WA_* (not WINDOW_*). These enable the
+     * actual intuition gadget flags at OpenWindowTagList time.
+     * Setting them to false omits that gadget. */
+    closeGadget:   { tagID: WA.CloseGadget, type: 'bool' },
+    sizeGadget:    { tagID: WA.SizeGadget,  type: 'bool' },
+    dragBar:       { tagID: WA.DragBar,     type: 'bool' },
+    depthGadget:   { tagID: WA.DepthGadget, type: 'bool' },
+
     /* WINDOW_* — Reaction additions. */
     layout:        { tagID: WINDOW.Layout,  type: 'ptr'    },
     position:      { tagID: WINDOW.Position,type: 'uint32' },
     activate:      { tagID: WINDOW.Activate,type: 'bool'   },
     lockWidth:     { tagID: WINDOW.LockWidth, type: 'bool' },
     lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
-    closeGadget:   { tagID: WINDOW.CloseGadget, type: 'bool' },
-    sizeGadget:    { tagID: WINDOW.SizeGadget,  type: 'bool' },
-    dragBar:       { tagID: WINDOW.DragBar,   type: 'bool' },
-    depthGadget:   { tagID: WINDOW.DepthGadget,type: 'bool' },
     nestedEvents:  { tagID: WINDOW.NestedEvents, type: 'bool' },
     userData:      { tagID: WINDOW.UserData, type: 'uint32' },
 

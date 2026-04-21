@@ -207,6 +207,11 @@ export class BOOPSIBase {
     let pairs = [];
 
     for (let key in initObj) {
+      /* `_extraPairs` is a caller-supplied escape hatch for repeated
+       * tag IDs that the ATTRS-key-map can't express (e.g. Reaction's
+       * LAYOUT_AddChild, which appears once per child in the tag list). */
+      if (key === '_extraPairs') continue;
+
       let desc = attrs[key];
 
       if (!desc) {
@@ -252,6 +257,14 @@ export class BOOPSIBase {
       }
 
       pairs.push([desc.tagID | 0, tagValue]);
+    }
+
+    /* Append the escape-hatch pairs verbatim. Each entry is
+     * [tagID, value] with both already encoded. */
+    if (Array.isArray(initObj._extraPairs)) {
+      for (let p of initObj._extraPairs) {
+        pairs.push(p);
+      }
     }
 
     if (pairs.length === 0) {

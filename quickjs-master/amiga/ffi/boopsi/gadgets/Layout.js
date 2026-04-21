@@ -30,6 +30,14 @@ const LAYOUT = Object.freeze({
   Label:           0x85007010,
   LabelImage:      0x85007011,
   LabelPlace:      0x85007012,
+  /* LAYOUT_AddChild is the canonical way to add a child to a
+   * layout.gadget — pass it as a tag at NewObject time with the
+   * child Object* as value. It may appear multiple times in the
+   * same tag list; Reaction accumulates each into the child chain.
+   * Our ATTRS-key-map can't express a repeated tag, so we handle
+   * this specially in Layout.constructor via BOOPSIBase._extraPairs. */
+  AddChild:        0x85007014,
+  AddImage:        0x85007015,
 });
 
 /**
@@ -77,8 +85,70 @@ export class Layout extends GadgetBase {
   };
 
   /**
-   * Add a child BOOPSI object to this layout via OM_ADDMEMBER. Keeps
-   * the JS-side parent/child links for the dispose cascade.
+   * Construct a Layout. Accepts:
+   *   - orientation as 'horizontal' | 'vertical' string OR numeric
+   *   - children: [] — each child's pointer goes into the tag list
+   *     as a LAYOUT_AddChild pair, which is Reaction's canonical
+   *     way to install children at construction time. Repeat-tag
+   *     pairs are injected through BOOPSIBase._extraPairs.
+   *
+   * Children are still tracked on the JS side via `_children` for
+   * the dispose cascade, but no OM_ADDMEMBER dispatch is issued —
+   * the layout.gadget handles member-insertion when it sees the
+   * LAYOUT_AddChild tags during NewObject.
+   *
+   * @param {object|number} init
+   */
+  constructor(init) {
+    /* Normalize the input object without mutating the caller's copy. */
+    let rawInit = (init && typeof init === 'object') ? { ...init } : {};
+
+    if (typeof rawInit.orientation === 'string') {
+      let m = rawInit.orientation.toLowerCase();
+      rawInit.orientation = (m === 'vertical') ? LayoutOrient.VERTICAL
+                                                : LayoutOrient.HORIZONTAL;
+    }
+
+    /* Extract children; convert to LAYOUT_AddChild tag pairs. */
+    let children = rawInit.children;
+    delete rawInit.children;
+
+    let pairs = [];
+
+    if (Array.isArray(children)) {
+      for (let c of children) {
+        if (!c || !c.ptr) {
+          throw new Error(
+            'Layout: child in children[] has no ptr ' +
+            '(disposed, wrapping-only, or not a BOOPSIBase)'
+          );
+        }
+        pairs.push([LAYOUT.AddChild, c.ptr]);
+      }
+    }
+
+    if (pairs.length) rawInit._extraPairs = pairs;
+
+    /* Pointer-or-number; _extraPairs is detected + consumed by
+     * BOOPSIBase._buildTagList. */
+    super(rawInit);
+
+    /* Track children for dispose cascade (no second OM dispatch —
+     * they're already registered through the LAYOUT_AddChild tags). */
+    if (Array.isArray(children)) {
+      for (let c of children) {
+        c._parent = this;
+        this._children.push(c);
+      }
+    }
+  }
+
+  /**
+   * Add a child to an already-constructed layout. Uses OM_ADDMEMBER,
+   * the generic BOOPSI method; layout.gadget routes this to its own
+   * insertion logic. Less reliable than LAYOUT_AddChild at
+   * construction — prefer `new Layout({children:[...]})` when you
+   * can. Needed for dynamic UIs that add/remove gadgets at runtime.
    *
    * @param {BOOPSIBase} child
    * @returns {Layout} this for chaining
@@ -91,12 +161,13 @@ export class Layout extends GadgetBase {
     }
 
     this.doMethod(OM.ADDMEMBER, child.ptr);
-    super.addChild(child);
+    child._parent = this;
+    this._children.push(child);
     return this;
   }
 
   /**
-   * Remove a previously-added child. Called less often than addChild.
+   * Remove a previously-added child. Less-common runtime op.
    *
    * @param {BOOPSIBase} child
    * @returns {Layout} this
@@ -107,22 +178,5 @@ export class Layout extends GadgetBase {
     if (idx >= 0) this._children.splice(idx, 1);
     child._parent = null;
     return this;
-  }
-
-  /**
-   * Pre-process init objects so that the ergonomic
-   * `orientation: 'horizontal'` form is accepted alongside numeric.
-   *
-   * @param {object|number} init
-   */
-  constructor(init) {
-    if (init && typeof init === 'object' &&
-        typeof init.orientation === 'string') {
-      let m = init.orientation.toLowerCase();
-      init = { ...init };
-      init.orientation = (m === 'vertical') ? LayoutOrient.VERTICAL
-                                             : LayoutOrient.HORIZONTAL;
-    }
-    super(init);
   }
 }

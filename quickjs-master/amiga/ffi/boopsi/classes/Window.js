@@ -25,24 +25,36 @@
 import { BOOPSIBase } from '../BOOPSIBase.js';
 import { EventKind } from '../EventKind.js';
 
-/* Window-class attribute IDs */
+/* Window-class attribute IDs. WA_* comes from intuition/intuition.h
+ * (WA_Dummy = TAG_USER + 99 = 0x80000063). WINDOW_* comes from
+ * classes/window.h (WINDOW_Dummy = REACTION_Dummy + 0x25000 =
+ * 0x85025000). Both are accepted by window.class at NewObject time. */
 const WA = Object.freeze({
+  Left:          0x80000064,
+  Top:           0x80000065,
+  Width:         0x80000066,
+  Height:        0x80000067,
+  IDCMP:         0x8000006A,
+  Flags:         0x8000006B,
   Title:         0x8000006E,
   ScreenTitle:   0x8000006F,
   CustomScreen:  0x80000070,
-  PubScreen:     0x80000079,
-  InnerWidth:    0x80000076,
-  InnerHeight:   0x80000077,
-  IDCMP:         0x8000006A,
-  Flags:         0x8000006B,
-  Width:         0x80000066,
-  Height:        0x80000067,
-  Left:          0x80000064,
-  Top:           0x80000065,
   MinWidth:      0x80000072,
   MinHeight:     0x80000073,
   MaxWidth:      0x80000074,
   MaxHeight:     0x80000075,
+  InnerWidth:    0x80000076,
+  InnerHeight:   0x80000077,
+  PubScreen:     0x80000079,
+  /* Individual gadget-flag tags (WA_Dummy + 0x1E..0x21). These are
+   * the CORRECT tags to enable sizing/drag/depth/close gadgets at
+   * NewObject time — an earlier (0.139) version of this file used
+   * non-existent WINDOW_CloseGadget/... values instead, which
+   * silently did nothing and produced invisible windows. */
+  SizeGadget:    0x80000081,
+  DragBar:       0x80000082,
+  DepthGadget:   0x80000083,
+  CloseGadget:   0x80000084,
 });
 
 const WINDOW = Object.freeze({
@@ -56,10 +68,6 @@ const WINDOW = Object.freeze({
   LockWidth:     0x8502500B,
   LockHeight:    0x8502500C,
   Position:      0x8502500E,
-  CloseGadget:   0x85025019,
-  SizeGadget:    0x8502501A,
-  DragBar:       0x8502501B,
-  DepthGadget:   0x8502501C,
   NestedEvents:  0x8502502D,
 });
 
@@ -114,16 +122,20 @@ export class ReactionWindow extends BOOPSIBase {
     idcmp:         { tagID: WA.IDCMP,       type: 'uint32' },
     flags:         { tagID: WA.Flags,       type: 'uint32' },
 
+    /* Gadget-flag tags — WA_* (not WINDOW_*). These enable the
+     * actual intuition gadget flags at OpenWindowTagList time.
+     * Setting them to false omits that gadget. */
+    closeGadget:   { tagID: WA.CloseGadget, type: 'bool' },
+    sizeGadget:    { tagID: WA.SizeGadget,  type: 'bool' },
+    dragBar:       { tagID: WA.DragBar,     type: 'bool' },
+    depthGadget:   { tagID: WA.DepthGadget, type: 'bool' },
+
     /* WINDOW_* — Reaction additions. */
     layout:        { tagID: WINDOW.Layout,  type: 'ptr'    },
     position:      { tagID: WINDOW.Position,type: 'uint32' },
     activate:      { tagID: WINDOW.Activate,type: 'bool'   },
     lockWidth:     { tagID: WINDOW.LockWidth, type: 'bool' },
     lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
-    closeGadget:   { tagID: WINDOW.CloseGadget, type: 'bool' },
-    sizeGadget:    { tagID: WINDOW.SizeGadget,  type: 'bool' },
-    dragBar:       { tagID: WINDOW.DragBar,   type: 'bool' },
-    depthGadget:   { tagID: WINDOW.DepthGadget,type: 'bool' },
     nestedEvents:  { tagID: WINDOW.NestedEvents, type: 'bool' },
     userData:      { tagID: WINDOW.UserData, type: 'uint32' },
 
