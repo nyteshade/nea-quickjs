@@ -261,6 +261,16 @@ export class ReactionWindow extends BOOPSIBase {
       /* ICA_TARGET = 0x80040001 (ICA_Dummy = TAG_USER+0x40000, +1) */
       if (tag === 0x80040001) { out.icaTarget = data >>> 0; continue; }
 
+      /* LAYOUT_RelVerify = 0x85007017 — marker: this IDCMPUPDATE is
+       * a gadgetup broadcast from layout.gadget. */
+      if (tag === 0x85007017) { out.layoutRelVerify = data >>> 0; continue; }
+
+      /* LAYOUT_RelCode = 0x85007018 — the child's release code. */
+      if (tag === 0x85007018) { out.code = data >>> 0; continue; }
+
+      /* LAYOUT_TabVerify = 0x85007021 — whether the release was via tab. */
+      if (tag === 0x85007021) { out.tabVerify = data >>> 0; continue; }
+
       /* Anything else — record by tag ID for class-specific parsing. */
       if (!out.tags) out.tags = {};
       out.tags[tag >>> 0] = data >>> 0;

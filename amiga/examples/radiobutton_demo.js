@@ -19,15 +19,17 @@ const { Window, Layout, Button, RadioButton, Label, EventKind, IDCMP,
 
 const GID = { RADIO: 1, QUIT: 2 };
 
-/* amiga.makeStringArray (0.149+) builds a NULL-terminated STRPTR
- * array plus a free() closure that releases both the strings and
- * the array in one call. */
+/* On OS3.2 the only working population path is RADIOBUTTON_Labels
+ * with a struct List of RBNA nodes allocated via
+ * AllocRadioButtonNodeA. (RADIOBUTTON_Strings is documented as
+ * RESERVED; RADIOBUTTON_LabelArray is OS4-only.) The RadioButton
+ * wrapper (0.151+) accepts a `labels: [...]` array and builds the
+ * list internally, freeing it at dispose. */
 const choices = ['_Apples', '_Bananas', '_Cherries'];
-const labels  = amiga.makeStringArray(choices);
 
 let radio = new RadioButton({
   id:         GID.RADIO,
-  strings:    labels.ptr,
+  labels:     choices,
   selectedIx: 0,
 });
 
@@ -60,6 +62,7 @@ try {
 }
 finally {
   win.dispose();
-  labels.free();
+  /* RadioButton owns its label list; dispose() (via win.dispose cascade)
+   * frees it automatically. */
 }
 print('Bye.');

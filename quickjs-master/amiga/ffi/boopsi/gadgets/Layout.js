@@ -38,6 +38,14 @@ const LAYOUT = Object.freeze({
    * this specially in Layout.constructor via BOOPSIBase._extraPairs. */
   AddChild:        0x85007014,
   AddImage:        0x85007015,
+  /* LAYOUT_RelVerify enables IDCMP_IDCMPUPDATE broadcasts when any
+   * child gadget with GA_RelVerify=TRUE releases. Per layout_gc.doc
+   * lines 320-330: without this bit, button/checkbox/etc clicks
+   * never produce any IntuiMessage on the window UserPort. The
+   * broadcast's TagList contains GA_ID + LAYOUT_RelVerify + LAYOUT_RelCode. */
+  RelVerify:       0x85007017,
+  RelCode:         0x85007018,
+  TabVerify:       0x85007021,
 });
 
 /**
@@ -79,6 +87,13 @@ export class Layout extends GadgetBase {
     labelImage:     { tagID: LAYOUT.LabelImage,     type: 'ptr'    },
     labelPlace:     { tagID: LAYOUT.LabelPlace,     type: 'uint32' },
 
+    /* LAYOUT_RelVerify — enables IDCMPUPDATE broadcasts on child
+     * gadgetups. Distinct from GA_RelVerify (inherited from
+     * GADGET_ATTRS); both must be TRUE for events to flow. Layout
+     * defaults this to TRUE in its constructor. */
+    relVerifyNotify:{ tagID: LAYOUT.RelVerify,      type: 'bool'   },
+    tabVerify:      { tagID: LAYOUT.TabVerify,      type: 'bool'   },
+
     /* Convenience aliases matching a mental model where "orientation"
      * is a string: internally they go through the same tag. Users
      * can pass orientation: 'horizontal' / 'vertical' too. */
@@ -107,6 +122,13 @@ export class Layout extends GadgetBase {
       let m = rawInit.orientation.toLowerCase();
       rawInit.orientation = (m === 'vertical') ? LayoutOrient.VERTICAL
                                                 : LayoutOrient.HORIZONTAL;
+    }
+
+    /* CRITICAL: LAYOUT_RelVerify=TRUE enables IDCMPUPDATE broadcasts
+     * when child gadgets fire. Without it, every child is silent.
+     * Caller can pass relVerifyNotify: false to suppress. */
+    if (rawInit.relVerifyNotify === undefined) {
+      rawInit.relVerifyNotify = true;
     }
 
     /* Extract children; convert to LAYOUT_AddChild tag pairs. */
