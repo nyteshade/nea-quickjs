@@ -103,6 +103,7 @@ ORDER = [
     'boopsi/gadgets/Page.js',      # extends Layout
     'boopsi/gadgets/Virtual.js',   # extends Layout
     'boopsi/classes/Window.js',
+    'boopsi/classes/Requester.js',
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',
 ]

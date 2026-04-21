@@ -104,6 +104,7 @@ import { Layout, LayoutOrient } from './boopsi/gadgets/Layout.js';
 import { Page } from './boopsi/gadgets/Page.js';
 import { Virtual } from './boopsi/gadgets/Virtual.js';
 import { ReactionWindow, WindowPosition } from './boopsi/classes/Window.js';
+import { Requester, RequesterType, RequesterImage } from './boopsi/classes/Requester.js';
 
 globalThis.amiga = globalThis.amiga || {};
 
@@ -204,12 +205,16 @@ const flat = {
   GetFile, GetFont, GetScreenMode, GetColor,
   DateBrowser, TextEditor, SketchBoard, TapeDeck,
   ColorWheel, GradientSlider, Page, Virtual,
+  Requester,
 };
 for (const [name, cls] of Object.entries(flat)) {
   globalThis.amiga.boopsi[name] = cls;
 }
 
-globalThis.amiga.boopsi.classes.Window   = ReactionWindow;
+globalThis.amiga.boopsi.classes.Window      = ReactionWindow;
+globalThis.amiga.boopsi.classes.Requester   = Requester;
+globalThis.amiga.boopsi.RequesterType       = RequesterType;
+globalThis.amiga.boopsi.RequesterImage      = RequesterImage;
 globalThis.amiga.boopsi.images.Label     = Label;
 globalThis.amiga.boopsi.images.Led       = Led;
 globalThis.amiga.boopsi.images.Bevel     = Bevel;
