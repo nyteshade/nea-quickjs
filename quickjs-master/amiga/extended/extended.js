@@ -5647,16 +5647,85 @@ _manifests.push(new LocalManifest({
                 return N.__qjs_amiga_doMethod(obj | 0, (msg | 0) || 0);
             },
 
-            /* --- TagItem helpers --- */
-            makeTags(pairs) {
-                if (!Array.isArray(pairs)) {
-                    throw new TypeError('amiga.makeTags: array of [tag, data] pairs required');
+            /* --- TagItem helpers ---
+             *
+             * Accepted input shapes (all three normalize to the same
+             * native pair-array the C side consumes):
+             *
+             *   // 1. Pair array (original):
+             *   amiga.makeTags([[WA_Title, 'foo'], [WA_Width, 200]])
+             *
+             *   // 2. Flat array — adjacent tag/data slots. Optional
+             *   //    trailing TAG_END=0 terminator is tolerated.
+             *   amiga.makeTags([WA_Title, 'foo', WA_Width, 200])
+             *   amiga.makeTags([WA_Title, 'foo', WA_Width, 200, 0, 0])
+             *
+             *   // 3. Variadic — adjacent tag/data args. The common case
+             *   //    for hand-written code; no array punctuation.
+             *   amiga.makeTags(WA_Title, 'foo', WA_Width, 200)
+             *
+             * Detection rule: if the first arg is not an array, every
+             * arg is treated as a flat sequence. If the first arg IS
+             * an array and its first element is itself an array, it's
+             * pair-array mode; otherwise flat-array.
+             */
+            _normalizeTagInput(args) {
+                if (args.length === 0) return [];
+
+                /* Variadic form */
+                if (!Array.isArray(args[0])) {
+                    if (args.length & 1) {
+                        throw new TypeError(
+                            'amiga.makeTags: variadic call needs an even ' +
+                            'number of args (pairs of tag, data)');
+                    }
+                    const out = [];
+                    for (let i = 0; i + 1 < args.length; i += 2) {
+                        if (args[i] === 0) break;   /* TAG_END */
+                        out.push([args[i], args[i + 1]]);
+                    }
+                    return out;
                 }
+
+                /* args.length > 0 and first arg is an array.
+                 * If that array's first element is itself an array →
+                 * pair-array mode.  Otherwise flat-array mode. */
+                const a = args[0];
+                if (a.length === 0) return [];
+
+                if (Array.isArray(a[0])) {
+                    return a;   /* already pair-array */
+                }
+
+                if (a.length & 1) {
+                    throw new TypeError(
+                        'amiga.makeTags: flat array needs an even number ' +
+                        'of elements (pairs of tag, data)');
+                }
+
+                const out = [];
+                for (let i = 0; i + 1 < a.length; i += 2) {
+                    if (a[i] === 0) break;   /* TAG_END terminator */
+                    out.push([a[i], a[i + 1]]);
+                }
+                return out;
+            },
+
+            makeTags(...input) {
+                const pairs = amiga._normalizeTagInput(input);
                 return N.__qjs_amiga_makeTags(pairs);
             },
+
             /* ergonomic — allocates tags, runs fn(ptr), always frees. */
-            withTags(pairs, fn) {
-                const ptr = amiga.makeTags(pairs);
+            withTags(...input) {
+                /* Last arg must be the callback. */
+                const fn = input.pop();
+                if (typeof fn !== 'function') {
+                    throw new TypeError(
+                        'amiga.withTags: last argument must be a callback');
+                }
+                const pairs = amiga._normalizeTagInput(input);
+                const ptr = N.__qjs_amiga_makeTags(pairs);
                 if (!ptr) throw new Error('amiga.withTags: allocation failed');
                 const size = (pairs.length + 1) * 8;
                 try { return fn(ptr); }
