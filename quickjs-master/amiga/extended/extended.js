@@ -5740,6 +5740,75 @@ _manifests.push(new LocalManifest({
             TAG_SKIP:   3,
             TAG_USER:   0x80000000,
 
+            /* ---------- Helpers for passing arrays to BOOPSI/Reaction ---------- */
+
+            /**
+             * Build a NULL-terminated STRPTR array suitable for tags like
+             * RADIOBUTTON_Strings / CHOOSER_LabelArray. Returns
+             * { ptr, free() } — call free() to release the strings + array.
+             *
+             * @param {string[]} arr
+             * @returns {{ptr:number, free:Function}}
+             */
+            makeStringArray(arr) {
+                if (!Array.isArray(arr)) {
+                    throw new TypeError('amiga.makeStringArray: array required');
+                }
+                const strs = [];
+                for (let s of arr) {
+                    const b = (s == null ? '' : String(s)).length + 1;
+                    const p = amiga.allocMem(b);
+                    if (!p) {
+                        for (let [sp, sb] of strs) amiga.freeMem(sp, sb);
+                        throw new Error('makeStringArray: allocMem failed');
+                    }
+                    amiga.pokeString(p, String(s));
+                    strs.push([p, b]);
+                }
+                const arrBytes = (arr.length + 1) * 4;
+                const ptr = amiga.allocMem(arrBytes);
+                if (!ptr) {
+                    for (let [sp, sb] of strs) amiga.freeMem(sp, sb);
+                    throw new Error('makeStringArray: allocMem failed');
+                }
+                for (let i = 0; i < arr.length; i++) {
+                    amiga.poke32(ptr + i * 4, strs[i][0]);
+                }
+                amiga.poke32(ptr + arr.length * 4, 0);
+
+                return {
+                    ptr,
+                    free() {
+                        for (let [sp, sb] of strs) amiga.freeMem(sp, sb);
+                        amiga.freeMem(ptr, arrBytes);
+                    },
+                };
+            },
+
+            /**
+             * Ergonomic: allocate a STRPTR array, run fn(ptr), always free.
+             *
+             * @param {string[]} arr
+             * @param {Function} fn
+             */
+            withStringArray(arr, fn) {
+                const h = amiga.makeStringArray(arr);
+                try { return fn(h.ptr); } finally { h.free(); }
+            },
+
+            /* NOTE on Reaction "Labels" lists (Chooser, ListBrowser,
+             * SpeedBar, RadioButton via `labels`): each class library
+             * provides its own AllocXXXNode() function (chooser_lib
+             * AllocChooserNode, listbrowser_lib AllocListBrowserNode,
+             * etc) plus a matching FreeXXXNode(). The node's tag list
+             * is passed to the allocator, which returns a pre-wired
+             * struct Node whose payload the class understands. We
+             * don't synthesize those nodes here because the layout
+             * varies per class and requires calling that class-
+             * specific allocator. For the simpler STRPTR-array case
+             * (RADIOBUTTON_Strings, CHOOSER_LabelArray on OS4+) use
+             * amiga.makeStringArray above. */
+
             /* ======================================================
              * Per-library namespaces. Each holds:
              *   .lvo.*  — the library's jump-table offsets (NDK 3.2 FD)

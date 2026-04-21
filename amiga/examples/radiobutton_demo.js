@@ -19,24 +19,15 @@ const { Window, Layout, Button, RadioButton, Label, EventKind, IDCMP,
 
 const GID = { RADIO: 1, QUIT: 2 };
 
-/* Build a NULL-terminated array of STRPTRs for RADIOBUTTON_Strings.
- * Each string is a separate allocMem+pokeString; the array itself is
- * allocMem of (N+1)*4 bytes. */
+/* amiga.makeStringArray (0.149+) builds a NULL-terminated STRPTR
+ * array plus a free() closure that releases both the strings and
+ * the array in one call. */
 const choices = ['_Apples', '_Bananas', '_Cherries'];
-const strPtrs = [];
-for (let c of choices) {
-  let b = c.length + 1;
-  let p = amiga.allocMem(b);
-  amiga.pokeString(p, c);
-  strPtrs.push([p, b]);
-}
-let arr = amiga.allocMem((choices.length + 1) * 4);
-for (let i = 0; i < choices.length; i++) amiga.poke32(arr + i * 4, strPtrs[i][0]);
-amiga.poke32(arr + choices.length * 4, 0);  /* NULL terminator */
+const labels  = amiga.makeStringArray(choices);
 
 let radio = new RadioButton({
   id:         GID.RADIO,
-  strings:    arr,
+  strings:    labels.ptr,
   selectedIx: 0,
 });
 
@@ -69,7 +60,6 @@ try {
 }
 finally {
   win.dispose();
-  for (let [p, b] of strPtrs) amiga.freeMem(p, b);
-  amiga.freeMem(arr, (choices.length + 1) * 4);
+  labels.free();
 }
 print('Bye.');
