@@ -90,6 +90,13 @@ ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m$(CPU)
 CFLAGS_FPU_REGEXP  = $(subst -O1,-O0,$(CFLAGS_FPU))
 CFLAGS_SOFT_REGEXP = $(subst -O1,-O0,$(CFLAGS_SOFT))
 
+# quickjs.c at -O1 SIGSEGVs vbccm68k on soft-float builds (discovered
+# 2026-04-21 during the 0.152 build; FPU side at -O1 is unaffected).
+# Same class of vbcc optimizer bug that already forced libregexp.c to
+# -O0. Workaround mirrors the regex pattern. Revisit when bumping vbcc
+# or refactoring quickjs.c — see project_vbcc_quickjs_soft_o0 memory.
+CFLAGS_SOFT_QUICKJS = $(subst -O1,-O0,$(CFLAGS_SOFT))
+
 # Linker flags
 LDFLAGS = -bamigahunk -Bstatic -nostdlib -mrel
 # No .lib files — shared library is fully self-contained.
@@ -361,7 +368,7 @@ $(TARGET_SOFT): $(SOFT_ALL) | $(LIBSDIR)
 	@ls -la $@
 
 $(OBJDIR_SOFT)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_SOFT)
-	$(VC) $(CFLAGS_SOFT) $< -o $@
+	$(VC) $(CFLAGS_SOFT_QUICKJS) $< -o $@
 
 $(OBJDIR_SOFT)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
