@@ -118,7 +118,10 @@ try {
     if (e.kind === EventKind.CLOSE_WINDOW) break;
     if (e.kind === EventKind.BUTTON_CLICK && e.sourceId === GID.QUIT) break;
     if (e.kind === EventKind.SLIDER_CHANGE && e.source) {
-      let v = e.source.get('level');
+      /* event.attrs.level is auto-populated by Window._fillAttrsForClass
+       * at quickjs.library 0.157+. Fallback to e.source.get for older. */
+      let v = (typeof e.attrs.level === 'number')
+                ? e.attrs.level : e.source.get('level');
       if (typeof v === 'number') {
         values[e.sourceId] = v;
         let buf = (e.sourceId === GID.R ? rBuf :

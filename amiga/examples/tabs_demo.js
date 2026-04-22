@@ -7,15 +7,14 @@
  * exactly one child.
  *
  * Demonstrates:
- *   - Manual page-list construction via _extraPairs (PAGE_Add = 0x85007201)
- *     because the Page wrapper still inherits Layout's children →
- *     LAYOUT_AddChild conversion. Override pending — until then this
- *     pattern works without touching the wrapper.
+ *   - Page({ children: [...] }) at 0.157+ — the constructor now
+ *     converts children to PAGE_Add tags, mirroring Layout's children
+ *     pattern. (At 0.156 you needed manual _extraPairs.)
  *   - Live mutation of a layout-class attribute (PAGE_Current) via
  *     OM_SET driven by user button clicks
  *   - Three independent sub-Layouts coexisting under one Window
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.157+.
  * Run:  qjs examples/tabs_demo.js
  */
 
@@ -62,26 +61,12 @@ let page3 = new Layout({
   ],
 });
 
-/* ---- Build the Page container manually so children become PAGE_Add ---- */
-
-const PAGE_ADD     = 0x85007201;   /* per gadgets/layout.h:PAGE_Add */
+/* ---- Build the Page container ---- */
 
 let pages = new Page({
-  current: 0,
-  /* No children:[] — would become LAYOUT_AddChild; we want PAGE_Add. */
-  _extraPairs: [
-    [PAGE_ADD, page1.ptr],
-    [PAGE_ADD, page2.ptr],
-    [PAGE_ADD, page3.ptr],
-  ],
+  current:  0,
+  children: [page1, page2, page3],   /* converted to PAGE_Add tags */
 });
-
-/* page.gadget owns the lifetimes of its added children; track on JS
- * side too so dispose finds the gadget tree for the id-map walk. */
-page1._parent = pages;
-page2._parent = pages;
-page3._parent = pages;
-pages._children.push(page1, page2, page3);
 
 /* ---- Tab button row + main window ---- */
 

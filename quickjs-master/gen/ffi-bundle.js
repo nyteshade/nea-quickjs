@@ -8314,6 +8314,16 @@ const PAGE = Object.freeze({
  * page.gadget — multi-page container.
  *
  * Extends Layout (which is itself a gadget) with page-switching.
+ * Children are added via PAGE_Add (one tag per page) instead of
+ * LAYOUT_AddChild — Layout's `children: []` semantics would point
+ * the children at the wrong tag, so Page overrides the constructor
+ * to do the conversion explicitly.
+ *
+ * Usage:
+ *   new Page({
+ *     current: 0,                  // initial page index
+ *     children: [page1, page2],    // each child is its own Layout
+ *   });
  *
  * @extends Layout
  */
@@ -8327,6 +8337,45 @@ class Page extends Layout {
     add:     { tagID: PAGE.Add,     type: 'ptr' },
     current: { tagID: PAGE.Current, type: 'int32' },
   };
+
+  /**
+   * Construct a Page. Like Layout, accepts a `children: []` array,
+   * but each child is added via PAGE_Add instead of LAYOUT_AddChild.
+   *
+   * @param {object} init
+   */
+  constructor(init) {
+    let raw = (init && typeof init === 'object') ? { ...init } : {};
+    let children = raw.children;
+    delete raw.children;
+
+    /* Convert children to PAGE_Add tags via _extraPairs. Layout's
+     * constructor will see no `children` key, so its own LAYOUT_AddChild
+     * conversion is bypassed. */
+    let pairs = [];
+    if (Array.isArray(children)) {
+      for (let c of children) {
+        if (!c || !c.ptr) {
+          throw new Error(
+            'Page: child in children[] has no ptr ' +
+            '(disposed, wrapping-only, or not a BOOPSIBase)'
+          );
+        }
+        pairs.push([PAGE.Add, c.ptr]);
+      }
+    }
+    if (pairs.length) raw._extraPairs = pairs;
+
+    super(raw);
+
+    /* Track children for dispose cascade and id-map walks. */
+    if (Array.isArray(children)) {
+      for (let c of children) {
+        c._parent = this;
+        this._children.push(c);
+      }
+    }
+  }
 }
 
 
@@ -8759,6 +8808,65 @@ class ReactionWindow extends BOOPSIBase {
   }
 
   /**
+   * Phase D helper — populate `event.attrs` with the most relevant
+   * current attribute(s) for the source gadget's class, so handlers
+   * don't need an explicit `event.source.get(...)` round-trip after
+   * each event. Class → attrs mapping is intentionally minimal:
+   *   slider/scroller/fuelgauge      → { level }
+   *   checkbox/radiobutton/clicktab  → { selected }
+   *   string/integer/texteditor      → { text }    (or `value` for integer)
+   *   chooser                        → { selected }
+   *   speedbar                       → { selected }
+   * Buttons get nothing extra — the click is the event, no state.
+   *
+   * Errors during get() are silently swallowed: if a class hasn't
+   * defined the named property, we don't surface attrs rather than
+   * blowing up the event pump.
+   *
+   * @param {object} event
+   * @param {string} className — source.constructor._classLibName
+   */
+  static _fillAttrsForClass(event, className) {
+    if (!className || !event.source) return;
+    let pull = (name) => {
+      try { return event.source.get(name); }
+      catch (_) { return undefined; }
+    };
+    switch (className) {
+      case 'gadgets/slider.gadget':
+      case 'gadgets/scroller.gadget':
+      case 'gadgets/fuelgauge.gadget':
+      case 'gadgets/gradientslider.gadget':
+        event.attrs.level = pull('level');
+        break;
+      case 'gadgets/checkbox.gadget':
+      case 'gadgets/radiobutton.gadget':
+        event.attrs.selected = pull('selected');
+        break;
+      case 'gadgets/string.gadget':
+        event.attrs.text = pull('text');
+        break;
+      case 'gadgets/integer.gadget':
+        event.attrs.value = pull('value');
+        break;
+      case 'gadgets/clicktab.gadget':
+      case 'gadgets/chooser.gadget':
+      case 'gadgets/listbrowser.gadget':
+      case 'gadgets/speedbar.gadget':
+      case 'gadgets/page.gadget':
+        event.attrs.selected = pull('selected');
+        break;
+      case 'gadgets/texteditor.gadget':
+        event.attrs.text = pull('contents');
+        break;
+      default:
+        /* Unknown class — leave attrs empty. Handlers can still
+         * call event.source.get(...) for any specific attr. */
+        break;
+    }
+  }
+
+  /**
    * Translate one WM_HANDLEINPUT (result, code) pair into a rich event
    * object. Result high word is the WMHI_* class, low word is class-
    * specific data (gadget ID for WMHI_GADGETUP, etc.). For WMHI_GADGETUP
@@ -8794,6 +8902,13 @@ class ReactionWindow extends BOOPSIBase {
         if (event.source) {
           let className = event.source.constructor._classLibName;
           event.kind = EventKind.fromGadgetClass(className) || EventKind.GADGET_UP;
+
+          /* Phase D: auto-populate event.attrs with the most relevant
+           * current attribute(s) for this gadget class, so handlers
+           * don't need a separate event.source.get() round-trip. The
+           * attr names are stable per class. Round-trips OM_GET via
+           * the property accessor so the value is always live. */
+          ReactionWindow._fillAttrsForClass(event, className);
         } else {
           event.kind = EventKind.GADGET_UP;
         }
