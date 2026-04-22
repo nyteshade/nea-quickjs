@@ -1,0 +1,43 @@
+# Makefile.react_baseline — Build the react_baseline test program.
+#
+# Pure-C Reaction button test that mirrors examples/react_hello.js.
+# Provides a known-working baseline to A/B against the JS wrapper.
+#
+# Usage:
+#   make -f Makefile.react_baseline
+#   make -f Makefile.react_baseline clean
+
+VBCC ?= $(HOME)/vbcc
+VC   = $(VBCC)/bin/vc
+
+ROOT     = ../..
+SRC_FILE = $(ROOT)/library/tests/react_baseline.c
+OUTDIR   = $(ROOT)/amiga
+CDIR     = $(OUTDIR)/c
+OBJDIR   = /tmp/qjsreactbaseline
+
+CFLAGS = +aos68k -c -cpu=68020 -O1 \
+         -I$(VBCC)/targets/m68k-amigaos/include \
+         -I$(VBCC)/posixlib/include
+
+LDFLAGS = +aos68k -cpu=68020 \
+          -L$(VBCC)/posixlib/AmigaOS3
+
+TARGET = $(CDIR)/react_baseline
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(OBJDIR):
+	@mkdir -p $(OBJDIR)
+
+$(OBJDIR)/react_baseline.o: $(SRC_FILE) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+$(TARGET): $(OBJDIR)/react_baseline.o
+	$(VC) $(LDFLAGS) $(OBJDIR)/react_baseline.o -lamiga -o $@
+	@ls -la $@
+
+clean:
+	rm -rf $(OBJDIR) $(TARGET)
