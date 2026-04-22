@@ -5180,8 +5180,12 @@ const ATTR_TYPES = {
                    decode: (v) => (v >>> 0) },
   string:       { encode: (v) => (typeof v === 'number' ? v : 0),
                    decode: (v) => (v ? globalThis.amiga.peekString(v, 256) : null) },
-  /* 'string-owned' is handled in BOOPSIBase._buildTagList — allocs
-   * a C-string and tracks it for later free(). Decode same as 'string'. */
+  /* 'string-owned' encode is handled specially in BOOPSIBase._buildTagList
+   * (allocs a C-string and tracks it for free at dispose). The encode
+   * here is only a fallback for SetAttrsA paths and pre-allocated
+   * STRPTR values. Decode peeks the STRPTR returned by OM_GET. */
+  'string-owned': { encode: (v) => (typeof v === 'number' ? v : 0),
+                     decode: (v) => (v ? globalThis.amiga.peekString(v, 256) : null) },
   ptr:          { encode: (v) => (v && typeof v === 'object' && 'ptr' in v) ? (v.ptr | 0) : (v | 0),
                    decode: (v) => v | 0 },
   enum:         { encode: (v) => (v && typeof v === 'object') ? Number(v) : (v | 0),
@@ -5650,52 +5654,71 @@ const OM = Object.freeze({
 
 
 /**
- * Tag IDs from intuition/gadgetclass.h. Frozen so subclasses can't
- * mutate the shared set by accident.
+ * Tag IDs from intuition/gadgetclass.h (NDK 3.2R4). Frozen so
+ * subclasses can't mutate the shared set by accident.
+ *
+ * IMPORTANT: these MUST match the NDK header byte-for-byte. The
+ * earlier version of this table was off-by-one starting at GA_ID
+ * because GA_GZZGadget at +15 (between GA_Disabled +14 and GA_ID +16)
+ * was accidentally collapsed. Result: every GA_* tag from GA_ID
+ * onwards was misnumbered, so e.g. GA_RelVerify=TRUE actually set
+ * GA_Immediate and buttons fired GADGET_DOWN instead of GADGET_UP.
+ * Five library revisions (0.145 → 0.153) chased event-routing rabbit
+ * holes before this single-row offset got noticed via a probe of
+ * struct Gadget.Activation. Re-derive against gadgetclass.h whenever
+ * touching this table — never copy by hand from memory.
  */
 const GA = Object.freeze({
-  Left:        0x80030001,
-  RelRight:    0x80030002,
-  Top:         0x80030003,
-  RelBottom:   0x80030004,
-  Width:       0x80030005,
-  RelWidth:    0x80030006,
-  Height:      0x80030007,
-  RelHeight:   0x80030008,
-  Text:        0x80030009,
-  Image:       0x8003000A,
-  Border:      0x8003000B,
-  SelectRender:0x8003000C,
-  Highlight:   0x8003000D,
-  Disabled:    0x8003000E,
-  ID:          0x8003000F,
-  UserData:    0x80030010,
-  SpecialInfo: 0x80030011,
-  Selected:    0x80030012,
-  EndGadget:   0x80030013,
-  Immediate:   0x80030014,
-  RelVerify:   0x80030015,
-  FollowMouse: 0x80030016,
-  RightBorder: 0x80030017,
-  LeftBorder:  0x80030018,
-  TopBorder:   0x80030019,
-  BottomBorder:0x8003001A,
-  ToggleSelect:0x8003001B,
-  SysGadget:   0x8003001C,
-  SysGType:    0x8003001D,
-  Previous:    0x8003001E,
-  Next:        0x8003001F,
-  DrawInfo:    0x80030020,
-  IntuiText:   0x80030021,
-  LabelImage:  0x80030022,
-  TabCycle:    0x80030023,
-  GadgetHelp:  0x80030024,
-  Bounds:      0x80030025,
-  RelSpecial:  0x80030026,
-  TextAttr:    0x80030027,
-  ReadOnly:    0x80030028,
-  UserInput:   0x80030029,
-  HintInfo:    0x8003002A,
+  Left:               0x80030001,
+  RelRight:           0x80030002,
+  Top:                0x80030003,
+  RelBottom:          0x80030004,
+  Width:              0x80030005,
+  RelWidth:           0x80030006,
+  Height:             0x80030007,
+  RelHeight:          0x80030008,
+  Text:               0x80030009,
+  Image:              0x8003000A,
+  Border:             0x8003000B,
+  SelectRender:       0x8003000C,
+  Highlight:          0x8003000D,
+  Disabled:           0x8003000E,
+  GZZGadget:          0x8003000F,
+  ID:                 0x80030010,
+  UserData:           0x80030011,
+  SpecialInfo:        0x80030012,
+  Selected:           0x80030013,
+  EndGadget:          0x80030014,
+  Immediate:          0x80030015,
+  RelVerify:          0x80030016,
+  FollowMouse:        0x80030017,
+  RightBorder:        0x80030018,
+  LeftBorder:         0x80030019,
+  TopBorder:          0x8003001A,
+  BottomBorder:       0x8003001B,
+  ToggleSelect:       0x8003001C,
+  SysGadget:          0x8003001D,
+  SysGType:           0x8003001E,
+  Previous:           0x8003001F,
+  Next:               0x80030020,
+  DrawInfo:           0x80030021,
+  IntuiText:          0x80030022,
+  LabelImage:         0x80030023,
+  TabCycle:           0x80030024,
+  GadgetHelp:         0x80030025,
+  Bounds:             0x80030026,
+  RelSpecial:         0x80030027,
+  TextAttr:           0x80030028,
+  ReadOnly:           0x80030029,
+  Underscore:         0x8003002A,
+  ActivateKey:        0x8003002B,
+  BackFill:           0x8003002C,
+  GadgetHelpText:     0x8003002D,
+  UserInput:          0x8003002E,
+  Hidden:             0x80030036,
+  CustomMousePointer: 0x8003003C,
+  PointerType:        0x8003003D,
+  ParentHidden:       0x8003003E,
 });
 
 /**
@@ -8064,6 +8087,13 @@ EventKind.define('GRADIENT_CHANGE', {
  */
 
 
+/** @internal ICA_* tag IDs (intuition/icclass.h). ICTARGET_IDCMP is the
+ * sentinel that turns OM_NOTIFY broadcasts into IDCMP_IDCMPUPDATE
+ * messages on the window's UserPort. Without it, layout.gadget's
+ * LAYOUT_RelVerify notifications go nowhere. */
+const ICA_TARGET     = 0x80040001;  /* ICA_Dummy + 1 */
+const ICTARGET_IDCMP = 0xFFFFFFFF;  /* ~0L per icclass.h:45 */
+
 /** @internal LAYOUT_* tag IDs (gadgets/layout.h) */
 const LAYOUT = Object.freeze({
   Orientation:     0x85007001,
@@ -8146,6 +8176,12 @@ class Layout extends GadgetBase {
      * defaults this to TRUE in its constructor. */
     relVerifyNotify:{ tagID: LAYOUT.RelVerify,      type: 'bool'   },
     tabVerify:      { tagID: LAYOUT.TabVerify,      type: 'bool'   },
+    /* ICA_TARGET — Layout's OM_NOTIFY destination. Defaults to
+     * ICTARGET_IDCMP (=0xFFFFFFFF), which routes the broadcast as an
+     * IDCMP_IDCMPUPDATE message on the window's UserPort. Without
+     * this, LAYOUT_RelVerify=TRUE causes layout.gadget to call
+     * OM_NOTIFY into the void. */
+    icaTarget:      { tagID: ICA_TARGET,            type: 'uint32' },
 
     /* Convenience aliases matching a mental model where "orientation"
      * is a string: internally they go through the same tag. Users
@@ -8177,12 +8213,13 @@ class Layout extends GadgetBase {
                                                 : LayoutOrient.HORIZONTAL;
     }
 
-    /* CRITICAL: LAYOUT_RelVerify=TRUE enables IDCMPUPDATE broadcasts
-     * when child gadgets fire. Without it, every child is silent.
-     * Caller can pass relVerifyNotify: false to suppress. */
-    if (rawInit.relVerifyNotify === undefined) {
-      rawInit.relVerifyNotify = true;
-    }
+    /* No defaults for relVerifyNotify or icaTarget. The canonical
+     * Reaction pattern (NDK Examples/String.c et al) uses WM_HANDLEINPUT
+     * via the Window class, which handles all internal routing without
+     * needing LAYOUT_RelVerify or ICA_TARGET on the layout. The
+     * attributes remain available for users who want to consume
+     * IDCMP_IDCMPUPDATE messages directly (the Examples/Layout1.c
+     * pattern, which uses raw OpenWindowTags + GetMsg). */
 
     /* Extract children; convert to LAYOUT_AddChild tag pairs. */
     let children = rawInit.children;
@@ -8427,8 +8464,36 @@ const WindowPosition = Object.freeze({
   MOUSEPOINTER: 3,
 });
 
-const WM_OPEN  = 0x570002;
-const WM_CLOSE = 0x570003;
+const WM_HANDLEINPUT = 0x570001;
+const WM_OPEN        = 0x570002;
+const WM_CLOSE       = 0x570003;
+
+/* WM_HANDLEINPUT return codes (classes/window.h:230-258). The result
+ * is a packed ULONG: the high word is the WMHI class, the low word is
+ * a class-specific data value (gadget ID, raw key, menu code, ...).
+ * WMHI_LASTMSG=0 means the queue is drained; loop ends. */
+const WMHI = Object.freeze({
+  LASTMSG:        0,
+  IGNORE:         0xFFFFFFFF >>> 0,
+  CLASSMASK:      0xFFFF0000,
+  GADGETMASK:     0xFFFF,
+  CLOSEWINDOW:    1  << 16,
+  GADGETUP:       2  << 16,
+  INACTIVE:       3  << 16,
+  ACTIVE:         4  << 16,
+  NEWSIZE:        5  << 16,
+  MENUPICK:       6  << 16,
+  MENUHELP:       7  << 16,
+  GADGETHELP:     8  << 16,
+  ICONIFY:        9  << 16,
+  UNICONIFY:      10 << 16,
+  RAWKEY:         11 << 16,
+  VANILLAKEY:     12 << 16,
+  CHANGEWINDOW:   13 << 16,
+  INTUITICK:      14 << 16,
+  MOUSEMOVE:      15 << 16,
+  MOUSEBUTTONS:   16 << 16,
+});
 
 /**
  * window.class — opens/holds an Intuition window containing a
@@ -8486,10 +8551,35 @@ class ReactionWindow extends BOOPSIBase {
   };
 
   constructor(init) {
-    super(init);
+    /* Default WA_IDCMP to a sensible Reaction set. WM_HANDLEINPUT
+     * decodes IntuiMessages into WMHI_* return codes, but it can only
+     * see classes the user actually requested via WA_IDCMP — without
+     * IDCMP_GADGETUP, WMHI_GADGETUP never fires no matter how much
+     * Reaction wiring is correct. Caller can pass an explicit `idcmp`
+     * to override. */
+    let cleaned = (init && typeof init === 'object') ? { ...init } : {};
+    if (cleaned.idcmp === undefined) {
+      cleaned.idcmp = IDCMP_REACTION_DEFAULT >>> 0;
+    }
+    super(cleaned);
     /* Struct-Window wrapper set on open(); null when closed. */
     /** @type {Window|null} (struct Window wrapper) */
     this._intuiWindow = null;
+    /* WM_HANDLEINPUT &code out-parameter slot; lazily allocated by
+     * events() and freed by dispose(). */
+    /** @type {number} */
+    this._codeBuf = 0;
+
+    /* The layout passed as WINDOW_Layout is also our JS-side child for
+     * dispose-cascade and id-map walks. BOOPSIBase didn't add it via
+     * addChild because it came in as a tag value, not a `children`
+     * entry. Without this, _buildIdMap finds zero children and
+     * WMHI_GADGETUP can't resolve event.source from gadget ID. */
+    if (init && init.layout &&
+        typeof init.layout === 'object' &&
+        Array.isArray(init.layout._children)) {
+      this.addChild(init.layout);
+    }
   }
 
   /**
@@ -8640,13 +8730,13 @@ class ReactionWindow extends BOOPSIBase {
       raw:      msg,
     };
 
-    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iaddress TagList, pull GA_ID,
+    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iAddress TagList, pull GA_ID,
      * resolve source from JS-side child registry, upgrade event.kind
      * to the most specific class-level case (BUTTON_CLICK,
      * CHECKBOX_TOGGLE, ...) if any is registered. */
-    if (cls === 0x00800000 && msg.iaddress) {
+    if (cls === 0x00800000 && msg.iAddress) {
       let parsed = {};
-      ReactionWindow._walkUpdateTags(msg.iaddress, parsed);
+      ReactionWindow._walkUpdateTags(msg.iAddress, parsed);
 
       if (typeof parsed.id === 'number') {
         event.sourceId = parsed.id;
@@ -8669,8 +8759,118 @@ class ReactionWindow extends BOOPSIBase {
   }
 
   /**
-   * Synchronous event iterator. Delegates to the struct-Window's
-   * messages() iterator and translates each IntuiMessage.
+   * Translate one WM_HANDLEINPUT (result, code) pair into a rich event
+   * object. Result high word is the WMHI_* class, low word is class-
+   * specific data (gadget ID for WMHI_GADGETUP, etc.). For WMHI_GADGETUP
+   * we look the gadget up by ID via the JS-side child registry and
+   * upgrade event.kind to the most specific class case (BUTTON_CLICK,
+   * CHECKBOX_TOGGLE, ...) when one is registered.
+   *
+   * @param   {number} result — packed (WMHI_class << 16) | data
+   * @param   {number} code   — UWORD filled by WM_HANDLEINPUT (key/menu/...)
+   * @returns {{kind:*|null,source:*|null,sourceId:number|null,attrs:object,raw:object}}
+   */
+  _translateWmhi(result, code) {
+    const cls  = result & WMHI.CLASSMASK;
+    const data = result & WMHI.GADGETMASK;
+
+    let event = {
+      kind:     null,
+      source:   null,
+      sourceId: null,
+      attrs:    {},
+      raw:      { result, code, classRaw: cls >>> 16, data },
+    };
+
+    switch (cls) {
+      case WMHI.CLOSEWINDOW:
+        event.kind = EventKind.CLOSE_WINDOW;
+        break;
+
+      case WMHI.GADGETUP: {
+        event.sourceId = data;
+        let map = this._buildIdMap();
+        event.source = map.get(data) || null;
+        if (event.source) {
+          let className = event.source.constructor._classLibName;
+          event.kind = EventKind.fromGadgetClass(className) || EventKind.GADGET_UP;
+        } else {
+          event.kind = EventKind.GADGET_UP;
+        }
+        break;
+      }
+
+      case WMHI.GADGETHELP:
+        event.sourceId = data;
+        event.kind = EventKind.GADGET_HELP;
+        break;
+
+      case WMHI.ACTIVE:
+        event.kind = EventKind.ACTIVE_WINDOW;
+        break;
+
+      case WMHI.INACTIVE:
+        event.kind = EventKind.INACTIVE_WINDOW;
+        break;
+
+      case WMHI.NEWSIZE:
+        event.kind = EventKind.NEW_SIZE;
+        break;
+
+      case WMHI.MENUPICK:
+        event.kind = EventKind.MENU_PICK;
+        event.raw.code = code;
+        break;
+
+      case WMHI.MENUHELP:
+        event.kind = EventKind.MENU_HELP;
+        event.raw.code = code;
+        break;
+
+      case WMHI.RAWKEY:
+        event.kind = EventKind.RAW_KEY;
+        event.raw.code = code;
+        break;
+
+      case WMHI.VANILLAKEY:
+        event.kind = EventKind.VANILLA_KEY;
+        event.raw.code = code;
+        break;
+
+      case WMHI.CHANGEWINDOW:
+        event.kind = EventKind.CHANGE_WINDOW;
+        event.raw.code = data;
+        break;
+
+      case WMHI.INTUITICK:
+        event.kind = EventKind.INTUITICKS;
+        break;
+
+      case WMHI.MOUSEMOVE:
+        event.kind = EventKind.MOUSE_MOVE;
+        break;
+
+      case WMHI.MOUSEBUTTONS:
+        event.kind = EventKind.MOUSE_BUTTONS;
+        event.raw.code = code;
+        break;
+
+      default:
+        /* Unknown / unmapped WMHI_* (ICONIFY, UNICONIFY, JUMPSCREEN,
+         * POPUPMENU, GADGETDOWN). Leave kind=null so callers can
+         * match raw.classRaw if they care. */
+        break;
+    }
+
+    return event;
+  }
+
+  /**
+   * Synchronous event iterator. Drives the canonical Reaction event
+   * pump (Wait + WM_HANDLEINPUT loop) per NDK Examples/String.c. Each
+   * outer iteration Wait()s on the window's signal; the inner loop
+   * calls WM_HANDLEINPUT until it returns WMHI_LASTMSG, yielding a
+   * rich event for every non-ignored result.
    *
    * @yields {object} event object with {kind, source, sourceId, attrs, raw}
    */
@@ -8679,10 +8879,43 @@ class ReactionWindow extends BOOPSIBase {
       throw new Error('Window.events: window is not open; call open() first');
     }
 
-    for (let msg of this._intuiWindow.messages()) {
-      let event = this._translateMessage(msg);
-      this._fire(event);
-      yield event;
+    /* WINDOW_SigMask is the (1<<bit) mask for our window's signal —
+     * Wait() takes it directly. window.class fills it in at WM_OPEN. */
+    let sigMask = this.get('sigMask') >>> 0;
+    if (!sigMask) {
+      throw new Error(
+        'Window.events: WINDOW_SigMask returned 0 — window not properly opened'
+      );
+    }
+
+    /* Lazy-allocate the UWORD slot WM_HANDLEINPUT writes into. */
+    if (!this._codeBuf) {
+      this._codeBuf = globalThis.amiga.allocMem(2);
+      if (!this._codeBuf) {
+        throw new Error('Window.events: allocMem(2) failed for code buffer');
+      }
+    }
+
+    let Exec = globalThis.amiga.Exec;
+
+    while (this.ptr) {
+      Exec.Wait(sigMask);
+
+      /* Drain every queued event before Wait()ing again. */
+      let result;
+      while ((result = this.doMethod(WM_HANDLEINPUT, this._codeBuf) >>> 0) !==
+             WMHI.LASTMSG) {
+
+        /* WMHI.IGNORE = ~0L; window.class returns it for messages it
+         * processed internally and we should not act on. Skip rather
+         * than yield. */
+        if (result === WMHI.IGNORE) continue;
+
+        let code = globalThis.amiga.peek16(this._codeBuf);
+        let event = this._translateWmhi(result, code);
+        this._fire(event);
+        yield event;
+      }
     }
   }
 
@@ -8696,6 +8929,10 @@ class ReactionWindow extends BOOPSIBase {
   dispose() {
     if (this._disposed) return;
     this.close();
+    if (this._codeBuf) {
+      globalThis.amiga.freeMem(this._codeBuf, 2);
+      this._codeBuf = 0;
+    }
     super.dispose();
   }
 }

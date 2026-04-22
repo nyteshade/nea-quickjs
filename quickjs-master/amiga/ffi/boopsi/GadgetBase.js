@@ -13,52 +13,71 @@
 import { BOOPSIBase } from './BOOPSIBase.js';
 
 /**
- * Tag IDs from intuition/gadgetclass.h. Frozen so subclasses can't
- * mutate the shared set by accident.
+ * Tag IDs from intuition/gadgetclass.h (NDK 3.2R4). Frozen so
+ * subclasses can't mutate the shared set by accident.
+ *
+ * IMPORTANT: these MUST match the NDK header byte-for-byte. The
+ * earlier version of this table was off-by-one starting at GA_ID
+ * because GA_GZZGadget at +15 (between GA_Disabled +14 and GA_ID +16)
+ * was accidentally collapsed. Result: every GA_* tag from GA_ID
+ * onwards was misnumbered, so e.g. GA_RelVerify=TRUE actually set
+ * GA_Immediate and buttons fired GADGET_DOWN instead of GADGET_UP.
+ * Five library revisions (0.145 → 0.153) chased event-routing rabbit
+ * holes before this single-row offset got noticed via a probe of
+ * struct Gadget.Activation. Re-derive against gadgetclass.h whenever
+ * touching this table — never copy by hand from memory.
  */
 export const GA = Object.freeze({
-  Left:        0x80030001,
-  RelRight:    0x80030002,
-  Top:         0x80030003,
-  RelBottom:   0x80030004,
-  Width:       0x80030005,
-  RelWidth:    0x80030006,
-  Height:      0x80030007,
-  RelHeight:   0x80030008,
-  Text:        0x80030009,
-  Image:       0x8003000A,
-  Border:      0x8003000B,
-  SelectRender:0x8003000C,
-  Highlight:   0x8003000D,
-  Disabled:    0x8003000E,
-  ID:          0x8003000F,
-  UserData:    0x80030010,
-  SpecialInfo: 0x80030011,
-  Selected:    0x80030012,
-  EndGadget:   0x80030013,
-  Immediate:   0x80030014,
-  RelVerify:   0x80030015,
-  FollowMouse: 0x80030016,
-  RightBorder: 0x80030017,
-  LeftBorder:  0x80030018,
-  TopBorder:   0x80030019,
-  BottomBorder:0x8003001A,
-  ToggleSelect:0x8003001B,
-  SysGadget:   0x8003001C,
-  SysGType:    0x8003001D,
-  Previous:    0x8003001E,
-  Next:        0x8003001F,
-  DrawInfo:    0x80030020,
-  IntuiText:   0x80030021,
-  LabelImage:  0x80030022,
-  TabCycle:    0x80030023,
-  GadgetHelp:  0x80030024,
-  Bounds:      0x80030025,
-  RelSpecial:  0x80030026,
-  TextAttr:    0x80030027,
-  ReadOnly:    0x80030028,
-  UserInput:   0x80030029,
-  HintInfo:    0x8003002A,
+  Left:               0x80030001,
+  RelRight:           0x80030002,
+  Top:                0x80030003,
+  RelBottom:          0x80030004,
+  Width:              0x80030005,
+  RelWidth:           0x80030006,
+  Height:             0x80030007,
+  RelHeight:          0x80030008,
+  Text:               0x80030009,
+  Image:              0x8003000A,
+  Border:             0x8003000B,
+  SelectRender:       0x8003000C,
+  Highlight:          0x8003000D,
+  Disabled:           0x8003000E,
+  GZZGadget:          0x8003000F,
+  ID:                 0x80030010,
+  UserData:           0x80030011,
+  SpecialInfo:        0x80030012,
+  Selected:           0x80030013,
+  EndGadget:          0x80030014,
+  Immediate:          0x80030015,
+  RelVerify:          0x80030016,
+  FollowMouse:        0x80030017,
+  RightBorder:        0x80030018,
+  LeftBorder:         0x80030019,
+  TopBorder:          0x8003001A,
+  BottomBorder:       0x8003001B,
+  ToggleSelect:       0x8003001C,
+  SysGadget:          0x8003001D,
+  SysGType:           0x8003001E,
+  Previous:           0x8003001F,
+  Next:               0x80030020,
+  DrawInfo:           0x80030021,
+  IntuiText:          0x80030022,
+  LabelImage:         0x80030023,
+  TabCycle:           0x80030024,
+  GadgetHelp:         0x80030025,
+  Bounds:             0x80030026,
+  RelSpecial:         0x80030027,
+  TextAttr:           0x80030028,
+  ReadOnly:           0x80030029,
+  Underscore:         0x8003002A,
+  ActivateKey:        0x8003002B,
+  BackFill:           0x8003002C,
+  GadgetHelpText:     0x8003002D,
+  UserInput:          0x8003002E,
+  Hidden:             0x80030036,
+  CustomMousePointer: 0x8003003C,
+  PointerType:        0x8003003D,
+  ParentHidden:       0x8003003E,
 });
 
 /**

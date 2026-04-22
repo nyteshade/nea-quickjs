@@ -24,7 +24,7 @@
  */
 
 import { BOOPSIBase } from '../BOOPSIBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP_REACTION_DEFAULT } from '../EventKind.js';
 
 /* Window-class attribute IDs. WA_* comes from intuition/intuition.h
  * (WA_Dummy = TAG_USER + 99 = 0x80000063). WINDOW_* comes from
@@ -87,8 +87,36 @@ export const WindowPosition = Object.freeze({
   MOUSEPOINTER: 3,
 });
 
-const WM_OPEN  = 0x570002;
-const WM_CLOSE = 0x570003;
+const WM_HANDLEINPUT = 0x570001;
+const WM_OPEN        = 0x570002;
+const WM_CLOSE       = 0x570003;
+
+/* WM_HANDLEINPUT return codes (classes/window.h:230-258). The result
+ * is a packed ULONG: the high word is the WMHI class, the low word is
+ * a class-specific data value (gadget ID, raw key, menu code, ...).
+ * WMHI_LASTMSG=0 means the queue is drained; loop ends. */
+const WMHI = Object.freeze({
+  LASTMSG:        0,
+  IGNORE:         0xFFFFFFFF >>> 0,
+  CLASSMASK:      0xFFFF0000,
+  GADGETMASK:     0xFFFF,
+  CLOSEWINDOW:    1  << 16,
+  GADGETUP:       2  << 16,
+  INACTIVE:       3  << 16,
+  ACTIVE:         4  << 16,
+  NEWSIZE:        5  << 16,
+  MENUPICK:       6  << 16,
+  MENUHELP:       7  << 16,
+  GADGETHELP:     8  << 16,
+  ICONIFY:        9  << 16,
+  UNICONIFY:      10 << 16,
+  RAWKEY:         11 << 16,
+  VANILLAKEY:     12 << 16,
+  CHANGEWINDOW:   13 << 16,
+  INTUITICK:      14 << 16,
+  MOUSEMOVE:      15 << 16,
+  MOUSEBUTTONS:   16 << 16,
+});
 
 /**
  * window.class — opens/holds an Intuition window containing a
@@ -146,10 +174,35 @@ export class ReactionWindow extends BOOPSIBase {
   };
 
   constructor(init) {
-    super(init);
+    /* Default WA_IDCMP to a sensible Reaction set. WM_HANDLEINPUT
+     * decodes IntuiMessages into WMHI_* return codes, but it can only
+     * see classes the user actually requested via WA_IDCMP — without
+     * IDCMP_GADGETUP, WMHI_GADGETUP never fires no matter how much
+     * Reaction wiring is correct. Caller can pass an explicit `idcmp`
+     * to override. */
+    let cleaned = (init && typeof init === 'object') ? { ...init } : {};
+    if (cleaned.idcmp === undefined) {
+      cleaned.idcmp = IDCMP_REACTION_DEFAULT >>> 0;
+    }
+    super(cleaned);
     /* Struct-Window wrapper set on open(); null when closed. */
     /** @type {Window|null} (struct Window wrapper) */
     this._intuiWindow = null;
+    /* WM_HANDLEINPUT &code out-parameter slot; lazily allocated by
+     * events() and freed by dispose(). */
+    /** @type {number} */
+    this._codeBuf = 0;
+
+    /* The layout passed as WINDOW_Layout is also our JS-side child for
+     * dispose-cascade and id-map walks. BOOPSIBase didn't add it via
+     * addChild because it came in as a tag value, not a `children`
+     * entry. Without this, _buildIdMap finds zero children and
+     * WMHI_GADGETUP can't resolve event.source from gadget ID. */
+    if (init && init.layout &&
+        typeof init.layout === 'object' &&
+        Array.isArray(init.layout._children)) {
+      this.addChild(init.layout);
+    }
   }
 
   /**
@@ -300,13 +353,13 @@ export class ReactionWindow extends BOOPSIBase {
       raw:      msg,
     };
 
-    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iaddress TagList, pull GA_ID,
+    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iAddress TagList, pull GA_ID,
      * resolve source from JS-side child registry, upgrade event.kind
      * to the most specific class-level case (BUTTON_CLICK,
      * CHECKBOX_TOGGLE, ...) if any is registered. */
-    if (cls === 0x00800000 && msg.iaddress) {
+    if (cls === 0x00800000 && msg.iAddress) {
       let parsed = {};
-      ReactionWindow._walkUpdateTags(msg.iaddress, parsed);
+      ReactionWindow._walkUpdateTags(msg.iAddress, parsed);
 
       if (typeof parsed.id === 'number') {
         event.sourceId = parsed.id;
@@ -329,8 +382,118 @@ export class ReactionWindow extends BOOPSIBase {
   }
 
   /**
-   * Synchronous event iterator. Delegates to the struct-Window's
-   * messages() iterator and translates each IntuiMessage.
+   * Translate one WM_HANDLEINPUT (result, code) pair into a rich event
+   * object. Result high word is the WMHI_* class, low word is class-
+   * specific data (gadget ID for WMHI_GADGETUP, etc.). For WMHI_GADGETUP
+   * we look the gadget up by ID via the JS-side child registry and
+   * upgrade event.kind to the most specific class case (BUTTON_CLICK,
+   * CHECKBOX_TOGGLE, ...) when one is registered.
+   *
+   * @param   {number} result — packed (WMHI_class << 16) | data
+   * @param   {number} code   — UWORD filled by WM_HANDLEINPUT (key/menu/...)
+   * @returns {{kind:*|null,source:*|null,sourceId:number|null,attrs:object,raw:object}}
+   */
+  _translateWmhi(result, code) {
+    const cls  = result & WMHI.CLASSMASK;
+    const data = result & WMHI.GADGETMASK;
+
+    let event = {
+      kind:     null,
+      source:   null,
+      sourceId: null,
+      attrs:    {},
+      raw:      { result, code, classRaw: cls >>> 16, data },
+    };
+
+    switch (cls) {
+      case WMHI.CLOSEWINDOW:
+        event.kind = EventKind.CLOSE_WINDOW;
+        break;
+
+      case WMHI.GADGETUP: {
+        event.sourceId = data;
+        let map = this._buildIdMap();
+        event.source = map.get(data) || null;
+        if (event.source) {
+          let className = event.source.constructor._classLibName;
+          event.kind = EventKind.fromGadgetClass(className) || EventKind.GADGET_UP;
+        } else {
+          event.kind = EventKind.GADGET_UP;
+        }
+        break;
+      }
+
+      case WMHI.GADGETHELP:
+        event.sourceId = data;
+        event.kind = EventKind.GADGET_HELP;
+        break;
+
+      case WMHI.ACTIVE:
+        event.kind = EventKind.ACTIVE_WINDOW;
+        break;
+
+      case WMHI.INACTIVE:
+        event.kind = EventKind.INACTIVE_WINDOW;
+        break;
+
+      case WMHI.NEWSIZE:
+        event.kind = EventKind.NEW_SIZE;
+        break;
+
+      case WMHI.MENUPICK:
+        event.kind = EventKind.MENU_PICK;
+        event.raw.code = code;
+        break;
+
+      case WMHI.MENUHELP:
+        event.kind = EventKind.MENU_HELP;
+        event.raw.code = code;
+        break;
+
+      case WMHI.RAWKEY:
+        event.kind = EventKind.RAW_KEY;
+        event.raw.code = code;
+        break;
+
+      case WMHI.VANILLAKEY:
+        event.kind = EventKind.VANILLA_KEY;
+        event.raw.code = code;
+        break;
+
+      case WMHI.CHANGEWINDOW:
+        event.kind = EventKind.CHANGE_WINDOW;
+        event.raw.code = data;
+        break;
+
+      case WMHI.INTUITICK:
+        event.kind = EventKind.INTUITICKS;
+        break;
+
+      case WMHI.MOUSEMOVE:
+        event.kind = EventKind.MOUSE_MOVE;
+        break;
+
+      case WMHI.MOUSEBUTTONS:
+        event.kind = EventKind.MOUSE_BUTTONS;
+        event.raw.code = code;
+        break;
+
+      default:
+        /* Unknown / unmapped WMHI_* (ICONIFY, UNICONIFY, JUMPSCREEN,
+         * POPUPMENU, GADGETDOWN). Leave kind=null so callers can
+         * match raw.classRaw if they care. */
+        break;
+    }
+
+    return event;
+  }
+
+  /**
+   * Synchronous event iterator. Drives the canonical Reaction event
+   * pump (Wait + WM_HANDLEINPUT loop) per NDK Examples/String.c. Each
+   * outer iteration Wait()s on the window's signal; the inner loop
+   * calls WM_HANDLEINPUT until it returns WMHI_LASTMSG, yielding a
+   * rich event for every non-ignored result.
    *
    * @yields {object} event object with {kind, source, sourceId, attrs, raw}
    */
@@ -339,10 +502,43 @@ export class ReactionWindow extends BOOPSIBase {
       throw new Error('Window.events: window is not open; call open() first');
     }
 
-    for (let msg of this._intuiWindow.messages()) {
-      let event = this._translateMessage(msg);
-      this._fire(event);
-      yield event;
+    /* WINDOW_SigMask is the (1<<bit) mask for our window's signal —
+     * Wait() takes it directly. window.class fills it in at WM_OPEN. */
+    let sigMask = this.get('sigMask') >>> 0;
+    if (!sigMask) {
+      throw new Error(
+        'Window.events: WINDOW_SigMask returned 0 — window not properly opened'
+      );
+    }
+
+    /* Lazy-allocate the UWORD slot WM_HANDLEINPUT writes into. */
+    if (!this._codeBuf) {
+      this._codeBuf = globalThis.amiga.allocMem(2);
+      if (!this._codeBuf) {
+        throw new Error('Window.events: allocMem(2) failed for code buffer');
+      }
+    }
+
+    let Exec = globalThis.amiga.Exec;
+
+    while (this.ptr) {
+      Exec.Wait(sigMask);
+
+      /* Drain every queued event before Wait()ing again. */
+      let result;
+      while ((result = this.doMethod(WM_HANDLEINPUT, this._codeBuf) >>> 0) !==
+             WMHI.LASTMSG) {
+
+        /* WMHI.IGNORE = ~0L; window.class returns it for messages it
+         * processed internally and we should not act on. Skip rather
+         * than yield. */
+        if (result === WMHI.IGNORE) continue;
+
+        let code = globalThis.amiga.peek16(this._codeBuf);
+        let event = this._translateWmhi(result, code);
+        this._fire(event);
+        yield event;
+      }
     }
   }
 
@@ -356,6 +552,10 @@ export class ReactionWindow extends BOOPSIBase {
   dispose() {
     if (this._disposed) return;
     this.close();
+    if (this._codeBuf) {
+      globalThis.amiga.freeMem(this._codeBuf, 2);
+      this._codeBuf = 0;
+    }
     super.dispose();
   }
 }

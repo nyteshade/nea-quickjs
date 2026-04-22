@@ -38,11 +38,10 @@ let win = new Window({
   depthGadget: true,
   activate:    true,
 
-  /* Default IDCMP — include IDCMP_IDCMPUPDATE so button clicks get
-   * routed to us via Reaction's attribute-delta broadcast. */
-  idcmp: IDCMP.CLOSE_WINDOW
-       | IDCMP.REFRESH_WINDOW
-       | IDCMP.IDCMPUPDATE,   /* = 0x00800000, the real Reaction bit */
+  /* IDCMP mask defaults to IDCMP_REACTION_DEFAULT in the Window
+   * wrapper — includes GADGET_UP, IDCMPUPDATE, ACTIVE/INACTIVE,
+   * RAW_KEY/VANILLA_KEY etc. Override only when you know which
+   * messages you want to *exclude*. */
 
   layout: new Layout({
     orientation: 'vertical',

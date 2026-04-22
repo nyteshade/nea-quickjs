@@ -11,6 +11,13 @@
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { OM } from '../BOOPSIBase.js';
 
+/** @internal ICA_* tag IDs (intuition/icclass.h). ICTARGET_IDCMP is the
+ * sentinel that turns OM_NOTIFY broadcasts into IDCMP_IDCMPUPDATE
+ * messages on the window's UserPort. Without it, layout.gadget's
+ * LAYOUT_RelVerify notifications go nowhere. */
+const ICA_TARGET     = 0x80040001;  /* ICA_Dummy + 1 */
+const ICTARGET_IDCMP = 0xFFFFFFFF;  /* ~0L per icclass.h:45 */
+
 /** @internal LAYOUT_* tag IDs (gadgets/layout.h) */
 const LAYOUT = Object.freeze({
   Orientation:     0x85007001,
@@ -93,6 +100,12 @@ export class Layout extends GadgetBase {
      * defaults this to TRUE in its constructor. */
     relVerifyNotify:{ tagID: LAYOUT.RelVerify,      type: 'bool'   },
     tabVerify:      { tagID: LAYOUT.TabVerify,      type: 'bool'   },
+    /* ICA_TARGET — Layout's OM_NOTIFY destination. Defaults to
+     * ICTARGET_IDCMP (=0xFFFFFFFF), which routes the broadcast as an
+     * IDCMP_IDCMPUPDATE message on the window's UserPort. Without
+     * this, LAYOUT_RelVerify=TRUE causes layout.gadget to call
+     * OM_NOTIFY into the void. */
+    icaTarget:      { tagID: ICA_TARGET,            type: 'uint32' },
 
     /* Convenience aliases matching a mental model where "orientation"
      * is a string: internally they go through the same tag. Users
@@ -124,12 +137,13 @@ export class Layout extends GadgetBase {
                                                 : LayoutOrient.HORIZONTAL;
     }
 
-    /* CRITICAL: LAYOUT_RelVerify=TRUE enables IDCMPUPDATE broadcasts
-     * when child gadgets fire. Without it, every child is silent.
-     * Caller can pass relVerifyNotify: false to suppress. */
-    if (rawInit.relVerifyNotify === undefined) {
-      rawInit.relVerifyNotify = true;
-    }
+    /* No defaults for relVerifyNotify or icaTarget. The canonical
+     * Reaction pattern (NDK Examples/String.c et al) uses WM_HANDLEINPUT
+     * via the Window class, which handles all internal routing without
+     * needing LAYOUT_RelVerify or ICA_TARGET on the layout. The
+     * attributes remain available for users who want to consume
+     * IDCMP_IDCMPUPDATE messages directly (the Examples/Layout1.c
+     * pattern, which uses raw OpenWindowTags + GetMsg). */
 
     /* Extract children; convert to LAYOUT_AddChild tag pairs. */
     let children = rawInit.children;

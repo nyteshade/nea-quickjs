@@ -51,8 +51,12 @@ export const ATTR_TYPES = {
                    decode: (v) => (v >>> 0) },
   string:       { encode: (v) => (typeof v === 'number' ? v : 0),
                    decode: (v) => (v ? globalThis.amiga.peekString(v, 256) : null) },
-  /* 'string-owned' is handled in BOOPSIBase._buildTagList — allocs
-   * a C-string and tracks it for later free(). Decode same as 'string'. */
+  /* 'string-owned' encode is handled specially in BOOPSIBase._buildTagList
+   * (allocs a C-string and tracks it for free at dispose). The encode
+   * here is only a fallback for SetAttrsA paths and pre-allocated
+   * STRPTR values. Decode peeks the STRPTR returned by OM_GET. */
+  'string-owned': { encode: (v) => (typeof v === 'number' ? v : 0),
+                     decode: (v) => (v ? globalThis.amiga.peekString(v, 256) : null) },
   ptr:          { encode: (v) => (v && typeof v === 'object' && 'ptr' in v) ? (v.ptr | 0) : (v | 0),
                    decode: (v) => v | 0 },
   enum:         { encode: (v) => (v && typeof v === 'object') ? Number(v) : (v | 0),
