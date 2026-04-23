@@ -12,7 +12,14 @@
 
 import * as std from 'qjs:std';
 
-const { Window, Layout, Button, Label, Bevel,
+/* Dynamic text displays (the question line + status line) use a
+ * read-only StringGadget rather than label.image — string.gadget is
+ * the canonical OS3.2 Reaction widget for runtime-mutable text and
+ * updates in place via SetGadgetAttrs with no allocation churn.
+ * Label would also work (the OO layer handles dispose-and-replace
+ * transparently) but costs a NewObject + relayout on each question
+ * change, which is overkill here. */
+const { Window, Layout, Button, StringGadget, Bevel,
         EventKind, WindowPosition, BevelStyle } = amiga.boopsi;
 
 const GID = { A: 1, B: 2, C: 3, D: 4, NEXT: 10, QUIT: 11 };
@@ -49,8 +56,8 @@ const QUESTIONS = [
   },
 ];
 
-let qLabel  = new Label({ text: '' });
-let stLabel = new Label({ text: '' });
+let qLabel  = new StringGadget({ text: '', readOnly: true, maxChars: 160 });
+let stLabel = new StringGadget({ text: '', readOnly: true, maxChars: 80 });
 
 let aBtn = new Button({ id: GID.A, text: 'A' });
 let bBtn = new Button({ id: GID.B, text: 'B' });
