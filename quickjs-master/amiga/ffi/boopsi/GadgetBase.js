@@ -118,6 +118,11 @@ export const GADGET_ATTRS = Object.freeze({
  * @extends BOOPSIBase
  */
 export class GadgetBase extends BOOPSIBase {
+  /** @type {'gadget'} — BOOPSIBase.set() inspects this to decide
+   *  whether to route through SetGadgetAttrsA(gadget, window, ...) or
+   *  (for images) LAYOUT_ModifyChild via the parent layout. */
+  static _boopsiKind = 'gadget';
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = { ...GADGET_ATTRS };
 

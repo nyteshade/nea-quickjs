@@ -57,6 +57,11 @@ export const IMAGE_ATTRS = Object.freeze({
  * @extends BOOPSIBase
  */
 export class ImageBase extends BOOPSIBase {
+  /** @type {'image'} — BOOPSIBase.set() inspects this to decide
+   *  whether to route the OM_SET through the parent layout via
+   *  LAYOUT_ModifyChild so the image actually redraws. */
+  static _boopsiKind = 'image';
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = { ...IMAGE_ATTRS };
 

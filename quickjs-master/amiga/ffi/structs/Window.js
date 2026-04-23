@@ -84,6 +84,21 @@ Methods:
     return p ? new Screen(p) : null;
   }
 
+  /** Width in pixels of the left-edge border (outside the usable
+   *  content area). 8-bit field at struct Window offset 54.
+   *  @returns {number} */
+  get borderLeft()   { return this.read8(54); }
+
+  /** Height of the top border (title bar area for most windows).
+   *  @returns {number} */
+  get borderTop()    { return this.read8(55); }
+
+  /** Width of the right border. @returns {number} */
+  get borderRight()  { return this.read8(56); }
+
+  /** Height of the bottom border. @returns {number} */
+  get borderBottom() { return this.read8(57); }
+
   /** @returns {RastPort|null} */
   get rastPort() {
     let p = this.read32(50);

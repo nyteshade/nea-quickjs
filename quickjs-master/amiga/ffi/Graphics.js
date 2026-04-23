@@ -126,6 +126,32 @@ export class Graphics extends LibraryBase {
   }
 
   /**
+   * Erase a rectangle (inclusive) on a RastPort using the current
+   * backfill pattern. This is what `SetAPen(0) + RectFill` does by
+   * hand on a bare RastPort, but EraseRect respects the window's
+   * installed backfill hook so Workbench-themed patterns render
+   * correctly. Used to clear previously-drawn content before a
+   * repaint (e.g. a Label whose text got shorter).
+   *
+   * Register convention: rp in a1, xMin/yMin/xMax/yMax in d0/d1/d2/d3
+   * (graphics.library LVO -810).
+   *
+   * @param {RastPort|number} rport
+   * @param {number}          x1
+   * @param {number}          y1
+   * @param {number}          x2
+   * @param {number}          y2
+   * @returns {undefined}
+   */
+  static EraseRect(rport, x1, y1, x2, y2) {
+    return this.call(this.lvo.EraseRect, {
+      a1: ptrOf(rport),
+      d0: x1 | 0, d1: y1 | 0,
+      d2: x2 | 0, d3: y2 | 0,
+    });
+  }
+
+  /**
    * Fill a raw memory block with zeroes using the blitter.
    *
    * @param {number} memBlock — aligned ptr

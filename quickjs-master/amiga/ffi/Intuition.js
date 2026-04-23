@@ -359,6 +359,61 @@ export class Intuition extends LibraryBase {
   }
 
   /**
+   * SetGadgetAttrsA(gadget, window, requester, tagList) — the OM_SET
+   * path that also re-renders the gadget. Required any time a gadget
+   * attribute is changed while the window is open; per layout_gc.doc
+   * "If using OM_SET, you MUST call through SetGadgetAttrs() to
+   * protect the window layout properly." Raw SetAttrsA only updates
+   * internal state and leaves the visible pixels stale.
+   *
+   * Register convention: a0=gadget, a1=window, a2=requester,
+   * a3=tagList (intuition.library LVO -660).
+   *
+   * @param {number|object} gadget    — struct Gadget *
+   * @param {number|object} window    — struct Window * (or 0)
+   * @param {number|object} requester — struct Requester * (or 0)
+   * @param {number}        tagList   — TagItem * (or 0)
+   * @returns {number}
+   */
+  static SetGadgetAttrsA(gadget, window, requester, tagList) {
+    return this.call(this.lvo.SetGadgetAttrsA, {
+      a0: ptrOf(gadget),
+      a1: ptrOf(window),
+      a2: ptrOf(requester),
+      a3: ptrOf(tagList),
+    });
+  }
+
+  /**
+   * RefreshGList(firstGadget, window, requester, numGadgets) — force
+   * Intuition to re-render the specified gadgets. Unlike SetAttrs
+   * (which only updates internal state) this performs the actual
+   * paint, including erasing old content. Required after plain
+   * SetAttrsA on an image child or after relayout shifts the pixels
+   * around, because WM_RETHINK only drives relayout, not refresh.
+   *
+   * Register convention: a0=firstGadget, a1=window, a2=requester,
+   * d0=numGadgets (intuition.library LVO -432).
+   * numGadgets = -1 refreshes all gadgets from firstGadget onwards
+   * AND the window frame; numGadgets = 1 refreshes just one gadget
+   * (but for a layout that means its whole subtree).
+   *
+   * @param {number|object} firstGadget — struct Gadget *
+   * @param {number|object} window      — struct Window *
+   * @param {number|object} requester   — struct Requester * (or 0)
+   * @param {number}        numGadgets  — count or -1 for "all + frame"
+   * @returns {undefined}
+   */
+  static RefreshGList(firstGadget, window, requester, numGadgets) {
+    return this.call(this.lvo.RefreshGList, {
+      a0: ptrOf(firstGadget),
+      a1: ptrOf(window),
+      a2: ptrOf(requester),
+      d0: numGadgets | 0,
+    });
+  }
+
+  /**
    * GetAttr(attrID, obj, storagePtr) — d0=attrID, a0=obj, a1=storage.
    * Writes the attribute's current value through `storagePtr`
    * (typically a ULONG). Returns 1 on success, 0 if the class

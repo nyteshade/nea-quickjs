@@ -25,7 +25,40 @@ const LABEL = Object.freeze({
 });
 
 /**
- * label.image — a renderable text label.
+ * label.image — a renderable text label for STATIC content.
+ *
+ * **Use Label for static text only.** label.image's attributes
+ * (LABEL_Text, LABEL_Justification, LABEL_SoftStyle, …) are all
+ * OM_NEW-applicable only per label_ic.doc. Assigning `lbl.text = '...'`
+ * on an already-open window updates the internal attribute via OM_SET
+ * but does NOT repaint — label.image is an image class, it has no
+ * GM_RENDER, and OS3.2's layout.gadget does not re-invoke IM_DRAW for
+ * attribute changes on existing image children. You get the old
+ * pixels plus the new text stored internally but invisible.
+ *
+ * **For dynamic / runtime-mutable text, use a read-only StringGadget.**
+ *
+ *     let display = new StringGadget({
+ *         text: 'initial',
+ *         readOnly: true,
+ *         maxChars: 80,
+ *     });
+ *     // later:
+ *     display.text = 'new value';   // cleanly refreshes in place
+ *
+ * StringGadget is the canonical OS3.2 Reaction widget for mutable
+ * text: it's a gadget (so SetGadgetAttrs handles OM_SET + refresh),
+ * it supports STRINGA_TextVal at OM_SET, and it has no allocation
+ * overhead per update. The calculator and quiz demos both use this
+ * pattern.
+ *
+ * This wrapper does not attempt to patch runtime Label updates
+ * underneath — a prototype dispose-and-replace path (fresh NewObject
+ * spliced in via LAYOUT_ModifyChild + CHILD_ReplaceImage) was
+ * attempted and destabilises the layout on real OS3.2 hardware
+ * (unbounded growth → OS hang). Static use of Label is stable and
+ * correct; reach for StringGadget the moment the text needs to
+ * change.
  *
  * @extends ImageBase
  */

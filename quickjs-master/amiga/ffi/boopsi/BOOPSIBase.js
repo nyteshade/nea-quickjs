@@ -156,6 +156,15 @@ export class BOOPSIBase {
     /** @type {Array<{ptr: number, size: number}>} */
     this._ownedStrings = [];
 
+    /* Remembered attribute set used to rebuild this object if a live
+     * .set() needs to go through the dispose-and-replace path (images
+     * in particular — LABEL_Text et al are OM_NEW-applicable only per
+     * label_ic.doc, so the NDK-canonical way to change them at runtime
+     * is CHILD_ReplaceObject with a fresh instance). Set to null for
+     * wrap-only constructions. */
+    /** @type {object|null} */
+    this._initAttrs = null;
+
     if (typeof init === 'number') {
       this.ptr = init | 0;
       this._wrappingOnly = true;
@@ -172,6 +181,13 @@ export class BOOPSIBase {
     let children = initObj.children;
     let cleanInit = { ...initObj };
     delete cleanInit.children;
+
+    /* Snapshot for dispose-replace. We intentionally strip children +
+     * _extraPairs — repeated-tag constructs aren't meaningful for a
+     * replacement instance, and children are re-adopted separately. */
+    let attrSnapshot = { ...cleanInit };
+    delete attrSnapshot._extraPairs;
+    this._initAttrs = attrSnapshot;
 
     let tags = this._buildTagList(cleanInit);
     let tagBytes = tags.bytes;
@@ -209,14 +225,19 @@ export class BOOPSIBase {
   }
 
   /**
-   * Build a TagItem array from an init object using this class's
-   * ATTRS table. Handles 'string-owned' by allocating + tracking for
-   * later free. Returns { ptr, bytes } for the caller's freeMem.
+   * Build the raw [tagID, value] pairs from an init object against
+   * this class's ATTRS table. 'string-owned' values allocate fresh
+   * memory and track it on `this._ownedStrings` for later free.
+   *
+   * Separated from `_pairsToTags` so callers that need to mutate the
+   * list (e.g. BOOPSIBase.set() wrapping an image update with a
+   * LAYOUT_ModifyChild prefix before handing to SetGadgetAttrsA) can
+   * work at the pair level without re-encoding.
    *
    * @param   {object} initObj
-   * @returns {{ptr: number, bytes: number}}
+   * @returns {Array<[number, number]>} encoded pair list
    */
-  _buildTagList(initObj) {
+  _buildPairs(initObj) {
     let attrs = this.constructor.ATTRS;
     let pairs = [];
 
@@ -281,13 +302,114 @@ export class BOOPSIBase {
       }
     }
 
-    if (pairs.length === 0) {
+    return pairs;
+  }
+
+  /**
+   * Marshal a pair list into an on-heap TagItem array via makeTags.
+   * Returns {ptr, bytes} — an empty pair list returns {ptr: 0}.
+   *
+   * @param   {Array<[number, number]>} pairs
+   * @returns {{ptr: number, bytes: number}}
+   */
+  _pairsToTags(pairs) {
+    if (!pairs || pairs.length === 0) {
       return { ptr: 0, bytes: 0 };
     }
-
     let ptr = globalThis.amiga.makeTags(pairs);
     let bytes = (pairs.length + 1) * 8;
     return { ptr, bytes };
+  }
+
+  /**
+   * Build a complete TagItem array from an init object (pairs +
+   * marshal). Shorthand used by the NewObjectA path in the ctor.
+   *
+   * @param   {object} initObj
+   * @returns {{ptr: number, bytes: number}}
+   */
+  _buildTagList(initObj) {
+    return this._pairsToTags(this._buildPairs(initObj));
+  }
+
+  /**
+   * Walk the JS-side parent chain looking for the nearest ancestor
+   * that represents an open Intuition window. Returns the struct
+   * Window* as a number, or 0 if no open window is in scope.
+   *
+   * Used by set() to decide whether a live refresh path
+   * (SetGadgetAttrsA) is possible. Before the root window opens, or
+   * for orphaned wrappers, there's no window pointer and plain
+   * SetAttrsA is the right call.
+   *
+   * @returns {number} struct Window * or 0
+   */
+  _findWindowPtr() {
+    let node = this;
+    while (node) {
+      let iw = node._intuiWindow;
+      if (iw) {
+        if (typeof iw === 'number') return iw | 0;
+        if (iw && typeof iw === 'object' && 'ptr' in iw) return iw.ptr | 0;
+      }
+      node = node._parent;
+    }
+    return 0;
+  }
+
+  /**
+   * Find the nearest ancestor that IS a ReactionWindow whose window
+   * is currently open (identified by a non-null _intuiWindow). This
+   * is the object DoMethod(win, WM_RETHINK) needs to be dispatched
+   * to — the window.class handles the full layout-rethink + repaint
+   * coordination internally.
+   *
+   * @returns {BOOPSIBase|null}
+   */
+  _findWindowAncestor() {
+    let node = this;
+    while (node) {
+      if (node._intuiWindow) return node;
+      node = node._parent;
+    }
+    return null;
+  }
+
+  /**
+   * From a given ReactionWindow BOOPSIBase, return the root Layout
+   * pointer — the gadget passed in via WINDOW_Layout and then
+   * addChild()ed into Window._children at ReactionWindow construction.
+   * Returns 0 if the window has no layout child.
+   *
+   * Needed because Intuition.RefreshGList requires a struct Gadget *
+   * to start refreshing from; passing the root layout with
+   * numGadgets=-1 tells Intuition to repaint the entire gadget
+   * subtree plus the window frame.
+   *
+   * @param  {BOOPSIBase} winObj — the ReactionWindow
+   * @returns {number} struct Gadget * of root layout, or 0
+   */
+  _rootLayoutPtr(winObj) {
+    if (!winObj || !Array.isArray(winObj._children) ||
+        winObj._children.length === 0) return 0;
+    let root = winObj._children[0];
+    return (root && root.ptr) ? (root.ptr | 0) : 0;
+  }
+
+  /**
+   * Find the nearest Layout-flagged ancestor (including `this` if it
+   * is one). Used to pick the correct object for LAYOUT_ModifyChild
+   * dispatch in set().
+   *
+   * @returns {BOOPSIBase|null}
+   */
+  _findLayoutAncestor() {
+    let node = this;
+    while (node) {
+      if (node.constructor._isLayout) return node;
+      node = node._parent;
+    }
+    return null;
   }
 
   /**
@@ -347,7 +469,21 @@ export class BOOPSIBase {
     }
 
     let raw = globalThis.amiga.Intuition.getAttr(desc.tagID, this.ptr);
-    if (raw === null) return null;
+
+    /* OM_GET fallback. Many OS3.2 BOOPSI classes (label.image is the
+     * standout — LABEL_Text autodoc says OM_GET but in practice it
+     * returns 0) implement OM_GET for only a subset of their attrs.
+     * Returning null when the caller just set the value moments ago
+     * via set() is confusing, so fall back to _initAttrs when the
+     * class didn't answer OM_GET. This is the same snapshot the
+     * dispose-replace path uses to rebuild — authoritative for any
+     * attr we've ever set through the wrapper. */
+    if (raw === null) {
+      if (this._initAttrs && name in this._initAttrs) {
+        return this._initAttrs[name];
+      }
+      return null;
+    }
 
     let codec = ATTR_TYPES[desc.type];
     if (!codec) return raw;
@@ -355,10 +491,54 @@ export class BOOPSIBase {
   }
 
   /**
-   * Batch-update attributes. Builds a single TagItem list from the
-   * supplied object and calls Intuition.SetAttrsA, which internally
-   * dispatches OM_SET. Unknown attrs throw. 'string-owned' values
-   * are tracked so they're freed when the BOOPSI object is disposed.
+   * Batch-update attributes and keep the visible UI in sync.
+   *
+   * Four routing paths depending on what `this` is and whether a
+   * window is open — the caller never has to care, `gadget.text =
+   * '...'` and `label.text = '...'` both do the right thing:
+   *
+   *   1. **Nothing open, any kind** → plain Intuition.SetAttrsA.
+   *      No render path is live yet; the first WM_OPEN's render
+   *      picks up the current internal state.
+   *
+   *   2. **Gadget inside an open window** → Intuition.SetGadgetAttrsA
+   *      (gadget, window, 0, tags). The RKRM Common Gadgets chapter:
+   *      *"remember to use SetGadgetAttrs so the gadget can update
+   *      it's presence on screen."* SetGadgetAttrs internally handles
+   *      OM_SET + the layout-safe repaint for gadgets.
+   *
+   *   3. **Image inside an open window, with a gadget parent
+   *      (typical: Label inside a Layout)** → dispose-and-replace.
+   *      Most image-class attrs (LABEL_Text, BEVEL_* styling, etc.)
+   *      are OM_NEW-applicable only per the class autodocs, so
+   *      changing them on a live image never actually repaints. The
+   *      NDK-canonical pattern (Examples/Layout2.c:241-254) is:
+   *
+   *          newChild = NewObject(class, NULL, new-tag-list);
+   *          SetGadgetAttrs(parentLayout, win, NULL,
+   *              LAYOUT_ModifyChild, oldChild,
+   *              CHILD_ReplaceObject, newChild,
+   *              TAG_DONE);
+   *          if (DoMethod(winobj, WM_RETHINK) == 0)
+   *              DoMethod(winobj, WM_NEWPREFS);
+   *
+   *      layout.gadget auto-disposes oldChild, rewires its internal
+   *      child list, and the window rerenders cleanly — no ghost
+   *      pixels, no overlay. `_disposeReplace` does this and
+   *      swaps `this.ptr` onto the new instance so the JS-side
+   *      wrapper identity survives.
+   *
+   *      Cost: every update allocates a new BOOPSI object. For
+   *      frequently-changing text (timer ticks, live counters)
+   *      prefer a read-only StringGadget instead.
+   *
+   *   4. **Image with no gadget parent, or other edge cases** →
+   *      plain SetAttrsA. Rare path; no sensible refresh possible.
+   *
+   * 'string-owned' values are allocated in `_buildPairs` and tracked
+   * on `_ownedStrings` for free-at-dispose. The dispose-replace path
+   * accumulates owned strings across updates; they're all freed when
+   * the JS wrapper itself is disposed.
    *
    * @param   {object} patch
    * @returns {undefined}
@@ -370,17 +550,148 @@ export class BOOPSIBase {
       );
     }
 
-    let tags = this._buildTagList(patch);
+    let winObj = this._findWindowAncestor();
+    let winPtr = winObj ? this._findWindowPtr() : 0;
+    let kind   = this.constructor._boopsiKind;
 
+    let pairs = this._buildPairs(patch);
+    if (pairs.length === 0) return;
+
+    let tags = this._pairsToTags(pairs);
     try {
-      if (tags.ptr) {
+      if (winPtr && kind === 'gadget') {
+        /* Gadget in open window. SetGadgetAttrsA handles OM_SET +
+         * refresh internally per RKRM Common Gadgets. */
+        globalThis.amiga.Intuition.SetGadgetAttrsA(
+          this.ptr, winPtr, 0, tags.ptr
+        );
+      }
+      else {
+        /* Everything else — no window yet (pre-open init), image
+         * child (labels/bevels/etc), or an orphan wrapper — gets
+         * plain OM_SET. Updates internal state; next render picks
+         * it up. Note for images: OS3.2's layout.gadget will not
+         * visually refresh an image whose LAYOUT_AddImage-style
+         * content changes at runtime; _disposeReplace (below) is
+         * the documented NDK-canonical refresh path (LAYOUT_Modify
+         * Child + CHILD_ReplaceImage + WM_RETHINK) but testing on
+         * an actual OS3.2 system revealed it destabilises the
+         * layout (window grows unboundedly, eventual hang). The
+         * tag-level semantics are apparently different from the
+         * autodoc suggestions and we don't have a reliable fix
+         * without more OS3.2-specific guidance. For runtime-
+         * mutable text, Label.js JSDoc points users at read-only
+         * StringGadget, which does refresh cleanly. */
         globalThis.amiga.Intuition.SetAttrsA(this.ptr, tags.ptr);
       }
     }
-
     finally {
       if (tags.ptr) globalThis.amiga.freeMem(tags.ptr, tags.bytes);
     }
+  }
+
+  /**
+   * @internal UNUSED on OS3.2 — DO NOT CALL.
+   *
+   * Dispose-and-replace refresh for image children of a live layout.
+   * Intended to be the NDK-canonical runtime-update path per
+   * Examples/Layout2.c: build a fresh BOOPSI, dispatch
+   * LAYOUT_ModifyChild + CHILD_ReplaceImage on the parent layout,
+   * WM_RETHINK.
+   *
+   * Tested on AmigaOS 3.2 and found to destabilise the layout —
+   * after the first replacement the window grew taller on each
+   * subsequent call, eventually hanging the OS. The tag-level
+   * behavior of CHILD_ReplaceImage on 3.2 differs from the autodoc
+   * implications (possibly it requires LAYOUT_ModifyImage as subject
+   * — which NDK 3.2R4 gadgets/layout.h does not define — rather
+   * than LAYOUT_ModifyChild). Reverted to plain SetAttrsA for image
+   * set() paths; dynamic-text use cases should use read-only
+   * StringGadget per the guidance in Label.js JSDoc.
+   *
+   * Left in the code as a reference implementation for future
+   * investigation when we have better OS3.2-specific documentation
+   * of CHILD_ReplaceImage semantics.
+   *
+   * @param {object} patch
+   * @param {BOOPSIBase} winObj  — ReactionWindow ancestor
+   * @param {number}     winPtr  — struct Window *
+   */
+  _disposeReplace(patch, winObj, winPtr) {
+    /* Merge remembered construction attrs with the patch — then we
+     * have the full set of NewObject tags for the replacement. */
+    let mergedInit = Object.assign({}, this._initAttrs || {}, patch);
+    let classPtr = this.constructor.ensureClass();
+
+    /* Build the new BOOPSI. _buildPairs allocates fresh string-owned
+     * buffers and pushes them onto this._ownedStrings; they remain
+     * live for the lifetime of the wrapper (the new BOOPSI refers to
+     * them, and subsequent replacements create fresh buffers). */
+    let newPairs = this._buildPairs(mergedInit);
+    let newTags  = this._pairsToTags(newPairs);
+    let newPtr;
+
+    try {
+      newPtr = globalThis.amiga.Intuition.NewObjectA(
+        classPtr, 0, newTags.ptr
+      );
+      if (!newPtr) {
+        throw new Error(
+          this.constructor.name +
+          '._disposeReplace: NewObjectA returned 0'
+        );
+      }
+    }
+    finally {
+      if (newTags.ptr) globalThis.amiga.freeMem(newTags.ptr, newTags.bytes);
+    }
+
+    /* Image children need CHILD_ReplaceImage, NOT CHILD_ReplaceObject.
+     * gadgets/layout.h:
+     *   #define LAYOUT_ModifyChild  (LAYOUT_Dummy+22) = 0x85007016
+     *   #define CHILD_ReplaceObject (CHILD_Dummy+7)   = 0x85007107
+     *   #define CHILD_ReplaceImage  (LAYOUT_Dummy+8)  = 0x85007008
+     *
+     * CHILD_ReplaceObject installs the new child as a gadget and
+     * calls GM_RENDER on it — fine for a Button→CheckBox swap
+     * (Layout2.c pattern), but imageclass has no GM_RENDER, so an
+     * image swapped in this way draws nothing. CHILD_ReplaceImage
+     * is the image-specific variant — the replacement is marked
+     * as an imageclass child and drawn via IM_DRAW, matching how
+     * LAYOUT_AddImage would have inserted it originally.
+     *
+     * This function is only called for image kinds (the caller in
+     * set() gates on kind === 'image'), so we always use
+     * CHILD_ReplaceImage here. */
+    let replaceTags = this._pairsToTags([
+      [0x85007016, this.ptr],    /* LAYOUT_ModifyChild */
+      [0x85007008, newPtr],      /* CHILD_ReplaceImage */
+    ]);
+
+    try {
+      globalThis.amiga.Intuition.SetGadgetAttrsA(
+        this._parent.ptr, winPtr, 0, replaceTags.ptr
+      );
+    }
+    finally {
+      if (replaceTags.ptr) {
+        globalThis.amiga.freeMem(replaceTags.ptr, replaceTags.bytes);
+      }
+    }
+
+    /* layout.gadget has now disposed the old BOOPSI and installed
+     * newPtr in its place; swing our wrapper onto the new one and
+     * remember the merged attrs for the next replacement. */
+    this.ptr = newPtr;
+    this._initAttrs = mergedInit;
+
+    /* Force relayout + repaint. Per NDK Examples/Layout2.c:
+     *   if (DoMethod(winobj, WM_RETHINK) == 0)
+     *       DoMethod(winobj, WM_NEWPREFS);
+     * WM_RETHINK returns 0 when it had nothing to do; in that case
+     * fall back to WM_NEWPREFS which forces a full refresh. */
+    let r = winObj.doMethod(0x570006 /* WM_RETHINK */);
+    if (r === 0) winObj.doMethod(0x570004 /* WM_NEWPREFS */);
   }
 
   /**

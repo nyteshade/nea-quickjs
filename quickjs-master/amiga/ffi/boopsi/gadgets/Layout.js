@@ -9,6 +9,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
+import { ImageBase } from '../ImageBase.js';
 import { OM } from '../BOOPSIBase.js';
 
 /** @internal ICA_* tag IDs (intuition/icclass.h). ICTARGET_IDCMP is the
@@ -45,6 +46,14 @@ const LAYOUT = Object.freeze({
    * this specially in Layout.constructor via BOOPSIBase._extraPairs. */
   AddChild:        0x85007014,
   AddImage:        0x85007015,
+  /* LAYOUT_ModifyChild — OM_SET-time tag that tells layout.gadget the
+   * subsequent tags in the taglist apply to the named child object.
+   * Used by BOOPSIBase.set() when forwarding an image child's attr
+   * update through its parent layout so the layout can re-lay-out
+   * and redraw the image (images have no GM_RENDER of their own).
+   * Layout_gc.doc: "You *MUST* call through SetGadgetAttrs() to
+   * protect the window layout properly." */
+  ModifyChild:     0x85007016,
   /* LAYOUT_RelVerify enables IDCMP_IDCMPUPDATE broadcasts when any
    * child gadget with GA_RelVerify=TRUE releases. Per layout_gc.doc
    * lines 320-330: without this bit, button/checkbox/etc clicks
@@ -73,6 +82,57 @@ export const LayoutOrient = Object.freeze({
 export class Layout extends GadgetBase {
   /** @type {string} */
   static _classLibName = 'gadgets/layout.gadget';
+
+  /** @type {true} — BOOPSIBase.set() walks _parent chains looking
+   *  for the nearest ancestor flagged with _isLayout so it knows
+   *  which object to RethinkLayout() after an OM_SET. Page/Virtual
+   *  subclasses inherit this flag. */
+  static _isLayout = true;
+
+  /**
+   * layout.gadget/RethinkLayout (v39+) — relayout the page and
+   * re-render. Per layout_gc.doc line 598 the OM_SET path does NOT
+   * auto-rerender; you must call RethinkLayout yourself after any
+   * SetGadgetAttrs() that changed a layout-relevant attribute
+   * (including LAYOUT_ModifyChild on an image child). a0=layout,
+   * a1=window, a2=requester, d0=refresh.
+   *
+   * LVO -48 on layout.gadget; we reach that library through the
+   * BOOPSIBase._libBase cached by ensureClass() (since we've already
+   * opened layout.gadget to instantiate the class).
+   *
+   * @param {number|object} layoutPtr — struct Gadget * (the layout)
+   * @param {number|object} winPtr    — struct Window *
+   * @param {number|object} reqPtr    — struct Requester * or 0
+   * @param {boolean|number} refresh  — true to also repaint
+   * @returns {number}
+   */
+  static RethinkLayout(layoutPtr, winPtr, reqPtr, refresh) {
+    this.ensureClass();
+    return globalThis.amiga.call(this._libBase, -48, {
+      a0: (layoutPtr && typeof layoutPtr === 'object')
+            ? (layoutPtr.ptr | 0) : (layoutPtr | 0),
+      a1: (winPtr && typeof winPtr === 'object' && 'ptr' in winPtr)
+            ? (winPtr.ptr | 0) : (winPtr | 0),
+      a2: (reqPtr && typeof reqPtr === 'object' && 'ptr' in reqPtr)
+            ? (reqPtr.ptr | 0) : (reqPtr | 0),
+      d0: refresh ? 1 : 0,
+    });
+  }
+
+  /**
+   * Instance form: relayout + redraw this layout in the given
+   * window. Used by BOOPSIBase.set() after any live OM_SET.
+   *
+   * @param {number} winPtr  — struct Window *
+   * @param {boolean} [refresh=true]
+   * @returns {number}
+   */
+  rethink(winPtr, refresh) {
+    return Layout.RethinkLayout(
+      this.ptr, winPtr, 0, refresh === undefined ? 1 : (refresh ? 1 : 0)
+    );
+  }
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
@@ -159,7 +219,16 @@ export class Layout extends GadgetBase {
             '(disposed, wrapping-only, or not a BOOPSIBase)'
           );
         }
-        pairs.push([LAYOUT.AddChild, c.ptr]);
+        /* Images (label.image, bevel.image, led.image, glyph.image,
+         * bitmap.image) are rendered via IM_DRAW — layout.gadget only
+         * calls IM_DRAW on children added with LAYOUT_AddImage.
+         * Adding an image via LAYOUT_AddChild reserves space but never
+         * draws anything because imageclass has no GM_RENDER. Per
+         * layout_gc.doc LAYOUT_AddImage. */
+        let tagID = (c instanceof ImageBase)
+          ? LAYOUT.AddImage
+          : LAYOUT.AddChild;
+        pairs.push([tagID, c.ptr]);
       }
     }
 

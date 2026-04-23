@@ -3127,6 +3127,21 @@ Methods:
     return p ? new Screen(p) : null;
   }
 
+  /** Width in pixels of the left-edge border (outside the usable
+   *  content area). 8-bit field at struct Window offset 54.
+   *  @returns {number} */
+  get borderLeft()   { return this.read8(54); }
+
+  /** Height of the top border (title bar area for most windows).
+   *  @returns {number} */
+  get borderTop()    { return this.read8(55); }
+
+  /** Width of the right border. @returns {number} */
+  get borderRight()  { return this.read8(56); }
+
+  /** Height of the bottom border. @returns {number} */
+  get borderBottom() { return this.read8(57); }
+
   /** @returns {RastPort|null} */
   get rastPort() {
     let p = this.read32(50);
@@ -3691,6 +3706,32 @@ class Graphics extends LibraryBase {
    */
   static RectFill(rport, x1, y1, x2, y2) {
     return this.call(this.lvo.RectFill, {
+      a1: ptrOf(rport),
+      d0: x1 | 0, d1: y1 | 0,
+      d2: x2 | 0, d3: y2 | 0,
+    });
+  }
+
+  /**
+   * Erase a rectangle (inclusive) on a RastPort using the current
+   * backfill pattern. This is what `SetAPen(0) + RectFill` does by
+   * hand on a bare RastPort, but EraseRect respects the window's
+   * installed backfill hook so Workbench-themed patterns render
+   * correctly. Used to clear previously-drawn content before a
+   * repaint (e.g. a Label whose text got shorter).
+   *
+   * Register convention: rp in a1, xMin/yMin/xMax/yMax in d0/d1/d2/d3
+   * (graphics.library LVO -810).
+   *
+   * @param {RastPort|number} rport
+   * @param {number}          x1
+   * @param {number}          y1
+   * @param {number}          x2
+   * @param {number}          y2
+   * @returns {undefined}
+   */
+  static EraseRect(rport, x1, y1, x2, y2) {
+    return this.call(this.lvo.EraseRect, {
       a1: ptrOf(rport),
       d0: x1 | 0, d1: y1 | 0,
       d2: x2 | 0, d3: y2 | 0,
@@ -4706,6 +4747,61 @@ class Intuition extends LibraryBase {
   }
 
   /**
+   * SetGadgetAttrsA(gadget, window, requester, tagList) — the OM_SET
+   * path that also re-renders the gadget. Required any time a gadget
+   * attribute is changed while the window is open; per layout_gc.doc
+   * "If using OM_SET, you MUST call through SetGadgetAttrs() to
+   * protect the window layout properly." Raw SetAttrsA only updates
+   * internal state and leaves the visible pixels stale.
+   *
+   * Register convention: a0=gadget, a1=window, a2=requester,
+   * a3=tagList (intuition.library LVO -660).
+   *
+   * @param {number|object} gadget    — struct Gadget *
+   * @param {number|object} window    — struct Window * (or 0)
+   * @param {number|object} requester — struct Requester * (or 0)
+   * @param {number}        tagList   — TagItem * (or 0)
+   * @returns {number}
+   */
+  static SetGadgetAttrsA(gadget, window, requester, tagList) {
+    return this.call(this.lvo.SetGadgetAttrsA, {
+      a0: ptrOf(gadget),
+      a1: ptrOf(window),
+      a2: ptrOf(requester),
+      a3: ptrOf(tagList),
+    });
+  }
+
+  /**
+   * RefreshGList(firstGadget, window, requester, numGadgets) — force
+   * Intuition to re-render the specified gadgets. Unlike SetAttrs
+   * (which only updates internal state) this performs the actual
+   * paint, including erasing old content. Required after plain
+   * SetAttrsA on an image child or after relayout shifts the pixels
+   * around, because WM_RETHINK only drives relayout, not refresh.
+   *
+   * Register convention: a0=firstGadget, a1=window, a2=requester,
+   * d0=numGadgets (intuition.library LVO -432).
+   * numGadgets = -1 refreshes all gadgets from firstGadget onwards
+   * AND the window frame; numGadgets = 1 refreshes just one gadget
+   * (but for a layout that means its whole subtree).
+   *
+   * @param {number|object} firstGadget — struct Gadget *
+   * @param {number|object} window      — struct Window *
+   * @param {number|object} requester   — struct Requester * (or 0)
+   * @param {number}        numGadgets  — count or -1 for "all + frame"
+   * @returns {undefined}
+   */
+  static RefreshGList(firstGadget, window, requester, numGadgets) {
+    return this.call(this.lvo.RefreshGList, {
+      a0: ptrOf(firstGadget),
+      a1: ptrOf(window),
+      a2: ptrOf(requester),
+      d0: numGadgets | 0,
+    });
+  }
+
+  /**
    * GetAttr(attrID, obj, storagePtr) — d0=attrID, a0=obj, a1=storage.
    * Writes the attribute's current value through `storagePtr`
    * (typically a ULONG). Returns 1 on success, 0 if the class
@@ -5285,6 +5381,15 @@ class BOOPSIBase {
     /** @type {Array<{ptr: number, size: number}>} */
     this._ownedStrings = [];
 
+    /* Remembered attribute set used to rebuild this object if a live
+     * .set() needs to go through the dispose-and-replace path (images
+     * in particular — LABEL_Text et al are OM_NEW-applicable only per
+     * label_ic.doc, so the NDK-canonical way to change them at runtime
+     * is CHILD_ReplaceObject with a fresh instance). Set to null for
+     * wrap-only constructions. */
+    /** @type {object|null} */
+    this._initAttrs = null;
+
     if (typeof init === 'number') {
       this.ptr = init | 0;
       this._wrappingOnly = true;
@@ -5301,6 +5406,13 @@ class BOOPSIBase {
     let children = initObj.children;
     let cleanInit = { ...initObj };
     delete cleanInit.children;
+
+    /* Snapshot for dispose-replace. We intentionally strip children +
+     * _extraPairs — repeated-tag constructs aren't meaningful for a
+     * replacement instance, and children are re-adopted separately. */
+    let attrSnapshot = { ...cleanInit };
+    delete attrSnapshot._extraPairs;
+    this._initAttrs = attrSnapshot;
 
     let tags = this._buildTagList(cleanInit);
     let tagBytes = tags.bytes;
@@ -5338,14 +5450,19 @@ class BOOPSIBase {
   }
 
   /**
-   * Build a TagItem array from an init object using this class's
-   * ATTRS table. Handles 'string-owned' by allocating + tracking for
-   * later free. Returns { ptr, bytes } for the caller's freeMem.
+   * Build the raw [tagID, value] pairs from an init object against
+   * this class's ATTRS table. 'string-owned' values allocate fresh
+   * memory and track it on `this._ownedStrings` for later free.
+   *
+   * Separated from `_pairsToTags` so callers that need to mutate the
+   * list (e.g. BOOPSIBase.set() wrapping an image update with a
+   * LAYOUT_ModifyChild prefix before handing to SetGadgetAttrsA) can
+   * work at the pair level without re-encoding.
    *
    * @param   {object} initObj
-   * @returns {{ptr: number, bytes: number}}
+   * @returns {Array<[number, number]>} encoded pair list
    */
-  _buildTagList(initObj) {
+  _buildPairs(initObj) {
     let attrs = this.constructor.ATTRS;
     let pairs = [];
 
@@ -5410,13 +5527,114 @@ class BOOPSIBase {
       }
     }
 
-    if (pairs.length === 0) {
+    return pairs;
+  }
+
+  /**
+   * Marshal a pair list into an on-heap TagItem array via makeTags.
+   * Returns {ptr, bytes} — an empty pair list returns {ptr: 0}.
+   *
+   * @param   {Array<[number, number]>} pairs
+   * @returns {{ptr: number, bytes: number}}
+   */
+  _pairsToTags(pairs) {
+    if (!pairs || pairs.length === 0) {
       return { ptr: 0, bytes: 0 };
     }
-
     let ptr = globalThis.amiga.makeTags(pairs);
     let bytes = (pairs.length + 1) * 8;
     return { ptr, bytes };
+  }
+
+  /**
+   * Build a complete TagItem array from an init object (pairs +
+   * marshal). Shorthand used by the NewObjectA path in the ctor.
+   *
+   * @param   {object} initObj
+   * @returns {{ptr: number, bytes: number}}
+   */
+  _buildTagList(initObj) {
+    return this._pairsToTags(this._buildPairs(initObj));
+  }
+
+  /**
+   * Walk the JS-side parent chain looking for the nearest ancestor
+   * that represents an open Intuition window. Returns the struct
+   * Window* as a number, or 0 if no open window is in scope.
+   *
+   * Used by set() to decide whether a live refresh path
+   * (SetGadgetAttrsA) is possible. Before the root window opens, or
+   * for orphaned wrappers, there's no window pointer and plain
+   * SetAttrsA is the right call.
+   *
+   * @returns {number} struct Window * or 0
+   */
+  _findWindowPtr() {
+    let node = this;
+    while (node) {
+      let iw = node._intuiWindow;
+      if (iw) {
+        if (typeof iw === 'number') return iw | 0;
+        if (iw && typeof iw === 'object' && 'ptr' in iw) return iw.ptr | 0;
+      }
+      node = node._parent;
+    }
+    return 0;
+  }
+
+  /**
+   * Find the nearest ancestor that IS a ReactionWindow whose window
+   * is currently open (identified by a non-null _intuiWindow). This
+   * is the object DoMethod(win, WM_RETHINK) needs to be dispatched
+   * to — the window.class handles the full layout-rethink + repaint
+   * coordination internally.
+   *
+   * @returns {BOOPSIBase|null}
+   */
+  _findWindowAncestor() {
+    let node = this;
+    while (node) {
+      if (node._intuiWindow) return node;
+      node = node._parent;
+    }
+    return null;
+  }
+
+  /**
+   * From a given ReactionWindow BOOPSIBase, return the root Layout
+   * pointer — the gadget passed in via WINDOW_Layout and then
+   * addChild()ed into Window._children at ReactionWindow construction.
+   * Returns 0 if the window has no layout child.
+   *
+   * Needed because Intuition.RefreshGList requires a struct Gadget *
+   * to start refreshing from; passing the root layout with
+   * numGadgets=-1 tells Intuition to repaint the entire gadget
+   * subtree plus the window frame.
+   *
+   * @param  {BOOPSIBase} winObj — the ReactionWindow
+   * @returns {number} struct Gadget * of root layout, or 0
+   */
+  _rootLayoutPtr(winObj) {
+    if (!winObj || !Array.isArray(winObj._children) ||
+        winObj._children.length === 0) return 0;
+    let root = winObj._children[0];
+    return (root && root.ptr) ? (root.ptr | 0) : 0;
+  }
+
+  /**
+   * Find the nearest Layout-flagged ancestor (including `this` if it
+   * is one). Used to pick the correct object for LAYOUT_ModifyChild
+   * dispatch in set().
+   *
+   * @returns {BOOPSIBase|null}
+   */
+  _findLayoutAncestor() {
+    let node = this;
+    while (node) {
+      if (node.constructor._isLayout) return node;
+      node = node._parent;
+    }
+    return null;
   }
 
   /**
@@ -5476,7 +5694,21 @@ class BOOPSIBase {
     }
 
     let raw = globalThis.amiga.Intuition.getAttr(desc.tagID, this.ptr);
-    if (raw === null) return null;
+
+    /* OM_GET fallback. Many OS3.2 BOOPSI classes (label.image is the
+     * standout — LABEL_Text autodoc says OM_GET but in practice it
+     * returns 0) implement OM_GET for only a subset of their attrs.
+     * Returning null when the caller just set the value moments ago
+     * via set() is confusing, so fall back to _initAttrs when the
+     * class didn't answer OM_GET. This is the same snapshot the
+     * dispose-replace path uses to rebuild — authoritative for any
+     * attr we've ever set through the wrapper. */
+    if (raw === null) {
+      if (this._initAttrs && name in this._initAttrs) {
+        return this._initAttrs[name];
+      }
+      return null;
+    }
 
     let codec = ATTR_TYPES[desc.type];
     if (!codec) return raw;
@@ -5484,10 +5716,54 @@ class BOOPSIBase {
   }
 
   /**
-   * Batch-update attributes. Builds a single TagItem list from the
-   * supplied object and calls Intuition.SetAttrsA, which internally
-   * dispatches OM_SET. Unknown attrs throw. 'string-owned' values
-   * are tracked so they're freed when the BOOPSI object is disposed.
+   * Batch-update attributes and keep the visible UI in sync.
+   *
+   * Four routing paths depending on what `this` is and whether a
+   * window is open — the caller never has to care, `gadget.text =
+   * '...'` and `label.text = '...'` both do the right thing:
+   *
+   *   1. **Nothing open, any kind** → plain Intuition.SetAttrsA.
+   *      No render path is live yet; the first WM_OPEN's render
+   *      picks up the current internal state.
+   *
+   *   2. **Gadget inside an open window** → Intuition.SetGadgetAttrsA
+   *      (gadget, window, 0, tags). The RKRM Common Gadgets chapter:
+   *      *"remember to use SetGadgetAttrs so the gadget can update
+   *      it's presence on screen."* SetGadgetAttrs internally handles
+   *      OM_SET + the layout-safe repaint for gadgets.
+   *
+   *   3. **Image inside an open window, with a gadget parent
+   *      (typical: Label inside a Layout)** → dispose-and-replace.
+   *      Most image-class attrs (LABEL_Text, BEVEL_* styling, etc.)
+   *      are OM_NEW-applicable only per the class autodocs, so
+   *      changing them on a live image never actually repaints. The
+   *      NDK-canonical pattern (Examples/Layout2.c:241-254) is:
+   *
+   *          newChild = NewObject(class, NULL, new-tag-list);
+   *          SetGadgetAttrs(parentLayout, win, NULL,
+   *              LAYOUT_ModifyChild, oldChild,
+   *              CHILD_ReplaceObject, newChild,
+   *              TAG_DONE);
+   *          if (DoMethod(winobj, WM_RETHINK) == 0)
+   *              DoMethod(winobj, WM_NEWPREFS);
+   *
+   *      layout.gadget auto-disposes oldChild, rewires its internal
+   *      child list, and the window rerenders cleanly — no ghost
+   *      pixels, no overlay. `_disposeReplace` does this and
+   *      swaps `this.ptr` onto the new instance so the JS-side
+   *      wrapper identity survives.
+   *
+   *      Cost: every update allocates a new BOOPSI object. For
+   *      frequently-changing text (timer ticks, live counters)
+   *      prefer a read-only StringGadget instead.
+   *
+   *   4. **Image with no gadget parent, or other edge cases** →
+   *      plain SetAttrsA. Rare path; no sensible refresh possible.
+   *
+   * 'string-owned' values are allocated in `_buildPairs` and tracked
+   * on `_ownedStrings` for free-at-dispose. The dispose-replace path
+   * accumulates owned strings across updates; they're all freed when
+   * the JS wrapper itself is disposed.
    *
    * @param   {object} patch
    * @returns {undefined}
@@ -5499,17 +5775,148 @@ class BOOPSIBase {
       );
     }
 
-    let tags = this._buildTagList(patch);
+    let winObj = this._findWindowAncestor();
+    let winPtr = winObj ? this._findWindowPtr() : 0;
+    let kind   = this.constructor._boopsiKind;
 
+    let pairs = this._buildPairs(patch);
+    if (pairs.length === 0) return;
+
+    let tags = this._pairsToTags(pairs);
     try {
-      if (tags.ptr) {
+      if (winPtr && kind === 'gadget') {
+        /* Gadget in open window. SetGadgetAttrsA handles OM_SET +
+         * refresh internally per RKRM Common Gadgets. */
+        globalThis.amiga.Intuition.SetGadgetAttrsA(
+          this.ptr, winPtr, 0, tags.ptr
+        );
+      }
+      else {
+        /* Everything else — no window yet (pre-open init), image
+         * child (labels/bevels/etc), or an orphan wrapper — gets
+         * plain OM_SET. Updates internal state; next render picks
+         * it up. Note for images: OS3.2's layout.gadget will not
+         * visually refresh an image whose LAYOUT_AddImage-style
+         * content changes at runtime; _disposeReplace (below) is
+         * the documented NDK-canonical refresh path (LAYOUT_Modify
+         * Child + CHILD_ReplaceImage + WM_RETHINK) but testing on
+         * an actual OS3.2 system revealed it destabilises the
+         * layout (window grows unboundedly, eventual hang). The
+         * tag-level semantics are apparently different from the
+         * autodoc suggestions and we don't have a reliable fix
+         * without more OS3.2-specific guidance. For runtime-
+         * mutable text, Label.js JSDoc points users at read-only
+         * StringGadget, which does refresh cleanly. */
         globalThis.amiga.Intuition.SetAttrsA(this.ptr, tags.ptr);
       }
     }
-
     finally {
       if (tags.ptr) globalThis.amiga.freeMem(tags.ptr, tags.bytes);
     }
+  }
+
+  /**
+   * @internal UNUSED on OS3.2 — DO NOT CALL.
+   *
+   * Dispose-and-replace refresh for image children of a live layout.
+   * Intended to be the NDK-canonical runtime-update path per
+   * Examples/Layout2.c: build a fresh BOOPSI, dispatch
+   * LAYOUT_ModifyChild + CHILD_ReplaceImage on the parent layout,
+   * WM_RETHINK.
+   *
+   * Tested on AmigaOS 3.2 and found to destabilise the layout —
+   * after the first replacement the window grew taller on each
+   * subsequent call, eventually hanging the OS. The tag-level
+   * behavior of CHILD_ReplaceImage on 3.2 differs from the autodoc
+   * implications (possibly it requires LAYOUT_ModifyImage as subject
+   * — which NDK 3.2R4 gadgets/layout.h does not define — rather
+   * than LAYOUT_ModifyChild). Reverted to plain SetAttrsA for image
+   * set() paths; dynamic-text use cases should use read-only
+   * StringGadget per the guidance in Label.js JSDoc.
+   *
+   * Left in the code as a reference implementation for future
+   * investigation when we have better OS3.2-specific documentation
+   * of CHILD_ReplaceImage semantics.
+   *
+   * @param {object} patch
+   * @param {BOOPSIBase} winObj  — ReactionWindow ancestor
+   * @param {number}     winPtr  — struct Window *
+   */
+  _disposeReplace(patch, winObj, winPtr) {
+    /* Merge remembered construction attrs with the patch — then we
+     * have the full set of NewObject tags for the replacement. */
+    let mergedInit = Object.assign({}, this._initAttrs || {}, patch);
+    let classPtr = this.constructor.ensureClass();
+
+    /* Build the new BOOPSI. _buildPairs allocates fresh string-owned
+     * buffers and pushes them onto this._ownedStrings; they remain
+     * live for the lifetime of the wrapper (the new BOOPSI refers to
+     * them, and subsequent replacements create fresh buffers). */
+    let newPairs = this._buildPairs(mergedInit);
+    let newTags  = this._pairsToTags(newPairs);
+    let newPtr;
+
+    try {
+      newPtr = globalThis.amiga.Intuition.NewObjectA(
+        classPtr, 0, newTags.ptr
+      );
+      if (!newPtr) {
+        throw new Error(
+          this.constructor.name +
+          '._disposeReplace: NewObjectA returned 0'
+        );
+      }
+    }
+    finally {
+      if (newTags.ptr) globalThis.amiga.freeMem(newTags.ptr, newTags.bytes);
+    }
+
+    /* Image children need CHILD_ReplaceImage, NOT CHILD_ReplaceObject.
+     * gadgets/layout.h:
+     *   #define LAYOUT_ModifyChild  (LAYOUT_Dummy+22) = 0x85007016
+     *   #define CHILD_ReplaceObject (CHILD_Dummy+7)   = 0x85007107
+     *   #define CHILD_ReplaceImage  (LAYOUT_Dummy+8)  = 0x85007008
+     *
+     * CHILD_ReplaceObject installs the new child as a gadget and
+     * calls GM_RENDER on it — fine for a Button→CheckBox swap
+     * (Layout2.c pattern), but imageclass has no GM_RENDER, so an
+     * image swapped in this way draws nothing. CHILD_ReplaceImage
+     * is the image-specific variant — the replacement is marked
+     * as an imageclass child and drawn via IM_DRAW, matching how
+     * LAYOUT_AddImage would have inserted it originally.
+     *
+     * This function is only called for image kinds (the caller in
+     * set() gates on kind === 'image'), so we always use
+     * CHILD_ReplaceImage here. */
+    let replaceTags = this._pairsToTags([
+      [0x85007016, this.ptr],    /* LAYOUT_ModifyChild */
+      [0x85007008, newPtr],      /* CHILD_ReplaceImage */
+    ]);
+
+    try {
+      globalThis.amiga.Intuition.SetGadgetAttrsA(
+        this._parent.ptr, winPtr, 0, replaceTags.ptr
+      );
+    }
+    finally {
+      if (replaceTags.ptr) {
+        globalThis.amiga.freeMem(replaceTags.ptr, replaceTags.bytes);
+      }
+    }
+
+    /* layout.gadget has now disposed the old BOOPSI and installed
+     * newPtr in its place; swing our wrapper onto the new one and
+     * remember the merged attrs for the next replacement. */
+    this.ptr = newPtr;
+    this._initAttrs = mergedInit;
+
+    /* Force relayout + repaint. Per NDK Examples/Layout2.c:
+     *   if (DoMethod(winobj, WM_RETHINK) == 0)
+     *       DoMethod(winobj, WM_NEWPREFS);
+     * WM_RETHINK returns 0 when it had nothing to do; in that case
+     * fall back to WM_NEWPREFS which forces a full refresh. */
+    let r = winObj.doMethod(0x570006 /* WM_RETHINK */);
+    if (r === 0) winObj.doMethod(0x570004 /* WM_NEWPREFS */);
   }
 
   /**
@@ -5759,6 +6166,11 @@ const GADGET_ATTRS = Object.freeze({
  * @extends BOOPSIBase
  */
 class GadgetBase extends BOOPSIBase {
+  /** @type {'gadget'} — BOOPSIBase.set() inspects this to decide
+   *  whether to route through SetGadgetAttrsA(gadget, window, ...) or
+   *  (for images) LAYOUT_ModifyChild via the parent layout. */
+  static _boopsiKind = 'gadget';
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = { ...GADGET_ATTRS };
 
@@ -5840,6 +6252,11 @@ const IMAGE_ATTRS = Object.freeze({
  * @extends BOOPSIBase
  */
 class ImageBase extends BOOPSIBase {
+  /** @type {'image'} — BOOPSIBase.set() inspects this to decide
+   *  whether to route the OM_SET through the parent layout via
+   *  LAYOUT_ModifyChild so the image actually redraws. */
+  static _boopsiKind = 'image';
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = { ...IMAGE_ATTRS };
 
@@ -5884,7 +6301,40 @@ const LABEL = Object.freeze({
 });
 
 /**
- * label.image — a renderable text label.
+ * label.image — a renderable text label for STATIC content.
+ *
+ * **Use Label for static text only.** label.image's attributes
+ * (LABEL_Text, LABEL_Justification, LABEL_SoftStyle, …) are all
+ * OM_NEW-applicable only per label_ic.doc. Assigning `lbl.text = '...'`
+ * on an already-open window updates the internal attribute via OM_SET
+ * but does NOT repaint — label.image is an image class, it has no
+ * GM_RENDER, and OS3.2's layout.gadget does not re-invoke IM_DRAW for
+ * attribute changes on existing image children. You get the old
+ * pixels plus the new text stored internally but invisible.
+ *
+ * **For dynamic / runtime-mutable text, use a read-only StringGadget.**
+ *
+ *     let display = new StringGadget({
+ *         text: 'initial',
+ *         readOnly: true,
+ *         maxChars: 80,
+ *     });
+ *     // later:
+ *     display.text = 'new value';   // cleanly refreshes in place
+ *
+ * StringGadget is the canonical OS3.2 Reaction widget for mutable
+ * text: it's a gadget (so SetGadgetAttrs handles OM_SET + refresh),
+ * it supports STRINGA_TextVal at OM_SET, and it has no allocation
+ * overhead per update. The calculator and quiz demos both use this
+ * pattern.
+ *
+ * This wrapper does not attempt to patch runtime Label updates
+ * underneath — a prototype dispose-and-replace path (fresh NewObject
+ * spliced in via LAYOUT_ModifyChild + CHILD_ReplaceImage) was
+ * attempted and destabilises the layout on real OS3.2 hardware
+ * (unbounded growth → OS hang). Static use of Label is stable and
+ * correct; reach for StringGadget the moment the text needs to
+ * change.
  *
  * @extends ImageBase
  */
@@ -6759,36 +7209,50 @@ EventKind.define('INTEGER_CHANGED', {
  */
 
 
-/** @internal STRINGA_* tag IDs (gadgets/string.h). */
+/** @internal STRINGA_* tag IDs.
+ *
+ * Re-derived byte-for-byte from intuition/gadgetclass.h (STRINGA_*)
+ * and gadgets/string.h (Reaction additions). DO NOT hand-type these
+ * values — every off-by-one shifts subsequent tags and produces the
+ * kind of silent misdirection we just hit (text writes landing on
+ * ExitHelp because an invented FloatVal at +18 displaced TextVal
+ * to +19). Same discipline as the GA_* audit in GadgetBase.js.
+ */
 const STRINGA = Object.freeze({
-  /* strgclass tags (STRINGA_Dummy = TAG_USER+0x32000 per gadgets/strgclass.h) */
-  MaxChars:     0x80032000 + 1,
-  Buffer:       0x80032000 + 2,
-  UndoBuffer:   0x80032000 + 3,
-  WorkBuffer:   0x80032000 + 4,
-  BufferPos:    0x80032000 + 5,
-  DispPos:      0x80032000 + 6,
-  AltKeyMap:    0x80032000 + 7,
-  Font:         0x80032000 + 8,
-  Pens:         0x80032000 + 9,
-  ActivePens:   0x80032000 + 10,
-  EditHook:     0x80032000 + 11,
-  EditModes:    0x80032000 + 12,
-  ReplaceMode:  0x80032000 + 13,
-  FixedFieldMode:0x80032000 + 14,
-  NoFilterMode: 0x80032000 + 15,
-  Justification:0x80032000 + 16,
-  LongVal:      0x80032000 + 17,
-  FloatVal:     0x80032000 + 18,
-  TextVal:      0x80032000 + 19,
+  /* strgclass tags — STRINGA_Dummy = TAG_USER + 0x32000 = 0x80032000
+   * (gadgets/gadgetclass.h lines 259-290). */
+  MaxChars:       0x80032001,   /* +0x01 */
+  Buffer:         0x80032002,   /* +0x02 */
+  UndoBuffer:     0x80032003,   /* +0x03 */
+  WorkBuffer:     0x80032004,   /* +0x04 */
+  BufferPos:      0x80032005,   /* +0x05 */
+  DispPos:        0x80032006,   /* +0x06 */
+  AltKeyMap:      0x80032007,   /* +0x07 */
+  Font:           0x80032008,   /* +0x08 */
+  Pens:           0x80032009,   /* +0x09 */
+  ActivePens:     0x8003200A,   /* +0x0A */
+  EditHook:       0x8003200B,   /* +0x0B */
+  EditModes:      0x8003200C,   /* +0x0C */
+  ReplaceMode:    0x8003200D,   /* +0x0D */
+  FixedFieldMode: 0x8003200E,   /* +0x0E */
+  NoFilterMode:   0x8003200F,   /* +0x0F */
+  Justification:  0x80032010,   /* +0x10 */
+  LongVal:        0x80032011,   /* +0x11 */
+  TextVal:        0x80032012,   /* +0x12 — THE content tag. Earlier
+                                 * table had TextVal at +0x13 (the
+                                 * ExitHelp slot) because a phantom
+                                 * FloatVal was inserted at +0x12;
+                                 * FloatVal is not defined in NDK 3.2. */
+  ExitHelp:       0x80032013,   /* +0x13 — v37+ */
 
-  /* Reaction-specific additions */
-  MinVisible:          0x85055000,
-  HookType:            0x85055001,
-  GetBlockPos:         0x85055010,
-  Mark:                0x85055011,
-  AllowMarking:        0x85055012,
-  InterimUpdates:      0x85055013,
+  /* Reaction-specific tags — REACTION_Dummy + 0x55000 = 0x85055000
+   * (gadgets/string.h). */
+  MinVisible:     0x85055000,
+  HookType:       0x85055001,
+  GetBlockPos:    0x85055010,
+  Mark:           0x85055011,
+  AllowMarking:   0x85055012,
+  InterimUpdates: 0x85055013,
 });
 
 /** String.HookType values (SHK_*). */
@@ -6817,9 +7281,20 @@ class StringGadget extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
+
+    /* Override the inherited GA_Text mapping. string.gadget ignores
+     * GA_Text for content — per string_gc.doc line 309:
+     *   "GA_Text is not supported, please use STRING_TextVal as it is
+     *    intended."
+     * STRINGA_TextVal copies the supplied STRPTR into the gadget's
+     * internal buffer on both OM_NEW and OM_SET, and OM_GET returns
+     * the live buffer contents. Using `text` in JS therefore gets the
+     * ergonomics every other wrapper has — `sg.text = '...'` — while
+     * talking to the tag string.gadget actually honors. */
+    text:           { tagID: STRINGA.TextVal,      type: 'string-owned' },
+
     maxChars:       { tagID: STRINGA.MaxChars,     type: 'int32' },
     buffer:         { tagID: STRINGA.Buffer,       type: 'ptr' },  /* caller-owned */
-    textVal:        { tagID: STRINGA.TextVal,      type: 'ptr' },
     longVal:        { tagID: STRINGA.LongVal,      type: 'int32' },
     bufferPos:      { tagID: STRINGA.BufferPos,    type: 'int32' },
     dispPos:        { tagID: STRINGA.DispPos,      type: 'int32' },
@@ -6834,6 +7309,32 @@ class StringGadget extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+
+    /* STRINGA_MinVisible tells the layout how many characters of
+     * display width the gadget needs. Without it, the layout gives
+     * the gadget near-zero width and the text — however correctly
+     * stored in the internal buffer — is clipped to nothing. Every
+     * NDK Examples/String.c instantiation sets this (the macro
+     * defaults to no value, so users must remember).
+     *
+     * Default policy:
+     *   - if caller specified maxChars, mirror it clamped to
+     *     [4, 40] so narrow fields and very wide ones don't take
+     *     over the layout
+     *   - otherwise fall back to 10, matching the NDK example
+     * Caller can still pass minVisible: explicitly to override. */
+    if (clean.minVisible === undefined) {
+      if (typeof clean.maxChars === 'number' && clean.maxChars > 0) {
+        let mv = clean.maxChars | 0;
+        if (mv < 4)  mv = 4;
+        if (mv > 40) mv = 40;
+        clean.minVisible = mv;
+      }
+      else {
+        clean.minVisible = 10;
+      }
+    }
+
     super(clean);
   }
 }
@@ -8121,6 +8622,14 @@ const LAYOUT = Object.freeze({
    * this specially in Layout.constructor via BOOPSIBase._extraPairs. */
   AddChild:        0x85007014,
   AddImage:        0x85007015,
+  /* LAYOUT_ModifyChild — OM_SET-time tag that tells layout.gadget the
+   * subsequent tags in the taglist apply to the named child object.
+   * Used by BOOPSIBase.set() when forwarding an image child's attr
+   * update through its parent layout so the layout can re-lay-out
+   * and redraw the image (images have no GM_RENDER of their own).
+   * Layout_gc.doc: "You *MUST* call through SetGadgetAttrs() to
+   * protect the window layout properly." */
+  ModifyChild:     0x85007016,
   /* LAYOUT_RelVerify enables IDCMP_IDCMPUPDATE broadcasts when any
    * child gadget with GA_RelVerify=TRUE releases. Per layout_gc.doc
    * lines 320-330: without this bit, button/checkbox/etc clicks
@@ -8149,6 +8658,57 @@ const LayoutOrient = Object.freeze({
 class Layout extends GadgetBase {
   /** @type {string} */
   static _classLibName = 'gadgets/layout.gadget';
+
+  /** @type {true} — BOOPSIBase.set() walks _parent chains looking
+   *  for the nearest ancestor flagged with _isLayout so it knows
+   *  which object to RethinkLayout() after an OM_SET. Page/Virtual
+   *  subclasses inherit this flag. */
+  static _isLayout = true;
+
+  /**
+   * layout.gadget/RethinkLayout (v39+) — relayout the page and
+   * re-render. Per layout_gc.doc line 598 the OM_SET path does NOT
+   * auto-rerender; you must call RethinkLayout yourself after any
+   * SetGadgetAttrs() that changed a layout-relevant attribute
+   * (including LAYOUT_ModifyChild on an image child). a0=layout,
+   * a1=window, a2=requester, d0=refresh.
+   *
+   * LVO -48 on layout.gadget; we reach that library through the
+   * BOOPSIBase._libBase cached by ensureClass() (since we've already
+   * opened layout.gadget to instantiate the class).
+   *
+   * @param {number|object} layoutPtr — struct Gadget * (the layout)
+   * @param {number|object} winPtr    — struct Window *
+   * @param {number|object} reqPtr    — struct Requester * or 0
+   * @param {boolean|number} refresh  — true to also repaint
+   * @returns {number}
+   */
+  static RethinkLayout(layoutPtr, winPtr, reqPtr, refresh) {
+    this.ensureClass();
+    return globalThis.amiga.call(this._libBase, -48, {
+      a0: (layoutPtr && typeof layoutPtr === 'object')
+            ? (layoutPtr.ptr | 0) : (layoutPtr | 0),
+      a1: (winPtr && typeof winPtr === 'object' && 'ptr' in winPtr)
+            ? (winPtr.ptr | 0) : (winPtr | 0),
+      a2: (reqPtr && typeof reqPtr === 'object' && 'ptr' in reqPtr)
+            ? (reqPtr.ptr | 0) : (reqPtr | 0),
+      d0: refresh ? 1 : 0,
+    });
+  }
+
+  /**
+   * Instance form: relayout + redraw this layout in the given
+   * window. Used by BOOPSIBase.set() after any live OM_SET.
+   *
+   * @param {number} winPtr  — struct Window *
+   * @param {boolean} [refresh=true]
+   * @returns {number}
+   */
+  rethink(winPtr, refresh) {
+    return Layout.RethinkLayout(
+      this.ptr, winPtr, 0, refresh === undefined ? 1 : (refresh ? 1 : 0)
+    );
+  }
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
@@ -8235,7 +8795,16 @@ class Layout extends GadgetBase {
             '(disposed, wrapping-only, or not a BOOPSIBase)'
           );
         }
-        pairs.push([LAYOUT.AddChild, c.ptr]);
+        /* Images (label.image, bevel.image, led.image, glyph.image,
+         * bitmap.image) are rendered via IM_DRAW — layout.gadget only
+         * calls IM_DRAW on children added with LAYOUT_AddImage.
+         * Adding an image via LAYOUT_AddChild reserves space but never
+         * draws anything because imageclass has no GM_RENDER. Per
+         * layout_gc.doc LAYOUT_AddImage. */
+        let tagID = (c instanceof ImageBase)
+          ? LAYOUT.AddImage
+          : LAYOUT.AddChild;
+        pairs.push([tagID, c.ptr]);
       }
     }
 
