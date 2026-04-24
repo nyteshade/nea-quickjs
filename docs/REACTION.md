@@ -337,10 +337,68 @@ amiga.boopsi.TapeDeckMode      // STOP, PLAY, FFWD, REW, RECORD, ...
 Node-attribute namespaces for struct-List child nodes:
 
 ```
-amiga.boopsi.CNA   // Chooser nodes:  Text, Image, SelImage, UserData, ...
-amiga.boopsi.TNA   // ClickTab tabs:  Text, Number, UserData, Image, ...
-amiga.boopsi.SBNA  // SpeedBar items: Ordinal, Image, Label, HintInfo, ...
+amiga.boopsi.CNA    // Chooser nodes:      Text, Image, SelImage, UserData, ...
+amiga.boopsi.TNA    // ClickTab tabs:      UserData, Image, SelImage, Text, Number, ...
+amiga.boopsi.SBNA   // SpeedBar buttons:   Left, Top, Width, Height, UserData, Image, SelImage, Toggle, Selected, Disabled, Text, ...
+amiga.boopsi.LBNA   // ListBrowser node:   Selected, Flags, UserData, Column, Generation
+amiga.boopsi.LBNCA  // ListBrowser column: Text, Integer, FGPen, BGPen, Image, Editable, MaxChars, CopyText, ...
+amiga.boopsi.LBCIA  // ListBrowser colinfo: Title, Weight, Width, Flags, Sortable, ...
 ```
+
+(All re-derived byte-for-byte from `gadgets/*.h` in NDK 3.2R4 at library
+version 0.168. Earlier versions had hand-typed off-by-one errors in
+several of these tables; see feedback_amiga_tag_constants.md.)
+
+### Label-list helper (0.168+)
+
+Chooser / ClickTab / ListBrowser / SpeedBar all accept a JS array of
+strings in their constructor and build the required struct List of
+class-native nodes automatically:
+
+```js
+new Chooser({ labels: ['Red','Green','Blue'], dropDown: true });
+new ClickTab({ labels: ['General','Options','About'], pageGroup: pages.ptr });
+new ListBrowser({ labels: ['Row 1','Row 2','Row 3'] });
+new SpeedBar({ buttons: ['Cut','Copy','Paste'] });  // 'buttons', not 'labels'
+```
+
+The wrapper opens the class library, allocs one node per string via
+`AllocChooserNodeA` / `AllocClickTabNodeA` / `AllocListBrowserNodeA` /
+`AllocSpeedButtonNodeA` (all at LVO -36), links the nodes into a
+fresh exec `struct List`, hands the list to `CHOOSER_Labels` /
+`CLICKTAB_Labels` / `LISTBROWSER_Labels` / `SPEEDBAR_Buttons`, and
+frees everything at dispose.
+
+For advanced nodes (CNA_UserData, LBNCA_Editable, etc.) pre-build a
+list yourself and pass it via `labelsPtr:` / `buttonsPtr:`. Same
+pattern as `RadioButton.labels` shipped at 0.151.
+
+### Extra-signal integration (0.169+)
+
+`Window.events()` accepts an options object with a `extraSignals:
+uint32` bitmask that's merged into the outer `Exec.Wait`. When any of
+those bits fire during the wait, the generator yields a synthetic
+`EventKind.SIGNAL` event whose `attrs.sigMask` is the bitmask of
+extras that actually fired:
+
+```js
+for (let e of win.events({ extraSignals: timerSig | otherSig })) {
+  if (e.kind === EventKind.SIGNAL) {
+    if (e.attrs.sigMask & timerSig) handleTimer();
+    if (e.attrs.sigMask & otherSig) handleOther();
+  }
+  // other Intuition events still dispatch normally
+}
+```
+
+Canonical hook for integrating `timer.device` replyPort signals,
+`AllocSignal` bits, or any other `exec.library` signal source into
+the same synchronous event loop — no separate polling thread, no
+IDCMP_INTUITICKS 10Hz overhead. See `amiga/examples/reaction_clock_demo.js`.
+
+EventKind.SIGNAL carries `from: 'exec'` so it stays out of the IDCMP
+lookup tables. The window's own signal never surfaces as a SIGNAL
+event — only the extras you requested.
 
 ---
 
