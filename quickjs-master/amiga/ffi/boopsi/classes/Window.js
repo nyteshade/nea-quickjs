@@ -561,21 +561,36 @@ export class ReactionWindow extends BOOPSIBase {
    * calls WM_HANDLEINPUT until it returns WMHI_LASTMSG, yielding a
    * rich event for every non-ignored result.
    *
+   * Pass `opts.extraSignals` (a uint32 bitmask) to merge extra signals
+   * into the Wait. When any of them fires, the loop yields a synthetic
+   * EventKind.SIGNAL event whose `attrs.sigMask` carries the bits that
+   * fired (masked to the requested extras — the window signal never
+   * surfaces here). This is the canonical hook for integrating
+   * timer.device, AllocSignal bits, msgport signals, etc. into the
+   * same loop — e.g. a 1-Hz clock or a stopwatch tick without
+   * depending on IDCMP_INTUITICKS.
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.extraSignals=0] — extra signal bits to Wait on
    * @yields {object} event object with {kind, source, sourceId, attrs, raw}
    */
-  * events() {
+  * events(opts) {
     if (!this._intuiWindow) {
       throw new Error('Window.events: window is not open; call open() first');
     }
 
     /* WINDOW_SigMask is the (1<<bit) mask for our window's signal —
      * Wait() takes it directly. window.class fills it in at WM_OPEN. */
-    let sigMask = this.get('sigMask') >>> 0;
-    if (!sigMask) {
+    let winSig = this.get('sigMask') >>> 0;
+    if (!winSig) {
       throw new Error(
         'Window.events: WINDOW_SigMask returned 0 — window not properly opened'
       );
     }
+
+    let extraSig = (opts && typeof opts.extraSignals === 'number')
+      ? (opts.extraSignals >>> 0) : 0;
+    let waitMask = (winSig | extraSig) >>> 0;
 
     /* Lazy-allocate the UWORD slot WM_HANDLEINPUT writes into. */
     if (!this._codeBuf) {
@@ -588,9 +603,12 @@ export class ReactionWindow extends BOOPSIBase {
     let Exec = globalThis.amiga.Exec;
 
     while (this.ptr) {
-      Exec.Wait(sigMask);
+      /* Wait() returns the bitmask of signals that satisfied the wait. */
+      let got = Exec.Wait(waitMask) >>> 0;
 
-      /* Drain every queued event before Wait()ing again. */
+      /* Drain every queued event from the window's UserPort. We do
+       * this unconditionally: even on a "timer-only" wakeup, pending
+       * Intuition messages may still be queued. */
       let result;
       while ((result = this.doMethod(WM_HANDLEINPUT, this._codeBuf) >>> 0) !==
              WMHI.LASTMSG) {
@@ -604,6 +622,24 @@ export class ReactionWindow extends BOOPSIBase {
         let event = this._translateWmhi(result, code);
         this._fire(event);
         yield event;
+      }
+
+      /* After draining Intuition, surface any non-window signals that
+       * fired. extraFired is the caller's requested mask intersected
+       * with what Wait() actually returned. */
+      if (extraSig) {
+        let extraFired = (got & extraSig) >>> 0;
+        if (extraFired) {
+          let event = {
+            kind: EventKind.SIGNAL,
+            source: null,
+            sourceId: null,
+            attrs: { sigMask: extraFired },
+            raw: { waitReturned: got, classRaw: 0 },
+          };
+          this._fire(event);
+          yield event;
+        }
       }
     }
   }

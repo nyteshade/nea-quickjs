@@ -316,6 +316,18 @@ export class EventKind extends CEnumeration {
                hasSource: true, hasPressed: false },
       from:  'intuition',
     });
+
+    /* ---- Non-IDCMP: synthetic. Raised by Window.events() when a
+     * caller-supplied `extraSignals` bit fires during Exec.Wait.
+     * `from: 'exec'` keeps it out of the Intuition IDCMP lookup tables
+     * (fromIdcmp walks `from === 'intuition'` only). attrs.sigMask on
+     * the event is the bitmask of extra signals that actually fired. */
+    EventKind.define('SIGNAL', {
+      idcmp: 0,
+      rich:  { hasId: false, hasCode: false, hasCoords: false,
+               hasSource: false, hasPressed: false },
+      from:  'exec',
+    });
   }
 
   /**
