@@ -11,7 +11,7 @@ const GID = { PICK: 1, QUIT: 2 };
 
 let pick = new GetFont({
   id: GID.PICK, titleText: 'Pick a font',
-  fontName: 'topaz.font', fontHeight: 8,
+  minHeight: 6, maxHeight: 72,
 });
 let quit = new Button({ id: GID.QUIT, text: '_Quit' });
 
@@ -33,7 +33,17 @@ try {
     if (e.kind === EventKind.CLOSE_WINDOW) break;
     if (e.kind === EventKind.BUTTON_CLICK && e.sourceId === GID.QUIT) break;
     if (e.kind === EventKind.FONT_SELECTED) {
-      print('Selected: ' + pick.get('fontName') + '/' + pick.get('fontHeight'));
+      /* pick.get('textAttr') returns a struct TextAttr* (STRPTR at
+       * offset 0, UWORD height at +4). Peek for a rough readout. */
+      let ta = pick.get('textAttr');
+      if (ta) {
+        let namePtr = amiga.peek32(ta + 0);
+        let height  = amiga.peek16(ta + 4);
+        let name    = namePtr ? amiga.peekString(namePtr) : '(null)';
+        print('Selected: ' + name + ' / ' + height);
+      } else {
+        print('Selected: (TextAttr not available)');
+      }
     }
   }
 }

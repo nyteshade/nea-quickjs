@@ -1,32 +1,36 @@
 /* quickjs-master/amiga/ffi/boopsi/gadgets/DateBrowser.js
  *
- * datebrowser.gadget — Reaction calendar / date picker. Extends
- * gadgetclass.
+ * datebrowser.gadget — month-view calendar / date-picker.
  *
  * DATEBROWSER_Dummy = REACTION_Dummy + 0x61000 = 0x85061000.
+ *
+ * Tags re-derived from gadgets/datebrowser.h (NDK 3.2R4). Previous
+ * table had Year/Month/Day shifted — DATEBROWSER_Day is actually
+ * DATEBROWSER_Dummy itself (+0), Month is +1, Year is +2, with
+ * SelectedDays / WeekDay / FirstWDay / NumDays / ShowTitle /
+ * MultiSelect filling the rest. Locale / WeekNumbers / HighlightToday
+ * / TopLabel / HeaderGadget from the old table don't exist in this
+ * header.
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
+/** @internal DATEBROWSER_* tag IDs (gadgets/datebrowser.h). */
 const DATEBROWSER = Object.freeze({
-  Year:          0x85061001,
-  Month:         0x85061002,
-  Day:           0x85061003,
-  WeekDay:       0x85061004,
-  FirstWeekDay:  0x85061005,
-  Locale:        0x85061006,
-  WeekNumbers:   0x85061007,
-  HighlightToday:0x85061008,
-  ShowDays:      0x85061009,
-  TopLabel:      0x8506100A,
-  TopLabelPlace: 0x8506100B,
-  HeaderGadget:  0x8506100C,
-  ReadOnly:      0x8506100D,
+  Day:          0x85061000,   /* +0 (Dummy itself; 1..31) */
+  Month:        0x85061001,   /* +1 (1..12) */
+  Year:         0x85061002,   /* +2 (full year, e.g. 2026) */
+  SelectedDays: 0x85061003,   /* +3 (ptr to UBYTE bitmap) */
+  WeekDay:      0x85061004,   /* +4 */
+  FirstWDay:    0x85061005,   /* +5 — first day of week (0=Mon..6=Sun) */
+  NumDays:      0x85061006,   /* +6 — span for multi-select */
+  ShowTitle:    0x85061007,   /* +7 — bool */
+  MultiSelect:  0x85061008,   /* +8 — bool */
 });
 
 /**
- * datebrowser.gadget — calendar picker.
+ * datebrowser.gadget — Reaction month-view calendar.
  *
  * @extends GadgetBase
  */
@@ -37,18 +41,15 @@ export class DateBrowser extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    year:           { tagID: DATEBROWSER.Year,          type: 'int32' },
-    month:          { tagID: DATEBROWSER.Month,         type: 'int32' },
-    day:            { tagID: DATEBROWSER.Day,           type: 'int32' },
-    weekDay:        { tagID: DATEBROWSER.WeekDay,       type: 'int32' },
-    firstWeekDay:   { tagID: DATEBROWSER.FirstWeekDay,  type: 'int32' },
-    locale:         { tagID: DATEBROWSER.Locale,        type: 'ptr' },
-    weekNumbers:    { tagID: DATEBROWSER.WeekNumbers,   type: 'bool' },
-    highlightToday: { tagID: DATEBROWSER.HighlightToday,type: 'bool' },
-    showDays:       { tagID: DATEBROWSER.ShowDays,      type: 'bool' },
-    topLabel:       { tagID: DATEBROWSER.TopLabel,      type: 'string-owned' },
-    topLabelPlace:  { tagID: DATEBROWSER.TopLabelPlace, type: 'uint32' },
-    headerGadget:   { tagID: DATEBROWSER.HeaderGadget,  type: 'bool' },
+    day:          { tagID: DATEBROWSER.Day,          type: 'uint32' },
+    month:        { tagID: DATEBROWSER.Month,        type: 'uint32' },
+    year:         { tagID: DATEBROWSER.Year,         type: 'uint32' },
+    selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'ptr' },
+    weekDay:      { tagID: DATEBROWSER.WeekDay,      type: 'uint32' },
+    firstWeekDay: { tagID: DATEBROWSER.FirstWDay,    type: 'uint32' },
+    numDays:      { tagID: DATEBROWSER.NumDays,      type: 'uint32' },
+    showTitle:    { tagID: DATEBROWSER.ShowTitle,    type: 'bool' },
+    multiSelect:  { tagID: DATEBROWSER.MultiSelect,  type: 'bool' },
   };
 
   constructor(init) {

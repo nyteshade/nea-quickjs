@@ -13,10 +13,9 @@ const GID = { PAL: 1, QUIT: 2 };
 
 let pal = new Palette({
   id: GID.PAL,
-  depth: 3,          /* 2^3 = 8 colors from current screen */
+  numColors:   8,     /* show 8 pens starting at colorOffset */
   colorOffset: 0,
-  color: 1,
-  indicator: true,
+  color:       1,     /* initially selected pen index */
 });
 
 let hint = new Label({ text: 'Click a color:' });

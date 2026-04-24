@@ -8096,27 +8096,37 @@ EventKind.define('LIST_SELECT', {
 /* === boopsi/gadgets/Palette.js === */
 /* quickjs-master/amiga/ffi/boopsi/gadgets/Palette.js
  *
- * palette.gadget — Reaction color picker grid. Extends gadgetclass.
+ * palette.gadget — Reaction colour-picker gadget. Extends gadgetclass.
  *
  * PALETTE_Dummy = REACTION_Dummy + 0x4000 = 0x85004000.
+ *
+ * Tags re-derived from gadgets/palette.h (NDK 3.2R4). OS3.2 supports
+ * only a handful of PALETTE_* tags; several names from the earlier
+ * hand-typed table (Depth, IndicatorWidth, IndicatorHeight,
+ * UseScrnPalette, RenderPen) don't exist in the OS3.2 header.
  */
 
 
+/** @internal PALETTE_* tag IDs (gadgets/palette.h).
+ *
+ * Note: the NDK header uses British spelling for the primary symbols
+ * (PALETTE_Colour, PALETTE_NumColours, ...) with American-spelling
+ * aliases that macro-expand to the same value. Both forms exposed
+ * here just for clarity. */
 const PALETTE = Object.freeze({
-  Color:        0x85004001,
-  NumColors:    0x85004002,
-  ColorOffset:  0x85004003,
-  Depth:        0x85004004,
-  ColorTable:   0x85004005,
-  Indicator:    0x85004006,
-  IndicatorWidth: 0x85004007,
-  IndicatorHeight:0x85004008,
-  RenderPen:    0x85004009,
-  UseScrnPalette:0x8500400A,
+  Colour:       0x85004001,   /* +1 — current selected colour index */
+  Color:        0x85004001,   /* alias */
+  ColourOffset: 0x85004002,   /* +2 — first pen in the palette */
+  ColorOffset:  0x85004002,   /* alias */
+  ColourTable:  0x85004003,   /* +3 — pointer to UBYTE table of pens to show */
+  ColorTable:   0x85004003,   /* alias */
+  NumColours:   0x85004004,   /* +4 — count of colours to present */
+  NumColors:    0x85004004,   /* alias */
+  RenderHook:   0x85004007,   /* +7 */
 });
 
 /**
- * palette.gadget — color picker.
+ * palette.gadget — Reaction colour-picker.
  *
  * @extends GadgetBase
  */
@@ -8127,16 +8137,11 @@ class Palette extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    color:            { tagID: PALETTE.Color,           type: 'uint32' },
-    numColors:        { tagID: PALETTE.NumColors,       type: 'int32' },
-    colorOffset:      { tagID: PALETTE.ColorOffset,     type: 'int32' },
-    depth:            { tagID: PALETTE.Depth,           type: 'int32' },
-    colorTable:       { tagID: PALETTE.ColorTable,      type: 'ptr' },
-    indicator:        { tagID: PALETTE.Indicator,       type: 'bool' },
-    indicatorWidth:   { tagID: PALETTE.IndicatorWidth,  type: 'int32' },
-    indicatorHeight:  { tagID: PALETTE.IndicatorHeight, type: 'int32' },
-    renderPen:        { tagID: PALETTE.RenderPen,       type: 'uint32' },
-    useScrnPalette:   { tagID: PALETTE.UseScrnPalette,  type: 'bool' },
+    color:        { tagID: PALETTE.Colour,       type: 'uint32' },
+    colorOffset:  { tagID: PALETTE.ColorOffset,  type: 'uint32' },
+    colorTable:   { tagID: PALETTE.ColorTable,   type: 'ptr' },
+    numColors:    { tagID: PALETTE.NumColors,    type: 'uint32' },
+    renderHook:   { tagID: PALETTE.RenderHook,   type: 'ptr' },
   };
 
   constructor(init) {
@@ -8158,25 +8163,36 @@ EventKind.define('PALETTE_CHANGE', {
 /* === boopsi/gadgets/Space.js === */
 /* quickjs-master/amiga/ffi/boopsi/gadgets/Space.js
  *
- * space.gadget — Reaction visual spacer / manual-draw area. Extends
- * gadgetclass. Useful for layout padding or as a canvas for custom
- * rendering via SPACE_RenderHook.
+ * space.gadget — Reaction empty-space / filler gadget. Useful for
+ * layout spacing and as a bevel-framed visual area. Extends
+ * gadgetclass.
  *
  * SPACE_Dummy = REACTION_Dummy + 0x9000 = 0x85009000.
+ *
+ * Tags re-derived from gadgets/space.h (NDK 3.2R4). Previous table
+ * had MinWidth/MinHeight swapped and Transparent/AreaBox/BevelStyle/
+ * RenderHook shifted. NDK actually has MinHeight at +1, MinWidth +2,
+ * MouseX +3, MouseY +4, Transparent +5, AreaBox +6, RenderHook +7,
+ * BevelStyle +8, DomainBevel +9.
  */
 
 
+/** @internal SPACE_* tag IDs (gadgets/space.h). */
 const SPACE = Object.freeze({
-  MinWidth:    0x85009001,
-  MinHeight:   0x85009002,
-  Transparent: 0x85009003,
-  AreaBox:     0x85009004,
-  BevelStyle:  0x85009005,
-  RenderHook:  0x85009006,
+  MinHeight:   0x85009001,   /* +1 */
+  MinWidth:    0x85009002,   /* +2 */
+  MouseX:      0x85009003,   /* +3 */
+  MouseY:      0x85009004,   /* +4 */
+  Transparent: 0x85009005,   /* +5 */
+  AreaBox:     0x85009006,   /* +6 (ptr to struct IBox) */
+  RenderHook:  0x85009007,   /* +7 (ptr to struct Hook) */
+  BevelStyle:  0x85009008,   /* +8 */
+  DomainBevel: 0x85009009,   /* +9 */
 });
 
 /**
- * space.gadget — visual spacer / custom canvas.
+ * space.gadget — Reaction filler / spacer. Commonly used as a layout
+ * padding element or as a framed custom-render surface.
  *
  * @extends GadgetBase
  */
@@ -8189,10 +8205,13 @@ class Space extends GadgetBase {
     ...GADGET_ATTRS,
     minWidth:    { tagID: SPACE.MinWidth,    type: 'int32' },
     minHeight:   { tagID: SPACE.MinHeight,   type: 'int32' },
+    mouseX:      { tagID: SPACE.MouseX,      type: 'int32' },
+    mouseY:      { tagID: SPACE.MouseY,      type: 'int32' },
     transparent: { tagID: SPACE.Transparent, type: 'bool' },
     areaBox:     { tagID: SPACE.AreaBox,     type: 'ptr' },
-    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'uint32' },
     renderHook:  { tagID: SPACE.RenderHook,  type: 'ptr' },
+    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'uint32' },
+    domainBevel: { tagID: SPACE.DomainBevel, type: 'bool' },
   };
 }
 
@@ -8568,36 +8587,36 @@ EventKind.define('FILE_SELECTED', {
 /* === boopsi/gadgets/GetFont.js === */
 /* quickjs-master/amiga/ffi/boopsi/gadgets/GetFont.js
  *
- * getfont.gadget — Reaction font-requester popup.
+ * getfont.gadget — pop-up font-requester gadget.
  *
  * GETFONT_Dummy = REACTION_Dummy + 0x40000 = 0x85040000.
+ *
+ * Tags re-derived from gadgets/getfont.h (NDK 3.2R4). Previous table
+ * was off by several slots — the first tag is TextAttr (+1), not
+ * TitleText which lives at +9. FontName / FontHeight / FontStyle /
+ * FontFlags / FrontPen / BackPen / DrawMode / ModalRequest /
+ * Negative/PositiveText from the old table don't exist in the OS3.2
+ * header — all drop-through tags that were never real.
  */
 
 
+/** @internal GETFONT_* tag IDs (gadgets/getfont.h). */
 const GETFONT = Object.freeze({
-  TitleText:       0x85040001,
-  TextAttr:        0x85040002,
-  FontName:        0x85040003,
-  FontHeight:      0x85040004,
-  FontStyle:       0x85040005,
-  FontFlags:       0x85040006,
-  DoFrontPen:      0x85040007,
-  DoBackPen:       0x85040008,
-  DoDrawMode:      0x85040009,
-  DoStyle:         0x8504000A,
-  FixedWidthOnly:  0x8504000B,
-  MinHeight:       0x8504000C,
-  MaxHeight:       0x8504000D,
-  FrontPen:        0x8504000E,
-  BackPen:         0x8504000F,
-  DrawMode:        0x85040010,
-  ModalRequest:    0x85040011,
-  NegativeText:    0x85040012,
-  PositiveText:    0x85040013,
+  TextAttr:       0x85040001,   /* +1 (struct TextAttr* — the chosen font) */
+  DoFrontPen:     0x85040002,   /* +2 — show front-pen chooser */
+  DoBackPen:      0x85040003,   /* +3 */
+  DoStyle:        0x85040004,   /* +4 — show style toggles */
+  DoDrawMode:     0x85040005,   /* +5 */
+  MinHeight:      0x85040006,   /* +6 */
+  MaxHeight:      0x85040007,   /* +7 */
+  FixedWidthOnly: 0x85040008,   /* +8 */
+  TitleText:      0x85040009,   /* +9 */
+  Height:         0x8504000A,   /* +10 */
+  Width:          0x8504000B,   /* +11 */
 });
 
 /**
- * getfont.gadget — font-requester popup button.
+ * getfont.gadget — pop-up font requester.
  *
  * @extends GadgetBase
  */
@@ -8608,25 +8627,17 @@ class GetFont extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    titleText:      { tagID: GETFONT.TitleText,      type: 'string-owned' },
     textAttr:       { tagID: GETFONT.TextAttr,       type: 'ptr' },
-    fontName:       { tagID: GETFONT.FontName,       type: 'string-owned' },
-    fontHeight:     { tagID: GETFONT.FontHeight,     type: 'int32' },
-    fontStyle:      { tagID: GETFONT.FontStyle,      type: 'uint32' },
-    fontFlags:      { tagID: GETFONT.FontFlags,      type: 'uint32' },
     doFrontPen:     { tagID: GETFONT.DoFrontPen,     type: 'bool' },
     doBackPen:      { tagID: GETFONT.DoBackPen,      type: 'bool' },
-    doDrawMode:     { tagID: GETFONT.DoDrawMode,     type: 'bool' },
     doStyle:        { tagID: GETFONT.DoStyle,        type: 'bool' },
-    fixedWidthOnly: { tagID: GETFONT.FixedWidthOnly, type: 'bool' },
+    doDrawMode:     { tagID: GETFONT.DoDrawMode,     type: 'bool' },
     minHeight:      { tagID: GETFONT.MinHeight,      type: 'int32' },
     maxHeight:      { tagID: GETFONT.MaxHeight,      type: 'int32' },
-    frontPen:       { tagID: GETFONT.FrontPen,       type: 'uint32' },
-    backPen:        { tagID: GETFONT.BackPen,        type: 'uint32' },
-    drawMode:       { tagID: GETFONT.DrawMode,       type: 'uint32' },
-    modalRequest:   { tagID: GETFONT.ModalRequest,   type: 'bool' },
-    negativeText:   { tagID: GETFONT.NegativeText,   type: 'string-owned' },
-    positiveText:   { tagID: GETFONT.PositiveText,   type: 'string-owned' },
+    fixedWidthOnly: { tagID: GETFONT.FixedWidthOnly, type: 'bool' },
+    titleText:      { tagID: GETFONT.TitleText,      type: 'string-owned' },
+    height:         { tagID: GETFONT.Height,         type: 'int32' },
+    width:          { tagID: GETFONT.Width,          type: 'int32' },
   };
 
   constructor(init) {
@@ -8648,42 +8659,51 @@ EventKind.define('FONT_SELECTED', {
 /* === boopsi/gadgets/GetScreenMode.js === */
 /* quickjs-master/amiga/ffi/boopsi/gadgets/GetScreenMode.js
  *
- * getscreenmode.gadget — Reaction screenmode-requester popup.
+ * getscreenmode.gadget — screen-mode requester pop-up.
  *
  * GETSCREENMODE_Dummy = REACTION_Dummy + 0x41000 = 0x85041000.
+ *
+ * Tags re-derived from gadgets/getscreenmode.h (NDK 3.2R4). Previous
+ * table had DisplayID at +2 instead of Height; the correct layout is
+ * TitleText +1, Height +2, Width +3, LeftEdge +4, TopEdge +5,
+ * DisplayID +6, DisplayWidth/Height/Depth +7..+9,
+ * OverscanType/AutoScroll +10/+11, then Do* +12..+16. ModalRequest /
+ * Negative/PositiveText / CustomSMList from the old table don't
+ * exist in the OS3.2 header.
  */
 
 
+/** @internal GETSCREENMODE_* tag IDs (gadgets/getscreenmode.h). */
 const GETSCREENMODE = Object.freeze({
-  TitleText:          0x85041001,
-  DisplayID:          0x85041002,
-  DisplayWidth:       0x85041003,
-  DisplayHeight:      0x85041004,
-  DisplayDepth:       0x85041005,
-  AutoScroll:         0x85041006,
-  OverscanType:       0x85041007,
-  DoWidth:            0x85041008,
-  DoHeight:           0x85041009,
-  DoDepth:            0x8504100A,
-  DoOverscanType:     0x8504100B,
-  DoAutoScroll:       0x8504100C,
-  FilterFunc:         0x8504100D,
-  MinWidth:           0x8504100E,
-  MaxWidth:           0x8504100F,
-  MinHeight:          0x85041010,
-  MaxHeight:          0x85041011,
-  MinDepth:           0x85041012,
-  MaxDepth:           0x85041013,
-  CustomSMList:       0x85041014,
-  PropertyFlags:      0x85041015,
-  PropertyMask:       0x85041016,
-  ModalRequest:       0x85041017,
-  NegativeText:       0x85041018,
-  PositiveText:       0x85041019,
+  TitleText:       0x85041001,   /* +1 */
+  Height:          0x85041002,   /* +2 */
+  Width:           0x85041003,   /* +3 */
+  LeftEdge:        0x85041004,   /* +4 */
+  TopEdge:         0x85041005,   /* +5 */
+  DisplayID:       0x85041006,   /* +6 */
+  DisplayWidth:    0x85041007,   /* +7 */
+  DisplayHeight:   0x85041008,   /* +8 */
+  DisplayDepth:    0x85041009,   /* +9 */
+  OverscanType:    0x8504100A,   /* +10 */
+  AutoScroll:      0x8504100B,   /* +11 */
+  DoWidth:         0x8504100C,   /* +12 */
+  DoHeight:        0x8504100D,   /* +13 */
+  DoDepth:         0x8504100E,   /* +14 */
+  DoOverscanType:  0x8504100F,   /* +15 */
+  DoAutoScroll:    0x85041010,   /* +16 */
+  FilterFunc:      0x85041011,   /* +17 */
+  MinWidth:        0x85041012,   /* +18 */
+  MaxWidth:        0x85041013,   /* +19 */
+  MinHeight:       0x85041014,   /* +20 */
+  MaxHeight:       0x85041015,   /* +21 */
+  MinDepth:        0x85041016,   /* +22 */
+  MaxDepth:        0x85041017,   /* +23 */
+  PropertyFlags:   0x85041018,   /* +24 */
+  PropertyMask:    0x85041019,   /* +25 */
 });
 
 /**
- * getscreenmode.gadget — screenmode-requester popup button.
+ * getscreenmode.gadget — Reaction screen-mode requester.
  *
  * @extends GadgetBase
  */
@@ -8694,27 +8714,31 @@ class GetScreenMode extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    titleText:      { tagID: GETSCREENMODE.TitleText,     type: 'string-owned' },
-    displayID:      { tagID: GETSCREENMODE.DisplayID,     type: 'uint32' },
-    displayWidth:   { tagID: GETSCREENMODE.DisplayWidth,  type: 'int32' },
-    displayHeight:  { tagID: GETSCREENMODE.DisplayHeight, type: 'int32' },
-    displayDepth:   { tagID: GETSCREENMODE.DisplayDepth,  type: 'int32' },
-    autoScroll:     { tagID: GETSCREENMODE.AutoScroll,    type: 'bool' },
-    overscanType:   { tagID: GETSCREENMODE.OverscanType,  type: 'uint32' },
-    doWidth:        { tagID: GETSCREENMODE.DoWidth,       type: 'bool' },
-    doHeight:       { tagID: GETSCREENMODE.DoHeight,      type: 'bool' },
-    doDepth:        { tagID: GETSCREENMODE.DoDepth,       type: 'bool' },
-    doOverscanType: { tagID: GETSCREENMODE.DoOverscanType,type: 'bool' },
-    doAutoScroll:   { tagID: GETSCREENMODE.DoAutoScroll,  type: 'bool' },
-    minWidth:       { tagID: GETSCREENMODE.MinWidth,      type: 'int32' },
-    maxWidth:       { tagID: GETSCREENMODE.MaxWidth,      type: 'int32' },
-    minHeight:      { tagID: GETSCREENMODE.MinHeight,     type: 'int32' },
-    maxHeight:      { tagID: GETSCREENMODE.MaxHeight,     type: 'int32' },
-    minDepth:       { tagID: GETSCREENMODE.MinDepth,      type: 'int32' },
-    maxDepth:       { tagID: GETSCREENMODE.MaxDepth,      type: 'int32' },
-    modalRequest:   { tagID: GETSCREENMODE.ModalRequest,  type: 'bool' },
-    negativeText:   { tagID: GETSCREENMODE.NegativeText,  type: 'string-owned' },
-    positiveText:   { tagID: GETSCREENMODE.PositiveText,  type: 'string-owned' },
+    titleText:      { tagID: GETSCREENMODE.TitleText,      type: 'string-owned' },
+    height:         { tagID: GETSCREENMODE.Height,         type: 'int32' },
+    width:          { tagID: GETSCREENMODE.Width,          type: 'int32' },
+    leftEdge:       { tagID: GETSCREENMODE.LeftEdge,       type: 'int32' },
+    topEdge:        { tagID: GETSCREENMODE.TopEdge,        type: 'int32' },
+    displayID:      { tagID: GETSCREENMODE.DisplayID,      type: 'uint32' },
+    displayWidth:   { tagID: GETSCREENMODE.DisplayWidth,   type: 'int32' },
+    displayHeight:  { tagID: GETSCREENMODE.DisplayHeight,  type: 'int32' },
+    displayDepth:   { tagID: GETSCREENMODE.DisplayDepth,   type: 'int32' },
+    overscanType:   { tagID: GETSCREENMODE.OverscanType,   type: 'uint32' },
+    autoScroll:     { tagID: GETSCREENMODE.AutoScroll,     type: 'bool' },
+    doWidth:        { tagID: GETSCREENMODE.DoWidth,        type: 'bool' },
+    doHeight:       { tagID: GETSCREENMODE.DoHeight,       type: 'bool' },
+    doDepth:        { tagID: GETSCREENMODE.DoDepth,        type: 'bool' },
+    doOverscanType: { tagID: GETSCREENMODE.DoOverscanType, type: 'bool' },
+    doAutoScroll:   { tagID: GETSCREENMODE.DoAutoScroll,   type: 'bool' },
+    filterFunc:     { tagID: GETSCREENMODE.FilterFunc,     type: 'ptr' },
+    minWidth:       { tagID: GETSCREENMODE.MinWidth,       type: 'int32' },
+    maxWidth:       { tagID: GETSCREENMODE.MaxWidth,       type: 'int32' },
+    minHeight:      { tagID: GETSCREENMODE.MinHeight,      type: 'int32' },
+    maxHeight:      { tagID: GETSCREENMODE.MaxHeight,      type: 'int32' },
+    minDepth:       { tagID: GETSCREENMODE.MinDepth,       type: 'int32' },
+    maxDepth:       { tagID: GETSCREENMODE.MaxDepth,       type: 'int32' },
+    propertyFlags:  { tagID: GETSCREENMODE.PropertyFlags,  type: 'uint32' },
+    propertyMask:   { tagID: GETSCREENMODE.PropertyMask,   type: 'uint32' },
   };
 
   constructor(init) {
@@ -8816,31 +8840,35 @@ EventKind.define('COLOR_SELECTED', {
 /* === boopsi/gadgets/DateBrowser.js === */
 /* quickjs-master/amiga/ffi/boopsi/gadgets/DateBrowser.js
  *
- * datebrowser.gadget — Reaction calendar / date picker. Extends
- * gadgetclass.
+ * datebrowser.gadget — month-view calendar / date-picker.
  *
  * DATEBROWSER_Dummy = REACTION_Dummy + 0x61000 = 0x85061000.
+ *
+ * Tags re-derived from gadgets/datebrowser.h (NDK 3.2R4). Previous
+ * table had Year/Month/Day shifted — DATEBROWSER_Day is actually
+ * DATEBROWSER_Dummy itself (+0), Month is +1, Year is +2, with
+ * SelectedDays / WeekDay / FirstWDay / NumDays / ShowTitle /
+ * MultiSelect filling the rest. Locale / WeekNumbers / HighlightToday
+ * / TopLabel / HeaderGadget from the old table don't exist in this
+ * header.
  */
 
 
+/** @internal DATEBROWSER_* tag IDs (gadgets/datebrowser.h). */
 const DATEBROWSER = Object.freeze({
-  Year:          0x85061001,
-  Month:         0x85061002,
-  Day:           0x85061003,
-  WeekDay:       0x85061004,
-  FirstWeekDay:  0x85061005,
-  Locale:        0x85061006,
-  WeekNumbers:   0x85061007,
-  HighlightToday:0x85061008,
-  ShowDays:      0x85061009,
-  TopLabel:      0x8506100A,
-  TopLabelPlace: 0x8506100B,
-  HeaderGadget:  0x8506100C,
-  ReadOnly:      0x8506100D,
+  Day:          0x85061000,   /* +0 (Dummy itself; 1..31) */
+  Month:        0x85061001,   /* +1 (1..12) */
+  Year:         0x85061002,   /* +2 (full year, e.g. 2026) */
+  SelectedDays: 0x85061003,   /* +3 (ptr to UBYTE bitmap) */
+  WeekDay:      0x85061004,   /* +4 */
+  FirstWDay:    0x85061005,   /* +5 — first day of week (0=Mon..6=Sun) */
+  NumDays:      0x85061006,   /* +6 — span for multi-select */
+  ShowTitle:    0x85061007,   /* +7 — bool */
+  MultiSelect:  0x85061008,   /* +8 — bool */
 });
 
 /**
- * datebrowser.gadget — calendar picker.
+ * datebrowser.gadget — Reaction month-view calendar.
  *
  * @extends GadgetBase
  */
@@ -8851,18 +8879,15 @@ class DateBrowser extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    year:           { tagID: DATEBROWSER.Year,          type: 'int32' },
-    month:          { tagID: DATEBROWSER.Month,         type: 'int32' },
-    day:            { tagID: DATEBROWSER.Day,           type: 'int32' },
-    weekDay:        { tagID: DATEBROWSER.WeekDay,       type: 'int32' },
-    firstWeekDay:   { tagID: DATEBROWSER.FirstWeekDay,  type: 'int32' },
-    locale:         { tagID: DATEBROWSER.Locale,        type: 'ptr' },
-    weekNumbers:    { tagID: DATEBROWSER.WeekNumbers,   type: 'bool' },
-    highlightToday: { tagID: DATEBROWSER.HighlightToday,type: 'bool' },
-    showDays:       { tagID: DATEBROWSER.ShowDays,      type: 'bool' },
-    topLabel:       { tagID: DATEBROWSER.TopLabel,      type: 'string-owned' },
-    topLabelPlace:  { tagID: DATEBROWSER.TopLabelPlace, type: 'uint32' },
-    headerGadget:   { tagID: DATEBROWSER.HeaderGadget,  type: 'bool' },
+    day:          { tagID: DATEBROWSER.Day,          type: 'uint32' },
+    month:        { tagID: DATEBROWSER.Month,        type: 'uint32' },
+    year:         { tagID: DATEBROWSER.Year,         type: 'uint32' },
+    selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'ptr' },
+    weekDay:      { tagID: DATEBROWSER.WeekDay,      type: 'uint32' },
+    firstWeekDay: { tagID: DATEBROWSER.FirstWDay,    type: 'uint32' },
+    numDays:      { tagID: DATEBROWSER.NumDays,      type: 'uint32' },
+    showTitle:    { tagID: DATEBROWSER.ShowTitle,    type: 'bool' },
+    multiSelect:  { tagID: DATEBROWSER.MultiSelect,  type: 'bool' },
   };
 
   constructor(init) {
@@ -8888,51 +8913,66 @@ EventKind.define('DATE_CHANGE', {
  * One of the most complex Reaction classes.
  *
  * TEXTEDITOR_Dummy = REACTION_Dummy + 0x26000 = 0x85026000.
+ *
+ * Tags re-derived from gadgets/texteditor.h (NDK 3.2R4). The previous
+ * table had hand-typed values contiguous from +1 — the real header is
+ * a sparse sprinkle with many "not implemented", "Private!!!", and
+ * "broken !" tags interleaved. Using the contiguous guess meant
+ * `editor.contents = s` wrote to +1 (GA_TEXTEDITOR_Prop_Release, a
+ * "Private!!!" tag) instead of +2 (GA_TEXTEDITOR_Contents). Several
+ * attrs that were in the old table don't exist at all in the OS3.2
+ * header (Columns, CursorPosition, StopCursorBlink, SmoothScroll,
+ * Pen_FG/BG, Slider, FormatCode, HasChanged_ACK, ...) — dropped.
  */
 
 
+/** @internal GA_TEXTEDITOR_* tag IDs (gadgets/texteditor.h). */
 const TEXTEDITOR = Object.freeze({
-  Contents:         0x85026001,
-  ExportHook:       0x85026002,
-  ImportHook:       0x85026003,
-  Flow:             0x85026004,
-  KeyBindings:      0x85026005,
-  Pen:              0x85026006,
-  Quiet:            0x85026007,
-  ReadOnly:         0x85026008,
-  StyleBold:        0x85026009,
-  StyleItalic:      0x8502600A,
-  StyleUnderline:   0x8502600B,
-  FixedFont:        0x8502600C,
-  Columns:          0x8502600D,
-  DoubleClickHook:  0x8502600E,
-  HasChanged:       0x8502600F,
-  Separator:        0x85026010,
-  CursorPosition:   0x85026011,
-  CursorX:          0x85026012,
-  CursorY:          0x85026013,
-  Prop_First:       0x85026014,
-  Prop_Entries:     0x85026015,
-  Prop_Visible:     0x85026016,
-  Pen_FG:           0x85026017,
-  Pen_BG:           0x85026018,
-  CheckWordFunction:0x85026019,
-  FormatCode:       0x8502601A,
-  Slider:           0x8502601B,
-  ColorMap:         0x8502601C,
-  TypeAndSpell:     0x8502601D,
-  InVirtualGroup:   0x8502601E,
-  UndoAvailable:    0x8502601F,
-  RedoAvailable:    0x85026020,
-  AreaMarked:       0x85026021,
-  HasChanged_ACK:   0x85026022,
-  WrapBorder:       0x85026023,
-  StopCursorBlink:  0x85026024,
-  SmoothScroll:     0x85026025,
+  Contents:        0x85026002,   /* +0x02 — the text */
+  CursorX:         0x85026004,   /* +0x04 — position in block */
+  CursorY:         0x85026005,   /* +0x05 — block number */
+  DoubleClickHook: 0x85026006,   /* +0x06 */
+  TypeAndSpell:    0x85026007,   /* +0x07 — obsolete, use HighlighterHook */
+  ExportHook:      0x85026008,   /* +0x08 */
+  ExportWrap:      0x85026009,   /* +0x09 */
+  FixedFont:       0x8502600A,   /* +0x0a */
+  Flow:            0x8502600B,   /* +0x0b — broken per header comment */
+  HasChanged:      0x8502600C,   /* +0x0c */
+  ImportHook:      0x8502600E,   /* +0x0e */
+  InsertMode:      0x8502600F,   /* +0x0f — always TRUE, not implemented */
+  ImportWrap:      0x85026010,   /* +0x10 */
+  KeyBindings:     0x85026011,   /* +0x11 */
+  UndoAvailable:   0x85026012,   /* +0x12 */
+  RedoAvailable:   0x85026013,   /* +0x13 */
+  AreaMarked:      0x85026014,   /* +0x14 */
+  Prop_Entries:    0x85026015,   /* +0x15 */
+  Prop_Visible:    0x85026016,   /* +0x16 */
+  Quiet:           0x85026017,   /* +0x17 */
+  ReadOnly:        0x85026019,   /* +0x19 */
+  StyleBold:       0x8502601C,   /* +0x1c — not implemented */
+  StyleItalic:     0x8502601D,   /* +0x1d — not implemented */
+  StyleUnderline:  0x8502601E,   /* +0x1e — not implemented */
+  Prop_First:      0x85026020,   /* +0x20 */
+  WrapBorder:      0x85026021,   /* +0x21 */
+  Separator:       0x8502602C,   /* +0x2c — broken per header comment */
+  HorizontalScroll:0x8502602D,   /* +0x2d */
+  Pen:             0x8502602E,   /* +0x2e — not implemented */
+  ColorMap:        0x8502602F,   /* +0x2f — not implemented */
+  TabSize:         0x85026035,   /* +0x35 — aka SpacesPerTAB */
+  AutoIndent:      0x8502603B,   /* +0x3b */
+  CutCopyLineWhenNoSelection: 0x8502603C,  /* +0x3c */
+  LineEndingImported: 0x8502603D, /* +0x3d */
+  LineEndingExport:   0x8502603E, /* +0x3e */
+  TabKeyPolicy:       0x8502603F, /* +0x3f */
 });
 
 /**
  * texteditor.gadget — multi-line text editor.
+ *
+ * Only the attrs documented as implemented in OS3.2R4 (per header
+ * comments) are exposed here. OS4-only attrs (HorizScroller,
+ * VertScroller, TextAttr, ...) and attrs flagged "not implemented"
+ * or "Private!!!" are omitted to keep the API honest.
  *
  * @extends GadgetBase
  */
@@ -8944,29 +8984,29 @@ class TextEditor extends GadgetBase {
   static ATTRS = {
     ...GADGET_ATTRS,
     contents:        { tagID: TEXTEDITOR.Contents,        type: 'string-owned' },
-    flow:            { tagID: TEXTEDITOR.Flow,            type: 'uint32' },
-    pen:             { tagID: TEXTEDITOR.Pen,             type: 'uint32' },
-    quiet:           { tagID: TEXTEDITOR.Quiet,           type: 'bool' },
-    readOnly:        { tagID: TEXTEDITOR.ReadOnly,        type: 'bool' },
-    styleBold:       { tagID: TEXTEDITOR.StyleBold,       type: 'bool' },
-    styleItalic:     { tagID: TEXTEDITOR.StyleItalic,     type: 'bool' },
-    styleUnderline:  { tagID: TEXTEDITOR.StyleUnderline,  type: 'bool' },
-    fixedFont:       { tagID: TEXTEDITOR.FixedFont,       type: 'bool' },
-    columns:         { tagID: TEXTEDITOR.Columns,         type: 'int32' },
-    hasChanged:      { tagID: TEXTEDITOR.HasChanged,      type: 'bool' },
-    cursorPosition:  { tagID: TEXTEDITOR.CursorPosition,  type: 'int32' },
     cursorX:         { tagID: TEXTEDITOR.CursorX,         type: 'int32' },
     cursorY:         { tagID: TEXTEDITOR.CursorY,         type: 'int32' },
-    penFG:           { tagID: TEXTEDITOR.Pen_FG,          type: 'uint32' },
-    penBG:           { tagID: TEXTEDITOR.Pen_BG,          type: 'uint32' },
-    typeAndSpell:    { tagID: TEXTEDITOR.TypeAndSpell,    type: 'bool' },
+    readOnly:        { tagID: TEXTEDITOR.ReadOnly,        type: 'bool' },
+    fixedFont:       { tagID: TEXTEDITOR.FixedFont,       type: 'bool' },
+    quiet:           { tagID: TEXTEDITOR.Quiet,           type: 'bool' },
+    hasChanged:      { tagID: TEXTEDITOR.HasChanged,      type: 'bool' },
     undoAvailable:   { tagID: TEXTEDITOR.UndoAvailable,   type: 'bool' },
     redoAvailable:   { tagID: TEXTEDITOR.RedoAvailable,   type: 'bool' },
     areaMarked:      { tagID: TEXTEDITOR.AreaMarked,      type: 'bool' },
     wrapBorder:      { tagID: TEXTEDITOR.WrapBorder,      type: 'uint32' },
-    stopCursorBlink: { tagID: TEXTEDITOR.StopCursorBlink, type: 'bool' },
-    smoothScroll:    { tagID: TEXTEDITOR.SmoothScroll,    type: 'bool' },
-    slider:          { tagID: TEXTEDITOR.Slider,          type: 'ptr' },
+    tabSize:         { tagID: TEXTEDITOR.TabSize,         type: 'int32' },
+    autoIndent:      { tagID: TEXTEDITOR.AutoIndent,      type: 'bool' },
+    cutCopyLineWhenNoSelection: {
+      tagID: TEXTEDITOR.CutCopyLineWhenNoSelection,       type: 'bool',
+    },
+    propFirst:       { tagID: TEXTEDITOR.Prop_First,      type: 'uint32' },
+    propEntries:     { tagID: TEXTEDITOR.Prop_Entries,    type: 'uint32' },
+    propVisible:     { tagID: TEXTEDITOR.Prop_Visible,    type: 'uint32' },
+    /* Hooks passed as struct Hook* — caller-allocated. */
+    exportHook:      { tagID: TEXTEDITOR.ExportHook,      type: 'ptr' },
+    importHook:      { tagID: TEXTEDITOR.ImportHook,      type: 'ptr' },
+    doubleClickHook: { tagID: TEXTEDITOR.DoubleClickHook, type: 'ptr' },
+    keyBindings:     { tagID: TEXTEDITOR.KeyBindings,     type: 'ptr' },
   };
 }
 

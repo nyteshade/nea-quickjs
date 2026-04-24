@@ -1,37 +1,37 @@
 /* quickjs-master/amiga/ffi/boopsi/gadgets/GetFont.js
  *
- * getfont.gadget — Reaction font-requester popup.
+ * getfont.gadget — pop-up font-requester gadget.
  *
  * GETFONT_Dummy = REACTION_Dummy + 0x40000 = 0x85040000.
+ *
+ * Tags re-derived from gadgets/getfont.h (NDK 3.2R4). Previous table
+ * was off by several slots — the first tag is TextAttr (+1), not
+ * TitleText which lives at +9. FontName / FontHeight / FontStyle /
+ * FontFlags / FrontPen / BackPen / DrawMode / ModalRequest /
+ * Negative/PositiveText from the old table don't exist in the OS3.2
+ * header — all drop-through tags that were never real.
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
+/** @internal GETFONT_* tag IDs (gadgets/getfont.h). */
 const GETFONT = Object.freeze({
-  TitleText:       0x85040001,
-  TextAttr:        0x85040002,
-  FontName:        0x85040003,
-  FontHeight:      0x85040004,
-  FontStyle:       0x85040005,
-  FontFlags:       0x85040006,
-  DoFrontPen:      0x85040007,
-  DoBackPen:       0x85040008,
-  DoDrawMode:      0x85040009,
-  DoStyle:         0x8504000A,
-  FixedWidthOnly:  0x8504000B,
-  MinHeight:       0x8504000C,
-  MaxHeight:       0x8504000D,
-  FrontPen:        0x8504000E,
-  BackPen:         0x8504000F,
-  DrawMode:        0x85040010,
-  ModalRequest:    0x85040011,
-  NegativeText:    0x85040012,
-  PositiveText:    0x85040013,
+  TextAttr:       0x85040001,   /* +1 (struct TextAttr* — the chosen font) */
+  DoFrontPen:     0x85040002,   /* +2 — show front-pen chooser */
+  DoBackPen:      0x85040003,   /* +3 */
+  DoStyle:        0x85040004,   /* +4 — show style toggles */
+  DoDrawMode:     0x85040005,   /* +5 */
+  MinHeight:      0x85040006,   /* +6 */
+  MaxHeight:      0x85040007,   /* +7 */
+  FixedWidthOnly: 0x85040008,   /* +8 */
+  TitleText:      0x85040009,   /* +9 */
+  Height:         0x8504000A,   /* +10 */
+  Width:          0x8504000B,   /* +11 */
 });
 
 /**
- * getfont.gadget — font-requester popup button.
+ * getfont.gadget — pop-up font requester.
  *
  * @extends GadgetBase
  */
@@ -42,25 +42,17 @@ export class GetFont extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    titleText:      { tagID: GETFONT.TitleText,      type: 'string-owned' },
     textAttr:       { tagID: GETFONT.TextAttr,       type: 'ptr' },
-    fontName:       { tagID: GETFONT.FontName,       type: 'string-owned' },
-    fontHeight:     { tagID: GETFONT.FontHeight,     type: 'int32' },
-    fontStyle:      { tagID: GETFONT.FontStyle,      type: 'uint32' },
-    fontFlags:      { tagID: GETFONT.FontFlags,      type: 'uint32' },
     doFrontPen:     { tagID: GETFONT.DoFrontPen,     type: 'bool' },
     doBackPen:      { tagID: GETFONT.DoBackPen,      type: 'bool' },
-    doDrawMode:     { tagID: GETFONT.DoDrawMode,     type: 'bool' },
     doStyle:        { tagID: GETFONT.DoStyle,        type: 'bool' },
-    fixedWidthOnly: { tagID: GETFONT.FixedWidthOnly, type: 'bool' },
+    doDrawMode:     { tagID: GETFONT.DoDrawMode,     type: 'bool' },
     minHeight:      { tagID: GETFONT.MinHeight,      type: 'int32' },
     maxHeight:      { tagID: GETFONT.MaxHeight,      type: 'int32' },
-    frontPen:       { tagID: GETFONT.FrontPen,       type: 'uint32' },
-    backPen:        { tagID: GETFONT.BackPen,        type: 'uint32' },
-    drawMode:       { tagID: GETFONT.DrawMode,       type: 'uint32' },
-    modalRequest:   { tagID: GETFONT.ModalRequest,   type: 'bool' },
-    negativeText:   { tagID: GETFONT.NegativeText,   type: 'string-owned' },
-    positiveText:   { tagID: GETFONT.PositiveText,   type: 'string-owned' },
+    fixedWidthOnly: { tagID: GETFONT.FixedWidthOnly, type: 'bool' },
+    titleText:      { tagID: GETFONT.TitleText,      type: 'string-owned' },
+    height:         { tagID: GETFONT.Height,         type: 'int32' },
+    width:          { tagID: GETFONT.Width,          type: 'int32' },
   };
 
   constructor(init) {

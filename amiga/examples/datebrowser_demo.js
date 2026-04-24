@@ -12,7 +12,7 @@ const GID = { CAL: 1, QUIT: 2 };
 let cal = new DateBrowser({
   id: GID.CAL,
   year: 2026, month: 4, day: 21,
-  weekNumbers: true, highlightToday: true,
+  showTitle: true,
 });
 let quit = new Button({ id: GID.QUIT, text: '_Quit' });
 
