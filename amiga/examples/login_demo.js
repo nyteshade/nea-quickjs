@@ -44,8 +44,11 @@ let formGroup = new Layout({
   ],
 });
 
-let statusLabel = new Label({
+/* statusLabel updates per login attempt — readonly StringGadget rather
+ * than label.image (Label.js JSDoc: static-only on OS3.2). */
+let statusLabel = new StringGadget({
   text: 'Hint: try username "amiga", password "reaction".',
+  readOnly: true, maxChars: 80, minVisible: 40,
 });
 
 let loginBtn = new Button({ id: GID.LOGIN, text: '_Login' });

@@ -63,7 +63,11 @@ let listGroup = new Layout({
   children: Array.from({ length: MAX_TASKS }, (_, i) => row(i)),
 });
 
-let status = new Label({ text: '0 of ' + MAX_TASKS + ' rows in use.' });
+/* Dynamic text → readonly StringGadget (see Label.js JSDoc). */
+let status = new StringGadget({
+  text: '0 of ' + MAX_TASKS + ' rows in use.',
+  readOnly: true, maxChars: 64,
+});
 
 let addBtn   = new Button({ id: GID.ADD,   text: '_Add' });
 let saveBtn  = new Button({ id: GID.SAVE,  text: '_Save' });

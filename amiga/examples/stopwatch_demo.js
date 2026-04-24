@@ -17,7 +17,7 @@
 
 import * as std from 'qjs:std';
 
-const { Window, Layout, Button, Led, Label,
+const { Window, Layout, Button, Led,
         EventKind, IDCMP, WindowPosition, IDCMP_REACTION_DEFAULT } = amiga.boopsi;
 
 const GID = { START: 1, STOP: 2, RESET: 3, QUIT: 4 };

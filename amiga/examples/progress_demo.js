@@ -21,7 +21,7 @@
 
 import * as std from 'qjs:std';
 
-const { Window, Layout, Button, FuelGauge, Label,
+const { Window, Layout, Button, FuelGauge, StringGadget,
         EventKind, IDCMP, WindowPosition,
         IDCMP_REACTION_DEFAULT, FuelGaugeOrient } = amiga.boopsi;
 
@@ -39,7 +39,10 @@ let gauge = new FuelGauge({
   ticks:  10,
 });
 
-let percentLabel = new Label({ text: 'Progress: 0%' });
+/* Dynamic text → readonly StringGadget (see Label.js JSDoc). */
+let percentLabel = new StringGadget({
+  text: 'Progress: 0%', readOnly: true, maxChars: 32,
+});
 
 let startBtn = new Button({ id: GID.START, text: '_Start' });
 let pauseBtn = new Button({ id: GID.PAUSE, text: '_Pause', disabled: true });

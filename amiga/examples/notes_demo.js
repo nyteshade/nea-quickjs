@@ -21,7 +21,7 @@
 
 import * as std from 'qjs:std';
 
-const { Window, Layout, Button, Label, TextEditor,
+const { Window, Layout, Button, StringGadget, TextEditor,
         EventKind, WindowPosition, BevelStyle } = amiga.boopsi;
 
 const GID = { EDITOR: 1, SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5 };
@@ -35,7 +35,11 @@ let editor = new TextEditor({
              'Click Load to read it back.',
 });
 
-let status = new Label({ text: 'Status: ready.' });
+/* Dynamic text → readonly StringGadget (canonical OS3.2 Reaction pattern
+ * for mutable text; label.image is OM_NEW-only per Label.js JSDoc). */
+let status = new StringGadget({
+  text: 'Status: ready.', readOnly: true, maxChars: 80,
+});
 
 let saveBtn  = new Button({ id: GID.SAVE,  text: '_Save'  });
 let loadBtn  = new Button({ id: GID.LOAD,  text: '_Load'  });

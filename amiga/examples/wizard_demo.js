@@ -73,7 +73,11 @@ let nextBtn   = new Button({ id: GID.NEXT,   text: '_Next >' });
 let finishBtn = new Button({ id: GID.FINISH, text: '_Finish',  disabled: true });
 let cancelBtn = new Button({ id: GID.CANCEL, text: '_Cancel' });
 
-let statusLabel = new Label({ text: 'Step 1 of 3' });
+/* statusLabel updates per step — use readonly StringGadget rather than
+ * label.image (see Label.js JSDoc: Label is static-only on OS3.2). */
+let statusLabel = new StringGadget({
+  text: 'Step 1 of 3', readOnly: true, maxChars: 32,
+});
 
 let buttonRow = new Layout({
   orientation: 'horizontal', innerSpacing: 4, evenSize: true,
