@@ -7356,9 +7356,17 @@ EventKind.define('STRING_CHANGED', {
  * node's CNA_* attributes describe text/image/user-data.
  *
  * CHOOSER_Dummy = REACTION_Dummy + 0x1000 = 0x85001000.
+ *
+ * chooser_lib LVO layout (chooser_lib.fd):
+ *   -30  CHOOSER_GetClass()                -> Class*
+ *   -36  AllocChooserNodeA(tags)           -> Node*    (a0 only)
+ *   -42  FreeChooserNode(node)                         (a0)
+ *   -48  SetChooserNodeAttrsA(node, tags)              (a0/a1)
+ *   -54  GetChooserNodeAttrsA(node, tags)              (a0/a1)
  */
 
 
+/** @internal CHOOSER_* tag IDs (gadgets/chooser.h). */
 const CHOOSER = Object.freeze({
   PopUp:                      0x85001001,
   DropDown:                   0x85001002,
@@ -7382,7 +7390,7 @@ const ChooserJustify = Object.freeze({
   LEFT: 0, CENTER: 1, RIGHT: 2,
 });
 
-/** Node-attribute tags (CNA_Dummy = TAG_USER+0x5001500). */
+/** @internal CNA_* node-attribute tags (CNA_Dummy = TAG_USER+0x5001500). */
 const CNA = Object.freeze({
   Text:     0x85001501,
   Image:    0x85001502,
@@ -7393,10 +7401,20 @@ const CNA = Object.freeze({
   BGPen:    0x85001507,
   FGPen:    0x85001508,
   ReadOnly: 0x85001509,
+  CopyText: 0x8500150A,  /* OS4ONLY */
 });
+
+/** chooser_lib LVO offsets used by _buildLabelList. */
+const CHOOSER_LVO_ALLOC_NODE = -36;
+const CHOOSER_LVO_FREE_NODE  = -42;
 
 /**
  * chooser.gadget — dropdown / popup selector.
+ *
+ * Pass `labels: ['One','Two','Three']` to auto-build a struct List of
+ * AllocChooserNodeA entries (CNA_Text each). The list is freed at
+ * dispose. For advanced nodes (CNA_UserData, CNA_Image, CNA_Separator),
+ * build the list yourself and pass `labelsPtr: ptr` directly.
  *
  * @extends GadgetBase
  */
@@ -7410,7 +7428,10 @@ class Chooser extends GadgetBase {
     popUp:          { tagID: CHOOSER.PopUp,         type: 'bool' },
     dropDown:       { tagID: CHOOSER.DropDown,      type: 'bool' },
     title:          { tagID: CHOOSER.Title,         type: 'string-owned' },
-    labels:         { tagID: CHOOSER.Labels,        type: 'ptr' },  /* struct List* */
+    /* Pointer to a caller-prepared struct List*. The `labels: string[]`
+     * constructor convenience below builds one for you; otherwise you
+     * can pass labelsPtr directly. */
+    labelsPtr:      { tagID: CHOOSER.Labels,        type: 'ptr' },
     active:         { tagID: CHOOSER.Active,        type: 'uint32' },
     autoFit:        { tagID: CHOOSER.AutoFit,       type: 'bool' },
     maxLabels:      { tagID: CHOOSER.MaxLabels,     type: 'int32' },
@@ -7419,10 +7440,118 @@ class Chooser extends GadgetBase {
     deactivateOnMostRawKeys: { tagID: CHOOSER.DeactivateOnMostRawKeys, type: 'bool' },
   };
 
+  /**
+   * Construct a chooser.
+   *
+   * @param {object} init
+   * @param {string[]} [init.labels] — convenience: array of strings;
+   *     each becomes a CNA-attribute node added to the Labels list.
+   *     The nodes + list are freed at dispose.
+   * @param {number} [init.labelsPtr] — pointer to a pre-built struct List
+   * @param {number} [init.active] — initial selection index
+   * @param {boolean} [init.relVerify=true]
+   */
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+
+    let ownedLabels = null;
+    if (Array.isArray(clean.labels)) {
+      ownedLabels = Chooser._buildLabelList(clean.labels);
+      clean.labelsPtr = ownedLabels.listPtr;
+      delete clean.labels;
+    }
+
     super(clean);
+    this._ownedLabels = ownedLabels;
+  }
+
+  /**
+   * @internal
+   * Allocate a CNA-node per label, link into a struct List, return
+   * { listPtr, freeAll }. Lifetime tied to the owning Chooser's dispose.
+   *
+   * @param   {string[]} labels
+   * @returns {{listPtr: number, freeAll: Function}}
+   */
+  static _buildLabelList(labels) {
+    Chooser.ensureClass();
+    const libBase = Chooser._libBase;
+    if (!libBase) throw new Error('Chooser: class library base not cached');
+
+    /* Standard exec struct List header: 14 bytes, 16 for padding. */
+    const LIST_BYTES = 16;
+    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
+    if (!listPtr) throw new Error('Chooser: allocMem list failed');
+
+    /* NewList() inline. */
+    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
+    globalThis.amiga.poke32(listPtr + 4, 0);
+    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
+
+    const nodes       = [];  /* { nodePtr } */
+    const labelAllocs = [];  /* [strPtr, strBytes] — keep alive for node lifetime */
+
+    for (let lbl of labels) {
+      const s = String(lbl);
+      const sB = s.length + 1;
+      const sP = globalThis.amiga.allocMem(sB);
+      globalThis.amiga.pokeString(sP, s);
+      labelAllocs.push([sP, sB]);
+
+      const tags = globalThis.amiga.makeTags([[CNA.Text, sP]]);
+      if (!tags) throw new Error('Chooser: makeTags failed');
+
+      /* AllocChooserNodeA takes (tags) in a0 ONLY — no d0. */
+      const nodePtr = globalThis.amiga.call(libBase, CHOOSER_LVO_ALLOC_NODE, {
+        a0: tags,
+      });
+      globalThis.amiga.freeMem(tags, 16);
+
+      if (!nodePtr) {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, CHOOSER_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+        throw new Error('Chooser: AllocChooserNodeA returned 0');
+      }
+
+      nodes.push({ nodePtr });
+    }
+
+    /* AddTail() each node. See RadioButton._buildLabelList for the
+     * struct List layout: ln_Succ at +0, ln_Pred at +4, lh_TailPred
+     * at listPtr+8. */
+    for (let n of nodes) {
+      const pred = globalThis.amiga.peek32(listPtr + 8);
+      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
+      globalThis.amiga.poke32(n.nodePtr + 4, pred);
+      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
+      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
+    }
+
+    return {
+      listPtr,
+      freeAll() {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, CHOOSER_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+      },
+    };
+  }
+
+  /** Dispose the chooser + its owned label list. */
+  dispose() {
+    if (this._disposed) return;
+    super.dispose();
+    if (this._ownedLabels) {
+      try { this._ownedLabels.freeAll(); }
+      catch (e) { /* cascaded free */ }
+      this._ownedLabels = null;
+    }
   }
 }
 
@@ -7443,36 +7572,71 @@ EventKind.define('CHOOSER_SELECT', {
  * attributes per tab).
  *
  * CLICKTAB_Dummy = REACTION_Dummy + 0x27000 = 0x85027000.
+ *
+ * clicktab_lib LVO layout (clicktab_lib.fd):
+ *   -30  CLICKTAB_GetClass()                -> Class*
+ *   -36  AllocClickTabNodeA(tags)           -> Node*    (a0 only)
+ *   -42  FreeClickTabNode(node)                         (a0)
+ *   -48  SetClickTabNodeAttrsA(node, tags)              (a0/a1)
+ *   -54  GetClickTabNodeAttrsA(node, tags)              (a0/a1)
+ *
+ * NOTE: prior table hand-typed every CLICKTAB_* and TNA_* value wrong
+ * (TNA_Text was pointing at TNA_UserData, etc.). Re-derived byte-for-
+ * byte from gadgets/clicktab.h for this version per the
+ * feedback_amiga_tag_constants.md rule (never hand-type; re-derive).
  */
 
 
+/** @internal CLICKTAB_* tag IDs (gadgets/clicktab.h). */
 const CLICKTAB = Object.freeze({
-  Labels:         0x85027001,
-  Current:        0x85027002,
-  PageGroup:      0x85027003,
-  CaptureHeight:  0x85027004,
-  TruncateLabels: 0x85027005,
-  CurrentNode:    0x85027006,
-  TabsBar:        0x85027007,
-  AutoFit:        0x85027008,
+  Labels:                   0x85027001,
+  Current:                  0x85027002,
+  CurrentNode:              0x85027003,
+  Orientation:              0x85027004,
+  PageGroup:                0x85027005,
+  PageGroupBackFill:        0x85027006,
+  LabelTruncate:            0x85027007,  /* OS4ONLY */
+  FlagImage:                0x85027008,  /* OS4ONLY */
+  EvenSize:                 0x85027009,  /* OS4ONLY */
+  Total:                    0x8502700A,  /* OS4ONLY */
+  PageGroupBorder:          0x8502700B,
+  AutoFit:                  0x8502700C,
+  AutoTabNumbering:         0x8502700D,
+  CloseImage:               0x8502700E,
+  Closed:                   0x8502700F,  /* OS4ONLY */
+  NodeClosed:               0x85027010,
+  ClosePlacement:           0x85027011,
+  ChooserFlagImage:         0x85027012,
+  MinorLabelChange:         0x85027013,
+  TabsOffsetAsLayoutSpacing:0x85027014,
 });
 
-/** Tab-node attributes (TNA_Dummy = TAG_USER+0x010000). */
+/** @internal TNA_* tab-node attribute tags (TNA_Dummy = TAG_USER+0x010000). */
 const TNA = Object.freeze({
-  Text:      0x80010001,
-  Number:    0x80010002,
-  UserData:  0x80010003,
-  Image:     0x80010004,
-  Disabled:  0x80010005,
-  TextPen:   0x80010006,
-  HintInfo:  0x80010007,
-  Flagged:   0x80010008,
-  Spacing:   0x80010009,
-  CloseGadget:0x8001000A,
+  UserData:    0x80010001,
+  /* +2 (Enabled), +3 (Spacing), +4 (Highlight) documented obsolete. */
+  Image:       0x80010005,
+  SelImage:    0x80010006,
+  Text:        0x80010007,
+  Number:      0x80010008,
+  TextPen:     0x80010009,
+  Disabled:    0x8001000A,
+  Flagged:     0x8001000B,  /* OS4ONLY */
+  HintInfo:    0x8001000C,  /* OS4ONLY */
+  CloseGadget: 0x8001000D,
+  HelpText:    0x8001000F,
 });
+
+/** clicktab_lib LVO offsets used by _buildLabelList. */
+const CLICKTAB_LVO_ALLOC_NODE = -36;
+const CLICKTAB_LVO_FREE_NODE  = -42;
 
 /**
  * clicktab.gadget — tab switcher.
+ *
+ * Pass `labels: ['Tab 1','Tab 2','Tab 3']` to auto-build a struct List
+ * of AllocClickTabNodeA entries (TNA_Text + TNA_Number = index each).
+ * The list is freed at dispose.
  *
  * @extends GadgetBase
  */
@@ -7483,20 +7647,123 @@ class ClickTab extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    labels:         { tagID: CLICKTAB.Labels,         type: 'ptr' },
-    current:        { tagID: CLICKTAB.Current,        type: 'int32' },
-    pageGroup:      { tagID: CLICKTAB.PageGroup,      type: 'ptr' },
-    captureHeight:  { tagID: CLICKTAB.CaptureHeight,  type: 'bool' },
-    truncateLabels: { tagID: CLICKTAB.TruncateLabels, type: 'bool' },
-    currentNode:    { tagID: CLICKTAB.CurrentNode,    type: 'ptr' },
-    tabsBar:        { tagID: CLICKTAB.TabsBar,        type: 'bool' },
-    autoFit:        { tagID: CLICKTAB.AutoFit,        type: 'bool' },
+    labelsPtr:                 { tagID: CLICKTAB.Labels,                   type: 'ptr' },
+    current:                   { tagID: CLICKTAB.Current,                  type: 'int32' },
+    currentNode:               { tagID: CLICKTAB.CurrentNode,              type: 'ptr' },
+    orientation:               { tagID: CLICKTAB.Orientation,              type: 'uint32' },
+    pageGroup:                 { tagID: CLICKTAB.PageGroup,                type: 'ptr' },
+    pageGroupBackFill:         { tagID: CLICKTAB.PageGroupBackFill,        type: 'ptr' },
+    pageGroupBorder:           { tagID: CLICKTAB.PageGroupBorder,          type: 'bool' },
+    autoFit:                   { tagID: CLICKTAB.AutoFit,                  type: 'bool' },
+    autoTabNumbering:          { tagID: CLICKTAB.AutoTabNumbering,         type: 'bool' },
+    closeImage:                { tagID: CLICKTAB.CloseImage,               type: 'ptr' },
+    nodeClosed:                { tagID: CLICKTAB.NodeClosed,               type: 'ptr' },
+    closePlacement:            { tagID: CLICKTAB.ClosePlacement,           type: 'uint32' },
+    chooserFlagImage:          { tagID: CLICKTAB.ChooserFlagImage,         type: 'ptr' },
+    minorLabelChange:          { tagID: CLICKTAB.MinorLabelChange,         type: 'bool' },
+    tabsOffsetAsLayoutSpacing: { tagID: CLICKTAB.TabsOffsetAsLayoutSpacing,type: 'bool' },
   };
 
+  /**
+   * @param {object} init
+   * @param {string[]} [init.labels] — tab label strings; built into a
+   *     struct List of TNA-attribute nodes at construction, freed at dispose.
+   * @param {number} [init.labelsPtr] — pointer to a pre-built List
+   * @param {number} [init.current] — initial tab index
+   * @param {boolean} [init.relVerify=true]
+   */
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+
+    let ownedLabels = null;
+    if (Array.isArray(clean.labels)) {
+      ownedLabels = ClickTab._buildLabelList(clean.labels);
+      clean.labelsPtr = ownedLabels.listPtr;
+      delete clean.labels;
+    }
+
     super(clean);
+    this._ownedLabels = ownedLabels;
+  }
+
+  /** @internal See RadioButton._buildLabelList for list-layout mechanics. */
+  static _buildLabelList(labels) {
+    ClickTab.ensureClass();
+    const libBase = ClickTab._libBase;
+    if (!libBase) throw new Error('ClickTab: class library base not cached');
+
+    const LIST_BYTES = 16;
+    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
+    if (!listPtr) throw new Error('ClickTab: allocMem list failed');
+
+    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
+    globalThis.amiga.poke32(listPtr + 4, 0);
+    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
+
+    const nodes       = [];
+    const labelAllocs = [];
+
+    for (let i = 0; i < labels.length; i++) {
+      const s = String(labels[i]);
+      const sB = s.length + 1;
+      const sP = globalThis.amiga.allocMem(sB);
+      globalThis.amiga.pokeString(sP, s);
+      labelAllocs.push([sP, sB]);
+
+      /* TNA_Text + TNA_Number = index. Number is documented as a
+       * stable per-tab id useful for CLICKTAB_Current lookup. */
+      const tags = globalThis.amiga.makeTags([
+        [TNA.Text,   sP],
+        [TNA.Number, i],
+      ]);
+      if (!tags) throw new Error('ClickTab: makeTags failed');
+
+      const nodePtr = globalThis.amiga.call(libBase, CLICKTAB_LVO_ALLOC_NODE, {
+        a0: tags,
+      });
+      globalThis.amiga.freeMem(tags, 24);  /* 3 tag items × 8 bytes */
+
+      if (!nodePtr) {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, CLICKTAB_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+        throw new Error('ClickTab: AllocClickTabNodeA returned 0');
+      }
+
+      nodes.push({ nodePtr });
+    }
+
+    for (let n of nodes) {
+      const pred = globalThis.amiga.peek32(listPtr + 8);
+      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
+      globalThis.amiga.poke32(n.nodePtr + 4, pred);
+      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
+      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
+    }
+
+    return {
+      listPtr,
+      freeAll() {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, CLICKTAB_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+      },
+    };
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    super.dispose();
+    if (this._ownedLabels) {
+      try { this._ownedLabels.freeAll(); }
+      catch (e) { /* cascaded free */ }
+      this._ownedLabels = null;
+    }
   }
 }
 
@@ -7513,40 +7780,153 @@ EventKind.define('CLICKTAB_CHANGE', {
 /* quickjs-master/amiga/ffi/boopsi/gadgets/ListBrowser.js
  *
  * listbrowser.gadget — Reaction scrollable list with columns, sort,
- * selection. Extends gadgetclass. Rows are LBNA_* nodes in a struct
- * List; columns defined via LBCIA_*.
+ * selection. Extends gadgetclass. Rows are nodes in a struct List
+ * with LBNA_* (node-level) and LBNCA_* (node-column) attributes;
+ * columns are defined via LBCIA_*.
  *
  * LISTBROWSER_Dummy = REACTION_Dummy + 0x3000 = 0x85003000.
+ *
+ * listbrowser_lib LVO layout (listbrowser_lib.fd):
+ *   -30  LISTBROWSER_GetClass()             -> Class*
+ *   -36  AllocListBrowserNodeA(cols, tags)  -> Node*    (d0/a0)
+ *   -42  FreeListBrowserNode(node)                      (a0)
+ *   -48  SetListBrowserNodeAttrsA                       (a0/a1)
+ *   -54  GetListBrowserNodeAttrsA                       (a0/a1)
+ *   -60  ListBrowserSelectAll(list)                     (a0)
+ *   -66  ShowListBrowserNodeChildren(node, depth)       (a0/d0)
+ *   -72  HideListBrowserNodeChildren(node)              (a0)
+ *   -78  ShowAllListBrowserChildren(list)               (a0)
+ *   -84  HideAllListBrowserChildren(list)               (a0)
+ *   -90  FreeListBrowserList(list)                      (a0)
+ *   -96  AllocLBColumnInfoA(cols, tags)     -> LBCI*    (d0/a0)  [V45]
+ *   -114 FreeLBColumnInfo(columninfo)                   (a0)
+ *
+ * NOTE: prior table had every LISTBROWSER_* value wrong (shifted by
+ * 2 slots — labels was pointing at Top, etc.). Re-derived from
+ * gadgets/listbrowser.h for this version.
  */
 
 
+/** @internal LISTBROWSER_* tag IDs (gadgets/listbrowser.h). */
 const LISTBROWSER = Object.freeze({
-  Labels:           0x85003001,
-  Top:              0x85003002,
-  MakeVisible:      0x85003003,
-  TopPixel:         0x85003004,
-  SortColumn:       0x85003005,
-  ShowSelected:     0x85003006,
-  Selected:         0x85003007,
-  MultiSelect:      0x85003008,
-  AutoFit:          0x85003009,
-  HorizontalProp:   0x8500300A,
-  VerticalProp:     0x8500300B,
-  ColumnInfo:       0x8500300C,
-  ColumnTitles:     0x8500300D,
-  TitleClickable:   0x8500300E,
-  RefreshImmediate: 0x8500300F,
-  AutoWidth:        0x85003010,
-  RowHeight:        0x85003011,
-  MinHeight:        0x85003012,
-  MinWidth:         0x85003013,
-  HierarchicalTree: 0x85003014,
-  HierarchyHook:    0x85003015,
-  ScrollMultiplier: 0x85003016,
+  Top:                0x85003001,
+  Labels:             0x85003003,
+  Selected:           0x85003004,
+  SelectedNode:       0x85003005,
+  MultiSelect:        0x85003006,
+  VertSeparators:     0x85003007,  /* alias: Separators */
+  ColumnInfo:         0x85003008,
+  MakeVisible:        0x85003009,
+  VirtualWidth:       0x8500300A,
+  Borderless:         0x8500300B,
+  VerticalProp:       0x8500300C,
+  HorizontalProp:     0x8500300D,
+  Left:               0x8500300E,
+  AutoFit:            0x85003010,
+  ColumnTitles:       0x85003011,
+  ShowSelected:       0x85003012,
+  Hierarchical:       0x8500301B,
+  ShowImage:          0x8500301C,
+  HideImage:          0x8500301D,
+  LeafImage:          0x8500301E,
+  ScrollRaster:       0x8500301F,
+  Spacing:            0x85003020,
+  Editable:           0x85003021,
+  Position:           0x85003022,
+  EditNode:           0x85003023,
+  EditColumn:         0x85003024,
+  RelEvent:           0x85003025,
+  NumSelected:        0x85003026,
+  EditTags:           0x85003027,
+  RelColumn:          0x85003028,
+  HorizSeparators:    0x85003029,
+  CheckImage:         0x8500302A,
+  UncheckedImage:     0x8500302B,
+  TotalNodes:         0x8500302C,
+  MinNodeSize:        0x8500302D,
+  TitleClickable:     0x8500302E,
+  MinVisible:         0x8500302F,
+  PersistSelect:      0x85003032,
+  CursorSelect:       0x85003033,
+  CursorNode:         0x85003034,
+  FastRender:         0x85003035,
+  TotalVisibleNodes:  0x85003036,
+  WrapText:           0x85003037,
+  SortColumn:         0x8500303D,
+  Striping:           0x8500303E,
+  AutoWheel:          0x85003040,
+  StayActive:         0x85003041,
+  EditTrigger:        0x85003042,
 });
+
+/** @internal LBNA_* node-level attribute tags (LBNA_Dummy = TAG_USER+0x5003500). */
+const LBNA = Object.freeze({
+  Selected:   0x85003501,
+  Flags:      0x85003502,
+  UserData:   0x85003503,
+  Column:     0x85003504,
+  Generation: 0x8500350C,
+});
+
+/** @internal LBNCA_* node-column attribute tags. */
+const LBNCA = Object.freeze({
+  Text:          0x85003505,
+  Integer:       0x85003506,
+  FGPen:         0x85003507,
+  BGPen:         0x85003508,
+  Image:         0x85003509,
+  SelImage:      0x8500350A,
+  HorizJustify:  0x8500350B,  /* alias: Justification */
+  Editable:      0x8500350D,
+  MaxChars:      0x8500350E,
+  CopyText:      0x8500350F,
+  EditTags:      0x85003513,
+  RenderHook:    0x85003514,
+  HookHeight:    0x85003516,
+  CopyInteger:   0x8500351A,
+  WordWrap:      0x8500351B,
+  VertJustify:   0x8500351C,
+  FillPen:       0x8500351D,
+});
+
+/** @internal LBCIA_* column-info attribute tags. */
+const LBCIA = Object.freeze({
+  MemPool:          0x85003532,
+  Column:           0x85003533,
+  Title:            0x85003534,
+  Weight:           0x85003535,
+  Width:            0x85003536,
+  Flags:            0x85003537,
+  UserData:         0x85003539,
+  AutoSort:         0x8500353A,
+  SortDirection:    0x8500353B,
+  CompareHook:      0x8500353C,
+  Sortable:         0x8500353D,
+  DraggableSeparator:0x8500353E,
+  Separator:        0x8500353F,
+  SortArrow:        0x85003540,
+});
+
+/** LBFLG_* node flags (gadgets/listbrowser.h line 257-261). */
+const LBFLG = Object.freeze({
+  READONLY:     1,
+  CUSTOMPENS:   2,
+  HASCHILDREN:  4,
+  SHOWCHILDREN: 8,
+  HIDDEN:      16,
+});
+
+/** listbrowser_lib LVO offsets used by _buildLabelList. */
+const LISTBROWSER_LVO_ALLOC_NODE = -36;
+const LISTBROWSER_LVO_FREE_NODE  = -42;
 
 /**
  * listbrowser.gadget — scrollable columnar list.
+ *
+ * Pass `labels: ['Row 1','Row 2','Row 3']` to auto-build a single-column
+ * list. For multi-column or editable rows build nodes yourself with
+ * AllocListBrowserNodeA-equivalent plumbing and pass `labelsPtr: ptr`
+ * directly.
  *
  * @extends GadgetBase
  */
@@ -7557,29 +7937,138 @@ class ListBrowser extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    labels:           { tagID: LISTBROWSER.Labels,           type: 'ptr' },
+    labelsPtr:        { tagID: LISTBROWSER.Labels,           type: 'ptr' },
     top:              { tagID: LISTBROWSER.Top,              type: 'int32' },
-    makeVisible:      { tagID: LISTBROWSER.MakeVisible,      type: 'int32' },
-    sortColumn:       { tagID: LISTBROWSER.SortColumn,       type: 'int32' },
-    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'ptr' },
     selected:         { tagID: LISTBROWSER.Selected,         type: 'int32' },
+    selectedNode:     { tagID: LISTBROWSER.SelectedNode,     type: 'ptr' },
     multiSelect:      { tagID: LISTBROWSER.MultiSelect,      type: 'uint32' },
-    autoFit:          { tagID: LISTBROWSER.AutoFit,          type: 'bool' },
     columnInfo:       { tagID: LISTBROWSER.ColumnInfo,       type: 'ptr' },
+    makeVisible:      { tagID: LISTBROWSER.MakeVisible,      type: 'int32' },
+    borderless:       { tagID: LISTBROWSER.Borderless,       type: 'bool' },
+    autoFit:          { tagID: LISTBROWSER.AutoFit,          type: 'bool' },
     columnTitles:     { tagID: LISTBROWSER.ColumnTitles,     type: 'bool' },
+    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'ptr' },
+    hierarchical:     { tagID: LISTBROWSER.Hierarchical,     type: 'bool' },
+    spacing:          { tagID: LISTBROWSER.Spacing,          type: 'int32' },
+    editable:         { tagID: LISTBROWSER.Editable,         type: 'bool' },
+    position:         { tagID: LISTBROWSER.Position,         type: 'uint32' },
+    numSelected:      { tagID: LISTBROWSER.NumSelected,      type: 'int32' },
     titleClickable:   { tagID: LISTBROWSER.TitleClickable,   type: 'bool' },
-    autoWidth:        { tagID: LISTBROWSER.AutoWidth,        type: 'bool' },
-    rowHeight:        { tagID: LISTBROWSER.RowHeight,        type: 'int32' },
-    minHeight:        { tagID: LISTBROWSER.MinHeight,        type: 'int32' },
-    minWidth:         { tagID: LISTBROWSER.MinWidth,         type: 'int32' },
-    hierarchicalTree: { tagID: LISTBROWSER.HierarchicalTree, type: 'bool' },
-    scrollMultiplier: { tagID: LISTBROWSER.ScrollMultiplier, type: 'int32' },
+    minVisible:       { tagID: LISTBROWSER.MinVisible,       type: 'int32' },
+    cursorNode:       { tagID: LISTBROWSER.CursorNode,       type: 'ptr' },
+    totalVisibleNodes:{ tagID: LISTBROWSER.TotalVisibleNodes,type: 'int32' },
+    wrapText:         { tagID: LISTBROWSER.WrapText,         type: 'bool' },
+    sortColumn:       { tagID: LISTBROWSER.SortColumn,       type: 'int32' },
+    stayActive:       { tagID: LISTBROWSER.StayActive,       type: 'bool' },
+    editTrigger:      { tagID: LISTBROWSER.EditTrigger,      type: 'uint32' },
   };
 
+  /**
+   * @param {object} init
+   * @param {string[]} [init.labels] — row-text array built into a
+   *     single-column list, each node uses LBNCA_Text. Copied into
+   *     the gadget via LBNCA_CopyText so JS-owned strings can be freed
+   *     immediately after construction. Nodes + list are freed at dispose.
+   * @param {number} [init.labelsPtr] — pointer to a pre-built List
+   * @param {boolean} [init.relVerify=true]
+   */
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+
+    let ownedLabels = null;
+    if (Array.isArray(clean.labels)) {
+      ownedLabels = ListBrowser._buildLabelList(clean.labels);
+      clean.labelsPtr = ownedLabels.listPtr;
+      delete clean.labels;
+    }
+
     super(clean);
+    this._ownedLabels = ownedLabels;
+  }
+
+  /** @internal */
+  static _buildLabelList(labels) {
+    ListBrowser.ensureClass();
+    const libBase = ListBrowser._libBase;
+    if (!libBase) throw new Error('ListBrowser: class library base not cached');
+
+    const LIST_BYTES = 16;
+    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
+    if (!listPtr) throw new Error('ListBrowser: allocMem list failed');
+
+    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
+    globalThis.amiga.poke32(listPtr + 4, 0);
+    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
+
+    const nodes       = [];
+    const labelAllocs = [];
+
+    for (let lbl of labels) {
+      const s = String(lbl);
+      const sB = s.length + 1;
+      const sP = globalThis.amiga.allocMem(sB);
+      globalThis.amiga.pokeString(sP, s);
+      labelAllocs.push([sP, sB]);
+
+      /* LBNCA_CopyText=TRUE tells listbrowser to copy the text into
+       * its own buffer; after Alloc returns we could free sP, but we
+       * keep the same discipline as RadioButton and hold the JS side
+       * until dispose. Consistent cleanup path matters more than the
+       * few bytes saved. */
+      const tags = globalThis.amiga.makeTags([
+        [LBNCA.CopyText, 1],
+        [LBNCA.Text,     sP],
+      ]);
+      if (!tags) throw new Error('ListBrowser: makeTags failed');
+
+      /* AllocListBrowserNodeA(numcolumns=1, tags). d0=1, a0=tags. */
+      const nodePtr = globalThis.amiga.call(libBase, LISTBROWSER_LVO_ALLOC_NODE, {
+        d0: 1,
+        a0: tags,
+      });
+      globalThis.amiga.freeMem(tags, 24);  /* 3 tag items × 8 bytes */
+
+      if (!nodePtr) {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, LISTBROWSER_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+        throw new Error('ListBrowser: AllocListBrowserNodeA returned 0');
+      }
+
+      nodes.push({ nodePtr });
+    }
+
+    for (let n of nodes) {
+      const pred = globalThis.amiga.peek32(listPtr + 8);
+      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
+      globalThis.amiga.poke32(n.nodePtr + 4, pred);
+      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
+      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
+    }
+
+    return {
+      listPtr,
+      freeAll() {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, LISTBROWSER_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+      },
+    };
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    super.dispose();
+    if (this._ownedLabels) {
+      try { this._ownedLabels.freeAll(); }
+      catch (e) { /* cascaded free */ }
+      this._ownedLabels = null;
+    }
   }
 }
 
@@ -7770,40 +8259,83 @@ class FuelGauge extends GadgetBase {
  * Buttons are supplied as a struct List of nodes with SBNA_* attrs.
  *
  * SPEEDBAR_Dummy = REACTION_Dummy + 0x13000 = 0x85013000.
+ *
+ * speedbar_lib LVO layout (speedbar_lib.fd):
+ *   -30  SPEEDBAR_GetClass()                     -> Class*
+ *   -36  AllocSpeedButtonNodeA(ordinal, tags)    -> Node*    (d0/a0)
+ *   -42  FreeSpeedButtonNode(node)                           (a0)
+ *   -48  SetSpeedButtonNodeAttrsA(node, tags)                (a0/a1)
+ *   -54  GetSpeedButtonNodeAttrsA(node, tags)                (a0/a1)
+ *
+ * NOTE: prior table had every SPEEDBAR_* and SBNA_* value wrong (off
+ * by +1 slot for class tags; the node-attr table invented names like
+ * SBNA_Label/Ordinal/Flags that don't exist in the header). Re-derived
+ * from gadgets/speedbar.h for this version.
  */
 
 
+/** @internal SPEEDBAR_* tag IDs (gadgets/speedbar.h). */
 const SPEEDBAR = Object.freeze({
-  Buttons:         0x85013001,
-  Selected:        0x85013002,
-  SmallButtons:    0x85013003,
-  Orientation:     0x85013004,
-  Spacing:         0x85013005,
-  Justification:   0x85013006,
-  RenderHook:      0x85013007,
-  Multiple:        0x85013008,
-  HintInfo:        0x85013009,
-  EvenSize:        0x8501300A,
-  Labels:          0x8501300B,
-  StripUp:         0x8501300C,
-  StripDown:       0x8501300D,
-  EraseBackground: 0x8501300E,
+  Buttons:     0x85013001,
+  Orientation: 0x85013002,
+  Background:  0x85013003,
+  Window:      0x85013004,
+  StrumBar:    0x85013005,
+  OnButton:    0x85013006,
+  OffButton:   0x85013007,
+  ScrollLeft:  0x85013008,
+  ScrollRight: 0x85013009,
+  Top:         0x8501300A,
+  Visible:     0x8501300B,
+  Total:       0x8501300C,
+  Help:        0x8501300D,
+  BevelStyle:  0x8501300E,
+  Selected:    0x8501300F,
+  SelectedNode:0x85013010,
+  EvenSize:    0x85013011,
+  Font:        0x85013012,
 });
 
-/** SpeedBar button-node attributes (SBNA_Dummy = TAG_USER+0x010000). */
+/** @internal SBNA_* button-node attribute tags (SBNA_Dummy = TAG_USER+0x010000).
+ *
+ * Some SBNA_* tags collide in namespace with clicktab TNA_* — that's
+ * correct per NDK (both use TAG_USER+0x010000 as Dummy). The meaning
+ * is class-scoped; SBNA tags are only recognised by speedbar.gadget. */
 const SBNA = Object.freeze({
-  Ordinal:   0x80010001,
-  Image:     0x80010002,
-  SelImage:  0x80010003,
-  DisImage:  0x80010004,
-  Label:     0x80010005,
-  HintInfo:  0x80010006,
-  UserData:  0x80010007,
-  Flags:     0x80010008,
+  Left:      0x80010001,
+  Top:       0x80010002,
+  Width:     0x80010003,
+  Height:    0x80010004,
+  UserData:  0x80010005,
+  Enabled:   0x80010006,
+  Spacing:   0x80010007,
+  Highlight: 0x80010008,
+  Image:     0x80010009,
+  SelImage:  0x8001000A,
+  Help:      0x8001000B,
+  Toggle:    0x8001000C,
+  Selected:  0x8001000D,
+  MXGroup:   0x8001000E,
+  Disabled:  0x8001000F,
+  Text:      0x80010010,  /* the label string */
 });
+
+/** SpeedBar orientation values (SBORIENT_*). */
+const SpeedBarOrient = Object.freeze({
+  HORIZONTAL: 0,
+  VERTICAL:   1,
+});
+
+/** speedbar_lib LVO offsets used by _buildButtonList. */
+const SPEEDBAR_LVO_ALLOC_NODE = -36;
+const SPEEDBAR_LVO_FREE_NODE  = -42;
 
 /**
- * speedbar.gadget — toolbar.
+ * speedbar.gadget — toolbar strip.
+ *
+ * Pass `buttons: ['Cut','Copy','Paste']` to auto-build a List of
+ * AllocSpeedButtonNodeA nodes (SBNA_Text + ordinal = index). The list
+ * is freed at dispose.
  *
  * @extends GadgetBase
  */
@@ -7814,22 +8346,120 @@ class SpeedBar extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    buttons:         { tagID: SPEEDBAR.Buttons,        type: 'ptr' },
-    selected:        { tagID: SPEEDBAR.Selected,       type: 'int32' },
-    smallButtons:    { tagID: SPEEDBAR.SmallButtons,   type: 'bool' },
-    orientation:     { tagID: SPEEDBAR.Orientation,    type: 'uint32' },
-    spacing:         { tagID: SPEEDBAR.Spacing,        type: 'int32' },
-    justification:   { tagID: SPEEDBAR.Justification,  type: 'uint32' },
-    multiple:        { tagID: SPEEDBAR.Multiple,       type: 'bool' },
-    evenSize:        { tagID: SPEEDBAR.EvenSize,       type: 'bool' },
-    labels:          { tagID: SPEEDBAR.Labels,         type: 'bool' },
-    eraseBackground: { tagID: SPEEDBAR.EraseBackground,type: 'bool' },
+    buttonsPtr:   { tagID: SPEEDBAR.Buttons,      type: 'ptr' },
+    orientation:  { tagID: SPEEDBAR.Orientation,  type: 'uint32' },
+    background:   { tagID: SPEEDBAR.Background,   type: 'ptr' },
+    strumBar:     { tagID: SPEEDBAR.StrumBar,     type: 'bool' },
+    top:          { tagID: SPEEDBAR.Top,          type: 'int32' },
+    visible:      { tagID: SPEEDBAR.Visible,      type: 'int32' },
+    total:        { tagID: SPEEDBAR.Total,        type: 'int32' },
+    help:         { tagID: SPEEDBAR.Help,         type: 'bool' },
+    bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'uint32' },
+    selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },
+    selectedNode: { tagID: SPEEDBAR.SelectedNode, type: 'ptr' },
+    evenSize:     { tagID: SPEEDBAR.EvenSize,     type: 'bool' },
+    font:         { tagID: SPEEDBAR.Font,         type: 'ptr' },
   };
 
+  /**
+   * @param {object} init
+   * @param {string[]} [init.buttons] — button label strings; built into
+   *     a struct List of SBNA-attribute nodes (SBNA_Text + ordinal=index).
+   *     Freed at dispose.
+   * @param {number} [init.buttonsPtr] — pointer to a pre-built List
+   * @param {boolean} [init.relVerify=true]
+   */
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+
+    let ownedButtons = null;
+    if (Array.isArray(clean.buttons)) {
+      ownedButtons = SpeedBar._buildButtonList(clean.buttons);
+      clean.buttonsPtr = ownedButtons.listPtr;
+      delete clean.buttons;
+    }
+
     super(clean);
+    this._ownedButtons = ownedButtons;
+  }
+
+  /** @internal */
+  static _buildButtonList(buttons) {
+    SpeedBar.ensureClass();
+    const libBase = SpeedBar._libBase;
+    if (!libBase) throw new Error('SpeedBar: class library base not cached');
+
+    const LIST_BYTES = 16;
+    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
+    if (!listPtr) throw new Error('SpeedBar: allocMem list failed');
+
+    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
+    globalThis.amiga.poke32(listPtr + 4, 0);
+    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
+
+    const nodes       = [];
+    const labelAllocs = [];
+
+    for (let i = 0; i < buttons.length; i++) {
+      const s = String(buttons[i]);
+      const sB = s.length + 1;
+      const sP = globalThis.amiga.allocMem(sB);
+      globalThis.amiga.pokeString(sP, s);
+      labelAllocs.push([sP, sB]);
+
+      const tags = globalThis.amiga.makeTags([[SBNA.Text, sP]]);
+      if (!tags) throw new Error('SpeedBar: makeTags failed');
+
+      /* AllocSpeedButtonNodeA(ordinal, tags). d0=i (index as ordinal),
+       * a0=tags. Each button gets a stable ordinal id for SPEEDBAR
+       * event dispatch. */
+      const nodePtr = globalThis.amiga.call(libBase, SPEEDBAR_LVO_ALLOC_NODE, {
+        d0: i,
+        a0: tags,
+      });
+      globalThis.amiga.freeMem(tags, 16);
+
+      if (!nodePtr) {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+        throw new Error('SpeedBar: AllocSpeedButtonNodeA returned 0');
+      }
+
+      nodes.push({ nodePtr });
+    }
+
+    for (let n of nodes) {
+      const pred = globalThis.amiga.peek32(listPtr + 8);
+      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
+      globalThis.amiga.poke32(n.nodePtr + 4, pred);
+      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
+      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
+    }
+
+    return {
+      listPtr,
+      freeAll() {
+        for (let n of nodes) {
+          globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr });
+        }
+        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
+        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+      },
+    };
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    super.dispose();
+    if (this._ownedButtons) {
+      try { this._ownedButtons.freeAll(); }
+      catch (e) { /* cascaded free */ }
+      this._ownedButtons = null;
+    }
   }
 }
 
