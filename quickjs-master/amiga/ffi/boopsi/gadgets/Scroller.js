@@ -22,9 +22,12 @@ const SCROLLER = Object.freeze({
   SignalTaskBit:  0x8500500B,
 });
 
+/** SCROLLER_Orientation values per propgclass FREEHORIZ/FREEVERT
+ *  (intuition/intuition.h:593-594). Same fix as Slider's at 0.173 —
+ *  was 0x1/0x2 which the class treated as no-bit-set. */
 export const ScrollerOrient = Object.freeze({
-  HORIZONTAL: 0x1,
-  VERTICAL:   0x2,
+  HORIZONTAL: 0x2,
+  VERTICAL:   0x4,
 });
 
 /**

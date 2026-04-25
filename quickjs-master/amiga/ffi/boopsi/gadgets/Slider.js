@@ -38,10 +38,16 @@ const SLIDER = Object.freeze({
   InitDispHook:  0x85028018,
 });
 
-/** SLIDER_Orientation values (FREEHORIZ / FREEVERT from propgclass). */
+/** SLIDER_Orientation values per gadgets/slider.h:
+ *   SORIENT_HORIZ = FREEHORIZ = 0x0002 (intuition/intuition.h:593)
+ *   SORIENT_VERT  = FREEVERT  = 0x0004 (intuition/intuition.h:594)
+ * Earlier table had 0x1/0x2 — wrong; class read those as no-bit-set
+ * which defaulted to vertical, so horizontal sliders showed vertical
+ * tick marks under their horizontal knob (slider on About tab in
+ * clicktab_demo). */
 export const SliderOrient = Object.freeze({
-  HORIZONTAL: 0x1,
-  VERTICAL:   0x2,
+  HORIZONTAL: 0x2,
+  VERTICAL:   0x4,
 });
 
 /** SLIDER_LevelJustify (SLJ_*). */

@@ -7019,10 +7019,16 @@ const SLIDER = Object.freeze({
   InitDispHook:  0x85028018,
 });
 
-/** SLIDER_Orientation values (FREEHORIZ / FREEVERT from propgclass). */
+/** SLIDER_Orientation values per gadgets/slider.h:
+ *   SORIENT_HORIZ = FREEHORIZ = 0x0002 (intuition/intuition.h:593)
+ *   SORIENT_VERT  = FREEVERT  = 0x0004 (intuition/intuition.h:594)
+ * Earlier table had 0x1/0x2 — wrong; class read those as no-bit-set
+ * which defaulted to vertical, so horizontal sliders showed vertical
+ * tick marks under their horizontal knob (slider on About tab in
+ * clicktab_demo). */
 const SliderOrient = Object.freeze({
-  HORIZONTAL: 0x1,
-  VERTICAL:   0x2,
+  HORIZONTAL: 0x2,
+  VERTICAL:   0x4,
 });
 
 /** SLIDER_LevelJustify (SLJ_*). */
@@ -7108,9 +7114,12 @@ const SCROLLER = Object.freeze({
   SignalTaskBit:  0x8500500B,
 });
 
+/** SCROLLER_Orientation values per propgclass FREEHORIZ/FREEVERT
+ *  (intuition/intuition.h:593-594). Same fix as Slider's at 0.173 —
+ *  was 0x1/0x2 which the class treated as no-bit-set. */
 const ScrollerOrient = Object.freeze({
-  HORIZONTAL: 0x1,
-  VERTICAL:   0x2,
+  HORIZONTAL: 0x2,
+  VERTICAL:   0x4,
 });
 
 /**
@@ -9707,6 +9716,36 @@ class Page extends Layout {
         c._parent = this;
         this._children.push(c);
       }
+    }
+  }
+
+  /**
+   * Override the inherited set() to call RethinkLayout on the Page
+   * itself after OM_SET. Standard Reaction page-flip sequence on
+   * OS3.2: SetGadgetAttrs(page, win, NULL, PAGE_Current, N, TAG_DONE)
+   * is OM_SET-only (no auto-refresh), then RethinkLayout(page, win,
+   * NULL, TRUE) re-lays-out the page and redraws the now-current
+   * child. BOOPSIBase.set() already does SetGadgetAttrsA but doesn't
+   * rethink the gadget itself — only walks _parent for an ancestor
+   * Layout to rethink, which for Page means rethinking the OUTER
+   * layout (skipping the page-flip itself). Doing both is fine:
+   * outer rethink ensures the Page's slot is re-laid-out, inner
+   * rethink ensures the Page flips to its new current child.
+   *
+   * Without this fix, wizard_demo's `pages.set({current: step})`
+   * updated the internal index but never repainted; user saw step 1
+   * forever no matter how many times they clicked Next.
+   *
+   * @override
+   * @param {object} patch
+   */
+  set(patch) {
+    super.set(patch);
+    /* Only rethink-self when in a live window. */
+    let winPtr = this._findWindowPtr();
+    if (winPtr) {
+      try { this.rethink(winPtr, true); }
+      catch (e) { /* non-fatal; outer rethink already ran */ }
     }
   }
 }

@@ -70,6 +70,14 @@ let tabs = new ClickTab({
 
 let quitBtn = new Button({ id: GID.QUIT, text: '_Quit' });
 
+/* Per NDK Examples/Page.c the Page is "embedded inside the ClickTab"
+ * via CLICKTAB_PageGroup — ClickTab's beveling surrounds the page and
+ * ClickTab manages the page-flip on tab clicks. The Page must NOT
+ * also be a sibling of ClickTab in the outer Layout — duplicating it
+ * makes the page content render twice (once where ClickTab places it,
+ * once as a separate Layout child) and double-disposes at quit time
+ * (ClickTab.DisposeObject cascades through PageGroup; outer Layout
+ * also disposes the same Page from its children list). */
 let win = new Window({
   title:       'ClickTab Demo',
   innerWidth:  420,
@@ -78,7 +86,7 @@ let win = new Window({
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 4,
-    children: [ tabs, pages, quitBtn ],
+    children: [ tabs, quitBtn ],
   }),
 });
 

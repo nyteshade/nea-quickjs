@@ -118,4 +118,34 @@ export class Page extends Layout {
       }
     }
   }
+
+  /**
+   * Override the inherited set() to call RethinkLayout on the Page
+   * itself after OM_SET. Standard Reaction page-flip sequence on
+   * OS3.2: SetGadgetAttrs(page, win, NULL, PAGE_Current, N, TAG_DONE)
+   * is OM_SET-only (no auto-refresh), then RethinkLayout(page, win,
+   * NULL, TRUE) re-lays-out the page and redraws the now-current
+   * child. BOOPSIBase.set() already does SetGadgetAttrsA but doesn't
+   * rethink the gadget itself — only walks _parent for an ancestor
+   * Layout to rethink, which for Page means rethinking the OUTER
+   * layout (skipping the page-flip itself). Doing both is fine:
+   * outer rethink ensures the Page's slot is re-laid-out, inner
+   * rethink ensures the Page flips to its new current child.
+   *
+   * Without this fix, wizard_demo's `pages.set({current: step})`
+   * updated the internal index but never repainted; user saw step 1
+   * forever no matter how many times they clicked Next.
+   *
+   * @override
+   * @param {object} patch
+   */
+  set(patch) {
+    super.set(patch);
+    /* Only rethink-self when in a live window. */
+    let winPtr = this._findWindowPtr();
+    if (winPtr) {
+      try { this.rethink(winPtr, true); }
+      catch (e) { /* non-fatal; outer rethink already ran */ }
+    }
+  }
 }
