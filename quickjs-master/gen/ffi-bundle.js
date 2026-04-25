@@ -5797,11 +5797,40 @@ class BOOPSIBase {
     let tags = this._pairsToTags(pairs);
     try {
       if (winPtr && kind === 'gadget') {
-        /* Gadget in open window. SetGadgetAttrsA handles OM_SET +
-         * refresh internally per RKRM Common Gadgets. */
-        globalThis.amiga.Intuition.SetGadgetAttrsA(
+        /* Gadget in open window. SetGadgetAttrsA dispatches OM_SET via
+         * the class's cl_Dispatcher, which updates internal state and
+         * returns ≥1 if the change requires a visual refresh, 0 otherwise
+         * (intuition autodoc / imageclass OM_SET convention). Note that
+         * SetGadgetAttrsA does NOT auto-render — that's the caller's
+         * responsibility per RKRM Common Gadgets. Comments here at 0.158
+         * incorrectly assumed self-refresh; in practice, classes like
+         * CheckBox return ≥1 from OM_SET (state changed) but never
+         * redraw without an explicit RethinkLayout/RefreshGList — the
+         * symptom user reported on todo_demo at 0.170 (Clear All resets
+         * state but checkboxes stay visually checked). */
+        let rc = globalThis.amiga.Intuition.SetGadgetAttrsA(
           this.ptr, winPtr, 0, tags.ptr
-        );
+        ) | 0;
+
+        /* Class signalled "needs refresh". RethinkLayout on the nearest
+         * Layout ancestor re-flows + repaints all children — covers
+         * size-changing attrs (which need re-layout) and pure-visual
+         * attrs (which just need GM_RENDER) with one canonical call.
+         * Skip self if `this` is a Layout — Layout subclasses with
+         * special-case set() (e.g. Page) call rethink-self directly. */
+        if (rc >= 1) {
+          let layoutAncestor = this._findLayoutAncestor();
+          if (layoutAncestor === this) {
+            /* Walk one level up so we don't double-rethink self. */
+            layoutAncestor = (this._parent && this._parent._findLayoutAncestor)
+              ? this._parent._findLayoutAncestor()
+              : null;
+          }
+          if (layoutAncestor && typeof layoutAncestor.rethink === 'function') {
+            try { layoutAncestor.rethink(winPtr, true); }
+            catch (e) { /* non-fatal — internal-state update already landed */ }
+          }
+        }
       }
       else {
         /* Everything else — no window yet (pre-open init), image
@@ -8701,15 +8730,20 @@ class GetFont extends GadgetBase {
 
   /**
    * Pop the font requester. The GetFont gadget by itself is a passive
-   * display of the current font — it does NOT auto-open a requester
-   * on click. Per gadgets/getfont.h:137-149 the application must
-   * explicitly send GFONT_REQUEST (0x600001) to the gadget with the
-   * locking window pointer in the gfr_Window slot.
+   * display of the current font preview ("Ff") — it does NOT auto-open
+   * a requester on click. Per gadgets/getfont.h:137-149 the application
+   * must explicitly send GFONT_REQUEST (0x600001) to the gadget with
+   * the locking window pointer in the gfr_Window slot.
    *
    * Typical pattern: a separate Button labelled "Pick Font..." whose
    * BUTTON_CLICK handler calls `picker.request(win.intuiWindow.ptr)`.
    * After the user picks, FONT_SELECTED fires and `picker.get('textAttr')`
    * returns the chosen struct TextAttr*.
+   *
+   * NOTE on FONT_SELECTED semantics: the event fires every time the
+   * preview gadget is clicked, NOT only after an actual selection.
+   * Demos should filter for textAttr being non-null before treating
+   * the event as a real pick — empty-state clicks have textAttr=0.
    *
    * @param {number} winStructPtr — struct Window * (NOT the wrapper).
    *                                Use `win.intuiWindow.ptr` from a
@@ -8830,6 +8864,9 @@ class GetScreenMode extends GadgetBase {
    * BUTTON_CLICK handler calls `picker.request(win.intuiWindow.ptr)`.
    * After selection, SCREENMODE_SELECTED fires and
    * `picker.get('displayID')` etc. return the chosen mode.
+   *
+   * NOTE: SCREENMODE_SELECTED fires on every preview-gadget click, not
+   * only after an actual pick — filter for displayID being non-zero.
    *
    * @param {number} winStructPtr — struct Window * (use win.intuiWindow.ptr)
    * @returns {number}

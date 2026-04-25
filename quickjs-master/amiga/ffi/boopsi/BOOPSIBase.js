@@ -560,11 +560,40 @@ export class BOOPSIBase {
     let tags = this._pairsToTags(pairs);
     try {
       if (winPtr && kind === 'gadget') {
-        /* Gadget in open window. SetGadgetAttrsA handles OM_SET +
-         * refresh internally per RKRM Common Gadgets. */
-        globalThis.amiga.Intuition.SetGadgetAttrsA(
+        /* Gadget in open window. SetGadgetAttrsA dispatches OM_SET via
+         * the class's cl_Dispatcher, which updates internal state and
+         * returns ≥1 if the change requires a visual refresh, 0 otherwise
+         * (intuition autodoc / imageclass OM_SET convention). Note that
+         * SetGadgetAttrsA does NOT auto-render — that's the caller's
+         * responsibility per RKRM Common Gadgets. Comments here at 0.158
+         * incorrectly assumed self-refresh; in practice, classes like
+         * CheckBox return ≥1 from OM_SET (state changed) but never
+         * redraw without an explicit RethinkLayout/RefreshGList — the
+         * symptom user reported on todo_demo at 0.170 (Clear All resets
+         * state but checkboxes stay visually checked). */
+        let rc = globalThis.amiga.Intuition.SetGadgetAttrsA(
           this.ptr, winPtr, 0, tags.ptr
-        );
+        ) | 0;
+
+        /* Class signalled "needs refresh". RethinkLayout on the nearest
+         * Layout ancestor re-flows + repaints all children — covers
+         * size-changing attrs (which need re-layout) and pure-visual
+         * attrs (which just need GM_RENDER) with one canonical call.
+         * Skip self if `this` is a Layout — Layout subclasses with
+         * special-case set() (e.g. Page) call rethink-self directly. */
+        if (rc >= 1) {
+          let layoutAncestor = this._findLayoutAncestor();
+          if (layoutAncestor === this) {
+            /* Walk one level up so we don't double-rethink self. */
+            layoutAncestor = (this._parent && this._parent._findLayoutAncestor)
+              ? this._parent._findLayoutAncestor()
+              : null;
+          }
+          if (layoutAncestor && typeof layoutAncestor.rethink === 'function') {
+            try { layoutAncestor.rethink(winPtr, true); }
+            catch (e) { /* non-fatal — internal-state update already landed */ }
+          }
+        }
       }
       else {
         /* Everything else — no window yet (pre-open init), image
