@@ -1,5 +1,5 @@
 /*
- * reaction_clock_demo.js — Live 1Hz digital clock on top of the
+ * reaction_clock_demo.js — 1Hz elapsed-time counter on top of the
  * Reaction OO layer, using Window.events({ extraSignals: ... }).
  *
  * The window has a readonly StringGadget showing HH:MM:SS. A
@@ -82,13 +82,24 @@ function armTimer(seconds) {
 
 function pad2(n) { return (n < 10 ? '0' : '') + n; }
 
-function now() {
-  let d = new Date();
-  return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+/* Elapsed-time counter rather than wall-clock. Date.now() / new Date()
+ * on Amiga currently read a broken time source — returns microseconds
+ * since some local baseline, NOT Unix epoch ms — so wall-clock display
+ * appears frozen at ~00:00:00 even though the timer.device IS firing
+ * (tracked as T-run-due-timers-lvo phase (a) in the project backlog).
+ * Counting our own ticks bypasses Date entirely and exercises the
+ * extraSignals + timer.device pipeline cleanly. */
+let elapsedSeconds = 0;
+
+function fmtElapsed(s) {
+  let h = (s / 3600) | 0;
+  let m = ((s % 3600) / 60) | 0;
+  let r = s % 60;
+  return pad2(h) + ':' + pad2(m) + ':' + pad2(r);
 }
 
 function refresh() {
-  clockDisplay.text = now();
+  clockDisplay.text = fmtElapsed(elapsedSeconds);
 }
 
 /* ---- Run ---- */
@@ -107,8 +118,10 @@ try {
       break;
     }
     if (e.kind === EventKind.SIGNAL && (e.attrs.sigMask & timerSigMask)) {
-      /* Reply-reap the completed timer message and re-arm. */
+      /* Reply-reap the completed timer message, advance the counter,
+       * redraw, and re-arm for the next 1s. */
       Exec.GetMsg(portPtr);
+      elapsedSeconds++;
       refresh();
       armTimer(1);
     }
