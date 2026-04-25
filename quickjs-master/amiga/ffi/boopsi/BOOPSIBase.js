@@ -575,24 +575,26 @@ export class BOOPSIBase {
           this.ptr, winPtr, 0, tags.ptr
         ) | 0;
 
-        /* Class signalled "needs refresh". RethinkLayout on the nearest
-         * Layout ancestor re-flows + repaints all children — covers
-         * size-changing attrs (which need re-layout) and pure-visual
-         * attrs (which just need GM_RENDER) with one canonical call.
-         * Skip self if `this` is a Layout — Layout subclasses with
-         * special-case set() (e.g. Page) call rethink-self directly. */
-        if (rc >= 1) {
-          let layoutAncestor = this._findLayoutAncestor();
-          if (layoutAncestor === this) {
-            /* Walk one level up so we don't double-rethink self. */
-            layoutAncestor = (this._parent && this._parent._findLayoutAncestor)
-              ? this._parent._findLayoutAncestor()
-              : null;
-          }
-          if (layoutAncestor && typeof layoutAncestor.rethink === 'function') {
-            try { layoutAncestor.rethink(winPtr, true); }
-            catch (e) { /* non-fatal — internal-state update already landed */ }
-          }
+        /* Class signalled "needs refresh". For NON-Layout gadgets (the
+         * common case — CheckBox.selected, StringGadget.text, etc.) we
+         * call RefreshGList on just THIS gadget. RethinkLayout would
+         * also work but is far heavier — it re-flows the entire parent
+         * Layout including any sibling gadgets. The 0.175 first cut
+         * used parent-Layout rethink; testing on Amiga showed it
+         * disturbed sibling state (notes_demo: a status-update
+         * SetGadgetAttrs triggered a parent-rethink that broke the
+         * TextEditor's editable state — couldn't type after Save).
+         *
+         * For Layout subclasses themselves (Page, Virtual, plain
+         * Layout), rethink-self is the right call — but those have
+         * specialized set() overrides (e.g. Page.set()) that handle
+         * it. Skip the auto-refresh path for them so we don't
+         * double-up. */
+        let isLayout = !!this.constructor._isLayout;
+        if (rc >= 1 && !isLayout) {
+          try {
+            globalThis.amiga.Intuition.RefreshGList(this.ptr, winPtr, 0, 1);
+          } catch (e) { /* non-fatal */ }
         }
       }
       else {
