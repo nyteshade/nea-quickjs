@@ -9598,10 +9598,19 @@ class Layout extends GadgetBase {
  * PAGE_Dummy = LAYOUT_Dummy + 0x200 = REACTION_Dummy + 0x7200 =
  * 0x85007200.
  *
+ * IMPORTANT: Page is NOT a separate library file on OS3.2. It is
+ * served by `gadgets/layout.gadget` — the FD file (NDK3.2R4/FD/
+ * layout_lib.fd) lists `LAYOUT_GetClass()` at LVO -30 and
+ * `PAGE_GetClass()` at LVO -60 in the same library. Header
+ * `gadgets/page.h` is a one-line shim that #include's gadgets/layout.h
+ * and contains "Page gadget is part of layout.gadget". Opening
+ * `gadgets/page.gadget` directly fails silently, leaving ptr=0 and
+ * the visible step content blank. This was the wizard_demo blank-
+ * page bug + indirect cause of the clicktab quit-time Guru (ClickTab's
+ * CLICKTAB_PageGroup pointing at a null Page).
+ *
  * Tags re-derived 2026-04-24 from gadgets/layout.h PAGE_* defines.
- * Previous table had PAGE_Current at +2 — that's actually PAGE_Remove,
- * so wizard_demo / clicktab_demo's `pages.set({current: step})` was
- * sending children to be removed instead of switching the visible page.
+ * Previous table had PAGE_Current at +2 — that's actually PAGE_Remove.
  * Header values: Add+1, Remove+2, Current+3, FixedVert+4, FixedHoriz+5,
  * Transparent+6, NoDispose+7.
  */
@@ -9636,7 +9645,19 @@ const PAGE = Object.freeze({
  */
 class Page extends Layout {
   /** @type {string} */
-  static _classLibName = 'gadgets/page.gadget';
+  static _classLibName = 'gadgets/layout.gadget';
+
+  /** @type {number} — PAGE_GetClass() LVO in layout.gadget per
+   *  NDK3.2R4/FD/layout_lib.fd (bias 30; LAYOUT_GetClass at -30,
+   *  ActivateLayoutGadget -36, FlushLayoutDomainCache -42, RethinkLayout -48,
+   *  LayoutLimits -54, PAGE_GetClass at -60). */
+  static _classLibLvo = -60;
+
+  /** Cached class pointer + base, distinct from the Layout class
+   *  pointer because Page._libBase shares the layout.gadget OpenLibrary
+   *  but _classPtr is the result of PAGE_GetClass not LAYOUT_GetClass. */
+  static _classPtr = 0;
+  static _libBase  = 0;
 
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
