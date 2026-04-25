@@ -84,11 +84,11 @@ function setStatus(msg) {
 }
 
 function getEditorContents() {
-  /* TEXTEDITOR_Contents returns a STRPTR. Our 'string-owned' codec
-   * peekString-decodes it. May be null if the editor is freshly
-   * constructed and never mutated. */
-  let s = editor.get('contents');
-  return typeof s === 'string' ? s : '';
+  /* GA_TEXTEDITOR_Contents is OM_NEW-only — OM_GET returns the
+   * construction-time string, not what the user has typed. Use the
+   * GM_TEXTEDITOR_ExportText gadget-method instead. Wrapper takes
+   * care of the GadgetInfo + FreeVec cleanup. Library 0.181+. */
+  return editor.exportText();
 }
 
 function setEditorContents(s) {

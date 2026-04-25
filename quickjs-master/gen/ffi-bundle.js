@@ -9275,6 +9275,50 @@ class TextEditor extends GadgetBase {
   }
 
   /**
+   * Read the current editor contents. GA_TEXTEDITOR_Contents is
+   * OM_NEW-only — OM_GET returns the construction-time value, not
+   * what the user has typed. The runtime read path is via the
+   * GM_TEXTEDITOR_ExportText method which the class implements to
+   * return a STRPTR allocated via exec.AllocVec — caller frees
+   * via FreeVec.
+   *
+   * Was the bug behind notes_demo Save writing 0 chars to the file
+   * even after typing (user-reported 2026-04-25): editor.get('contents')
+   * returned the original empty-string init value, not the typed text.
+   *
+   * @returns {string} current editor text
+   */
+  exportText() {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.exportText: window not open');
+    }
+    const MSG_BYTES = 8;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) throw new Error('TextEditor.exportText: allocMem failed');
+    let textPtr = 0;
+    try {
+      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ExportText);
+      globalThis.amiga.poke32(msg + 4, 0);  /* GInfo */
+      textPtr = globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      ) | 0;
+      if (!textPtr) return '';
+      return globalThis.amiga.peekString(textPtr);
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      /* The class allocates the exported text via AllocVec; free it
+       * with exec.library FreeVec (LVO -690, a1=mem). Routed through
+       * Exec.call which lazy-opens exec.library. */
+      if (textPtr) {
+        try { globalThis.amiga.Exec.call(-690, { a1: textPtr }); }
+        catch (e) { /* leak rather than crash; small and bounded */ }
+      }
+    }
+  }
+
+  /**
    * Replace the editor contents in one call: clearText() then
    * insertText(s, TOP). Convenience wrapper for the "set editor to
    * this string" pattern used by Load handlers.
