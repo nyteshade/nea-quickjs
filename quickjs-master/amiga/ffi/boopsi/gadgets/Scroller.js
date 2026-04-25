@@ -55,6 +55,7 @@ export class Scroller extends GadgetBase {
         ? ScrollerOrient.VERTICAL : ScrollerOrient.HORIZONTAL;
     }
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 }

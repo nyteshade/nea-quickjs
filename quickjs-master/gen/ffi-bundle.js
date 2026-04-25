@@ -6754,6 +6754,7 @@ class CheckBox extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 
@@ -6850,6 +6851,7 @@ class RadioButton extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
 
     /* Build an RBNA struct List out of a ['_A','_B','_C'] array. The
      * allocation runs BEFORE super(clean), because labelsPtr must be
@@ -7069,6 +7071,7 @@ class Slider extends GadgetBase {
         ? SliderOrient.VERTICAL : SliderOrient.HORIZONTAL;
     }
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 }
@@ -7138,6 +7141,7 @@ class Scroller extends GadgetBase {
         ? ScrollerOrient.VERTICAL : ScrollerOrient.HORIZONTAL;
     }
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 }
@@ -7195,6 +7199,7 @@ class Integer extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 }
@@ -7321,6 +7326,7 @@ class StringGadget extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
 
     /* STRINGA_MinVisible tells the layout how many characters of
      * display width the gadget needs. Without it, the layout gives
@@ -7466,6 +7472,7 @@ class Chooser extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
 
     let ownedLabels = null;
     if (Array.isArray(clean.labels)) {
@@ -8222,27 +8229,44 @@ class Space extends GadgetBase {
  * fuelgauge.gadget — Reaction progress bar / fuel gauge.
  *
  * FUELGAUGE_Dummy = REACTION_Dummy + 0x12000 = 0x85012000.
+ *
+ * Tags re-derived 2026-04-24 from gadgets/fuelgauge.h (NDK 3.2R4). The
+ * previous table had Orientation/Percent/Justification at the wrong slots
+ * and invented attrs (VariableWidth, LowColor, HighColor, ColorOffset)
+ * that don't exist in the OS3.2 header. progress_demo rendered vertical
+ * because `percent: true` was writing tag +4 = real Orientation, and
+ * FuelGaugeOrient values were 0x1/0x2 instead of header's 0/1.
  */
 
 
 const FUELGAUGE = Object.freeze({
-  Min:            0x85012001,
-  Max:            0x85012002,
-  Level:          0x85012003,
-  Percent:        0x85012004,
-  Justification:  0x85012005,
-  Ticks:          0x85012006,
-  ShortTicks:     0x85012007,
-  TickSize:       0x85012008,
-  VariableWidth:  0x85012009,
-  Orientation:    0x8501200A,
-  LowColor:       0x8501200B,
-  HighColor:      0x8501200C,
-  ColorOffset:    0x8501200D,
+  Min:            0x85012001,   /* +1 (LONG)  minimum */
+  Max:            0x85012002,   /* +2 (LONG)  maximum */
+  Level:          0x85012003,   /* +3 (LONG)  current */
+  Orientation:    0x85012004,   /* +4 (WORD)  FGORIENT_HORIZ/VERT */
+  Percent:        0x85012005,   /* +5 (BOOL)  show numeric percent */
+  Ticks:          0x85012006,   /* +6 (WORD)  number of major ticks */
+  ShortTicks:     0x85012007,   /* +7 (WORD)  intermediate ticks */
+  TickSize:       0x85012008,   /* +8 (WORD)  major tick height */
+  TickPen:        0x85012009,   /* +9 (WORD)  tick mark pen */
+  PercentPen:     0x8501200A,   /* +0xA (WORD) inner percent text pen */
+  FillPen:        0x8501200B,   /* +0xB (WORD) fuelbar pen */
+  EmptyPen:       0x8501200C,   /* +0xC (WORD) background/empty pen */
+  VarArgs:        0x8501200D,   /* +0xD GA_Text varargs string */
+  Justification:  0x8501200E,   /* +0xE FGJ_LEFT/CENTER */
 });
 
+/** FuelGauge orientation values per gadgets/fuelgauge.h FGORIENT_*. */
 const FuelGaugeOrient = Object.freeze({
-  HORIZONTAL: 0x1, VERTICAL: 0x2,
+  HORIZONTAL: 0,   /* FGORIENT_HORIZ */
+  VERTICAL:   1,   /* FGORIENT_VERT */
+});
+
+/** FuelGauge text justification per FGJ_*. */
+const FuelGaugeJustify = Object.freeze({
+  LEFT:   0,
+  CENTER: 1,
+  CENTRE: 1,
 });
 
 /**
@@ -8260,16 +8284,16 @@ class FuelGauge extends GadgetBase {
     min:            { tagID: FUELGAUGE.Min,            type: 'int32' },
     max:            { tagID: FUELGAUGE.Max,            type: 'int32' },
     level:          { tagID: FUELGAUGE.Level,          type: 'int32' },
+    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'uint32' },
     percent:        { tagID: FUELGAUGE.Percent,        type: 'bool' },
-    justification:  { tagID: FUELGAUGE.Justification,  type: 'uint32' },
     ticks:          { tagID: FUELGAUGE.Ticks,          type: 'int32' },
     shortTicks:     { tagID: FUELGAUGE.ShortTicks,     type: 'int32' },
     tickSize:       { tagID: FUELGAUGE.TickSize,       type: 'int32' },
-    variableWidth:  { tagID: FUELGAUGE.VariableWidth,  type: 'bool' },
-    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'uint32' },
-    lowColor:       { tagID: FUELGAUGE.LowColor,       type: 'uint32' },
-    highColor:      { tagID: FUELGAUGE.HighColor,      type: 'uint32' },
-    colorOffset:    { tagID: FUELGAUGE.ColorOffset,    type: 'int32' },
+    tickPen:        { tagID: FUELGAUGE.TickPen,        type: 'int32' },
+    percentPen:     { tagID: FUELGAUGE.PercentPen,     type: 'int32' },
+    fillPen:        { tagID: FUELGAUGE.FillPen,        type: 'int32' },
+    emptyPen:       { tagID: FUELGAUGE.EmptyPen,       type: 'int32' },
+    justification:  { tagID: FUELGAUGE.Justification,  type: 'uint32' },
   };
 
   constructor(init) {
@@ -8432,6 +8456,20 @@ class SpeedBar extends GadgetBase {
     const nodes       = [];
     const labelAllocs = [];
 
+    /* Compute the widest label so all buttons share a width that fits the
+     * longest text. Per gadgets/speedbar.h SBNA_Text is "Label to display
+     * below the image" — without an image and without explicit Width/Height
+     * the class collapses to ~1x1. Pick conservative font-cell defaults
+     * (8px wide × 8px tall for topaz-8) plus padding; SPEEDBAR_EvenSize
+     * will normalise across the bar. */
+    let maxChars = 0;
+    for (let s of buttons) {
+      let len = String(s).length;
+      if (len > maxChars) maxChars = len;
+    }
+    const BTN_WIDTH  = Math.max(maxChars * 8 + 12, 40);
+    const BTN_HEIGHT = 18;
+
     for (let i = 0; i < buttons.length; i++) {
       const s = String(buttons[i]);
       const sB = s.length + 1;
@@ -8439,7 +8477,13 @@ class SpeedBar extends GadgetBase {
       globalThis.amiga.pokeString(sP, s);
       labelAllocs.push([sP, sB]);
 
-      const tags = globalThis.amiga.makeTags([[SBNA.Text, sP]]);
+      /* makeTags allocates 8 bytes per pair plus 8 for TAG_END.
+       * Tags: Text + Width + Height = 4 pairs = 32 bytes. */
+      const tags = globalThis.amiga.makeTags([
+        [SBNA.Text,   sP],
+        [SBNA.Width,  BTN_WIDTH],
+        [SBNA.Height, BTN_HEIGHT],
+      ]);
       if (!tags) throw new Error('SpeedBar: makeTags failed');
 
       /* AllocSpeedButtonNodeA(ordinal, tags). d0=i (index as ordinal),
@@ -8449,7 +8493,7 @@ class SpeedBar extends GadgetBase {
         d0: i,
         a0: tags,
       });
-      globalThis.amiga.freeMem(tags, 16);
+      globalThis.amiga.freeMem(tags, 32);
 
       if (!nodePtr) {
         for (let n of nodes) {
@@ -9553,12 +9597,24 @@ class Layout extends GadgetBase {
  *
  * PAGE_Dummy = LAYOUT_Dummy + 0x200 = REACTION_Dummy + 0x7200 =
  * 0x85007200.
+ *
+ * Tags re-derived 2026-04-24 from gadgets/layout.h PAGE_* defines.
+ * Previous table had PAGE_Current at +2 — that's actually PAGE_Remove,
+ * so wizard_demo / clicktab_demo's `pages.set({current: step})` was
+ * sending children to be removed instead of switching the visible page.
+ * Header values: Add+1, Remove+2, Current+3, FixedVert+4, FixedHoriz+5,
+ * Transparent+6, NoDispose+7.
  */
 
 
 const PAGE = Object.freeze({
-  Add:     0x85007201,
-  Current: 0x85007202,
+  Add:         0x85007201,   /* +1 (Object*) child to add (varargs OK) */
+  Remove:      0x85007202,   /* +2 (Object*) child to remove */
+  Current:     0x85007203,   /* +3 (uint32) zero-based visible index */
+  FixedVert:   0x85007204,   /* +4 (BOOL) reserve max-of-children height */
+  FixedHoriz:  0x85007205,   /* +5 (BOOL) reserve max-of-children width */
+  Transparent: 0x85007206,   /* +6 (BOOL) don't fill background */
+  NoDispose:   0x85007207,   /* +7 (BOOL) skip child DisposeObject on free */
 });
 
 /**
@@ -9585,8 +9641,13 @@ class Page extends Layout {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...Layout.ATTRS,
-    add:     { tagID: PAGE.Add,     type: 'ptr' },
-    current: { tagID: PAGE.Current, type: 'int32' },
+    add:         { tagID: PAGE.Add,         type: 'ptr' },
+    remove:      { tagID: PAGE.Remove,      type: 'ptr' },
+    current:     { tagID: PAGE.Current,     type: 'int32' },
+    fixedVert:   { tagID: PAGE.FixedVert,   type: 'bool' },
+    fixedHoriz:  { tagID: PAGE.FixedHoriz,  type: 'bool' },
+    transparent: { tagID: PAGE.Transparent, type: 'bool' },
+    noDispose:   { tagID: PAGE.NoDispose,   type: 'bool' },
   };
 
   /**

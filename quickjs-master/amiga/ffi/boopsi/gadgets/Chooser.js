@@ -105,6 +105,7 @@ export class Chooser extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
 
     let ownedLabels = null;
     if (Array.isArray(clean.labels)) {

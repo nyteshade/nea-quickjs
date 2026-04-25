@@ -43,6 +43,7 @@ export class Integer extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 }

@@ -148,6 +148,20 @@ export class SpeedBar extends GadgetBase {
     const nodes       = [];
     const labelAllocs = [];
 
+    /* Compute the widest label so all buttons share a width that fits the
+     * longest text. Per gadgets/speedbar.h SBNA_Text is "Label to display
+     * below the image" — without an image and without explicit Width/Height
+     * the class collapses to ~1x1. Pick conservative font-cell defaults
+     * (8px wide × 8px tall for topaz-8) plus padding; SPEEDBAR_EvenSize
+     * will normalise across the bar. */
+    let maxChars = 0;
+    for (let s of buttons) {
+      let len = String(s).length;
+      if (len > maxChars) maxChars = len;
+    }
+    const BTN_WIDTH  = Math.max(maxChars * 8 + 12, 40);
+    const BTN_HEIGHT = 18;
+
     for (let i = 0; i < buttons.length; i++) {
       const s = String(buttons[i]);
       const sB = s.length + 1;
@@ -155,7 +169,13 @@ export class SpeedBar extends GadgetBase {
       globalThis.amiga.pokeString(sP, s);
       labelAllocs.push([sP, sB]);
 
-      const tags = globalThis.amiga.makeTags([[SBNA.Text, sP]]);
+      /* makeTags allocates 8 bytes per pair plus 8 for TAG_END.
+       * Tags: Text + Width + Height = 4 pairs = 32 bytes. */
+      const tags = globalThis.amiga.makeTags([
+        [SBNA.Text,   sP],
+        [SBNA.Width,  BTN_WIDTH],
+        [SBNA.Height, BTN_HEIGHT],
+      ]);
       if (!tags) throw new Error('SpeedBar: makeTags failed');
 
       /* AllocSpeedButtonNodeA(ordinal, tags). d0=i (index as ordinal),
@@ -165,7 +185,7 @@ export class SpeedBar extends GadgetBase {
         d0: i,
         a0: tags,
       });
-      globalThis.amiga.freeMem(tags, 16);
+      globalThis.amiga.freeMem(tags, 32);
 
       if (!nodePtr) {
         for (let n of nodes) {

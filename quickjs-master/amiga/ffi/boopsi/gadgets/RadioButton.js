@@ -78,6 +78,7 @@ export class RadioButton extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
 
     /* Build an RBNA struct List out of a ['_A','_B','_C'] array. The
      * allocation runs BEFORE super(clean), because labelsPtr must be

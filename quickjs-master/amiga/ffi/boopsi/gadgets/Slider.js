@@ -90,6 +90,7 @@ export class Slider extends GadgetBase {
         ? SliderOrient.VERTICAL : SliderOrient.HORIZONTAL;
     }
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
     super(clean);
   }
 }

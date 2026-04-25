@@ -112,6 +112,7 @@ export class StringGadget extends GadgetBase {
   constructor(init) {
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
+    if (clean.tabCycle  === undefined) clean.tabCycle  = true;
 
     /* STRINGA_MinVisible tells the layout how many characters of
      * display width the gadget needs. Without it, the layout gives
