@@ -87,7 +87,11 @@ function getEditorContents() {
 }
 
 function setEditorContents(s) {
-  editor.set({ contents: s });
+  /* GA_TEXTEDITOR_Contents is OM_NEW-only on OS3.2 — runtime SetAttrs
+   * is silently dropped. Use the gadget-method path: ClearText then
+   * InsertText(BOTTOM). The TextEditor wrapper bundles both in
+   * setContents(). Library 0.175+. */
+  editor.setContents(s);
 }
 
 function saveNotes() {
@@ -119,7 +123,7 @@ function loadNotes() {
 }
 
 function clearNotes() {
-  setEditorContents('');
+  editor.clearText();
   setStatus('cleared.');
 }
 

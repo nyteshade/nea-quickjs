@@ -73,6 +73,28 @@ export class TextEditor extends GadgetBase {
   /** @type {string} */
   static _classLibName = 'gadgets/texteditor.gadget';
 
+  /** @internal Gadget method IDs — separate namespace from ATTR tags.
+   * Header `gadgets/texteditor.h` line 100 does:
+   *   #undef    TEXTEDITOR_Dummy
+   *   #define   TEXTEDITOR_Dummy   (0x45000)
+   * which redefines TEXTEDITOR_Dummy from REACTION_Dummy+0x26000
+   * (the GA_* attr base, 0x85026000) to plain 0x00045000 (the GM_*
+   * method-id base). So GM_TEXTEDITOR_ClearText is 0x00045000+0x24,
+   * NOT 0x85026000+0x24. Earlier Fina notes had this wrong.
+   */
+  static METHOD = Object.freeze({
+    ClearText:  0x00045024,   /* GP_TEXTEDITOR_ClearText  { ULONG; GadgetInfo* } */
+    ExportText: 0x00045025,
+    InsertText: 0x00045026,   /* GP_TEXTEDITOR_InsertText { ULONG; GadgetInfo*; STRPTR; LONG } */
+  });
+
+  /** GP_TEXTEDITOR_InsertText pos values per gadgets/texteditor.h:165-167. */
+  static InsertPos = Object.freeze({
+    CURSOR: 0,   /* at current cursor position */
+    TOP:    1,   /* prepend */
+    BOTTOM: 2,   /* append (canonical for "load file content") */
+  });
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
@@ -101,6 +123,67 @@ export class TextEditor extends GadgetBase {
     doubleClickHook: { tagID: TEXTEDITOR.DoubleClickHook, type: 'ptr' },
     keyBindings:     { tagID: TEXTEDITOR.KeyBindings,     type: 'ptr' },
   };
+
+  /**
+   * Empty the editor's contents. GA_TEXTEDITOR_Contents is documented
+   * as construction-only (OM_NEW) in OS3.2 — SetAttrs at runtime
+   * silently no-ops. Runtime mutation goes through gadget methods:
+   * dispatching GM_TEXTEDITOR_ClearText (struct
+   * GP_TEXTEDITOR_ClearText { MethodID; GadgetInfo* }) clears the
+   * buffer and triggers a redraw. We pass GInfo=0; texteditor.gadget
+   * pulls the window context from the gadget's pr_Window field set
+   * when the gadget was added to the live window.
+   *
+   * Was the bug behind notes_demo Clear button no-op'ing at 0.170.
+   *
+   * @returns {number} class dispatcher result
+   */
+  clearText() {
+    return this.doMethod(TextEditor.METHOD.ClearText, 0);
+  }
+
+  /**
+   * Insert text into the editor at a given position. Used by the Load
+   * path of notes_demo and any other "set the editor contents at
+   * runtime" use case. Typical pattern is `clearText(); insertText(s)`
+   * — clearText empties first, insertText appends from there.
+   *
+   * @param {string} text — text to insert
+   * @param {number} [pos=TextEditor.InsertPos.BOTTOM] — one of
+   *     CURSOR(0) / TOP(1) / BOTTOM(2). BOTTOM appends, which is the
+   *     canonical "load file" position.
+   * @returns {number}
+   */
+  insertText(text, pos) {
+    if (pos === undefined) pos = TextEditor.InsertPos.BOTTOM;
+    let s = String(text == null ? '' : text);
+    let bytes = s.length + 1;
+    let buf = globalThis.amiga.allocMem(bytes);
+    if (!buf) throw new Error('TextEditor.insertText: allocMem failed');
+    try {
+      globalThis.amiga.pokeString(buf, s);
+      /* GP_TEXTEDITOR_InsertText payload after MethodID: GInfo, text, pos. */
+      return this.doMethod(TextEditor.METHOD.InsertText, 0, buf, pos | 0);
+    }
+    finally {
+      globalThis.amiga.freeMem(buf, bytes);
+    }
+  }
+
+  /**
+   * Replace the editor contents in one call: clearText() then
+   * insertText(s, BOTTOM). Convenience wrapper for the "set editor
+   * to this string" pattern used by Load handlers.
+   *
+   * @param {string} text
+   * @returns {undefined}
+   */
+  setContents(text) {
+    this.clearText();
+    if (text != null && text.length > 0) {
+      this.insertText(text, TextEditor.InsertPos.BOTTOM);
+    }
+  }
 }
 
 EventKind.define('TEXT_CHANGE', {
