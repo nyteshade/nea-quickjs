@@ -52,10 +52,15 @@ try {
       }
     }
     if (e.kind === EventKind.SCREENMODE_SELECTED) {
-      print('DisplayID=0x' + pick.get('displayID').toString(16) +
-            '  ' + pick.get('displayWidth') + 'x' +
-                    pick.get('displayHeight') + 'x' +
-                    pick.get('displayDepth'));
+      /* SCREENMODE_SELECTED fires on every click of the display
+       * gadget; skip the empty-state click before any actual pick. */
+      let id = pick.get('displayID');
+      if (id) {
+        print('DisplayID=0x' + id.toString(16) +
+              '  ' + pick.get('displayWidth') + 'x' +
+                      pick.get('displayHeight') + 'x' +
+                      pick.get('displayDepth'));
+      }
     }
   }
 }

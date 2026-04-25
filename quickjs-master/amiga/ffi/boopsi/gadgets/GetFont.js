@@ -63,15 +63,20 @@ export class GetFont extends GadgetBase {
 
   /**
    * Pop the font requester. The GetFont gadget by itself is a passive
-   * display of the current font — it does NOT auto-open a requester
-   * on click. Per gadgets/getfont.h:137-149 the application must
-   * explicitly send GFONT_REQUEST (0x600001) to the gadget with the
-   * locking window pointer in the gfr_Window slot.
+   * display of the current font preview ("Ff") — it does NOT auto-open
+   * a requester on click. Per gadgets/getfont.h:137-149 the application
+   * must explicitly send GFONT_REQUEST (0x600001) to the gadget with
+   * the locking window pointer in the gfr_Window slot.
    *
    * Typical pattern: a separate Button labelled "Pick Font..." whose
    * BUTTON_CLICK handler calls `picker.request(win.intuiWindow.ptr)`.
    * After the user picks, FONT_SELECTED fires and `picker.get('textAttr')`
    * returns the chosen struct TextAttr*.
+   *
+   * NOTE on FONT_SELECTED semantics: the event fires every time the
+   * preview gadget is clicked, NOT only after an actual selection.
+   * Demos should filter for textAttr being non-null before treating
+   * the event as a real pick — empty-state clicks have textAttr=0.
    *
    * @param {number} winStructPtr — struct Window * (NOT the wrapper).
    *                                Use `win.intuiWindow.ptr` from a

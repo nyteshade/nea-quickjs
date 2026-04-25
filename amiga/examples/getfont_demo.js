@@ -51,14 +51,17 @@ try {
       }
     }
     if (e.kind === EventKind.FONT_SELECTED) {
+      /* FONT_SELECTED fires whenever the GetFont display gadget is
+       * clicked, regardless of whether anything has been picked yet.
+       * Filter out the empty-state click (textAttr is null/0) so we
+       * don't spam the shell on every preview-button click; only
+       * print after an actual font has been picked. */
       let ta = pick.get('textAttr');
       if (ta) {
         let namePtr = amiga.peek32(ta + 0);
         let height  = amiga.peek16(ta + 4);
         let name    = namePtr ? amiga.peekString(namePtr) : '(null)';
         print('Selected: ' + name + ' / ' + height);
-      } else {
-        print('Selected: (TextAttr not available)');
       }
     }
   }

@@ -100,6 +100,9 @@ export class GetScreenMode extends GadgetBase {
    * After selection, SCREENMODE_SELECTED fires and
    * `picker.get('displayID')` etc. return the chosen mode.
    *
+   * NOTE: SCREENMODE_SELECTED fires on every preview-gadget click, not
+   * only after an actual pick — filter for displayID being non-zero.
+   *
    * @param {number} winStructPtr — struct Window * (use win.intuiWindow.ptr)
    * @returns {number}
    */
