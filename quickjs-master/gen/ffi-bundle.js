@@ -4802,6 +4802,38 @@ class Intuition extends LibraryBase {
   }
 
   /**
+   * DoGadgetMethodA(gadget, window, requester, message) — dispatch a
+   * gadget method whose payload struct begins with `MethodID` +
+   * `GadgetInfo *GInfo`. The LVO synthesises a GadgetInfo from the
+   * window context and writes it into `message->GInfo` before invoking
+   * the class's cl_Dispatcher, so the class can access RastPort,
+   * DrawInfo, Screen, etc. for rendering.
+   *
+   * Required for GM_* methods like GM_TEXTEDITOR_ClearText / InsertText
+   * — plain DoMethodA leaves GInfo=0 which causes a NULL deref inside
+   * the class dispatcher and locks up the gadget. (User reported this
+   * exact symptom on notes_demo Clear at 0.176.)
+   *
+   * Register convention: a0=gad, a1=win, a2=req, a3=message
+   * (intuition.library LVO -810).
+   *
+   * @param {number|object} gadget    — struct Gadget *
+   * @param {number|object} window    — struct Window *
+   * @param {number|object} requester — struct Requester * (or 0)
+   * @param {number}        message   — Msg pointer (struct with
+   *                                    {ULONG MethodID; GadgetInfo*; ...})
+   * @returns {number} dispatcher result
+   */
+  static DoGadgetMethodA(gadget, window, requester, message) {
+    return this.call(this.lvo.DoGadgetMethodA, {
+      a0: ptrOf(gadget),
+      a1: ptrOf(window),
+      a2: ptrOf(requester),
+      a3: ptrOf(message),
+    });
+  }
+
+  /**
    * GetAttr(attrID, obj, storagePtr) — d0=attrID, a0=obj, a1=storage.
    * Writes the attribute's current value through `storagePtr`
    * (typically a ULONG). Returns 1 on success, 0 if the class
@@ -9162,48 +9194,79 @@ class TextEditor extends GadgetBase {
   };
 
   /**
-   * Empty the editor's contents. GA_TEXTEDITOR_Contents is documented
-   * as construction-only (OM_NEW) in OS3.2 — SetAttrs at runtime
-   * silently no-ops. Runtime mutation goes through gadget methods:
-   * dispatching GM_TEXTEDITOR_ClearText (struct
-   * GP_TEXTEDITOR_ClearText { MethodID; GadgetInfo* }) clears the
-   * buffer and triggers a redraw. We pass GInfo=0; texteditor.gadget
-   * pulls the window context from the gadget's pr_Window field set
-   * when the gadget was added to the live window.
-   *
-   * Was the bug behind notes_demo Clear button no-op'ing at 0.170.
+   * Empty the editor's contents. GA_TEXTEDITOR_Contents is OM_NEW-only
+   * on OS3.2 — SetAttrs at runtime silently no-ops. Runtime mutation
+   * is via GM_TEXTEDITOR_ClearText (struct GP_TEXTEDITOR_ClearText
+   * { MethodID; GadgetInfo* }) dispatched through DoGadgetMethodA, NOT
+   * plain DoMethodA. DoGadgetMethodA fills the GadgetInfo slot from
+   * the live window context — the class's cl_Dispatcher needs it for
+   * RastPort/DrawInfo lookup when drawing the cleared state. Plain
+   * DoMethodA with GInfo=0 caused a NULL-deref inside the class that
+   * locked up keyboard input on the editor (user-reported at 0.176).
    *
    * @returns {number} class dispatcher result
    */
   clearText() {
-    return this.doMethod(TextEditor.METHOD.ClearText, 0);
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.clearText: window not open');
+    }
+    /* Build GP_TEXTEDITOR_ClearText: { ULONG MethodID; GadgetInfo*; }
+     * — 8 bytes. DoGadgetMethodA writes the GInfo slot. */
+    const MSG_BYTES = 8;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) throw new Error('TextEditor.clearText: allocMem failed');
+    try {
+      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ClearText);
+      globalThis.amiga.poke32(msg + 4, 0);  /* GInfo — filled by LVO */
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      );
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+    }
   }
 
   /**
-   * Insert text into the editor at a given position. Used by the Load
-   * path of notes_demo and any other "set the editor contents at
-   * runtime" use case. Typical pattern is `clearText(); insertText(s)`
-   * — clearText empties first, insertText appends from there.
+   * Insert text into the editor at a given position. Like clearText,
+   * dispatched through DoGadgetMethodA so the class gets GadgetInfo.
    *
    * @param {string} text — text to insert
-   * @param {number} [pos=TextEditor.InsertPos.BOTTOM] — one of
-   *     CURSOR(0) / TOP(1) / BOTTOM(2). BOTTOM appends, which is the
-   *     canonical "load file" position.
+   * @param {number} [pos=TextEditor.InsertPos.BOTTOM] — CURSOR/TOP/BOTTOM
    * @returns {number}
    */
   insertText(text, pos) {
     if (pos === undefined) pos = TextEditor.InsertPos.BOTTOM;
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.insertText: window not open');
+    }
     let s = String(text == null ? '' : text);
-    let bytes = s.length + 1;
-    let buf = globalThis.amiga.allocMem(bytes);
-    if (!buf) throw new Error('TextEditor.insertText: allocMem failed');
+    let strBytes = s.length + 1;
+    let strBuf = globalThis.amiga.allocMem(strBytes);
+    if (!strBuf) throw new Error('TextEditor.insertText: allocMem(str) failed');
+    /* Build GP_TEXTEDITOR_InsertText: { MethodID; GInfo*; STRPTR; LONG pos; }
+     * — 16 bytes. */
+    const MSG_BYTES = 16;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) {
+      globalThis.amiga.freeMem(strBuf, strBytes);
+      throw new Error('TextEditor.insertText: allocMem(msg) failed');
+    }
     try {
-      globalThis.amiga.pokeString(buf, s);
-      /* GP_TEXTEDITOR_InsertText payload after MethodID: GInfo, text, pos. */
-      return this.doMethod(TextEditor.METHOD.InsertText, 0, buf, pos | 0);
+      globalThis.amiga.pokeString(strBuf, s);
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.InsertText);
+      globalThis.amiga.poke32(msg + 4,  0);             /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  strBuf);        /* STRPTR text */
+      globalThis.amiga.poke32(msg + 12, pos | 0);       /* LONG pos */
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      );
     }
     finally {
-      globalThis.amiga.freeMem(buf, bytes);
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(strBuf, strBytes);
     }
   }
 

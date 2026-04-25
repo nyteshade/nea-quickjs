@@ -414,6 +414,38 @@ export class Intuition extends LibraryBase {
   }
 
   /**
+   * DoGadgetMethodA(gadget, window, requester, message) — dispatch a
+   * gadget method whose payload struct begins with `MethodID` +
+   * `GadgetInfo *GInfo`. The LVO synthesises a GadgetInfo from the
+   * window context and writes it into `message->GInfo` before invoking
+   * the class's cl_Dispatcher, so the class can access RastPort,
+   * DrawInfo, Screen, etc. for rendering.
+   *
+   * Required for GM_* methods like GM_TEXTEDITOR_ClearText / InsertText
+   * — plain DoMethodA leaves GInfo=0 which causes a NULL deref inside
+   * the class dispatcher and locks up the gadget. (User reported this
+   * exact symptom on notes_demo Clear at 0.176.)
+   *
+   * Register convention: a0=gad, a1=win, a2=req, a3=message
+   * (intuition.library LVO -810).
+   *
+   * @param {number|object} gadget    — struct Gadget *
+   * @param {number|object} window    — struct Window *
+   * @param {number|object} requester — struct Requester * (or 0)
+   * @param {number}        message   — Msg pointer (struct with
+   *                                    {ULONG MethodID; GadgetInfo*; ...})
+   * @returns {number} dispatcher result
+   */
+  static DoGadgetMethodA(gadget, window, requester, message) {
+    return this.call(this.lvo.DoGadgetMethodA, {
+      a0: ptrOf(gadget),
+      a1: ptrOf(window),
+      a2: ptrOf(requester),
+      a3: ptrOf(message),
+    });
+  }
+
+  /**
    * GetAttr(attrID, obj, storagePtr) — d0=attrID, a0=obj, a1=storage.
    * Writes the attribute's current value through `storagePtr`
    * (typically a ULONG). Returns 1 on success, 0 if the class
