@@ -38,13 +38,16 @@ let win = new Window({
   innerHeight: 140,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
+  /* Vertical layout — earlier horizontal Label+Chooser row had the
+   * dropdown drifting far right because the equal-weight default
+   * gave the Chooser half the row width. Vertical avoids the weight
+   * question entirely. (Real fix is exposing CHILD_WeightedWidth
+   * so per-child weights can be set; that's separate work.) */
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 6,
     children: [
-      new Layout({
-        orientation: 'horizontal', innerSpacing: 4,
-        children: [ new Label({ text: 'Colour:' }), chooser ],
-      }),
+      new Label({ text: 'Colour:' }),
+      chooser,
       status,
       quitBtn,
     ],

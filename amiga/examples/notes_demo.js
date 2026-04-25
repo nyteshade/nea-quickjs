@@ -28,17 +28,22 @@ const GID = { EDITOR: 1, SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5 };
 
 const NOTES_PATH = 'RAM:notes.txt';
 
+/* Start with an EMPTY editor. Earlier versions of this demo opened
+ * with a placeholder string in `contents` — but if the user clicked
+ * Save before typing anything, the placeholder got persisted to
+ * RAM:notes.txt, and every Load thereafter showed the placeholder
+ * back. Made the round-trip ambiguous. Empty start means the first
+ * Save records actual user input; status line + Quit shortcut
+ * carry the usage hints. */
 let editor = new TextEditor({
-  id:        GID.EDITOR,
-  contents:  'Type your notes here…\n\n' +
-             'Click Save to persist to ' + NOTES_PATH + '.\n' +
-             'Click Load to read it back.',
+  id:       GID.EDITOR,
+  contents: '',
 });
 
 /* Dynamic text → readonly StringGadget (canonical OS3.2 Reaction pattern
  * for mutable text; label.image is OM_NEW-only per Label.js JSDoc). */
 let status = new StringGadget({
-  text: 'Status: ready.', readOnly: true, maxChars: 80,
+  text: 'Type, then Save / Load / Clear / Quit.', readOnly: true, maxChars: 80,
 });
 
 let saveBtn  = new Button({ id: GID.SAVE,  text: '_Save'  });
