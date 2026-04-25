@@ -9590,6 +9590,17 @@ const LAYOUT = Object.freeze({
    * this specially in Layout.constructor via BOOPSIBase._extraPairs. */
   AddChild:        0x85007014,
   AddImage:        0x85007015,
+  /* CHILD_* tags follow LAYOUT_AddChild in the OM_NEW tag list and
+   * apply to the most-recent child. CHILD_Dummy = LAYOUT_Dummy + 0x100
+   * = 0x85007100; layout_gc.doc tags from gadgets/layout.h:302-388. */
+  ChildMinWidth:       0x85007101,
+  ChildMinHeight:      0x85007102,
+  ChildMaxWidth:       0x85007103,
+  ChildMaxHeight:      0x85007104,
+  ChildWeightedWidth:  0x85007105,
+  ChildWeightedHeight: 0x85007106,
+  ChildLabel:          0x8500710C,
+  ChildNoDispose:      0x8500710D,
   /* LAYOUT_ModifyChild — OM_SET-time tag that tells layout.gadget the
    * subsequent tags in the taglist apply to the named child object.
    * Used by BOOPSIBase.set() when forwarding an image child's attr
@@ -9773,6 +9784,45 @@ class Layout extends GadgetBase {
           ? LAYOUT.AddImage
           : LAYOUT.AddChild;
         pairs.push([tagID, c.ptr]);
+
+        /* Per-child layout hints: a gadget may carry a `_childOpts`
+         * descriptor that we lower to CHILD_* tags right after the
+         * LAYOUT_AddChild that introduces it. Recognised keys:
+         *   - label: Object* | BOOPSIBase  → CHILD_Label
+         *   - minWidth / minHeight / maxWidth / maxHeight: ULONG
+         *   - weightedWidth / weightedHeight: ULONG (default 100; 0
+         *     locks at min)
+         *   - noDispose: bool
+         * The pairs land in the same OM_NEW tag list and stick to
+         * the most-recent child.
+         */
+        let opts = c._childOpts;
+        if (opts) {
+          if (opts.label) {
+            let lp;
+            if (typeof opts.label === 'string') {
+              /* Auto-construct a Label from a plain string. layout.gadget
+               * will dispose the label as part of its cascade (CHILD_Label
+               * defaults to NoDispose=FALSE), so we don't track on the JS
+               * side — letting the auto-Label slip out of any JS reference
+               * lets DisposeObject(layout) handle its lifecycle. */
+              let lblObj = new Label({ text: opts.label });
+              lp = lblObj.ptr;
+            } else if (typeof opts.label === 'object' && 'ptr' in opts.label) {
+              lp = opts.label.ptr | 0;
+            } else {
+              lp = opts.label | 0;
+            }
+            if (lp) pairs.push([LAYOUT.ChildLabel, lp]);
+          }
+          if (opts.minWidth   !== undefined) pairs.push([LAYOUT.ChildMinWidth,       opts.minWidth   | 0]);
+          if (opts.minHeight  !== undefined) pairs.push([LAYOUT.ChildMinHeight,      opts.minHeight  | 0]);
+          if (opts.maxWidth   !== undefined) pairs.push([LAYOUT.ChildMaxWidth,       opts.maxWidth   | 0]);
+          if (opts.maxHeight  !== undefined) pairs.push([LAYOUT.ChildMaxHeight,      opts.maxHeight  | 0]);
+          if (opts.weightedWidth  !== undefined) pairs.push([LAYOUT.ChildWeightedWidth,  opts.weightedWidth  | 0]);
+          if (opts.weightedHeight !== undefined) pairs.push([LAYOUT.ChildWeightedHeight, opts.weightedHeight | 0]);
+          if (opts.noDispose) pairs.push([LAYOUT.ChildNoDispose, 1]);
+        }
       }
     }
 

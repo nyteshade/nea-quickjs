@@ -25,6 +25,13 @@ let chooser = new Chooser({
   active:   3,                 /* start on "Green" */
 });
 
+/* CHILD_Label attaches a Reaction Label image to the gadget so layout
+ * renders the title inline next to the dropdown — the canonical
+ * Reaction pattern (NDK Examples/Page.c) for "Field: [value]" rows.
+ * Layout 0.180 auto-builds the Label from a string and lets
+ * layout.gadget dispose it via cascade. */
+chooser._childOpts = { label: 'Colour:' };
+
 let status = new StringGadget({
   text: 'Selected: Green (index 3)',
   readOnly: true, maxChars: 64, minVisible: 32,
@@ -38,16 +45,10 @@ let win = new Window({
   innerHeight: 140,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
-  /* Vertical layout — earlier horizontal Label+Chooser row had the
-   * dropdown drifting far right because the equal-weight default
-   * gave the Chooser half the row width. Vertical avoids the weight
-   * question entirely. (Real fix is exposing CHILD_WeightedWidth
-   * so per-child weights can be set; that's separate work.) */
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 6,
     children: [
-      new Label({ text: 'Colour:' }),
-      chooser,
+      chooser,         /* renders as "Colour: [Red ▼]" via CHILD_Label */
       status,
       quitBtn,
     ],
