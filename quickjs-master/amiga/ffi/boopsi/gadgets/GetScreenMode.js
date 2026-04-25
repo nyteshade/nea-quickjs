@@ -89,6 +89,23 @@ export class GetScreenMode extends GadgetBase {
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
   }
+
+  /**
+   * Pop the screen-mode requester. Per gadgets/getscreenmode.h:120-135,
+   * the gadget itself is passive — application must send GSM_REQUEST
+   * (0x610001) with the locking window pointer to open the picker.
+   *
+   * Typical pattern: a separate "Pick Screen Mode..." Button whose
+   * BUTTON_CLICK handler calls `picker.request(win.intuiWindow.ptr)`.
+   * After selection, SCREENMODE_SELECTED fires and
+   * `picker.get('displayID')` etc. return the chosen mode.
+   *
+   * @param {number} winStructPtr — struct Window * (use win.intuiWindow.ptr)
+   * @returns {number}
+   */
+  request(winStructPtr) {
+    return this.doMethod(0x610001, winStructPtr | 0);
+  }
 }
 
 EventKind.define('SCREENMODE_SELECTED', {
