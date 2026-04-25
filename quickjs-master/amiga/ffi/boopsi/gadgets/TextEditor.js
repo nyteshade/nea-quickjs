@@ -164,11 +164,15 @@ export class TextEditor extends GadgetBase {
    * dispatched through DoGadgetMethodA so the class gets GadgetInfo.
    *
    * @param {string} text — text to insert
-   * @param {number} [pos=TextEditor.InsertPos.BOTTOM] — CURSOR/TOP/BOTTOM
+   * @param {number} [pos=TextEditor.InsertPos.CURSOR] — CURSOR(0) /
+   *     TOP(1) / BOTTOM(2). CURSOR inserts at the current cursor
+   *     position (typical "type here" semantics). TOP prepends.
+   *     BOTTOM appends — but note BOTTOM is a no-op on an empty
+   *     buffer (use TOP or CURSOR after clearText for replace-all).
    * @returns {number}
    */
   insertText(text, pos) {
-    if (pos === undefined) pos = TextEditor.InsertPos.BOTTOM;
+    if (pos === undefined) pos = TextEditor.InsertPos.CURSOR;
     let winPtr = this._findWindowPtr();
     if (!winPtr) {
       throw new Error('TextEditor.insertText: window not open');
@@ -203,8 +207,14 @@ export class TextEditor extends GadgetBase {
 
   /**
    * Replace the editor contents in one call: clearText() then
-   * insertText(s, BOTTOM). Convenience wrapper for the "set editor
-   * to this string" pattern used by Load handlers.
+   * insertText(s, TOP). Convenience wrapper for the "set editor to
+   * this string" pattern used by Load handlers.
+   *
+   * NOTE on pos: must use TOP (or CURSOR), not BOTTOM. BOTTOM means
+   * "below the last existing line" and silently no-ops when called
+   * after a clearText (empty buffer has no last line to anchor to).
+   * TOP and CURSOR both insert at offset 0 in an empty buffer; for
+   * a fresh "set whole content" call TOP is the unambiguous choice.
    *
    * @param {string} text
    * @returns {undefined}
@@ -212,7 +222,7 @@ export class TextEditor extends GadgetBase {
   setContents(text) {
     this.clearText();
     if (text != null && text.length > 0) {
-      this.insertText(text, TextEditor.InsertPos.BOTTOM);
+      this.insertText(text, TextEditor.InsertPos.TOP);
     }
   }
 }
