@@ -8394,10 +8394,14 @@ class FuelGauge extends GadgetBase {
  *   -48  SetSpeedButtonNodeAttrsA(node, tags)                (a0/a1)
  *   -54  GetSpeedButtonNodeAttrsA(node, tags)                (a0/a1)
  *
- * NOTE: prior table had every SPEEDBAR_* and SBNA_* value wrong (off
- * by +1 slot for class tags; the node-attr table invented names like
- * SBNA_Label/Ordinal/Flags that don't exist in the header). Re-derived
- * from gadgets/speedbar.h for this version.
+ * OS3.2 RENDERING REALITY (speedbar_gc autodoc + NDK SpeedBar.c):
+ * SpeedBar is fundamentally an *image-button* class. Per autodoc the
+ * description says "usually with an image face"; per gadgets/speedbar.h
+ * SBNA_Text is V45+ "Label to display BELOW the image" — never a
+ * primary mode. SBTYPE_TEXT is OS4ONLY. With only SBNA_Text + Width/
+ * Height the class draws an empty bevel because it has no image to
+ * anchor the text to. The wrapper auto-builds a label.image per
+ * string-form button so SBNA_Image is always populated.
  */
 
 
@@ -8425,7 +8429,7 @@ const SPEEDBAR = Object.freeze({
 
 /** @internal SBNA_* button-node attribute tags (SBNA_Dummy = TAG_USER+0x010000).
  *
- * Some SBNA_* tags collide in namespace with clicktab TNA_* — that's
+ * Some SBNA_* tags collide in numeric value with clicktab TNA_* — that's
  * correct per NDK (both use TAG_USER+0x010000 as Dummy). The meaning
  * is class-scoped; SBNA tags are only recognised by speedbar.gadget. */
 const SBNA = Object.freeze({
@@ -8444,13 +8448,28 @@ const SBNA = Object.freeze({
   Selected:  0x8001000D,
   MXGroup:   0x8001000E,
   Disabled:  0x8001000F,
-  Text:      0x80010010,  /* the label string */
+  Text:      0x80010010,  /* the label string (V45) */
 });
 
 /** SpeedBar orientation values (SBORIENT_*). */
 const SpeedBarOrient = Object.freeze({
   HORIZONTAL: 0,
   VERTICAL:   1,
+});
+
+/**
+ * SBNA_Highlight modes (gadgets/speedbar.h:86-89).
+ *
+ * NONE     — no highlight
+ * BACKFILL — backfill with FILLPEN when selected
+ * RECESS   — shift image down/right when selected (default in NDK example)
+ * IMAGE    — display alternate SBNA_SelImage when selected
+ */
+const SpeedBarHighlight = Object.freeze({
+  NONE:     0,
+  BACKFILL: 1,
+  RECESS:   2,
+  IMAGE:    3,
 });
 
 /** speedbar_lib LVO offsets used by _buildButtonList. */
@@ -8460,9 +8479,16 @@ const SPEEDBAR_LVO_FREE_NODE  = -42;
 /**
  * speedbar.gadget — toolbar strip.
  *
- * Pass `buttons: ['Cut','Copy','Paste']` to auto-build a List of
- * AllocSpeedButtonNodeA nodes (SBNA_Text + ordinal = index). The list
- * is freed at dispose.
+ * Each entry in `buttons` may be either a string (sugar for `{text}`)
+ * or an object `{text?, image?, selImage?, help?, enabled?, disabled?,
+ * highlight?, spacing?, toggle?, selected?, mxGroup?}`. Strings — and
+ * objects with `text` but no `image` — get an internal label.image
+ * whose pointer is passed as SBNA_Image, since OS3.2 SpeedBar requires
+ * an image per node to render anything visible. Auto-built labels are
+ * disposed alongside the speedbar nodes at gadget dispose.
+ *
+ * The button ordinal (the value reported as SPEEDBAR_Selected on click)
+ * is the array index — i.e. AllocSpeedButtonNodeA's first arg.
  *
  * @extends GadgetBase
  */
@@ -8490,9 +8516,12 @@ class SpeedBar extends GadgetBase {
 
   /**
    * @param {object} init
-   * @param {string[]} [init.buttons] — button label strings; built into
-   *     a struct List of SBNA-attribute nodes (SBNA_Text + ordinal=index).
-   *     Freed at dispose.
+   * @param {(string|object)[]} [init.buttons] — array of strings or
+   *     per-button option objects. Strings are sugar for `{text}`;
+   *     objects accept `{text, image, selImage, help, enabled,
+   *     disabled, highlight, spacing, toggle, selected, mxGroup}`.
+   *     Strings without `image` (or objects with `text` but no `image`)
+   *     get an internal label.image so SBNA_Image is populated.
    * @param {number} [init.buttonsPtr] — pointer to a pre-built List
    * @param {boolean} [init.relVerify=true]
    */
@@ -8511,7 +8540,14 @@ class SpeedBar extends GadgetBase {
     this._ownedButtons = ownedButtons;
   }
 
-  /** @internal */
+  /**
+   * Build a struct List of speedbar nodes from an array of strings or
+   * per-button option objects.
+   *
+   * @internal
+   * @param {(string|object)[]} buttons
+   * @returns {{listPtr: number, freeAll: function(): void}}
+   */
   static _buildButtonList(buttons) {
     SpeedBar.ensureClass();
     const libBase = SpeedBar._libBase;
@@ -8521,82 +8557,170 @@ class SpeedBar extends GadgetBase {
     const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
     if (!listPtr) throw new Error('SpeedBar: allocMem list failed');
 
+    /* Initialise an empty exec struct List (16 bytes):
+     *   +0  lh_Head     -> &lh_Tail (which sits at +4 — empty marker)
+     *   +4  lh_Tail     -> NULL
+     *   +8  lh_TailPred -> &lh_Head
+     *   +12 lh_Type/Pad
+     */
     globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
     globalThis.amiga.poke32(listPtr + 4, 0);
     globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
 
     const nodes       = [];
     const labelAllocs = [];
+    const ownedLabels = [];
 
-    /* Compute the widest label so all buttons share a width that fits the
-     * longest text. Per gadgets/speedbar.h SBNA_Text is "Label to display
-     * below the image" — without an image and without explicit Width/Height
-     * the class collapses to ~1x1. Pick conservative font-cell defaults
-     * (8px wide × 8px tall for topaz-8) plus padding; SPEEDBAR_EvenSize
-     * will normalise across the bar. */
-    let maxChars = 0;
-    for (let s of buttons) {
-      let len = String(s).length;
-      if (len > maxChars) maxChars = len;
-    }
-    const BTN_WIDTH  = Math.max(maxChars * 8 + 12, 40);
-    const BTN_HEIGHT = 18;
+    /* Tag-pair budget per node: at most 11 SBNA_* attrs + TAG_END.
+     * makeTags emits 8 bytes per pair plus 8 for the TAG_END terminator,
+     * so a 12-pair buffer would be 96 bytes. We only ever feed makeTags
+     * the pairs that are actually present, but the freeMem call below
+     * needs a stable size; computed per-call from pairs.length. */
 
-    for (let i = 0; i < buttons.length; i++) {
-      const s = String(buttons[i]);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
+    try {
+      for (let i = 0; i < buttons.length; i++) {
+        const raw = buttons[i];
+        const opts = (typeof raw === 'string') ? { text: raw }
+                   : (raw && typeof raw === 'object') ? raw
+                   : {};
 
-      /* makeTags allocates 8 bytes per pair plus 8 for TAG_END.
-       * Tags: Text + Width + Height = 4 pairs = 32 bytes. */
-      const tags = globalThis.amiga.makeTags([
-        [SBNA.Text,   sP],
-        [SBNA.Width,  BTN_WIDTH],
-        [SBNA.Height, BTN_HEIGHT],
-      ]);
-      if (!tags) throw new Error('SpeedBar: makeTags failed');
+        let imagePtr = SpeedBar._resolveImagePtr(opts.image);
 
-      /* AllocSpeedButtonNodeA(ordinal, tags). d0=i (index as ordinal),
-       * a0=tags. Each button gets a stable ordinal id for SPEEDBAR
-       * event dispatch. */
-      const nodePtr = globalThis.amiga.call(libBase, SPEEDBAR_LVO_ALLOC_NODE, {
-        d0: i,
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 32);
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr });
+        /* If text is supplied without an image, build an internal
+         * label.image and use its .ptr as SBNA_Image. The Label is
+         * tracked in ownedLabels[] for disposal alongside the node. */
+        if (!imagePtr && typeof opts.text === 'string' && opts.text.length > 0) {
+          const lbl = new Label({ text: opts.text });
+          ownedLabels.push(lbl);
+          imagePtr = lbl.ptr;
         }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('SpeedBar: AllocSpeedButtonNodeA returned 0');
+
+        const selImagePtr = SpeedBar._resolveImagePtr(opts.selImage);
+
+        /* Stage the SBNA_Text string into a Reaction-owned buffer.
+         * SpeedBar copies the string at OM_NEW per V45 semantics, but
+         * we keep ownership through the gadget's lifetime to be safe.
+         * Both `text` and `image` are passed when both are supplied —
+         * V45 renders the text below the image. */
+        let textPtr = 0;
+        if (typeof opts.text === 'string' && opts.text.length > 0) {
+          const sB = opts.text.length + 1;
+          textPtr = globalThis.amiga.allocMem(sB);
+          if (!textPtr) throw new Error('SpeedBar: allocMem text failed');
+          globalThis.amiga.pokeString(textPtr, opts.text);
+          labelAllocs.push([textPtr, sB]);
+        }
+
+        const pairs = [];
+        if (imagePtr)                            pairs.push([SBNA.Image,     imagePtr]);
+        if (selImagePtr)                         pairs.push([SBNA.SelImage,  selImagePtr]);
+        if (textPtr)                             pairs.push([SBNA.Text,      textPtr]);
+        if (opts.help !== undefined) {
+          const helpPtr = SpeedBar._stageString(opts.help, labelAllocs);
+          if (helpPtr)                           pairs.push([SBNA.Help,      helpPtr]);
+        }
+        if (opts.enabled !== undefined)          pairs.push([SBNA.Enabled,   opts.enabled ? 1 : 0]);
+        if (opts.disabled !== undefined)         pairs.push([SBNA.Disabled,  opts.disabled ? 1 : 0]);
+        if (opts.highlight !== undefined)        pairs.push([SBNA.Highlight, opts.highlight | 0]);
+        if (opts.spacing !== undefined)          pairs.push([SBNA.Spacing,   opts.spacing | 0]);
+        if (opts.toggle !== undefined)           pairs.push([SBNA.Toggle,    opts.toggle ? 1 : 0]);
+        if (opts.selected !== undefined)         pairs.push([SBNA.Selected,  opts.selected ? 1 : 0]);
+        if (opts.mxGroup !== undefined)          pairs.push([SBNA.MXGroup,   opts.mxGroup | 0]);
+
+        const tagBytes = (pairs.length + 1) * 8;
+        const tags = globalThis.amiga.makeTags(pairs);
+        if (!tags) throw new Error('SpeedBar: makeTags failed');
+
+        /* AllocSpeedButtonNodeA(ordinal, tags). d0=index (ordinal),
+         * a0=tags. Each button gets a stable ordinal id for SPEEDBAR
+         * event dispatch via SPEEDBAR_Selected. */
+        const nodePtr = globalThis.amiga.call(libBase, SPEEDBAR_LVO_ALLOC_NODE, {
+          d0: i,
+          a0: tags,
+        });
+        globalThis.amiga.freeMem(tags, tagBytes);
+
+        if (!nodePtr) throw new Error('SpeedBar: AllocSpeedButtonNodeA returned 0');
+
+        nodes.push({ nodePtr });
       }
 
-      nodes.push({ nodePtr });
+      /* Link nodes into the list AddTail-style. */
+      for (let n of nodes) {
+        const pred = globalThis.amiga.peek32(listPtr + 8);
+        globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
+        globalThis.amiga.poke32(n.nodePtr + 4, pred);
+        globalThis.amiga.poke32(pred        + 0, n.nodePtr);
+        globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
+      }
     }
-
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
+    catch (e) {
+      /* Partial-failure cleanup, reverse order. */
+      for (let n of nodes) {
+        try { globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr }); }
+        catch (_) { /* best effort */ }
+      }
+      for (let lbl of ownedLabels) { try { lbl.dispose(); } catch (_) {} }
+      for (let [p, b] of labelAllocs) {
+        try { globalThis.amiga.freeMem(p, b); } catch (_) {}
+      }
+      try { globalThis.amiga.freeMem(listPtr, LIST_BYTES); } catch (_) {}
+      throw e;
     }
 
     return {
       listPtr,
       freeAll() {
+        /* Free nodes first — they reference the Label's Image*. */
         for (let n of nodes) {
-          globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr });
+          try { globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr }); }
+          catch (_) { /* best effort */ }
         }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
+        /* Then dispose any auto-built Labels. */
+        for (let lbl of ownedLabels) {
+          try { lbl.dispose(); } catch (_) {}
+        }
+        for (let [p, b] of labelAllocs) {
+          try { globalThis.amiga.freeMem(p, b); } catch (_) {}
+        }
+        try { globalThis.amiga.freeMem(listPtr, LIST_BYTES); } catch (_) {}
       },
     };
+  }
+
+  /**
+   * Coerce an `image` opt to a raw uint32 pointer. Accepts a numeric
+   * pointer or any BOOPSI image wrapper exposing `.ptr`. Returns 0
+   * when absent/invalid.
+   *
+   * @internal
+   * @param {*} v
+   * @returns {number}
+   */
+  static _resolveImagePtr(v) {
+    if (v == null) return 0;
+    if (typeof v === 'number') return v;
+    if (typeof v === 'object' && typeof v.ptr === 'number') return v.ptr;
+    return 0;
+  }
+
+  /**
+   * Allocate a NUL-terminated copy of `s` and track it in `track[]`.
+   * Returns 0 if `s` isn't a non-empty string.
+   *
+   * @internal
+   * @param {string} s
+   * @param {Array<[number, number]>} track
+   * @returns {number}
+   */
+  static _stageString(s, track) {
+    if (typeof s !== 'string' || s.length === 0) return 0;
+    const sB = s.length + 1;
+    const sP = globalThis.amiga.allocMem(sB);
+    if (!sP) return 0;
+    globalThis.amiga.pokeString(sP, s);
+    track.push([sP, sB]);
+    return sP;
   }
 
   dispose() {
