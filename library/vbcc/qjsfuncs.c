@@ -281,20 +281,18 @@ struct Library *_qjs_TimerBase = NULL;
 static struct MsgPort *_qjs_timer_mp = NULL;
 static struct timerequest *_qjs_timer_req = NULL;
 
-/* Offset added to GetSysTime µs to land in Unix-epoch µs. Captured once
- * at qjs_timer_init from a paired DateStamp+GetSysTime read. Stays 0 if
- * timer.device fails to open (in which case the GetSysTime branch in
- * _qjs_time_us is bypassed and the DateStamp fallback runs instead).
+/* DIAGNOSTIC at 0.186: file-scope init set to 1779926400000000LL
+ * (≈ 2026-04-27 00:00:00 UTC in µs). 0.183/0.184/0.185 (static, plain,
+ * volatile) all read this variable as 0 at the read site even though the
+ * runtime capture in qjs_timer_init was unchanged from a working pattern.
  *
- * `volatile` is load-bearing — VBCC's optimizer at -O1 was propagating
- * the file-scope `= 0` initializer through to the read site in
- * _qjs_time_us, so the runtime write from qjs_timer_init was correct
- * but the read always saw the compile-time-constant 0. 0.183 declared
- * `static`, 0.184 dropped `static` (BSS-trap hypothesis) — both behaved
- * identically (Date.now() still since-boot µs at 0.183/0.184 with the
- * library version verified on Amiga). 0.185 adds `volatile` to force a
- * real memory load on every read; this defeats the constant-prop. */
-volatile long long _qjs_time_offset_us = 0;
+ * If 0.186 makes Date.now() return ~1.78e15 (close to today), the read
+ * site IS reaching the variable and the runtime write is the broken
+ * step. If 0.186 still returns since-boot µs, the variable is genuinely
+ * being zeroed somewhere between init and read (e.g., shared-library
+ * BSS-clear happening AFTER file-scope inits, or a relocation issue
+ * specific to int64 globals in this template). */
+volatile long long _qjs_time_offset_us = 1779926400000000LL;
 
 /* GetSysTime — timer.device LVO -66.
  * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
