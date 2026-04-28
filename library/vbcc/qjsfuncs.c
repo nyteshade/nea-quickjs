@@ -286,12 +286,15 @@ static struct timerequest *_qjs_timer_req = NULL;
  * timer.device fails to open (in which case the GetSysTime branch in
  * _qjs_time_us is bypassed and the DateStamp fallback runs instead).
  *
- * NOT static — same template-BSS trap that bit sharedlib_time.c's static
- * sl_DOSBase (see the _qjs_DOSBase comment above). At 0.183 this was
- * declared static and the init write didn't reach the read site, so
- * Date.now() / os.now() still returned since-boot µs. Plain global,
- * matching _qjs_DOSBase / _qjs_TimerBase, sidesteps it. */
-long long _qjs_time_offset_us = 0;
+ * `volatile` is load-bearing — VBCC's optimizer at -O1 was propagating
+ * the file-scope `= 0` initializer through to the read site in
+ * _qjs_time_us, so the runtime write from qjs_timer_init was correct
+ * but the read always saw the compile-time-constant 0. 0.183 declared
+ * `static`, 0.184 dropped `static` (BSS-trap hypothesis) — both behaved
+ * identically (Date.now() still since-boot µs at 0.183/0.184 with the
+ * library version verified on Amiga). 0.185 adds `volatile` to force a
+ * real memory load on every read; this defeats the constant-prop. */
+volatile long long _qjs_time_offset_us = 0;
 
 /* GetSysTime — timer.device LVO -66.
  * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
