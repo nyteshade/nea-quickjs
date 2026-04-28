@@ -286,10 +286,12 @@ static struct timerequest *_qjs_timer_req = NULL;
  * timer.device fails to open (in which case the GetSysTime branch in
  * _qjs_time_us is bypassed and the DateStamp fallback runs instead).
  *
- * Without this, the GetSysTime fast path returns since-boot µs while the
- * DateStamp fallback returns Unix-epoch µs — the divergence is the
- * 0.181-discovered Date.now()/os.now() bug. Single add on a hot path. */
-static long long _qjs_time_offset_us = 0;
+ * NOT static — same template-BSS trap that bit sharedlib_time.c's static
+ * sl_DOSBase (see the _qjs_DOSBase comment above). At 0.183 this was
+ * declared static and the init write didn't reach the read site, so
+ * Date.now() / os.now() still returned since-boot µs. Plain global,
+ * matching _qjs_DOSBase / _qjs_TimerBase, sidesteps it. */
+long long _qjs_time_offset_us = 0;
 
 /* GetSysTime — timer.device LVO -66.
  * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
