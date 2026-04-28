@@ -381,6 +381,14 @@ static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
 
 long long _qjs_time_us(void)
 {
+    /* DIAGNOSTIC at 0.187: hardcoded return = LIBRARY_VERSION × 1e9 µs.
+     * Date.now() should report ~187_000_000 ms = 187,000 sec ≈ 1976-12-08.
+     * If user sees that, the library's _qjs_time_us IS being called and
+     * we know the version that's actually loaded. If user sees since-boot
+     * µs, then JS Date.now() is calling a different _qjs_time_us (cached
+     * old library, or wrong symbol resolution path). */
+    return (long long)LIBRARY_VERSION * 1000000000LL;
+
     /* Preferred path: timer.device GetSysTime — µs resolution. The
      * offset rebases since-boot µs into Unix-epoch µs (captured once at
      * qjs_timer_init from a paired DateStamp+GetSysTime read). */
