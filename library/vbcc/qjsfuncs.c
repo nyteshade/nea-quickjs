@@ -281,6 +281,16 @@ struct Library *_qjs_TimerBase = NULL;
 static struct MsgPort *_qjs_timer_mp = NULL;
 static struct timerequest *_qjs_timer_req = NULL;
 
+/* Offset added to GetSysTime µs to land in Unix-epoch µs. Captured once
+ * at qjs_timer_init from a paired DateStamp+GetSysTime read. Stays 0 if
+ * timer.device fails to open (in which case the GetSysTime branch in
+ * _qjs_time_us is bypassed and the DateStamp fallback runs instead).
+ *
+ * Without this, the GetSysTime fast path returns since-boot µs while the
+ * DateStamp fallback returns Unix-epoch µs — the divergence is the
+ * 0.181-discovered Date.now()/os.now() bug. Single add on a hot path. */
+static long long _qjs_time_offset_us = 0;
+
 /* GetSysTime — timer.device LVO -66.
  * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
 static void __qjs_GetSysTime(__reg("a6") struct Library *base,
@@ -320,6 +330,29 @@ static int qjs_timer_init(LIBRARY_BASE_TYPE *aBase)
     }
 
     _qjs_TimerBase = (struct Library *)_qjs_timer_req->tr_node.io_Device;
+
+    /* Capture epoch baseline. _qjs_DOSBase is set by CustomLibInit before
+     * qjs_timer_init runs (CustomLibInit body order). The offset is
+     * sampled once and treated as a constant; GetSysTime advances at µs
+     * resolution and is the canonical wall-clock source thereafter. */
+    if (_qjs_DOSBase) {
+        struct DateStamp ds;
+        struct timeval tv;
+        long long epoch_us, sys_us;
+
+        __qjs_DateStamp(_qjs_DOSBase, &ds);
+        __qjs_GetSysTime(_qjs_TimerBase, &tv);
+
+        epoch_us = ((long long)ds.ds_Days * 86400LL
+                    + (long long)ds.ds_Minute * 60LL
+                    + (long long)ds.ds_Tick / 50LL
+                    + (long long)QJS_AMIGA_UNIX_EPOCH_DIFF) * 1000000LL
+                   + ((long long)ds.ds_Tick % 50L) * 20000LL;
+        sys_us = (long long)tv.tv_secs * 1000000LL
+                 + (long long)tv.tv_micro;
+        _qjs_time_offset_us = epoch_us - sys_us;
+    }
+
     return 0;
 }
 
@@ -345,11 +378,15 @@ static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
 
 long long _qjs_time_us(void)
 {
-    /* Preferred path: timer.device GetSysTime — µs resolution. */
+    /* Preferred path: timer.device GetSysTime — µs resolution. The
+     * offset rebases since-boot µs into Unix-epoch µs (captured once at
+     * qjs_timer_init from a paired DateStamp+GetSysTime read). */
     if (_qjs_TimerBase) {
         struct timeval tv;
         __qjs_GetSysTime(_qjs_TimerBase, &tv);
-        return (long long)tv.tv_secs * 1000000LL + (long long)tv.tv_micro;
+        return (long long)tv.tv_secs * 1000000LL
+               + (long long)tv.tv_micro
+               + _qjs_time_offset_us;
     }
 
     /* Fallback: 20ms-granular DateStamp (only if timer.device unavailable). */
