@@ -1024,11 +1024,19 @@ static JSValue js_qjs_now_ms(JSContext *ctx, JSValueConst this_val,
 {
     struct DateStamp ds;
     long sec_int32, ms_portion;
-    double ms;
+    double sec_double, ms_portion_double, ms;
+    /* Volatile defeats VBCC's "(double)int * literal_double" collapse
+     * to int32 multiply observed at 0.191. With the constant in a
+     * volatile slot the compiler must do a true memory load, which
+     * forces a real double-double multiply. */
+    volatile double thousand = 1000.0;
 
-    /* DateStamp from <proto/dos.h>, bound via the DOSBase global at
-     * the top of this file. */
-    DateStamp(&ds);
+    /* sl_DateStamp_lib uses the explicit-asm __reg("a6")/(a1) form
+     * routed through the DOSBase global, same pattern js_crypto_*
+     * already uses successfully — avoids relying on <proto/dos.h>'s
+     * inline form which may have a corruption bug here (Guru 80000003
+     * observed at 0.191 after several Date.now() calls). */
+    sl_DateStamp_lib(&ds);
 
     /* Amiga epoch: 1978-01-01. Unix epoch: 1970-01-01. Difference is
      * 2922 days = 252,460,800 seconds. Sum fits in signed int32 until
@@ -1039,10 +1047,13 @@ static JSValue js_qjs_now_ms(JSContext *ctx, JSValueConst this_val,
               + 252460800L;
     ms_portion = ((long)ds.ds_Tick % 50L) * 20L;
 
-    /* Promote to double here, where VBCC's broken int64 path can't
-     * touch us. (double)int32 * (double)1000.0 goes through the
-     * mathieeedoubbas LVOs and produces the correct value. */
-    ms = (double)sec_int32 * 1000.0 + (double)ms_portion;
+    /* Split into separate statements so VBCC can't fuse `(double)x *
+     * 1000.0` into one int-multiply-then-convert. Volatile load of
+     * `thousand` ensures the multiplicand is a true runtime double. */
+    sec_double = (double)sec_int32;
+    ms_portion_double = (double)ms_portion;
+    ms = sec_double * thousand + ms_portion_double;
+
     return JS_NewFloat64(ctx, ms);
 }
 
