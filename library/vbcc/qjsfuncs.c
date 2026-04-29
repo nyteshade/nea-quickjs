@@ -379,26 +379,20 @@ static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
     }
 }
 
+/* VBCC at -O1 inlines `(long long)int32 * 1000000LL` as a 32-bit mulu.l
+ * that truncates the product to the low 32 bits — the runtime int64
+ * helper __mulint64_020 in sharedlib_int64_soft.s never gets called.
+ * 0.188 demonstrated this: Date.now() advanced correctly in real time
+ * but the magnitude was 1.78e6× too small (= sec*1e6 mod 2^32 / 1000).
+ *
+ * Calling the helper explicitly forces a real 64×64 multiply. The asm
+ * xdef is `__mulint64_020` (two underscores). VBCC's C compiler adds a
+ * leading underscore prefix to C symbol names at codegen time, so the
+ * matching C declaration uses ONE underscore — gets prefixed to two. */
+extern long long _mulint64_020(long long a, long long b);
+
 long long _qjs_time_us(void)
 {
-    /* 0.188: DateStamp-only. The 0.187 diagnostic proved VBCC at -O1 is
-     * miscompiling `(long long)small_int * <large>LL` patterns into
-     * int32 multiplications that wrap (187 × 1e9 came out 2,316,406,272
-     * = 187e9 mod 2^32, exposed via the user's Date.now() returning
-     * 2316406 ms exactly). That same pattern is used by the GetSysTime
-     * + offset capture math; the wrapped offset zeroed out and the read
-     * path effectively returned since-boot µs.
-     *
-     * The DateStamp fallback below uses `(long long)sec * 1000000LL`
-     * where sec is a 32-bit value that has never been observed to
-     * misbehave — we sample sec as int32, multiply once, no chained
-     * int64-int64 multiply. 20ms granularity but epoch-correct.
-     *
-     * GetSysTime + µs precision will return once we have a separate
-     * int64-multiply test harness that confirms safe patterns. The
-     * _qjs_time_offset_us variable is kept so qjs_timer_init's capture
-     * write doesn't change shape (and so a future fix can re-enable the
-     * fast path with a single edit), but it's no longer read here. */
     if (_qjs_DOSBase) {
         long sec, usec;
         __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
@@ -407,7 +401,8 @@ long long _qjs_time_us(void)
             + (long)_qjs_ds.ds_Tick / 50L
             + QJS_AMIGA_UNIX_EPOCH_DIFF;
         usec = ((long)_qjs_ds.ds_Tick % 50L) * 20000L;
-        return (long long)sec * 1000000LL + (long long)usec;
+        return _mulint64_020((long long)sec, 1000000LL)
+               + (long long)usec;
     }
 
     return 0;
