@@ -381,26 +381,24 @@ static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
 
 long long _qjs_time_us(void)
 {
-    /* DIAGNOSTIC at 0.187: hardcoded return = LIBRARY_VERSION × 1e9 µs.
-     * Date.now() should report ~187_000_000 ms = 187,000 sec ≈ 1976-12-08.
-     * If user sees that, the library's _qjs_time_us IS being called and
-     * we know the version that's actually loaded. If user sees since-boot
-     * µs, then JS Date.now() is calling a different _qjs_time_us (cached
-     * old library, or wrong symbol resolution path). */
-    return (long long)LIBRARY_VERSION * 1000000000LL;
-
-    /* Preferred path: timer.device GetSysTime — µs resolution. The
-     * offset rebases since-boot µs into Unix-epoch µs (captured once at
-     * qjs_timer_init from a paired DateStamp+GetSysTime read). */
-    if (_qjs_TimerBase) {
-        struct timeval tv;
-        __qjs_GetSysTime(_qjs_TimerBase, &tv);
-        return (long long)tv.tv_secs * 1000000LL
-               + (long long)tv.tv_micro
-               + _qjs_time_offset_us;
-    }
-
-    /* Fallback: 20ms-granular DateStamp (only if timer.device unavailable). */
+    /* 0.188: DateStamp-only. The 0.187 diagnostic proved VBCC at -O1 is
+     * miscompiling `(long long)small_int * <large>LL` patterns into
+     * int32 multiplications that wrap (187 × 1e9 came out 2,316,406,272
+     * = 187e9 mod 2^32, exposed via the user's Date.now() returning
+     * 2316406 ms exactly). That same pattern is used by the GetSysTime
+     * + offset capture math; the wrapped offset zeroed out and the read
+     * path effectively returned since-boot µs.
+     *
+     * The DateStamp fallback below uses `(long long)sec * 1000000LL`
+     * where sec is a 32-bit value that has never been observed to
+     * misbehave — we sample sec as int32, multiply once, no chained
+     * int64-int64 multiply. 20ms granularity but epoch-correct.
+     *
+     * GetSysTime + µs precision will return once we have a separate
+     * int64-multiply test harness that confirms safe patterns. The
+     * _qjs_time_offset_us variable is kept so qjs_timer_init's capture
+     * write doesn't change shape (and so a future fix can re-enable the
+     * fast path with a single edit), but it's no longer read here. */
     if (_qjs_DOSBase) {
         long sec, usec;
         __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
