@@ -1002,6 +1002,59 @@ static JSValue js_crypto_getRandomValues(JSContext *ctx, JSValueConst this_val,
     return JS_DupValue(ctx, argv[0]);
 }
 
+/* ==================================================================
+ * Float64 wall-clock timestamp — bypasses VBCC's broken int64 ops.
+ *
+ * VBCC at every optimization level miscompiles `(long long)int * <small>LL`
+ * (truncates to 32-bit multiply) AND `int64 / 1000` (truncates to 32-bit
+ * divide). Together these poison Date.now() / os.now() / setTimeout
+ * timing for any timestamp larger than ~2^31 µs (~36 minutes since boot).
+ *
+ * Workaround: compute Unix-epoch ms entirely in float64. mathieeedoubbas
+ * (used by VBCC's softfloat) is the AmigaOS-standard math library and
+ * has been verified to produce correct doubles (Math.E bit pattern is
+ * exact). int32 → double conversion is also fine. extended.js installs
+ * this as `Date.now` so the JS-visible timestamp is correct.
+ *
+ * Granularity: 20 ms (DateStamp tick rate, 1/50s). Same as the existing
+ * fallback in qjsfuncs.c.
+ * ================================================================== */
+static JSValue js_qjs_now_ms(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    struct DateStamp ds;
+    long sec_int32, ms_portion;
+    double ms;
+
+    /* DateStamp from <proto/dos.h>, bound via the DOSBase global at
+     * the top of this file. */
+    DateStamp(&ds);
+
+    /* Amiga epoch: 1978-01-01. Unix epoch: 1970-01-01. Difference is
+     * 2922 days = 252,460,800 seconds. Sum fits in signed int32 until
+     * 2038-01-19 (the Y2038 boundary). */
+    sec_int32 = (long)ds.ds_Days * 86400L
+              + (long)ds.ds_Minute * 60L
+              + (long)ds.ds_Tick / 50L
+              + 252460800L;
+    ms_portion = ((long)ds.ds_Tick % 50L) * 20L;
+
+    /* Promote to double here, where VBCC's broken int64 path can't
+     * touch us. (double)int32 * (double)1000.0 goes through the
+     * mathieeedoubbas LVOs and produces the correct value. */
+    ms = (double)sec_int32 * 1000.0 + (double)ms_portion;
+    return JS_NewFloat64(ctx, ms);
+}
+
+void qjs_install_now_ms_global(JSContext *ctx)
+{
+    JSValue global, fn;
+    global = JS_GetGlobalObject(ctx);
+    fn = JS_NewCFunction(ctx, js_qjs_now_ms, "__qjs_now_ms", 0);
+    JS_SetPropertyStr(ctx, global, "__qjs_now_ms", fn);
+    JS_FreeValue(ctx, global);
+}
+
 /* Installs globalThis.__qjs_cryptoDigest and globalThis.__qjs_cryptoRandom
  * so extended.js's crypto manifest can wrap them in WebCrypto shape. */
 void qjs_install_crypto_global(JSContext *ctx)

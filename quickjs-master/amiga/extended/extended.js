@@ -24,6 +24,26 @@
 import * as std from 'qjs:std';
 import * as os  from 'qjs:os';
 
+/* ----------------------------------------------------------
+ * Date.now — VBCC int64-mul / int64-div miscompile bypass.
+ *
+ * The library's date_now() does `js__gettimeofday_us() / 1000`, which
+ * routes through VBCC's broken int64 / 1000 (truncates the dividend to
+ * int32 first). Result wraps to a few-million-ms value regardless of
+ * actual wall time. The same class of bug also corrupts the µs-side
+ * multiply in qjsfuncs.c's _qjs_time_us.
+ *
+ * `globalThis.__qjs_now_ms` (installed by quickjs_libc_lib.c's
+ * qjs_install_now_ms_global before this script runs) computes ms in
+ * float64 — int32 sec sum, promoted to double, multiplied by 1000.0
+ * via mathieeedoubbas which IS verified-working on this build.
+ * ---------------------------------------------------------- */
+if (typeof globalThis.__qjs_now_ms === 'function') {
+    Date.now = function now() {
+        return globalThis.__qjs_now_ms();
+    };
+}
+
 /* ==========================================================
  * LocalManifest -- lightweight manifest for built-ins.
  *

@@ -381,21 +381,25 @@ static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
 
 long long _qjs_time_us(void)
 {
-    /* DIAGNOSTIC at 0.190: hardcoded return = 1,778,500,000,000,000 µs
-     * (a literal int64 constant near today's epoch µs). NO multiply,
-     * NO computation — just a return of the int64 literal.
-     *
-     * date_now() in quickjs.c does `_qjs_time_us() / 1000`. If the
-     * divide and JSValue conversion paths work correctly, Date.now()
-     * should return 1,778,500,000,000 ms (a 13-digit number, ≈ today).
-     *
-     * If user sees that → the entire path post-_qjs_time_us is fine,
-     *   and the issue is specifically in the multiply (or its
-     *   absence — my _mulint64_020 call may have been folded back to
-     *   the broken inline by VBCC's built-in knowledge).
-     * If user sees ~few-million ms → the int64 / 1000 in date_now is
-     *   ALSO miscompiled, and we need to work around that too. */
-    return 1778500000000000LL;
+    /* DateStamp-only path. Used by random_state init, hrtime helpers,
+     * and other internal callers that go through cutils.h's
+     * js__gettimeofday_us. NOTE: this value is ROUTED THROUGH VBCC's
+     * broken int64 ops in any caller that does `/ 1000` on it (notably
+     * date_now() in quickjs.c) — Date.now() / os.now() therefore go
+     * through the JS-level override installed by extended.js, which
+     * calls __qjs_now_ms (a float64-only path) instead. */
+    if (_qjs_DOSBase) {
+        long sec, usec;
+        __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
+        sec = (long)_qjs_ds.ds_Days * 86400L
+            + (long)_qjs_ds.ds_Minute * 60L
+            + (long)_qjs_ds.ds_Tick / 50L
+            + QJS_AMIGA_UNIX_EPOCH_DIFF;
+        usec = ((long)_qjs_ds.ds_Tick % 50L) * 20000L;
+        return (long long)sec * 1000000LL + (long long)usec;
+    }
+
+    return 0;
 }
 
 /* ---- W7: networking capability probe ----
@@ -716,6 +720,13 @@ extern void js_std_eval_binary(struct JSContext *ctx, const unsigned char *buf,
 
 void QJS_InstallExtended_impl(struct JSContext *ctx)
 {
+    /* Install __qjs_now_ms BEFORE extended.js runs — extended.js
+     * overrides Date.now to call this float64-only timestamp source,
+     * sidestepping VBCC's broken int64 ops in date_now() / Date.now's
+     * intrinsic path. */
+    extern void qjs_install_now_ms_global(struct JSContext *ctx);
+    qjs_install_now_ms_global(ctx);
+
     /* Q1: extended.js — installs globalThis.amiga (raw FFI primitives,
      * 76 LVO tables) and the rest of the Node-compat surface. */
     js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
