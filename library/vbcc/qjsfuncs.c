@@ -379,33 +379,23 @@ static void qjs_timer_cleanup(LIBRARY_BASE_TYPE *aBase)
     }
 }
 
-/* VBCC at -O1 inlines `(long long)int32 * 1000000LL` as a 32-bit mulu.l
- * that truncates the product to the low 32 bits — the runtime int64
- * helper __mulint64_020 in sharedlib_int64_soft.s never gets called.
- * 0.188 demonstrated this: Date.now() advanced correctly in real time
- * but the magnitude was 1.78e6× too small (= sec*1e6 mod 2^32 / 1000).
- *
- * Calling the helper explicitly forces a real 64×64 multiply. The asm
- * xdef is `__mulint64_020` (two underscores). VBCC's C compiler adds a
- * leading underscore prefix to C symbol names at codegen time, so the
- * matching C declaration uses ONE underscore — gets prefixed to two. */
-extern long long _mulint64_020(long long a, long long b);
-
 long long _qjs_time_us(void)
 {
-    if (_qjs_DOSBase) {
-        long sec, usec;
-        __qjs_DateStamp(_qjs_DOSBase, &_qjs_ds);
-        sec = (long)_qjs_ds.ds_Days * 86400L
-            + (long)_qjs_ds.ds_Minute * 60L
-            + (long)_qjs_ds.ds_Tick / 50L
-            + QJS_AMIGA_UNIX_EPOCH_DIFF;
-        usec = ((long)_qjs_ds.ds_Tick % 50L) * 20000L;
-        return _mulint64_020((long long)sec, 1000000LL)
-               + (long long)usec;
-    }
-
-    return 0;
+    /* DIAGNOSTIC at 0.190: hardcoded return = 1,778,500,000,000,000 µs
+     * (a literal int64 constant near today's epoch µs). NO multiply,
+     * NO computation — just a return of the int64 literal.
+     *
+     * date_now() in quickjs.c does `_qjs_time_us() / 1000`. If the
+     * divide and JSValue conversion paths work correctly, Date.now()
+     * should return 1,778,500,000,000 ms (a 13-digit number, ≈ today).
+     *
+     * If user sees that → the entire path post-_qjs_time_us is fine,
+     *   and the issue is specifically in the multiply (or its
+     *   absence — my _mulint64_020 call may have been folded back to
+     *   the broken inline by VBCC's built-in knowledge).
+     * If user sees ~few-million ms → the int64 / 1000 in date_now is
+     *   ALSO miscompiled, and we need to work around that too. */
+    return 1778500000000000LL;
 }
 
 /* ---- W7: networking capability probe ----
