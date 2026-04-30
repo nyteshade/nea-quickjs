@@ -1019,35 +1019,38 @@ static JSValue js_crypto_getRandomValues(JSContext *ctx, JSValueConst this_val,
  * Granularity: 20 ms (DateStamp tick rate, 1/50s). Same as the existing
  * fallback in qjsfuncs.c.
  * ================================================================== */
-/* Cross-TU helpers in sharedlib_dbl_helpers.c. VBCC has no LTO, so
- * calls into another .c file are emitted as real bsr — defeats the
- * `(double)int * literal_double -> int32 mul` collapse observed at
- * 0.191/0.192 with intra-TU casts and volatile constants. */
-extern double qjs_dbl_from_long(long x);
-extern double qjs_dbl_mul(double a, double b);
-extern double qjs_dbl_add(double a, double b);
-
-static JSValue js_qjs_now_ms(JSContext *ctx, JSValueConst this_val,
-                              int argc, JSValueConst *argv)
+/* 0.195: expose DateStamp components as small ints, let JS do the
+ * timestamp math. Bypasses two VBCC miscompiles in one shot:
+ *   1. JS_NewFloat64 under NAN_BOXING uses int64 sub + shift; both
+ *      observed broken at -O1 (0.194 hardcoded literal 1.7785e12 came
+ *      back as 383539456 = literal mod 2^32).
+ *   2. (double)int * literal_double folds to int32 multiply that wraps
+ *      (0.191/0.192/0.193 returned sec*1000 mod 2^32).
+ * Each component fits trivially in int32, so JS_NewInt32 takes the
+ * fast path that doesn't need int64 ops. JS does the multiply with
+ * native double precision via the engine — no broken VBCC C-side
+ * arithmetic in the loop. */
+static JSValue js_qjs_datestamp(JSContext *ctx, JSValueConst this_val,
+                                 int argc, JSValueConst *argv)
 {
-    /* DIAGNOSTIC at 0.194: hardcoded literal double — verifies the
-     * extended.js Date.now override + JS_NewFloat64 + Number→print
-     * path independent of VBCC's int→double / int*double miscompiles.
-     *
-     * If user sees 1778500000000 (constant 13-digit) → JS path is good,
-     *   bug is in my C math (cross-TU helpers not being called or
-     *   the multiply via mathieeedoubbas LVO is itself wrong).
-     * If user sees ~3.6e9 → extended.js override didn't take, or
-     *   JS_NewFloat64 is broken. */
-    return JS_NewFloat64(ctx, 1778500000000.0);
+    struct DateStamp ds;
+    JSValue obj;
+
+    sl_DateStamp_lib(&ds);
+
+    obj = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, obj, "days",   JS_NewInt32(ctx, (int32_t)ds.ds_Days));
+    JS_SetPropertyStr(ctx, obj, "minute", JS_NewInt32(ctx, (int32_t)ds.ds_Minute));
+    JS_SetPropertyStr(ctx, obj, "tick",   JS_NewInt32(ctx, (int32_t)ds.ds_Tick));
+    return obj;
 }
 
 void qjs_install_now_ms_global(JSContext *ctx)
 {
     JSValue global, fn;
     global = JS_GetGlobalObject(ctx);
-    fn = JS_NewCFunction(ctx, js_qjs_now_ms, "__qjs_now_ms", 0);
-    JS_SetPropertyStr(ctx, global, "__qjs_now_ms", fn);
+    fn = JS_NewCFunction(ctx, js_qjs_datestamp, "__qjs_datestamp", 0);
+    JS_SetPropertyStr(ctx, global, "__qjs_datestamp", fn);
     JS_FreeValue(ctx, global);
 }
 

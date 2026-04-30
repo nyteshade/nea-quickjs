@@ -27,20 +27,29 @@ import * as os  from 'qjs:os';
 /* ----------------------------------------------------------
  * Date.now — VBCC int64-mul / int64-div miscompile bypass.
  *
- * The library's date_now() does `js__gettimeofday_us() / 1000`, which
- * routes through VBCC's broken int64 / 1000 (truncates the dividend to
- * int32 first). Result wraps to a few-million-ms value regardless of
- * actual wall time. The same class of bug also corrupts the µs-side
- * multiply in qjsfuncs.c's _qjs_time_us.
+ * Two VBCC -O1 bugs poison the C-side timestamp paths on this build:
+ *   1. `int64 / 1000` in date_now() truncates dividend to int32 first.
+ *   2. `(double)int * literal_double` collapses to int32 multiply.
+ *   3. `JS_NewFloat64` under NAN_BOXING uses int64 sub + shift, which
+ *      ALSO misbehaves and truncates the resulting JSValue to int32
+ *      of the integer-valued double.
  *
- * `globalThis.__qjs_now_ms` (installed by quickjs_libc_lib.c's
- * qjs_install_now_ms_global before this script runs) computes ms in
- * float64 — int32 sec sum, promoted to double, multiplied by 1000.0
- * via mathieeedoubbas which IS verified-working on this build.
+ * `globalThis.__qjs_datestamp` (installed by quickjs_libc_lib.c) just
+ * returns the three small int components of an OS DateStamp. Each
+ * fits trivially in int32 — JS_NewInt32 takes the fast path, no int64
+ * arithmetic involved. JS does the rest of the math here using native
+ * Number (double) arithmetic, where the engine handles double ops via
+ * mathieeedoubbas and produces correct values (verified-working).
  * ---------------------------------------------------------- */
-if (typeof globalThis.__qjs_now_ms === 'function') {
+if (typeof globalThis.__qjs_datestamp === 'function') {
     Date.now = function now() {
-        return globalThis.__qjs_now_ms();
+        const ds = globalThis.__qjs_datestamp();
+        /* Amiga epoch 1978-01-01 → Unix epoch 1970-01-01 = 252,460,800 sec.
+         * ds.tick is 1/50s (20 ms) units; integer seconds is tick/50,
+         * remainder gives ms-portion via (tick % 50) * 20. */
+        const sec = ds.days * 86400 + ds.minute * 60
+                  + Math.floor(ds.tick / 50) + 252460800;
+        return sec * 1000 + (ds.tick % 50) * 20;
     };
 }
 
