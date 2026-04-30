@@ -50,11 +50,19 @@ CPU ?= 68020
 # Common compiler flags
 AMISSL_SDK = $(ROOT)/sdks/AmiSSL-v5.26-SDK/Developer/include
 CFLAGS_COMMON = +aos68k -c -cpu=$(CPU) -O1 \
+         -DJS_NAN_BOXING=0 \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
          -I$(AMISSL_SDK) \
          -I$(INCLUDE) -I$(QJS) \
          -I$(TEMPLATE) -I$(LIBVBCC)
+# JS_NAN_BOXING=0: VBCC at -O1 (and lower) miscompiles the int64 ops
+# that NAN-boxed JSValue construction/extraction requires. User-tested
+# at 0.196: Number.MAX_SAFE_INTEGER showed as 4294967295 = 2^53-1
+# truncated to its low 32 bits, proving every JS_NewFloat64 call
+# corrupts large doubles. Forcing struct-based JSValue (16 bytes,
+# int64_t tag) eliminates the int64 sub+shift NaN-box math from every
+# float construction site at once.
 
 # CPU tag (020, 040, 060) used in $VER string and filenames
 ifeq ($(CPU),68020)

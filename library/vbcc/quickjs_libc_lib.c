@@ -1035,13 +1035,20 @@ static JSValue js_crypto_getRandomValues(JSContext *ctx, JSValueConst this_val,
 static JSValue js_qjs_now_ms_str(JSContext *ctx, JSValueConst this_val,
                                   int argc, JSValueConst *argv)
 {
-    /* DIAGNOSTIC at 0.197: hardcoded literal string. If user sees
-     * 1778500000123 from Date.now() → JS Number(str) path works and
-     * the previous failure (~3.6e9) was either (a) cached library,
-     * (b) bad snprintf output for %ld at large values, or (c) some
-     * extended.js issue. If user sees ~3.6e9, the override didn't
-     * take or Number()/JS_NewString are broken. */
-    return JS_NewString(ctx, "1778500000123");
+    struct DateStamp ds;
+    long sec_int32, ms_portion;
+    char buf[32];
+
+    sl_DateStamp_lib(&ds);
+
+    sec_int32 = (long)ds.ds_Days * 86400L
+              + (long)ds.ds_Minute * 60L
+              + (long)ds.ds_Tick / 50L
+              + 252460800L;
+    ms_portion = ((long)ds.ds_Tick % 50L) * 20L;
+
+    snprintf(buf, sizeof(buf), "%ld%03ld", sec_int32, ms_portion);
+    return JS_NewString(ctx, buf);
 }
 
 void qjs_install_now_ms_global(JSContext *ctx)
