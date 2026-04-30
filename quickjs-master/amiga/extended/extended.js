@@ -41,15 +41,12 @@ import * as os  from 'qjs:os';
  * Number (double) arithmetic, where the engine handles double ops via
  * mathieeedoubbas and produces correct values (verified-working).
  * ---------------------------------------------------------- */
-if (typeof globalThis.__qjs_datestamp === 'function') {
+if (typeof globalThis.__qjs_now_ms_str === 'function') {
     Date.now = function now() {
-        const ds = globalThis.__qjs_datestamp();
-        /* Amiga epoch 1978-01-01 → Unix epoch 1970-01-01 = 252,460,800 sec.
-         * ds.tick is 1/50s (20 ms) units; integer seconds is tick/50,
-         * remainder gives ms-portion via (tick % 50) * 20. */
-        const sec = ds.days * 86400 + ds.minute * 60
-                  + Math.floor(ds.tick / 50) + 252460800;
-        return sec * 1000 + (ds.tick % 50) * 20;
+        /* C side returns "<sec_digits><3 ms-digits>" as a string. JS
+         * Number() parses via strtod, never multiplies int*int → so
+         * the engine's broken int64 multiplication path is bypassed. */
+        return Number(globalThis.__qjs_now_ms_str());
     };
 }
 

@@ -1019,38 +1019,47 @@ static JSValue js_crypto_getRandomValues(JSContext *ctx, JSValueConst this_val,
  * Granularity: 20 ms (DateStamp tick rate, 1/50s). Same as the existing
  * fallback in qjsfuncs.c.
  * ================================================================== */
-/* 0.195: expose DateStamp components as small ints, let JS do the
- * timestamp math. Bypasses two VBCC miscompiles in one shot:
- *   1. JS_NewFloat64 under NAN_BOXING uses int64 sub + shift; both
- *      observed broken at -O1 (0.194 hardcoded literal 1.7785e12 came
- *      back as 383539456 = literal mod 2^32).
- *   2. (double)int * literal_double folds to int32 multiply that wraps
- *      (0.191/0.192/0.193 returned sec*1000 mod 2^32).
- * Each component fits trivially in int32, so JS_NewInt32 takes the
- * fast path that doesn't need int64 ops. JS does the multiply with
- * native double precision via the engine — no broken VBCC C-side
- * arithmetic in the loop. */
-static JSValue js_qjs_datestamp(JSContext *ctx, JSValueConst this_val,
-                                 int argc, JSValueConst *argv)
+/* 0.196: format the timestamp as a decimal string in C, then let JS
+ * parse it via Number() — bypasses JS engine's broken int*int->int64
+ * multiplication entirely. quickjs.c:19418's OP_mul does
+ *   `r = (int64_t)v1 * v2; if ((int)r != r) {promote-to-double}`
+ * — VBCC inlines the int64 multiply as a 32-bit mulu.l that wraps,
+ * AND the (int)r != r comparison is also an int64 op that VBCC
+ * mishandles. So the engine misses the overflow and stores a wrapped
+ * int32 instead of promoting to double.
+ *
+ * snprintf("%ld%03ld", sec, ms_portion) needs only int32 args. JS
+ * Number(str) uses strtod (no int multiply). The complete bypass
+ * delivers correct epoch ms without ever touching VBCC's int64
+ * codegen or JS_NewFloat64's NaN-boxing math. */
+static JSValue js_qjs_now_ms_str(JSContext *ctx, JSValueConst this_val,
+                                  int argc, JSValueConst *argv)
 {
     struct DateStamp ds;
-    JSValue obj;
+    long sec_int32, ms_portion;
+    char buf[32];
 
     sl_DateStamp_lib(&ds);
 
-    obj = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, obj, "days",   JS_NewInt32(ctx, (int32_t)ds.ds_Days));
-    JS_SetPropertyStr(ctx, obj, "minute", JS_NewInt32(ctx, (int32_t)ds.ds_Minute));
-    JS_SetPropertyStr(ctx, obj, "tick",   JS_NewInt32(ctx, (int32_t)ds.ds_Tick));
-    return obj;
+    /* Both sums fit in signed int32 until 2038. */
+    sec_int32 = (long)ds.ds_Days * 86400L
+              + (long)ds.ds_Minute * 60L
+              + (long)ds.ds_Tick / 50L
+              + 252460800L;
+    ms_portion = ((long)ds.ds_Tick % 50L) * 20L;
+
+    /* "%ld%03ld" stitches the two int32s into a decimal ms string
+     * naturally — sec*1000 + ms_portion is just <sec_digits><3 ms digits>. */
+    snprintf(buf, sizeof(buf), "%ld%03ld", sec_int32, ms_portion);
+    return JS_NewString(ctx, buf);
 }
 
 void qjs_install_now_ms_global(JSContext *ctx)
 {
     JSValue global, fn;
     global = JS_GetGlobalObject(ctx);
-    fn = JS_NewCFunction(ctx, js_qjs_datestamp, "__qjs_datestamp", 0);
-    JS_SetPropertyStr(ctx, global, "__qjs_datestamp", fn);
+    fn = JS_NewCFunction(ctx, js_qjs_now_ms_str, "__qjs_now_ms_str", 0);
+    JS_SetPropertyStr(ctx, global, "__qjs_now_ms_str", fn);
     JS_FreeValue(ctx, global);
 }
 
