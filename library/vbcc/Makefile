@@ -142,6 +142,7 @@ FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
               $(OBJDIR_FPU)/sharedlib_printf.o \
               $(OBJDIR_FPU)/sharedlib_vbcc.o \
               $(OBJDIR_FPU)/sharedlib_int64.o \
+              $(OBJDIR_FPU)/sharedlib_dbl_helpers.o \
               $(OBJDIR_FPU)/sharedlib_posix.o \
               $(OBJDIR_FPU)/sharedlib_stdio.o \
               $(OBJDIR_FPU)/sharedlib_clib.o \
@@ -174,6 +175,7 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
                $(OBJDIR_SOFT)/sharedlib_vbcc.o \
                $(OBJDIR_SOFT)/sharedlib_int64_soft.o \
                $(OBJDIR_SOFT)/sharedlib_int64_conv.o \
+               $(OBJDIR_SOFT)/sharedlib_dbl_helpers.o \
                $(OBJDIR_SOFT)/sharedlib_posix.o \
                $(OBJDIR_SOFT)/sharedlib_stdio.o \
                $(OBJDIR_SOFT)/sharedlib_clib.o \
@@ -331,6 +333,9 @@ $(OBJDIR_FPU)/sharedlib_math_soft.o: $(LIBVBCC)/sharedlib_math_soft.c | $(OBJDIR
 $(OBJDIR_FPU)/sharedlib_int64_conv.o: $(LIBVBCC)/sharedlib_int64_conv.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/sharedlib_dbl_helpers.o: $(LIBVBCC)/sharedlib_dbl_helpers.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
 $(OBJDIR_FPU)/sharedlib_time.o: $(LIBVBCC)/sharedlib_time.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
@@ -455,6 +460,9 @@ $(OBJDIR_SOFT)/sharedlib_fetch.o: $(LIBVBCC)/sharedlib_fetch.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_int64_conv.o: $(LIBVBCC)/sharedlib_int64_conv.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_dbl_helpers.o: $(LIBVBCC)/sharedlib_dbl_helpers.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT):

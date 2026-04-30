@@ -1019,40 +1019,39 @@ static JSValue js_crypto_getRandomValues(JSContext *ctx, JSValueConst this_val,
  * Granularity: 20 ms (DateStamp tick rate, 1/50s). Same as the existing
  * fallback in qjsfuncs.c.
  * ================================================================== */
+/* Cross-TU helpers in sharedlib_dbl_helpers.c. VBCC has no LTO, so
+ * calls into another .c file are emitted as real bsr — defeats the
+ * `(double)int * literal_double -> int32 mul` collapse observed at
+ * 0.191/0.192 with intra-TU casts and volatile constants. */
+extern double qjs_dbl_from_long(long x);
+extern double qjs_dbl_mul(double a, double b);
+extern double qjs_dbl_add(double a, double b);
+
 static JSValue js_qjs_now_ms(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
     struct DateStamp ds;
     long sec_int32, ms_portion;
-    double sec_double, ms_portion_double, ms;
-    /* Volatile defeats VBCC's "(double)int * literal_double" collapse
-     * to int32 multiply observed at 0.191. With the constant in a
-     * volatile slot the compiler must do a true memory load, which
-     * forces a real double-double multiply. */
-    volatile double thousand = 1000.0;
+    double sec_double, ms_portion_double, sec_ms_double, ms;
 
-    /* sl_DateStamp_lib uses the explicit-asm __reg("a6")/(a1) form
-     * routed through the DOSBase global, same pattern js_crypto_*
-     * already uses successfully — avoids relying on <proto/dos.h>'s
-     * inline form which may have a corruption bug here (Guru 80000003
-     * observed at 0.191 after several Date.now() calls). */
+    /* sl_DateStamp_lib: explicit-asm __reg pattern (same as
+     * js_crypto_getRandomValues uses). */
     sl_DateStamp_lib(&ds);
 
-    /* Amiga epoch: 1978-01-01. Unix epoch: 1970-01-01. Difference is
-     * 2922 days = 252,460,800 seconds. Sum fits in signed int32 until
-     * 2038-01-19 (the Y2038 boundary). */
+    /* Amiga epoch 1978-01-01 → Unix epoch 1970-01-01. Sum fits in
+     * signed int32 until 2038-01-19. */
     sec_int32 = (long)ds.ds_Days * 86400L
               + (long)ds.ds_Minute * 60L
               + (long)ds.ds_Tick / 50L
               + 252460800L;
     ms_portion = ((long)ds.ds_Tick % 50L) * 20L;
 
-    /* Split into separate statements so VBCC can't fuse `(double)x *
-     * 1000.0` into one int-multiply-then-convert. Volatile load of
-     * `thousand` ensures the multiplicand is a true runtime double. */
-    sec_double = (double)sec_int32;
-    ms_portion_double = (double)ms_portion;
-    ms = sec_double * thousand + ms_portion_double;
+    /* Each cross-TU call is opaque to VBCC's optimizer — must emit a
+     * real double-domain operation via mathieeedoubbas. */
+    sec_double = qjs_dbl_from_long(sec_int32);
+    ms_portion_double = qjs_dbl_from_long(ms_portion);
+    sec_ms_double = qjs_dbl_mul(sec_double, 1000.0);
+    ms = qjs_dbl_add(sec_ms_double, ms_portion_double);
 
     return JS_NewFloat64(ctx, ms);
 }
