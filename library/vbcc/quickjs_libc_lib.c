@@ -1030,30 +1030,16 @@ extern double qjs_dbl_add(double a, double b);
 static JSValue js_qjs_now_ms(JSContext *ctx, JSValueConst this_val,
                               int argc, JSValueConst *argv)
 {
-    struct DateStamp ds;
-    long sec_int32, ms_portion;
-    double sec_double, ms_portion_double, sec_ms_double, ms;
-
-    /* sl_DateStamp_lib: explicit-asm __reg pattern (same as
-     * js_crypto_getRandomValues uses). */
-    sl_DateStamp_lib(&ds);
-
-    /* Amiga epoch 1978-01-01 → Unix epoch 1970-01-01. Sum fits in
-     * signed int32 until 2038-01-19. */
-    sec_int32 = (long)ds.ds_Days * 86400L
-              + (long)ds.ds_Minute * 60L
-              + (long)ds.ds_Tick / 50L
-              + 252460800L;
-    ms_portion = ((long)ds.ds_Tick % 50L) * 20L;
-
-    /* Each cross-TU call is opaque to VBCC's optimizer — must emit a
-     * real double-domain operation via mathieeedoubbas. */
-    sec_double = qjs_dbl_from_long(sec_int32);
-    ms_portion_double = qjs_dbl_from_long(ms_portion);
-    sec_ms_double = qjs_dbl_mul(sec_double, 1000.0);
-    ms = qjs_dbl_add(sec_ms_double, ms_portion_double);
-
-    return JS_NewFloat64(ctx, ms);
+    /* DIAGNOSTIC at 0.194: hardcoded literal double — verifies the
+     * extended.js Date.now override + JS_NewFloat64 + Number→print
+     * path independent of VBCC's int→double / int*double miscompiles.
+     *
+     * If user sees 1778500000000 (constant 13-digit) → JS path is good,
+     *   bug is in my C math (cross-TU helpers not being called or
+     *   the multiply via mathieeedoubbas LVO is itself wrong).
+     * If user sees ~3.6e9 → extended.js override didn't take, or
+     *   JS_NewFloat64 is broken. */
+    return JS_NewFloat64(ctx, 1778500000000.0);
 }
 
 void qjs_install_now_ms_global(JSContext *ctx)
