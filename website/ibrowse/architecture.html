@@ -1,0 +1,53 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>nea-quickjs - Architecture</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <link rel="stylesheet" type="text/css" href="site.css">
+</head>
+<body>
+<div class="page">
+  <div class="top"><h1>Architecture</h1><p>The library is the product; the CLI is a client.</p></div>
+  <div class="nav">
+    <a href="index.html">Home</a><a href="install.html">Install</a><a href="architecture.html">Architecture</a><a href="api.html">API</a><a href="reaction.html">Reaction</a><a href="examples.html">Examples</a><a href="roadmap.html">Roadmap</a>
+  </div>
+  <div class="content">
+    <div class="box">
+      <h2>Component map</h2>
+      <table class="data">
+        <tr><th>Component</th><th>Responsibility</th></tr>
+        <tr><td><tt>quickjs.library</tt></td><td>QuickJS-ng engine, std/os/bjson, Amiga libc shims, fetch, worker primitive, FFI, Node-style extensions, and GUI wrappers.</td></tr>
+        <tr><td><tt>qjs</tt></td><td>Small command shell: argument parsing, startup/config handling, REPL bootstrap, and calls into the library through LVOs.</td></tr>
+        <tr><td><tt>extended.js</tt></td><td>Bundled JavaScript compatibility layer for Node-style and web-style APIs.</td></tr>
+        <tr><td><tt>amiga/ffi</tt></td><td>JavaScript wrappers for Amiga libraries, structs, enumerations, tag lists, and raw calls.</td></tr>
+        <tr><td><tt>amiga.boopsi</tt></td><td>Object-oriented Reaction and BOOPSI layer built on top of the raw FFI bridge.</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>AmigaOS library rules</h2>
+      <ul>
+        <li>All JavaScript-facing functionality belongs in <tt>quickjs.library</tt>, not in a special CLI binary.</li>
+        <li>The shared library avoids normal C startup assumptions. It calls dos.library and exec.library directly where needed.</li>
+        <li>Functions exposed through the library use <tt>QJS_</tt> names to make ABI differences explicit.</li>
+        <li>Values that cannot cross the 68k library jump table directly, such as <tt>JSValue</tt>, use output pointers.</li>
+        <li>Each CPU/FPU variant carries a self-identifying <tt>$VER:</tt> string.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h2>Runtime flow</h2>
+      <pre>qjs
+  opens LIBS:quickjs.library
+  creates JSRuntime and JSContext
+  installs std/os/bjson and extended APIs
+  evaluates startup file, script, -e input, or REPL
+  drains jobs and timers through library helpers</pre>
+    </div>
+    <div class="box">
+      <h2>Native integration</h2>
+      <p>The port replaces missing POSIX assumptions with Amiga implementations: file I/O through dos.library, time through DateStamp/timer.device, console raw mode through Amiga console handlers, networking through bsdsocket.library, TLS through AmiSSL where available, and GUI through Intuition/Reaction.</p>
+    </div>
+  </div>
+  <div class="footer">Use <tt>api.html</tt> for developer-facing surfaces.</div>
+</div>
+</body>
+</html>

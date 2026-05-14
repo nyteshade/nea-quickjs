@@ -1,0 +1,49 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>nea-quickjs - Roadmap</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <link rel="stylesheet" type="text/css" href="site.css">
+</head>
+<body>
+<div class="page">
+  <div class="top"><h1>Roadmap</h1><p>What is solid, what is partial, and what comes next.</p></div>
+  <div class="nav">
+    <a href="index.html">Home</a><a href="install.html">Install</a><a href="architecture.html">Architecture</a><a href="api.html">API</a><a href="reaction.html">Reaction</a><a href="examples.html">Examples</a><a href="roadmap.html">Roadmap</a>
+  </div>
+  <div class="content">
+    <div class="box">
+      <h2>Current strengths</h2>
+      <ul>
+        <li>Shared library architecture is established.</li>
+        <li>CLI, REPL, modules, std/os/bjson, and Amiga file I/O are working parts of the platform.</li>
+        <li>Node-style compatibility has meaningful coverage for common scripts.</li>
+        <li>Reaction/BOOPSI wrappers are deep enough for native GUI applications.</li>
+        <li>Six CPU/FPU library variants are tracked by the build.</li>
+      </ul>
+    </div>
+    <div class="box">
+      <h2>Known partial areas</h2>
+      <table class="data">
+        <tr><th>Area</th><th>Reason</th></tr>
+        <tr><td>Full Node parity</td><td>Classic AmigaOS does not have fork, V8, daemon service assumptions, or POSIX process semantics.</td></tr>
+        <tr><td>Streams</td><td>Useful push-mode subset exists; full backpressure is not implemented.</td></tr>
+        <tr><td>Crypto</td><td>Common digests work; SHA-384/SHA-512 depend on AmiSSL availability.</td></tr>
+        <tr><td>Networking</td><td>fetch is the priority client API; raw socket APIs are future work.</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>Next directions</h2>
+      <ul>
+        <li>Keep improving child_process and worker-backed async consumers.</li>
+        <li>Broaden Amiga module discovery and native plugin loading.</li>
+        <li>Continue Reaction wrapper hardware validation and demo coverage.</li>
+        <li>Harden fetch and network capability reporting across real TCP/IP stacks.</li>
+        <li>Prepare a clean v1 release line once the API and packaging are stable.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer">Roadmap reflects source docs current to April 2026.</div>
+</div>
+</body>
+</html>

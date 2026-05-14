@@ -1,0 +1,48 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>nea-quickjs - Reaction</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <link rel="stylesheet" type="text/css" href="site.css">
+</head>
+<body>
+<div class="page">
+  <div class="top"><h1>Reaction and BOOPSI</h1><p>Native AmigaOS GUI programming from JavaScript.</p></div>
+  <div class="nav">
+    <a href="index.html">Home</a><a href="install.html">Install</a><a href="architecture.html">Architecture</a><a href="api.html">API</a><a href="reaction.html">Reaction</a><a href="examples.html">Examples</a><a href="roadmap.html">Roadmap</a>
+  </div>
+  <div class="content">
+    <div class="box">
+      <h2>Why it exists</h2>
+      <p>Raw Reaction code requires opening class libraries, finding class pointers, building tag lists, creating objects, dispatching BOOPSI methods, and translating IDCMP messages. The <tt>amiga.boopsi</tt> layer keeps the Amiga model visible but wraps the ceremony in JavaScript classes.</p>
+    </div>
+    <div class="box">
+      <h2>Wrapped classes</h2>
+      <table class="data">
+        <tr><th>Group</th><th>Classes</th></tr>
+        <tr><td>Windows and layout</td><td>Window, Layout, Page, Virtual, Space</td></tr>
+        <tr><td>Gadgets</td><td>Button, CheckBox, RadioButton, Slider, Scroller, Integer, StringGadget, Chooser, ClickTab, ListBrowser, Palette, FuelGauge, SpeedBar</td></tr>
+        <tr><td>Requesters</td><td>GetFile, GetFont, GetScreenMode, GetColor, DateBrowser, Requester</td></tr>
+        <tr><td>Images</td><td>Label, Led, Bevel, Glyph, Bitmap</td></tr>
+        <tr><td>Specialized</td><td>TextEditor, SketchBoard, TapeDeck, ColorWheel, GradientSlider</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>Event model</h2>
+      <p><tt>Window.events()</tt> yields rich events. It decodes Reaction's window-class input handling, maps gadget IDs back to JavaScript objects, and upgrades generic events to class-specific kinds such as <tt>BUTTON_CLICK</tt>, <tt>SLIDER_CHANGE</tt>, <tt>LIST_SELECT</tt>, and <tt>FILE_SELECTED</tt>.</p>
+      <pre>for (let evt of win.events()) {
+  if (evt.kind === EventKind.CLOSE_WINDOW) break;
+  if (evt.kind === EventKind.BUTTON_CLICK) {
+    print('button ' + evt.sourceId);
+  }
+}</pre>
+    </div>
+    <div class="box">
+      <h2>Tag lists still matter</h2>
+      <p>The wrapper accepts JavaScript object properties, but the implementation remains a BOOPSI tag-list system underneath. Advanced code can still drop to <tt>amiga.makeTags()</tt>, <tt>amiga.withTags()</tt>, <tt>amiga.openLibrary()</tt>, and <tt>amiga.call()</tt>.</p>
+    </div>
+  </div>
+  <div class="footer">Reaction requires the matching OS components in LIBS:.</div>
+</div>
+</body>
+</html>

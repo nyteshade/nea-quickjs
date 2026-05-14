@@ -1,0 +1,56 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>nea-quickjs - Install</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <link rel="stylesheet" type="text/css" href="site.css">
+</head>
+<body>
+<div class="page">
+  <div class="top"><h1>Install and Run</h1><p>Set up quickjs.library and qjs on AmigaOS.</p></div>
+  <div class="nav">
+    <a href="index.html">Home</a><a href="install.html">Install</a><a href="architecture.html">Architecture</a><a href="api.html">API</a><a href="reaction.html">Reaction</a><a href="examples.html">Examples</a><a href="roadmap.html">Roadmap</a>
+  </div>
+  <div class="content">
+    <div class="box">
+      <h2>Runtime layout</h2>
+      <p>Choose the library variant that matches the target machine and copy it to <tt>LIBS:quickjs.library</tt>. Put <tt>qjs</tt> somewhere on the command path, such as <tt>C:</tt> or a project-local tools drawer.</p>
+      <table class="data">
+        <tr><th>File</th><th>Use</th></tr>
+        <tr><td><tt>quickjs.020soft.library</tt></td><td>Safest baseline for 68020+ machines without requiring an FPU.</td></tr>
+        <tr><td><tt>quickjs.020fpu.library</tt></td><td>68020 or better with 68881/68882-compatible FPU.</td></tr>
+        <tr><td><tt>quickjs.040soft.library</tt></td><td>68040 scheduling, no FPU dependency.</td></tr>
+        <tr><td><tt>quickjs.040fpu.library</tt></td><td>68040-class systems with FPU.</td></tr>
+        <tr><td><tt>quickjs.060soft.library</tt></td><td>68060 scheduling, no FPU dependency.</td></tr>
+        <tr><td><tt>quickjs.060fpu.library</tt></td><td>Fast path for 68060 systems with FPU.</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>First commands</h2>
+      <pre>copy libs/quickjs.020soft.library LIBS:quickjs.library
+copy c/qjs C:qjs
+stack 65536
+qjs -e "print(100 + 110)"
+qjs examples/window_hello.js</pre>
+      <p>The 64K stack is not optional for serious scripts. The bytecode interpreter uses task stack, and the CLI performs a stack check so failures are clearer.</p>
+    </div>
+    <div class="box">
+      <h2>Configuration files</h2>
+      <table class="data">
+        <tr><th>Path</th><th>Purpose</th></tr>
+        <tr><td><tt>S:QJS-Config.txt</tt></td><td>Default command-line flags, one per line. Useful for setting <tt>--std</tt> or local policy.</td></tr>
+        <tr><td><tt>S:QJS-Startup.js</tt></td><td>Optional JavaScript loaded before REPL or script mode. Good for personal helpers and globals.</td></tr>
+      </table>
+    </div>
+    <div class="box">
+      <h2>Build from source</h2>
+      <pre>make lib
+make cli
+execute tests/run-tests.script</pre>
+      <p>Development builds use VBCC/SAS-C-era constraints and the Amiga shared library ABI. The source tree records the current packed-decimal version in <tt>library/vbcc/libraryconfig.h</tt>.</p>
+    </div>
+  </div>
+  <div class="footer">nea-quickjs documentation for old browsers.</div>
+</div>
+</body>
+</html>

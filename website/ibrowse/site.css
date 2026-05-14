@@ -1,0 +1,22 @@
+body { margin: 0; padding: 0; background: #28324a; color: #101018; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+a { color: #003f8c; }
+.page { width: 760px; margin: 0 auto; background: #f2f0dc; border-left: 2px solid #111; border-right: 2px solid #111; }
+.top { background: #f6c34f; color: #101018; padding: 16px 18px 12px 18px; border-bottom: 2px solid #111; }
+.top h1 { margin: 0; font-size: 30px; letter-spacing: 0; }
+.top p { margin: 6px 0 0 0; font-size: 15px; }
+.nav { background: #d7d2aa; padding: 6px 18px; border-bottom: 1px solid #333; font-size: 13px; }
+.nav a { margin-right: 14px; font-weight: bold; white-space: nowrap; }
+.content { padding: 16px 18px 24px 18px; }
+.screen { background: #101018; color: #81f77e; font-family: "Courier New", Courier, monospace; padding: 12px; border: 2px inset #777; }
+.box { background: #fffbe5; border: 1px solid #777; padding: 10px; margin: 12px 0; }
+.box h2 { margin: 0 0 8px 0; font-size: 20px; color: #28324a; }
+.box h3 { margin: 10px 0 5px 0; font-size: 16px; color: #28324a; }
+table.data { width: 100%; border-collapse: collapse; background: #fffff2; }
+table.data th { background: #28324a; color: #fff; text-align: left; padding: 5px; border: 1px solid #111; }
+table.data td { padding: 5px; border: 1px solid #777; vertical-align: top; }
+.tag { font-weight: bold; color: #7a3200; }
+.small { font-size: 12px; color: #444; }
+.footer { background: #d7d2aa; border-top: 1px solid #333; padding: 10px 18px; font-size: 12px; }
+ul { margin-top: 6px; }
+li { margin-bottom: 4px; }
+pre { background: #101018; color: #81f77e; padding: 10px; overflow: auto; font-family: "Courier New", Courier, monospace; font-size: 13px; }

@@ -20,7 +20,15 @@
       "mcp__fina__query_knowledge",
       "mcp__fina__set_partition_enabled",
       "mcp__fina__help",
-      "WebFetch(domain:aminet.net)"
+      "WebFetch(domain:aminet.net)",
+      "mcp__fina__get_latest_session_state",
+      "mcp__fina__get_project_hotspots",
+      "mcp__fina__save_session_state",
+      "mcp__fina__search_issues",
+      "mcp__fina__list_tasks",
+      "mcp__fina__get_task",
+      "mcp__fina__add_subtask",
+      "Skill(update-config)"
     ]
   }
 }

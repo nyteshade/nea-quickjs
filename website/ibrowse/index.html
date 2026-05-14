@@ -1,0 +1,174 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>nea-quickjs for AmigaOS</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+  <meta name="description" content="QuickJS-ng as the primary JavaScript platform for classic AmigaOS.">
+  <style type="text/css">
+    body { margin: 0; padding: 0; background: #28324a; color: #101018; font-family: Arial, Helvetica, sans-serif; font-size: 14px; }
+    a { color: #003f8c; }
+    .page { width: 760px; margin: 0 auto; background: #f2f0dc; border-left: 2px solid #111; border-right: 2px solid #111; }
+    .top { background: #f6c34f; color: #101018; padding: 16px 18px 12px 18px; border-bottom: 2px solid #111; }
+    .top h1 { margin: 0; font-size: 30px; letter-spacing: 0; }
+    .top p { margin: 6px 0 0 0; font-size: 15px; }
+    .nav { background: #d7d2aa; padding: 6px 18px; border-bottom: 1px solid #333; font-size: 13px; }
+    .nav a { margin-right: 14px; font-weight: bold; }
+    .content { padding: 16px 18px 24px 18px; }
+    .screen { background: #101018; color: #81f77e; font-family: "Courier New", Courier, monospace; padding: 12px; border: 2px inset #777; }
+    .box { background: #fffbe5; border: 1px solid #777; padding: 10px; margin: 12px 0; }
+    .box h2 { margin: 0 0 8px 0; font-size: 20px; color: #28324a; }
+    .box h3 { margin: 10px 0 5px 0; font-size: 16px; color: #28324a; }
+    table.data { width: 100%; border-collapse: collapse; background: #fffff2; }
+    table.data th { background: #28324a; color: #fff; text-align: left; padding: 5px; border: 1px solid #111; }
+    table.data td { padding: 5px; border: 1px solid #777; vertical-align: top; }
+    .tag { font-weight: bold; color: #7a3200; }
+    .small { font-size: 12px; color: #444; }
+    .footer { background: #d7d2aa; border-top: 1px solid #333; padding: 10px 18px; font-size: 12px; }
+    ul { margin-top: 6px; }
+    li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+<div class="page">
+  <div class="top">
+    <h1>nea-quickjs</h1>
+    <p>QuickJS-ng turned into an AmigaOS shared library, CLI, and scripting platform.</p>
+  </div>
+
+  <div class="nav">
+    <a href="index.html">Home</a>
+    <a href="install.html">Install</a>
+    <a href="architecture.html">Architecture</a>
+    <a href="api.html">API</a>
+    <a href="reaction.html">Reaction</a>
+    <a href="examples.html">Examples</a>
+    <a href="roadmap.html">Roadmap</a>
+  </div>
+
+  <div class="content">
+    <table width="100%" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td width="58%" valign="top">
+          <div class="box" id="why">
+            <h2>JavaScript for classic AmigaOS</h2>
+            <p>
+              nea-quickjs ports QuickJS-ng to 68020+ Amigas and packages it the
+              Amiga way: as <b>quickjs.library</b>. The command line <b>qjs</b>
+              program is only one client. Any Amiga application can open the
+              library and embed a JavaScript runtime.
+            </p>
+            <p>
+              The goal is practical: make this the default JavaScript platform
+              for old Amigas, with useful Node-style APIs, AmigaOS-native file
+              and network bridges, and real GUI scripting through Intuition and
+              Reaction.
+            </p>
+          </div>
+        </td>
+        <td width="4%">&nbsp;</td>
+        <td width="38%" valign="top">
+          <div class="screen">
+1&gt; stack 65536<br>
+1&gt; qjs<br>
+QuickJS Amiga<br>
+qjs&gt; print(100 + 110)<br>
+210<br>
+qjs&gt; import * as os from 'qjs:os'<br>
+qjs&gt; print(os.platform)<br>
+amigaos
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="box" id="status">
+      <h2>Current project state</h2>
+      <table class="data" cellspacing="0" cellpadding="0">
+        <tr><th>Area</th><th>Status</th></tr>
+        <tr><td>Library</td><td><span class="tag">0.173</span> tracked in source, with variant-aware <tt>$VER</tt> strings.</td></tr>
+        <tr><td>Architecture</td><td><tt>quickjs.library</tt> contains the engine, std/os/bjson modules, Amiga shims, FFI, fetch, worker primitives, and GUI bindings.</td></tr>
+        <tr><td>CLI</td><td><tt>qjs</tt> is a small shell that opens the library and calls into it through the AmigaOS LVO table.</td></tr>
+        <tr><td>Targets</td><td>68020, 68040, and 68060 builds, each with FPU and soft-float variants.</td></tr>
+        <tr><td>Validation</td><td>Post-library docs record a full 221/221 AmigaOS pass; current development continues with hardware and emulator regression runs.</td></tr>
+      </table>
+    </div>
+
+    <div class="box" id="features">
+      <h2>Platform features</h2>
+      <ul>
+        <li>QuickJS-ng language runtime with REPL, module imports, std, os, and bjson support.</li>
+        <li>Node-inspired globals: <tt>Buffer</tt>, <tt>EventEmitter</tt>, <tt>process</tt>, <tt>fs</tt>, <tt>path</tt>, <tt>util</tt>, <tt>URL</tt>, timers, streams, querystring, readline, and child process helpers.</li>
+        <li>Web-style APIs: <tt>fetch()</tt>, <tt>AbortController</tt>, <tt>TextEncoder</tt>, <tt>TextDecoder</tt>, <tt>structuredClone</tt>, and <tt>crypto.subtle.digest</tt>.</li>
+        <li>Amiga-native bridges for dos.library, exec.library, bsdsocket.library, AmiSSL, timer.device, Intuition, Graphics, ASL, Diskfont, GadTools, and Reaction.</li>
+        <li>Amiga-friendly behavior: <tt>S:QJS-Config.txt</tt>, <tt>S:QJS-Startup.js</tt>, Amiga path handling, console CSI translation, soft-float builds, and stack checks.</li>
+      </ul>
+    </div>
+
+    <div class="box" id="gui">
+      <h2>Reaction and BOOPSI from JavaScript</h2>
+      <p>
+        The <tt>amiga.boopsi</tt> layer wraps Reaction classes as JavaScript
+        objects. Scripts can build windows, layouts, buttons, labels, sliders,
+        list browsers, palettes, requesters, file pickers, tabs, gauges, and
+        other OS3.x gadgets without hand-building tag lists or dispatching
+        BOOPSI methods manually.
+      </p>
+      <table class="data" cellspacing="0" cellpadding="0">
+        <tr><th>Layer</th><th>Examples</th></tr>
+        <tr><td>Classic wrappers</td><td><tt>Intuition</tt>, <tt>Exec</tt>, <tt>Graphics</tt>, <tt>Dos</tt>, <tt>Asl</tt>, <tt>Diskfont</tt></td></tr>
+        <tr><td>Reaction gadgets</td><td>Button, CheckBox, RadioButton, Slider, Scroller, String, Chooser, ClickTab, ListBrowser, Palette, SpeedBar, TextEditor</td></tr>
+        <tr><td>Images and windows</td><td>Label, Led, Bevel, Glyph, Bitmap, Page, Layout, Virtual, Window, Requester</td></tr>
+      </table>
+    </div>
+
+    <div class="box" id="code">
+      <h2>Small examples</h2>
+      <h3>Run a script</h3>
+      <pre>stack 65536
+qjs examples/window_hello.js</pre>
+      <h3>Use Amiga variables</h3>
+      <pre>import * as os from 'qjs:os';
+os.setvar('QJS_TEST', 'hello');
+print(os.getvar('QJS_TEST'));</pre>
+      <h3>Open a Reaction window</h3>
+      <pre>import { Window, Layout, Button, Label } from amiga.boopsi;
+
+let win = new Window({
+  title: 'Hello',
+  layout: new Layout({
+    orientation: 'vertical',
+    children: [
+      new Label({ text: 'QuickJS on AmigaOS' }),
+      new Button({ id: 1, text: 'OK' })
+    ]
+  })
+});</pre>
+    </div>
+
+    <div class="box" id="builds">
+      <h2>Build and ship</h2>
+      <p>
+        The build produces library variants such as
+        <tt>quickjs.020soft.library</tt>, <tt>quickjs.020fpu.library</tt>,
+        <tt>quickjs.040soft.library</tt>, <tt>quickjs.040fpu.library</tt>,
+        <tt>quickjs.060soft.library</tt>, and <tt>quickjs.060fpu.library</tt>.
+      </p>
+      <pre>make lib
+make cli
+stack 65536
+execute tests/run-tests.script</pre>
+      <p class="small">
+        Copy the appropriate library to <tt>LIBS:quickjs.library</tt> and put
+        <tt>qjs</tt> somewhere on the command path. Applications can also link
+        against the pragma/proto headers and call the <tt>QJS_*</tt> API.
+      </p>
+    </div>
+  </div>
+
+  <div class="footer">
+    Built for old browsers first: no frames, no required JavaScript, no CSS grid,
+    no web fonts, and no modern layout dependencies.
+  </div>
+</div>
+</body>
+</html>

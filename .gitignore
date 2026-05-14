@@ -8,3 +8,7 @@ amiga/output/
 # Amiga filesystem database droppings
 _UAEFSDB.___
 **/_UAEFSDB.___
+
+# Website build artifacts
+website/modern/node_modules/
+website/modern/dist/
