@@ -1,0 +1,143 @@
+diff --git a/src/vbcc/ic.c b/src/vbcc/ic.c
+index c1983c4..5ed546e 100644
+--- a/src/vbcc/ic.c
++++ b/src/vbcc/ic.c
+@@ -475,7 +475,9 @@ void add_IC(IC *new)
+ 		      last_ic->prev->code++;
+                     last_ic->prev->typf=last_ic->typf;
+                     last_ic=last_ic->prev;
+-		    free(last_ic->next);
++		    /* defer the free: parser-level cursors may still
++		       point at this bra (see remove_IC in supp.c) */
++		    defer_free_IC(last_ic->next);
+                     last_ic->next=new;new->prev=last_ic;
+                     last_ic=new;
+                     return;
+@@ -2683,7 +2685,7 @@ int do_arith(np p,IC *new,np dest,obj *o)
+ 	gval.vmax=szof(p->left->ntyp->next);
+ 	eval_const(&gval,MAXINT);
+ 	if(ln=get_pof2(vumax)){
+-	  /* Division immer ohne Rest, daher shift m�glich */
++	  /* Division immer ohne Rest, daher shift m�glich */
+ 	  /* TODO: Haben wir Targets ohne arith. shift right? */
+ 	  gval.vmax=l2zm(ln-1);
+ 	  eval_const(&gval,MAXINT);
+diff --git a/src/vbcc/machines/m68k/machine.c b/src/vbcc/machines/m68k/machine.c
+index ec56dd1..f2052fd 100644
+--- a/src/vbcc/machines/m68k/machine.c
++++ b/src/vbcc/machines/m68k/machine.c
+@@ -281,7 +281,10 @@ static int vsec(FILE *f,Var *v)
+   return 1;
+ }
+ 
+-static void move_freereg(IC *to,IC *fr)
++/* Returns 1 if fr was moved behind to, 0 if it was NOPed in place
++   (an intervening ALLOCREG of the same reg merged the live ranges).
++   Callers must only assert the moved-adjacency in the former case. */
++static int move_freereg(IC *to,IC *fr)
+ {
+   int r=fr->q1.reg,alloc=0;
+   IC *p=fr->next;
+@@ -290,7 +293,7 @@ static void move_freereg(IC *to,IC *fr)
+     if(p->code==FREEREG&&p->q1.reg==r){alloc=0;p->code=NOP;p->q1.flags=0;}
+     p=p->next;
+   }
+-  if(alloc) {fr->code=NOP;fr->q1.flags=0;} else move_IC(to,fr);
++  if(alloc) {fr->code=NOP;fr->q1.flags=0;return 0;} else {move_IC(to,fr);return 1;}
+ }
+ 
+ static int special_section(FILE *f,Var *v)
+@@ -1739,10 +1742,16 @@ static int new_peephole(IC *first)
+ 		off->q1.flags=off->q2.flags=off->z.flags=0;
+ 	      }
+ 	      if(!use) ierror(0);
+-	      if(free_idx) move_freereg(use,free_idx);
+-	      if(free_base) move_freereg(use,free_base);
+-	      if(free_idx&&use->next!=free_idx&&use->next->next!=free_idx) ierror(0);
+-	      if(free_base&&use->next!=free_base&&use->next->next!=free_base) ierror(0);
++	      {
++		int idx_moved=0,base_moved=0;
++		if(free_idx) idx_moved=move_freereg(use,free_idx);
++		if(free_base) base_moved=move_freereg(use,free_base);
++		/* adjacency only holds when the FREEREG was actually
++		   moved; move_freereg may instead NOP it in place when
++		   an intervening ALLOCREG merged the live ranges */
++		if(idx_moved&&use->next!=free_idx&&use->next->next!=free_idx) ierror(0);
++		if(base_moved&&use->next!=free_base&&use->next->next!=free_base) ierror(0);
++	      }
+ 	      if(!(o->flags&DREFOBJ)){
+ 		o->flags|=DREFOBJ;
+ 		if(use->code==PUSH)
+diff --git a/src/vbcc/main.c b/src/vbcc/main.c
+index 06c2303..0cb1681 100644
+--- a/src/vbcc/main.c
++++ b/src/vbcc/main.c
+@@ -407,6 +407,9 @@ void gen_function(FILE *f,Var *v,int real_gen)
+     gen_code(f,v->fi->opt_ic,v,v->fi->max_offset);
+     static_stack_check(v);
+   }
++  /* release ICs whose free was deferred by remove_IC()/add_IC()
++     peepholes — no parser cursors can survive past this point */
++  flush_deferred_ICs();
+ }
+ /* handle functions in a const list before caller */
+ static void do_clist_calls(const_list *cl)
+diff --git a/src/vbcc/supp.c b/src/vbcc/supp.c
+index fe6e556..f61e89d 100644
+--- a/src/vbcc/supp.c
++++ b/src/vbcc/supp.c
+@@ -400,6 +400,32 @@ void move_IC(IC *after,IC *p)
+     last_ic=p->prev;
+   insert_IC(after,p);
+ }
++/*  Deferred IC frees: remove_IC() can run from add_IC() peepholes
++    while parser-level statement handlers (for/while/do in
++    statements.c) still hold saved IC cursors into the list. Freeing
++    the node immediately leaves those cursors dangling — the
++    mic->line/mic->file tagging walks then read freed memory, a
++    layout-dependent SIGSEGV (observed in for_statement on large
++    inputs). Instead the unlinked node is kept alive — its own
++    next/prev still point at its former neighbours, so a stale
++    cursor walks back into the live list — and the memory is
++    released in bulk at end of function via flush_deferred_ICs().  */
++static IC **ic_graveyard;
++static int ic_graveyard_cnt,ic_graveyard_max;
++void defer_free_IC(IC *p)
++{
++  if(ic_graveyard_cnt>=ic_graveyard_max){
++    ic_graveyard_max=ic_graveyard_max?2*ic_graveyard_max:64;
++    ic_graveyard=myrealloc(ic_graveyard,ic_graveyard_max*sizeof(IC *));
++  }
++  ic_graveyard[ic_graveyard_cnt++]=p;
++}
++void flush_deferred_ICs(void)
++{
++  int i;
++  for(i=0;i<ic_graveyard_cnt;i++) free(ic_graveyard[i]);
++  ic_graveyard_cnt=0;
++}
+ void remove_IC(IC *p)
+ /*  Entfernt IC p aus Liste. */
+ {
+@@ -408,7 +434,7 @@ void remove_IC(IC *p)
+   if(p->q1.am) free(p->q1.am);
+   if(p->q2.am) free(p->q2.am);
+   if(p->z.am) free(p->z.am);
+-  free(p);
++  defer_free_IC(p);
+ }
+ void freetyp(type *p)
+ /* Gibt eine Typ-Liste frei, aber keine struct_declaration oder so. */
+diff --git a/src/vbcc/supp.h b/src/vbcc/supp.h
+index 8ae9744..01e59e6 100644
+--- a/src/vbcc/supp.h
++++ b/src/vbcc/supp.h
+@@ -740,6 +740,8 @@ void vqsort (void *,size_t,size_t,int (*)(const void *,const void *));
+ #define bvclear(dest,len) memset(dest,0,len)
+ #define bvsetall(dest,len) memset(dest,-1,len)
+ extern void remove_IC(IC *);
++extern void defer_free_IC(IC *);
++extern void flush_deferred_ICs(void);
+ extern IC *clone_ic(IC *);
+ extern IC *new_IC(void);
+ extern Var *new_var(void);
