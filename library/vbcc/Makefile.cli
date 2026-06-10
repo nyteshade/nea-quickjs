@@ -24,8 +24,14 @@ CDIR     = $(OUTDIR)/c
 # FPU. It links its own copy of sharedlib_math_soft.c / sharedlib_int64_soft.s
 # / sharedlib_int64_conv.c and initializes MathIeeeDoub*Base from
 # quickjs_bridge_init (gated on QJS_CLI_SOFTFLOAT).
+# -DJS_NAN_BOXING=0 MUST match the library's CFLAGS_COMMON (set in Makefile
+# since 0.198). Without it, quickjs.h auto-detects NAN_BOXING=1 on 32-bit m68k
+# and the CLI's JSValue becomes 8 bytes while the library's is the 16-byte
+# struct — every JSValue across the LVO boundary is then misread (instant
+# freeze on launch). The hand-written asm trampolines (bridge_asm*.s) also
+# assume the 16-byte struct ABI.
 CFLAGS = +aos68k -c -cpu=68020 -O1 \
-         -DQJS_USE_LIBRARY -DQJS_CLI_SOFTFLOAT \
+         -DQJS_USE_LIBRARY -DQJS_CLI_SOFTFLOAT -DJS_NAN_BOXING=0 \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
          -I$(INCLUDE) -I$(QJS) \

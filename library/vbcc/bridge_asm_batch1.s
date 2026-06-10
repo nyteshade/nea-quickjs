@@ -597,16 +597,15 @@ _JS_SetClassProto:
 	xdef	_JS_GetClassProto
 _JS_GetClassProto:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	move.l	24+8+8(sp),d0		; class_id
+	move.l	24+16+4(sp),a1		; ctx
+	move.l	24+16+8(sp),d0		; class_id
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#252,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -618,15 +617,14 @@ _JS_GetClassProto:
 	xdef	_JS_GetFunctionProto
 _JS_GetFunctionProto:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
+	move.l	24+16+4(sp),a1		; ctx
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#258,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -671,8 +669,8 @@ _JS_AddIntrinsicRegExpCompiler:
 _JS_IsEqual:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; ctx
-	lea	24+8(sp),a1		; &op1
-	lea	24+16(sp),a2		; &op2
+	lea	24+8(sp),a1		; &op1 (16-byte JSValue)
+	lea	24+24(sp),a2		; &op2 (after 16-byte op1)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#276,a5
@@ -689,8 +687,8 @@ _JS_IsEqual:
 _JS_IsStrictEqual:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; ctx
-	lea	24+8(sp),a1		; &op1
-	lea	24+16(sp),a2		; &op2
+	lea	24+8(sp),a1		; &op1 (16-byte JSValue)
+	lea	24+24(sp),a2		; &op2 (after 16-byte op1)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#282,a5
@@ -707,8 +705,8 @@ _JS_IsStrictEqual:
 _JS_IsSameValue:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; ctx
-	lea	24+8(sp),a1		; &op1
-	lea	24+16(sp),a2		; &op2
+	lea	24+8(sp),a1		; &op1 (16-byte JSValue)
+	lea	24+24(sp),a2		; &op2 (after 16-byte op1)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#288,a5
@@ -725,8 +723,8 @@ _JS_IsSameValue:
 _JS_IsSameValueZero:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; ctx
-	lea	24+8(sp),a1		; &op1
-	lea	24+16(sp),a2		; &op2
+	lea	24+8(sp),a1		; &op1 (16-byte JSValue)
+	lea	24+24(sp),a2		; &op2 (after 16-byte op1)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#294,a5
@@ -799,16 +797,15 @@ _JS_FreeValueRT:
 	xdef	_JS_DupValue
 _JS_DupValue:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &val
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#324,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -820,16 +817,15 @@ _JS_DupValue:
 	xdef	_JS_DupValueRT
 _JS_DupValueRT:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; rt
-	lea	24+8+8(sp),a2		; &val
+	move.l	24+16+4(sp),a1		; rt
+	lea	24+16+8(sp),a2		; &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#330,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -841,16 +837,15 @@ _JS_DupValueRT:
 	xdef	_JS_NewNumber
 _JS_NewNumber:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &d (double on stack)
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &d (double on stack)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#336,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -862,16 +857,15 @@ _JS_NewNumber:
 	xdef	_JS_NewBigInt64
 _JS_NewBigInt64:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &v
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &v
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#342,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -883,16 +877,15 @@ _JS_NewBigInt64:
 	xdef	_JS_NewBigUint64
 _JS_NewBigUint64:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &v
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &v
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#348,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -909,16 +902,15 @@ _JS_NewBigUint64:
 	xdef	_JS_NewAtomString
 _JS_NewAtomString:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	move.l	24+8+8(sp),a2		; str
+	move.l	24+16+4(sp),a1		; ctx
+	move.l	24+16+8(sp),a2		; str
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#360,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -930,16 +922,15 @@ _JS_NewAtomString:
 	xdef	_JS_ToString
 _JS_ToString:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &val
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#366,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -951,31 +942,30 @@ _JS_ToString:
 	xdef	_JS_ToPropertyKey
 _JS_ToPropertyKey:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &val
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#372,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
 ; ===================================================================
 ; JS_ToCStringLen2(JSContext *ctx, size_t *plen, JSValue val, int cesu8) -> const char*
 ; LVO -378: QJS_ToCStringLen2(ctx,plen,val_ptr,cesu8)(a0/a2/a1/d0)
-; Stack: [ret:4] [ctx:4] [plen:4] [val:8] [cesu8:4]
+; Stack: [ret:4] [ctx:4] [plen:4] [val:16] [cesu8:4]
 ; ===================================================================
 	xdef	_JS_ToCStringLen2
 _JS_ToCStringLen2:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; ctx
 	move.l	24+8(sp),a2		; plen
-	lea	24+12(sp),a1		; &val (JSValue on stack)
-	move.l	24+20(sp),d0		; cesu8
+	lea	24+12(sp),a1		; &val (16-byte JSValue on stack)
+	move.l	24+28(sp),d0		; cesu8 (after 16-byte val)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#378,a5
@@ -1079,16 +1069,15 @@ _JS_ToFloat64:
 	xdef	_JS_ToNumber
 _JS_ToNumber:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &val
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#414,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1105,16 +1094,15 @@ _JS_ToNumber:
 	xdef	_JS_NewObjectClass
 _JS_NewObjectClass:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	move.l	24+8+8(sp),d0		; class_id
+	move.l	24+16+4(sp),a1		; ctx
+	move.l	24+16+8(sp),d0		; class_id
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#426,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1126,16 +1114,15 @@ _JS_NewObjectClass:
 	xdef	_JS_NewObjectProto
 _JS_NewObjectProto:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &proto
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &proto
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#432,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1207,16 +1194,15 @@ _JS_IsConstructor:
 	xdef	_JS_ToObject
 _JS_ToObject:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &val
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#468,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1228,16 +1214,15 @@ _JS_ToObject:
 	xdef	_JS_Throw
 _JS_Throw:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
-	lea	24+8+8(sp),a2		; &obj
+	move.l	24+16+4(sp),a1		; ctx
+	lea	24+16+8(sp),a2		; &obj
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#474,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1249,15 +1234,14 @@ _JS_Throw:
 	xdef	_JS_GetException
 _JS_GetException:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
+	move.l	24+16+4(sp),a1		; ctx
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#480,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1301,15 +1285,14 @@ _JS_IsError:
 	xdef	_JS_NewError
 _JS_NewError:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
+	move.l	24+16+4(sp),a1		; ctx
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#498,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1321,15 +1304,14 @@ _JS_NewError:
 	xdef	_JS_ThrowOutOfMemory
 _JS_ThrowOutOfMemory:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; ctx
+	move.l	24+16+4(sp),a1		; ctx
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#504,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 

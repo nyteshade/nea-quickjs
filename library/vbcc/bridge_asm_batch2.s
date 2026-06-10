@@ -135,17 +135,16 @@ _JS_Strdup:
 	xdef	_JS_GetProperty
 _JS_GetProperty:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &this_obj
-	move.l	24+8+16(sp),d0		; d0 = prop
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &this_obj (16-byte JSValue)
+	move.l	24+16+24(sp),d0		; d0 = prop (after 16-byte this_obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#552,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -157,17 +156,16 @@ _JS_GetProperty:
 	xdef	_JS_GetPropertyUint32
 _JS_GetPropertyUint32:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &this_obj
-	move.l	24+8+16(sp),d0		; d0 = idx
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &this_obj (16-byte JSValue)
+	move.l	24+16+24(sp),d0		; d0 = idx (after 16-byte this_obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#558,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -180,17 +178,16 @@ _JS_GetPropertyUint32:
 	xdef	_JS_GetPropertyInt64
 _JS_GetPropertyInt64:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &this_obj
-	move.l	24+8+16(sp),d0		; d0 = idx
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &this_obj (16-byte JSValue)
+	move.l	24+16+24(sp),d0		; d0 = idx (after 16-byte this_obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#570,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -203,9 +200,9 @@ _JS_GetPropertyInt64:
 _JS_SetProperty:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &this_obj
-	move.l	24+16(sp),d0		; d0 = prop
-	lea	24+20(sp),a2		; a2 = &val
+	lea	24+8(sp),a1		; a1 = &this_obj (16-byte JSValue)
+	move.l	24+24(sp),d0		; d0 = prop (after 16-byte this_obj)
+	lea	24+28(sp),a2		; a2 = &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#576,a5
@@ -222,8 +219,8 @@ _JS_SetProperty:
 _JS_HasProperty:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &this_obj
-	move.l	24+16(sp),d0		; d0 = prop
+	lea	24+8(sp),a1		; a1 = &this_obj (16-byte JSValue)
+	move.l	24+24(sp),d0		; d0 = prop (after 16-byte this_obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#594,a5
@@ -240,9 +237,9 @@ _JS_HasProperty:
 _JS_DeleteProperty:
 	movem.l	d2-d7/a2-a6,-(sp)	; uses d0/d1, save 11 regs = 44 bytes
 	move.l	44+4(sp),a0		; a0 = ctx
-	lea	44+8(sp),a1		; a1 = &obj
-	move.l	44+16(sp),d0		; d0 = prop
-	move.l	44+20(sp),d1		; d1 = flags
+	lea	44+8(sp),a1		; a1 = &obj (16-byte JSValue)
+	move.l	44+24(sp),d0		; d0 = prop (after 16-byte obj)
+	move.l	44+28(sp),d1		; d1 = flags
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#600,a5
@@ -259,8 +256,8 @@ _JS_DeleteProperty:
 _JS_SetPrototype:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &obj
-	lea	24+16(sp),a2		; a2 = &proto
+	lea	24+8(sp),a1		; a1 = &obj (16-byte JSValue)
+	lea	24+24(sp),a2		; a2 = &proto (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#606,a5
@@ -276,16 +273,15 @@ _JS_SetPrototype:
 	xdef	_JS_GetPrototype
 _JS_GetPrototype:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &val
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &val
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#612,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -298,8 +294,8 @@ _JS_GetPrototype:
 _JS_GetLength:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &obj
-	move.l	24+16(sp),a2		; a2 = pres
+	lea	24+8(sp),a1		; a1 = &obj (16-byte JSValue)
+	move.l	24+24(sp),a2		; a2 = pres (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#618,a5
@@ -317,8 +313,8 @@ _JS_GetLength:
 _JS_SetLength:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &obj
-	move.l	24+16(sp),d0		; d0 = len
+	lea	24+8(sp),a1		; a1 = &obj (16-byte JSValue)
+	move.l	24+24(sp),d0		; d0 = len (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#624,a5
@@ -404,10 +400,10 @@ _JS_FreezeObject:
 _JS_DefinePropertyValue:
 	movem.l	d2-d7/a2-a6,-(sp)	; uses d0/d1, save 11 regs = 44 bytes
 	move.l	44+4(sp),a0		; a0 = ctx
-	lea	44+8(sp),a1		; a1 = &this_obj
-	move.l	44+16(sp),d0		; d0 = prop
-	lea	44+20(sp),a2		; a2 = &val
-	move.l	44+28(sp),d1		; d1 = flags
+	lea	44+8(sp),a1		; a1 = &this_obj (16-byte JSValue)
+	move.l	44+24(sp),d0		; d0 = prop (after 16-byte this_obj)
+	lea	44+28(sp),a2		; a2 = &val
+	move.l	44+44(sp),d1		; d1 = flags (after 16-byte val)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#654,a5
@@ -425,10 +421,10 @@ _JS_DefinePropertyValue:
 _JS_DefinePropertyValueUint32:
 	movem.l	d2-d7/a2-a6,-(sp)	; uses d0/d1, save 11 regs = 44 bytes
 	move.l	44+4(sp),a0		; a0 = ctx
-	lea	44+8(sp),a1		; a1 = &this_obj
-	move.l	44+16(sp),d0		; d0 = idx
-	lea	44+20(sp),a2		; a2 = &val
-	move.l	44+28(sp),d1		; d1 = flags
+	lea	44+8(sp),a1		; a1 = &this_obj (16-byte JSValue)
+	move.l	44+24(sp),d0		; d0 = idx (after 16-byte this_obj)
+	lea	44+28(sp),a2		; a2 = &val
+	move.l	44+44(sp),d1		; d1 = flags (after 16-byte val)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#660,a5
@@ -445,8 +441,8 @@ _JS_DefinePropertyValueUint32:
 	xdef	_JS_SetOpaque
 _JS_SetOpaque:
 	movem.l	d2/a2-a6,-(sp)
-	lea	24+4(sp),a1		; a1 = &obj (JSValue by ptr)
-	move.l	24+12(sp),a0		; a0 = opaque
+	lea	24+4(sp),a1		; a1 = &obj (16-byte JSValue by ptr)
+	move.l	24+20(sp),a0		; a0 = opaque (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#672,a5
@@ -462,8 +458,8 @@ _JS_SetOpaque:
 	xdef	_JS_GetOpaque
 _JS_GetOpaque:
 	movem.l	d2/a2-a6,-(sp)
-	lea	24+4(sp),a0		; a0 = &obj
-	move.l	24+12(sp),d0		; d0 = class_id
+	lea	24+4(sp),a0		; a0 = &obj (16-byte JSValue)
+	move.l	24+20(sp),d0		; d0 = class_id (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#678,a5
@@ -480,8 +476,8 @@ _JS_GetOpaque:
 _JS_GetOpaque2:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &obj
-	move.l	24+16(sp),d0		; d0 = class_id
+	lea	24+8(sp),a1		; a1 = &obj (16-byte JSValue)
+	move.l	24+24(sp),d0		; d0 = class_id (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#684,a5
@@ -501,8 +497,8 @@ _JS_GetOwnPropertyNames:
 	move.l	24+4(sp),a0		; a0 = ctx
 	move.l	24+8(sp),a1		; a1 = ptab
 	move.l	24+12(sp),a2		; a2 = plen
-	lea	24+16(sp),a3		; a3 = &obj
-	move.l	24+24(sp),d0		; d0 = flags
+	lea	24+16(sp),a3		; a3 = &obj (16-byte JSValue)
+	move.l	24+32(sp),d0		; d0 = flags (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#690,a5
@@ -537,8 +533,8 @@ _JS_FreePropertyEnum:
 _JS_IsInstanceOf:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &val
-	lea	24+16(sp),a2		; a2 = &obj
+	lea	24+8(sp),a1		; a1 = &val (16-byte JSValue)
+	lea	24+24(sp),a2		; a2 = &obj (after 16-byte val)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#702,a5
@@ -640,16 +636,15 @@ _JS_FreeAtom:
 	xdef	_JS_AtomToValue
 _JS_AtomToValue:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),d0		; d0 = atom
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),d0		; d0 = atom
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#738,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -661,16 +656,15 @@ _JS_AtomToValue:
 	xdef	_JS_AtomToString
 _JS_AtomToString:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),d0		; d0 = atom
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),d0		; d0 = atom
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#744,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -717,16 +711,15 @@ _JS_ValueToAtom:
 	xdef	_JS_EvalFunction
 _JS_EvalFunction:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &fun
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &fun
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#762,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -740,19 +733,18 @@ _JS_EvalFunction:
 	xdef	_JS_Call
 _JS_Call:
 	movem.l	d2-d7/a2-a6,-(sp)	; uses d0/d1, save 11 regs = 44 bytes
-	subq.l	#8,sp			; result buffer
+	suba.l	#16,sp			; result buffer
 	move.l	sp,a0			; a0 = &result
-	move.l	44+8+4(sp),a1		; a1 = ctx
-	lea	44+8+8(sp),a2		; a2 = &func
-	lea	44+8+16(sp),a3		; a3 = &this_obj
-	move.l	44+8+24(sp),d0		; d0 = argc
-	move.l	44+8+28(sp),d1		; d1 = argv (pointer as ULONG)
+	move.l	44+16+4(sp),a1		; a1 = ctx
+	lea	44+16+8(sp),a2		; a2 = &func (16-byte JSValue)
+	lea	44+16+24(sp),a3		; a3 = &this_obj (after 16-byte func)
+	move.l	44+16+40(sp),d0		; d0 = argc (after 2x 16-byte JSValue)
+	move.l	44+16+44(sp),d1		; d1 = argv (pointer as ULONG)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#768,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -766,19 +758,18 @@ _JS_Call:
 	xdef	_JS_Invoke
 _JS_Invoke:
 	movem.l	d2-d7/a2-a6,-(sp)	; uses d0/d1, save 11 regs = 44 bytes
-	subq.l	#8,sp			; result buffer
+	suba.l	#16,sp			; result buffer
 	move.l	sp,a0			; a0 = &result
-	move.l	44+8+4(sp),a1		; a1 = ctx
-	lea	44+8+8(sp),a2		; a2 = &this_obj
-	move.l	44+8+24(sp),a3		; a3 = argv (pointer)
-	move.l	44+8+16(sp),d0		; d0 = atom
-	move.l	44+8+20(sp),d1		; d1 = argc
+	move.l	44+16+4(sp),a1		; a1 = ctx
+	lea	44+16+8(sp),a2		; a2 = &this_obj (16-byte JSValue)
+	move.l	44+16+32(sp),a3		; a3 = argv (pointer, after 16-byte this_obj)
+	move.l	44+16+24(sp),d0		; d0 = atom (after 16-byte this_obj)
+	move.l	44+16+28(sp),d1		; d1 = argc
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#774,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -791,18 +782,17 @@ _JS_Invoke:
 	xdef	_JS_CallConstructor
 _JS_CallConstructor:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &func
-	move.l	24+8+20(sp),a3		; a3 = argv (pointer)
-	move.l	24+8+16(sp),d0		; d0 = argc
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &func (16-byte JSValue)
+	move.l	24+16+28(sp),a3		; a3 = argv (pointer, after 16-byte func)
+	move.l	24+16+24(sp),d0		; d0 = argc (after 16-byte func)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#780,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -816,18 +806,17 @@ _JS_CallConstructor:
 	xdef	_JS_ParseJSON
 _JS_ParseJSON:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = buf
-	move.l	24+8+16(sp),a3		; a3 = filename
-	move.l	24+8+12(sp),d0		; d0 = buf_len
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = buf
+	move.l	24+16+16(sp),a3		; a3 = filename
+	move.l	24+16+12(sp),d0		; d0 = buf_len
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#786,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -839,16 +828,15 @@ _JS_ParseJSON:
 	xdef	_JS_JSONStringify
 _JS_JSONStringify:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &obj
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &obj
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#792,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -862,8 +850,8 @@ _JS_WriteObject:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
 	move.l	24+8(sp),a1		; a1 = psize
-	lea	24+12(sp),a2		; a2 = &obj
-	move.l	24+20(sp),d0		; d0 = flags
+	lea	24+12(sp),a2		; a2 = &obj (16-byte JSValue)
+	move.l	24+28(sp),d0		; d0 = flags (after 16-byte obj)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#798,a5
@@ -879,18 +867,17 @@ _JS_WriteObject:
 	xdef	_JS_ReadObject
 _JS_ReadObject:
 	movem.l	d2-d7/a2-a6,-(sp)	; uses d0/d1, save 11 regs = 44 bytes
-	subq.l	#8,sp			; result buffer
+	suba.l	#16,sp			; result buffer
 	move.l	sp,a0			; a0 = &result
-	move.l	44+8+4(sp),a1		; a1 = ctx
-	move.l	44+8+8(sp),a2		; a2 = buf
-	move.l	44+8+12(sp),d0		; d0 = buf_len
-	move.l	44+8+16(sp),d1		; d1 = flags
+	move.l	44+16+4(sp),a1		; a1 = ctx
+	move.l	44+16+8(sp),a2		; a2 = buf
+	move.l	44+16+12(sp),d0		; d0 = buf_len
+	move.l	44+16+16(sp),d1		; d1 = flags
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#804,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -990,16 +977,15 @@ _JS_SetModuleLoaderFunc:
 	xdef	_JS_GetImportMeta
 _JS_GetImportMeta:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = m
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = m
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#840,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1028,16 +1014,15 @@ _JS_GetModuleName:
 	xdef	_JS_GetModuleNamespace
 _JS_GetModuleNamespace:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = m
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = m
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#852,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1141,8 +1126,8 @@ _JS_GetScriptOrModuleName:
 _JS_SetConstructor:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &func
-	lea	24+16(sp),a2		; a2 = &proto
+	lea	24+8(sp),a1		; a1 = &func (16-byte JSValue)
+	lea	24+24(sp),a2		; a2 = &proto (after 16-byte func)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#894,a5
@@ -1197,16 +1182,15 @@ _JS_ExecutePendingJob:
 	xdef	_JS_NewPromiseCapability
 _JS_NewPromiseCapability:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = resolving_funcs
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = resolving_funcs
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#918,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1235,16 +1219,15 @@ _JS_PromiseState:
 	xdef	_JS_PromiseResult
 _JS_PromiseResult:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &promise
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &promise
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#930,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1326,17 +1309,16 @@ _JS_SetCanBlock:
 	xdef	_JS_NewArrayBufferCopy
 _JS_NewArrayBufferCopy:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = buf
-	move.l	24+8+12(sp),d0		; d0 = len
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = buf
+	move.l	24+16+12(sp),d0		; d0 = len
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#960,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1417,17 +1399,16 @@ _JS_GetUint8Array:
 	xdef	_JS_NewUint8ArrayCopy
 _JS_NewUint8ArrayCopy:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = buf
-	move.l	24+8+12(sp),d0		; d0 = len
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = buf
+	move.l	24+16+12(sp),d0		; d0 = len
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#990,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1503,17 +1484,16 @@ _JS_IsSet:
 	xdef	_JS_NewSymbol
 _JS_NewSymbol:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = description
-	move.l	24+8+12(sp),d0		; d0 = is_global
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = description
+	move.l	24+16+12(sp),d0		; d0 = is_global
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#1020,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1526,16 +1506,15 @@ _JS_NewSymbol:
 	xdef	_JS_NewDate
 _JS_NewDate:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	lea	24+8+8(sp),a2		; a2 = &epoch_ms (on caller's stack)
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	lea	24+16+8(sp),a2		; a2 = &epoch_ms (on caller's stack)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#1026,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
@@ -1565,8 +1544,8 @@ _JS_SetIsHTMLDDA:
 _JS_SetConstructorBit:
 	movem.l	d2/a2-a6,-(sp)
 	move.l	24+4(sp),a0		; a0 = ctx
-	lea	24+8(sp),a1		; a1 = &func
-	move.l	24+16(sp),d0		; d0 = val
+	lea	24+8(sp),a1		; a1 = &func (16-byte JSValue)
+	move.l	24+24(sp),d0		; d0 = val (after 16-byte func)
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#1038,a5
@@ -1582,16 +1561,15 @@ _JS_SetConstructorBit:
 	xdef	_JS_LoadModule
 _JS_LoadModule:
 	movem.l	d2/a2-a6,-(sp)
-	subq.l	#8,sp
+	suba.l	#16,sp
 	move.l	sp,a0			; a0 = &result
-	move.l	24+8+4(sp),a1		; a1 = ctx
-	move.l	24+8+8(sp),a2		; a2 = basename
-	move.l	24+8+12(sp),a3		; a3 = filename
+	move.l	24+16+4(sp),a1		; a1 = ctx
+	move.l	24+16+8(sp),a2		; a2 = basename
+	move.l	24+16+12(sp),a3		; a3 = filename
 	move.l	_QJSBase,a6
 	move.l	a6,a5
 	suba.l	#1044,a5
 	jsr	(a5)
-	move.l	(sp)+,d0
-	move.l	(sp)+,d1
+	movem.l	(sp)+,d0/d1/a0/a1
 	movem.l	(sp)+,d2/a2-a6
 	rts

@@ -270,7 +270,7 @@ $(TARGET_FPU): $(FPU_ALL) | $(LIBSDIR)
 	@ls -la $@
 
 $(OBJDIR_FPU)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_FPU)
-	$(VC) $(CFLAGS_FPU) $< -o $@
+	ulimit -s 65520 && $(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
@@ -380,8 +380,14 @@ $(TARGET_SOFT): $(SOFT_ALL) | $(LIBSDIR)
 	$(VLINK) $(LDFLAGS) $(SOFT_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
+# ulimit: precautionary headroom for vbccm68k's recursive descent over the
+# 2 MB quickjs.c. NOTE (9.6.2026): the intermittent SIGSEGV in for_statement
+# while compiling this file is a REAL layout-dependent vbccm68k bug (see
+# T-vbccm68k-soft-quickjs-segv), NOT a stack overflow — identical commands
+# crash ~50% of runs regardless of this limit. If the build fails here,
+# simply re-run make; it resumes and usually succeeds on the next attempt.
 $(OBJDIR_SOFT)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_SOFT)
-	$(VC) $(CFLAGS_SOFT_QUICKJS) $< -o $@
+	ulimit -s 65520 && $(VC) $(CFLAGS_SOFT_QUICKJS) $< -o $@
 
 $(OBJDIR_SOFT)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@

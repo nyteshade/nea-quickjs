@@ -3,16 +3,26 @@
 ;
 ; These replace C wrappers in qjsfuncs.c where VBCC's __reg("a6")
 ; annotation corrupts the frame pointer, causing any pointer dereference
-; (especially 8-byte JSValue read/write) to use wrong addresses.
+; to use wrong addresses.
+;
+; JSValue ABI (since 0.198, JS_NAN_BOXING=0): JSValue is a 16-byte
+; struct { JSValueUnion u; int64_t tag; }. VBCC +aos68k returns it in
+; d0/d1/a0/a1 (d0=u[0:4], d1=u[4:8], a0=tag[0:4], a1=tag[4:8]) with no
+; hidden result pointer, and passes it by value as 16 contiguous inline
+; stack bytes in memory order (verified empirically with
+; vc +aos68k -cpu=68020 -O1 -S on a probe).
 ;
 ; Pattern for JSValue-RETURNING functions (have *result):
-;   Save a0 (result ptr) in a4, call internal, store d0/d1 through a4.
+;   Save a0 (result ptr) in a4, call internal, then
+;   movem.l d0/d1/a0/a1,(a4) stores the full 16-byte value.
 ;
-; Pattern for functions that READ JSValue* params:
-;   Read 8-byte JSValue via register-indirect BEFORE any push.
+; Pattern for functions that take JSValue BY VALUE (via *val_ptr):
+;   Push 16 bytes straight from the pointer register, tag first:
+;     move.l 12(aN),-(sp) / 8(aN) / 4(aN) / (aN)
+;   so ascending stack memory is u[0:4], u[4:8], tag[0:4], tag[4:8].
 ;
-; CRITICAL: All JSValue reads from pointers happen BEFORE stack pushes,
-; using callee-saved d4-d7 registers to hold the values.
+; Plain double/int64/uint64 params and returns are still 8 bytes
+; (NewNumber, NewBigInt64, NewBigUint64, Set/GetDumpFlags).
 
 	section	code
 
@@ -432,7 +442,7 @@
 ; QJS_Eval
 ; SFD: (result,ctx,input,input_len,filename,eval_flags)(a0/a1/a2/d0/a3/d1)
 ; Calls: JSValue JS_Eval(ctx, input, input_len, filename, eval_flags)
-; Result: 8 bytes written through *result (a0)
+; Result: 16 bytes written through *result (a0)
 ; ===================================================================
 _QJS_Eval:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -447,26 +457,24 @@ _QJS_Eval:
 	jsr	_JS_Eval
 	lea	20(sp),sp
 
-	move.l	d0,(a4)			; store result high
-	move.l	d1,4(a4)		; store result low
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_FreeValue
 ; SFD: (ctx,val_ptr)(a0/a1)
-; Calls: void JS_FreeValue(ctx, val)  — val by value (8 bytes)
+; Calls: void JS_FreeValue(ctx, val)  — val by value (16 bytes)
 ; ===================================================================
 _QJS_FreeValue:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_FreeValue
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -474,18 +482,17 @@ _QJS_FreeValue:
 ; ===================================================================
 ; QJS_FreeValueRT
 ; SFD: (rt,val_ptr)(a0/a1)
-; Calls: void JS_FreeValueRT(rt, val)  — val by value (8 bytes)
+; Calls: void JS_FreeValueRT(rt, val)  — val by value (16 bytes)
 ; ===================================================================
 _QJS_FreeValueRT:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; rt
 	jsr	_JS_FreeValueRT
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -493,65 +500,60 @@ _QJS_FreeValueRT:
 ; ===================================================================
 ; QJS_DupValue
 ; SFD: (result,ctx,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_DupValue(ctx, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_DupValue(ctx, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_DupValue:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_DupValue
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_DupValueRT
 ; SFD: (result,rt,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_DupValueRT(rt, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_DupValueRT(rt, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_DupValueRT:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; rt
 	jsr	_JS_DupValueRT
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_IsLiveObject
 ; SFD: (rt,obj_ptr)(a0/a1)
-; Calls: int JS_IsLiveObject(rt, obj)  — obj by value (8 bytes)
+; Calls: int JS_IsLiveObject(rt, obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsLiveObject:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; rt
 	jsr	_JS_IsLiveObject
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -559,19 +561,18 @@ _QJS_IsLiveObject:
 ; ===================================================================
 ; QJS_SetClassProto
 ; SFD: (ctx,class_id,obj_ptr)(a0/d0/a2)
-; Calls: void JS_SetClassProto(ctx, class_id, obj)  — obj by value (8 bytes)
+; Calls: void JS_SetClassProto(ctx, class_id, obj)  — obj by value (16 bytes)
 ; ===================================================================
 _QJS_SetClassProto:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a2),d4			; obj high
-	move.l	4(a2),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
 	move.l	d0,-(sp)		; class_id
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetClassProto
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -580,7 +581,7 @@ _QJS_SetClassProto:
 ; QJS_GetClassProto
 ; SFD: (result,ctx,class_id)(a0/a1/d0)
 ; Calls: JSValue JS_GetClassProto(ctx, class_id)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetClassProto:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -591,8 +592,7 @@ _QJS_GetClassProto:
 	jsr	_JS_GetClassProto
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -600,7 +600,7 @@ _QJS_GetClassProto:
 ; QJS_GetFunctionProto
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_GetFunctionProto(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetFunctionProto:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -610,31 +610,29 @@ _QJS_GetFunctionProto:
 	jsr	_JS_GetFunctionProto
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_IsEqual
 ; SFD: (ctx,op1_ptr,op2_ptr)(a0/a1/a2)
-; Calls: int JS_IsEqual(ctx, op1, op2)  — both by value (8 bytes each)
+; Calls: int JS_IsEqual(ctx, op1, op2)  — both by value (16 bytes each)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsEqual:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; op1 high
-	move.l	4(a1),d5		; op1 low
-	move.l	(a2),d6			; op2 high
-	move.l	4(a2),d7		; op2 low
-
-	move.l	d7,-(sp)		; op2 low
-	move.l	d6,-(sp)		; op2 high
-	move.l	d5,-(sp)		; op1 low
-	move.l	d4,-(sp)		; op1 high
+	move.l	12(a2),-(sp)		; op2 tag lo
+	move.l	8(a2),-(sp)		; op2 tag hi
+	move.l	4(a2),-(sp)		; op2 u lo
+	move.l	(a2),-(sp)		; op2 u hi
+	move.l	12(a1),-(sp)		; op1 tag lo
+	move.l	8(a1),-(sp)		; op1 tag hi
+	move.l	4(a1),-(sp)		; op1 u lo
+	move.l	(a1),-(sp)		; op1 u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsEqual
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -646,18 +644,17 @@ _QJS_IsEqual:
 ; ===================================================================
 _QJS_IsStrictEqual:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; op1 high
-	move.l	4(a1),d5		; op1 low
-	move.l	(a2),d6			; op2 high
-	move.l	4(a2),d7		; op2 low
-
-	move.l	d7,-(sp)		; op2 low
-	move.l	d6,-(sp)		; op2 high
-	move.l	d5,-(sp)		; op1 low
-	move.l	d4,-(sp)		; op1 high
+	move.l	12(a2),-(sp)		; op2 tag lo
+	move.l	8(a2),-(sp)		; op2 tag hi
+	move.l	4(a2),-(sp)		; op2 u lo
+	move.l	(a2),-(sp)		; op2 u hi
+	move.l	12(a1),-(sp)		; op1 tag lo
+	move.l	8(a1),-(sp)		; op1 tag hi
+	move.l	4(a1),-(sp)		; op1 u lo
+	move.l	(a1),-(sp)		; op1 u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsStrictEqual
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -669,18 +666,17 @@ _QJS_IsStrictEqual:
 ; ===================================================================
 _QJS_IsSameValue:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; op1 high
-	move.l	4(a1),d5		; op1 low
-	move.l	(a2),d6			; op2 high
-	move.l	4(a2),d7		; op2 low
-
-	move.l	d7,-(sp)		; op2 low
-	move.l	d6,-(sp)		; op2 high
-	move.l	d5,-(sp)		; op1 low
-	move.l	d4,-(sp)		; op1 high
+	move.l	12(a2),-(sp)		; op2 tag lo
+	move.l	8(a2),-(sp)		; op2 tag hi
+	move.l	4(a2),-(sp)		; op2 u lo
+	move.l	(a2),-(sp)		; op2 u hi
+	move.l	12(a1),-(sp)		; op1 tag lo
+	move.l	8(a1),-(sp)		; op1 tag hi
+	move.l	4(a1),-(sp)		; op1 u lo
+	move.l	(a1),-(sp)		; op1 u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsSameValue
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -692,18 +688,17 @@ _QJS_IsSameValue:
 ; ===================================================================
 _QJS_IsSameValueZero:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; op1 high
-	move.l	4(a1),d5		; op1 low
-	move.l	(a2),d6			; op2 high
-	move.l	4(a2),d7		; op2 low
-
-	move.l	d7,-(sp)		; op2 low
-	move.l	d6,-(sp)		; op2 high
-	move.l	d5,-(sp)		; op1 low
-	move.l	d4,-(sp)		; op1 high
+	move.l	12(a2),-(sp)		; op2 tag lo
+	move.l	8(a2),-(sp)		; op2 tag hi
+	move.l	4(a2),-(sp)		; op2 u lo
+	move.l	(a2),-(sp)		; op2 u hi
+	move.l	12(a1),-(sp)		; op1 tag lo
+	move.l	8(a1),-(sp)		; op1 tag hi
+	move.l	4(a1),-(sp)		; op1 u lo
+	move.l	(a1),-(sp)		; op1 u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsSameValueZero
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -713,7 +708,7 @@ _QJS_IsSameValueZero:
 ; SFD: (result,ctx,d_ptr)(a0/a1/a2)
 ; a2 = double* (8 bytes)
 ; Calls: JSValue JS_NewNumber(ctx, d)  — d is double (8 bytes on stack)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewNumber:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -727,8 +722,7 @@ _QJS_NewNumber:
 	jsr	_JS_NewNumber
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -737,7 +731,7 @@ _QJS_NewNumber:
 ; SFD: (result,ctx,v_ptr)(a0/a1/a2)
 ; a2 = long long* (8 bytes)
 ; Calls: JSValue JS_NewBigInt64(ctx, v)  — v is int64 (8 bytes on stack)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewBigInt64:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -751,8 +745,7 @@ _QJS_NewBigInt64:
 	jsr	_JS_NewBigInt64
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -761,7 +754,7 @@ _QJS_NewBigInt64:
 ; SFD: (result,ctx,v_ptr)(a0/a1/a2)
 ; a2 = unsigned long long* (8 bytes)
 ; Calls: JSValue JS_NewBigUint64(ctx, v)  — v is uint64 (8 bytes on stack)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewBigUint64:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -775,8 +768,7 @@ _QJS_NewBigUint64:
 	jsr	_JS_NewBigUint64
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -784,7 +776,7 @@ _QJS_NewBigUint64:
 ; QJS_NewStringLen
 ; SFD: (result,ctx,str,len)(a0/a1/a2/d0)
 ; Calls: JSValue JS_NewStringLen(ctx, str, len)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write
 ; ===================================================================
 _QJS_NewStringLen:
@@ -797,8 +789,7 @@ _QJS_NewStringLen:
 	jsr	_JS_NewStringLen
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -806,7 +797,7 @@ _QJS_NewStringLen:
 ; QJS_NewAtomString
 ; SFD: (result,ctx,str)(a0/a1/a2)
 ; Calls: JSValue JS_NewAtomString(ctx, str)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewAtomString:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -817,54 +808,49 @@ _QJS_NewAtomString:
 	jsr	_JS_NewAtomString
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_ToString
 ; SFD: (result,ctx,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_ToString(ctx, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_ToString(ctx, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_ToString:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_ToString
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_ToPropertyKey
 ; SFD: (result,ctx,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_ToPropertyKey(ctx, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_ToPropertyKey(ctx, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_ToPropertyKey:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_ToPropertyKey
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -877,16 +863,15 @@ _QJS_ToPropertyKey:
 ; ===================================================================
 _QJS_ToCStringLen2:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high from *a1
-	move.l	4(a1),d5		; val low
-
 	move.l	d0,-(sp)		; cesu8
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a2,-(sp)		; plen
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ToCStringLen2
-	lea	20(sp),sp
+	lea	28(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -894,19 +879,18 @@ _QJS_ToCStringLen2:
 ; ===================================================================
 ; QJS_ToBool
 ; SFD: (ctx,val_ptr)(a0/a1)
-; Calls: int JS_ToBool(ctx, val)  — val by value (8 bytes)
+; Calls: int JS_ToBool(ctx, val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_ToBool:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ToBool
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -915,20 +899,19 @@ _QJS_ToBool:
 ; QJS_ToInt32
 ; SFD: (ctx,pres,val_ptr)(a0/a2/a1)
 ; NOTE: SFD has swapped a1/a2! a1=val_ptr, a2=pres
-; Calls: int JS_ToInt32(ctx, pres, val)  — val by value (8 bytes)
+; Calls: int JS_ToInt32(ctx, pres, val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_ToInt32:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high from *a1
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a2,-(sp)		; pres
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ToInt32
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -937,20 +920,19 @@ _QJS_ToInt32:
 ; QJS_ToInt64
 ; SFD: (ctx,pres,val_ptr)(a0/a2/a1)
 ; NOTE: SFD has swapped a1/a2! a1=val_ptr, a2=pres
-; Calls: int JS_ToInt64(ctx, pres, val)  — val by value (8 bytes)
+; Calls: int JS_ToInt64(ctx, pres, val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_ToInt64:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high from *a1
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a2,-(sp)		; pres
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ToInt64
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -959,20 +941,19 @@ _QJS_ToInt64:
 ; QJS_ToFloat64
 ; SFD: (ctx,pres,val_ptr)(a0/a2/a1)
 ; NOTE: SFD has swapped a1/a2! a1=val_ptr, a2=pres
-; Calls: int JS_ToFloat64(ctx, pres, val)  — val by value (8 bytes)
+; Calls: int JS_ToFloat64(ctx, pres, val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_ToFloat64:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high from *a1
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a2,-(sp)		; pres
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ToFloat64
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -980,23 +961,21 @@ _QJS_ToFloat64:
 ; ===================================================================
 ; QJS_ToNumber
 ; SFD: (result,ctx,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_ToNumber(ctx, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_ToNumber(ctx, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_ToNumber:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_ToNumber
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1004,7 +983,7 @@ _QJS_ToNumber:
 ; QJS_NewObject
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_NewObject(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewObject:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1014,8 +993,7 @@ _QJS_NewObject:
 	jsr	_JS_NewObject
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1023,7 +1001,7 @@ _QJS_NewObject:
 ; QJS_NewObjectClass
 ; SFD: (result,ctx,class_id)(a0/a1/d0)
 ; Calls: JSValue JS_NewObjectClass(ctx, class_id)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewObjectClass:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1034,31 +1012,28 @@ _QJS_NewObjectClass:
 	jsr	_JS_NewObjectClass
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_NewObjectProto
 ; SFD: (result,ctx,proto_ptr)(a0/a1/a2)
-; Calls: JSValue JS_NewObjectProto(ctx, proto)  — proto by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_NewObjectProto(ctx, proto)  — proto by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewObjectProto:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; proto high
-	move.l	4(a2),d5		; proto low
-
-	move.l	d5,-(sp)		; proto low
-	move.l	d4,-(sp)		; proto high
+	move.l	12(a2),-(sp)		; proto tag lo
+	move.l	8(a2),-(sp)		; proto tag hi
+	move.l	4(a2),-(sp)		; proto u lo
+	move.l	(a2),-(sp)		; proto u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_NewObjectProto
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1066,7 +1041,7 @@ _QJS_NewObjectProto:
 ; QJS_NewArray
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_NewArray(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewArray:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1076,26 +1051,24 @@ _QJS_NewArray:
 	jsr	_JS_NewArray
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_IsArray
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsArray(val)  — val by value (8 bytes)
+; Calls: int JS_IsArray(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsArray:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsArray
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1103,19 +1076,18 @@ _QJS_IsArray:
 ; ===================================================================
 ; QJS_IsFunction
 ; SFD: (ctx,val_ptr)(a0/a1)
-; Calls: int JS_IsFunction(ctx, val)  — val by value (8 bytes)
+; Calls: int JS_IsFunction(ctx, val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsFunction:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsFunction
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1123,19 +1095,18 @@ _QJS_IsFunction:
 ; ===================================================================
 ; QJS_IsConstructor
 ; SFD: (ctx,val_ptr)(a0/a1)
-; Calls: int JS_IsConstructor(ctx, val)  — val by value (8 bytes)
+; Calls: int JS_IsConstructor(ctx, val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsConstructor:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsConstructor
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1144,7 +1115,7 @@ _QJS_IsConstructor:
 ; QJS_GetGlobalObject
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_GetGlobalObject(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetGlobalObject:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1154,54 +1125,49 @@ _QJS_GetGlobalObject:
 	jsr	_JS_GetGlobalObject
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_ToObject
 ; SFD: (result,ctx,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_ToObject(ctx, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_ToObject(ctx, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_ToObject:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_ToObject
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_Throw
 ; SFD: (result,ctx,obj_ptr)(a0/a1/a2)
-; Calls: JSValue JS_Throw(ctx, obj)  — obj by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_Throw(ctx, obj)  — obj by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_Throw:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; obj high
-	move.l	4(a2),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_Throw
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1209,7 +1175,7 @@ _QJS_Throw:
 ; QJS_GetException
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_GetException(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetException:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1219,26 +1185,24 @@ _QJS_GetException:
 	jsr	_JS_GetException
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_IsError
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsError(val)  — val by value (8 bytes)
+; Calls: int JS_IsError(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsError:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsError
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1247,7 +1211,7 @@ _QJS_IsError:
 ; QJS_NewError
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_NewError(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewError:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1257,8 +1221,7 @@ _QJS_NewError:
 	jsr	_JS_NewError
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1266,7 +1229,7 @@ _QJS_NewError:
 ; QJS_ThrowOutOfMemory
 ; SFD: (result,ctx)(a0/a1)
 ; Calls: JSValue JS_ThrowOutOfMemory(ctx)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_ThrowOutOfMemory:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1276,8 +1239,7 @@ _QJS_ThrowOutOfMemory:
 	jsr	_JS_ThrowOutOfMemory
 	lea	4(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1285,24 +1247,22 @@ _QJS_ThrowOutOfMemory:
 ; QJS_GetProperty
 ; SFD: (result,ctx,this_ptr,prop)(a0/a1/a2/d0)
 ; Calls: JSValue JS_GetProperty(ctx, this_obj, prop)
-;   this_obj by value (8 bytes)
-; Result: 8 bytes written through *result
+;   this_obj by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetProperty:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; this high
-	move.l	4(a2),d5		; this low
-
 	move.l	d0,-(sp)		; prop
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a2),-(sp)		; this tag lo
+	move.l	8(a2),-(sp)		; this tag hi
+	move.l	4(a2),-(sp)		; this u lo
+	move.l	(a2),-(sp)		; this u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_GetProperty
-	lea	16(sp),sp
+	lea	24(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1310,24 +1270,22 @@ _QJS_GetProperty:
 ; QJS_GetPropertyUint32
 ; SFD: (result,ctx,this_ptr,idx)(a0/a1/a2/d0)
 ; Calls: JSValue JS_GetPropertyUint32(ctx, this_obj, idx)
-;   this_obj by value (8 bytes)
-; Result: 8 bytes written through *result
+;   this_obj by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetPropertyUint32:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; this high
-	move.l	4(a2),d5		; this low
-
 	move.l	d0,-(sp)		; idx
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a2),-(sp)		; this tag lo
+	move.l	8(a2),-(sp)		; this tag hi
+	move.l	4(a2),-(sp)		; this u lo
+	move.l	(a2),-(sp)		; this u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_GetPropertyUint32
-	lea	16(sp),sp
+	lea	24(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1335,24 +1293,22 @@ _QJS_GetPropertyUint32:
 ; QJS_GetPropertyStr
 ; SFD: (result,ctx,this_ptr,prop_str)(a0/a1/a2/a3)
 ; Calls: JSValue JS_GetPropertyStr(ctx, this_obj, prop)
-;   this_obj by value (8 bytes)
-; Result: 8 bytes written through *result
+;   this_obj by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetPropertyStr:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; this high
-	move.l	4(a2),d5		; this low
-
 	move.l	a3,-(sp)		; prop_str
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a2),-(sp)		; this tag lo
+	move.l	8(a2),-(sp)		; this tag hi
+	move.l	4(a2),-(sp)		; this u lo
+	move.l	(a2),-(sp)		; this u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_GetPropertyStr
-	lea	16(sp),sp
+	lea	24(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1360,16 +1316,13 @@ _QJS_GetPropertyStr:
 ; QJS_GetPropertyInt64
 ; SFD: (result,ctx,this_ptr,idx)(a0/a1/a2/d0)
 ; Calls: JSValue JS_GetPropertyInt64(ctx, this_obj, idx)
-;   this_obj by value (8 bytes), idx is int64 (but SFD passes as LONG)
+;   this_obj by value (16 bytes), idx is int64 (but SFD passes as LONG)
 ;   C wrapper sign-extends to long long
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetPropertyInt64:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; this high
-	move.l	4(a2),d5		; this low
-
 	; Sign-extend d0 (LONG) to 64-bit for long long idx
 	move.l	d0,d6			; low word of int64
 	move.l	d0,d7
@@ -1379,14 +1332,15 @@ _QJS_GetPropertyInt64:
 	asr.l	#7,d7			; d7 = sign extension (0 or -1)
 	move.l	d6,-(sp)		; idx low
 	move.l	d7,-(sp)		; idx high (sign extended)
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a2),-(sp)		; this tag lo
+	move.l	8(a2),-(sp)		; this tag hi
+	move.l	4(a2),-(sp)		; this u lo
+	move.l	(a2),-(sp)		; this u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_GetPropertyInt64
-	lea	20(sp),sp
+	lea	28(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1394,26 +1348,25 @@ _QJS_GetPropertyInt64:
 ; QJS_SetProperty
 ; SFD: (ctx,this_ptr,prop,val_ptr)(a0/a1/d0/a2)
 ; Calls: int JS_SetProperty(ctx, this_obj, prop, val)
-;   this_obj by value (8 bytes), val by value (8 bytes, consumed)
+;   this_obj by value (16 bytes), val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetProperty:
 	movem.l	d2-d7/a2-a6,-(sp)
 	; Read JSValues BEFORE any push
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-	move.l	(a2),d6			; val high
-	move.l	4(a2),d7		; val low
-
 	; Push right-to-left: val, prop, this_obj, ctx
-	move.l	d7,-(sp)		; val low
-	move.l	d6,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	d0,-(sp)		; prop
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetProperty
-	lea	24(sp),sp
+	lea	40(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1422,24 +1375,23 @@ _QJS_SetProperty:
 ; QJS_SetPropertyUint32
 ; SFD: (ctx,this_ptr,idx,val_ptr)(a0/a1/d0/a2)
 ; Calls: int JS_SetPropertyUint32(ctx, this_obj, idx, val)
-;   this_obj by value (8 bytes), val by value (8 bytes, consumed)
+;   this_obj by value (16 bytes), val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetPropertyUint32:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-	move.l	(a2),d6			; val high
-	move.l	4(a2),d7		; val low
-
-	move.l	d7,-(sp)		; val low
-	move.l	d6,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	d0,-(sp)		; idx
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetPropertyUint32
-	lea	24(sp),sp
+	lea	40(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1448,26 +1400,25 @@ _QJS_SetPropertyUint32:
 ; QJS_SetPropertyStr
 ; SFD: (ctx,this_ptr,prop_str,val_ptr)(a0/a1/a2/a3)
 ; Calls: int JS_SetPropertyStr(ctx, this_obj, prop, val)
-;   this_obj by value (8 bytes), val by value (8 bytes, consumed)
+;   this_obj by value (16 bytes), val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetPropertyStr:
 	movem.l	d2-d7/a2-a6,-(sp)
 	; Read JSValues BEFORE any push
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-	move.l	(a3),d6			; val high
-	move.l	4(a3),d7		; val low
-
 	; Push right-to-left: val, prop_str, this_obj, ctx
-	move.l	d7,-(sp)		; val low
-	move.l	d6,-(sp)		; val high
+	move.l	12(a3),-(sp)		; val tag lo
+	move.l	8(a3),-(sp)		; val tag hi
+	move.l	4(a3),-(sp)		; val u lo
+	move.l	(a3),-(sp)		; val u hi
 	move.l	a2,-(sp)		; prop_str
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetPropertyStr
-	lea	24(sp),sp
+	lea	40(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1476,20 +1427,19 @@ _QJS_SetPropertyStr:
 ; QJS_HasProperty
 ; SFD: (ctx,this_ptr,prop)(a0/a1/d0)
 ; Calls: int JS_HasProperty(ctx, this_obj, prop)
-;   this_obj by value (8 bytes)
+;   this_obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_HasProperty:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-
 	move.l	d0,-(sp)		; prop
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_HasProperty
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1498,21 +1448,20 @@ _QJS_HasProperty:
 ; QJS_DeleteProperty
 ; SFD: (ctx,obj_ptr,prop,flags)(a0/a1/d0/d1)
 ; Calls: int JS_DeleteProperty(ctx, obj, prop, flags)
-;   obj by value (8 bytes)
+;   obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_DeleteProperty:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
 	move.l	d1,-(sp)		; flags
 	move.l	d0,-(sp)		; prop
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_DeleteProperty
-	lea	20(sp),sp
+	lea	28(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1521,23 +1470,22 @@ _QJS_DeleteProperty:
 ; QJS_SetPrototype
 ; SFD: (ctx,obj_ptr,proto_ptr)(a0/a1/a2)
 ; Calls: int JS_SetPrototype(ctx, obj, proto_val)
-;   obj by value (8 bytes), proto by value (8 bytes)
+;   obj by value (16 bytes), proto by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetPrototype:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-	move.l	(a2),d6			; proto high
-	move.l	4(a2),d7		; proto low
-
-	move.l	d7,-(sp)		; proto low
-	move.l	d6,-(sp)		; proto high
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a2),-(sp)		; proto tag lo
+	move.l	8(a2),-(sp)		; proto tag hi
+	move.l	4(a2),-(sp)		; proto u lo
+	move.l	(a2),-(sp)		; proto u hi
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetPrototype
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1545,23 +1493,21 @@ _QJS_SetPrototype:
 ; ===================================================================
 ; QJS_GetPrototype
 ; SFD: (result,ctx,val_ptr)(a0/a1/a2)
-; Calls: JSValue JS_GetPrototype(ctx, val)  — val by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_GetPrototype(ctx, val)  — val by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetPrototype:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; val high
-	move.l	4(a2),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_GetPrototype
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1569,20 +1515,19 @@ _QJS_GetPrototype:
 ; QJS_GetLength
 ; SFD: (ctx,obj_ptr,pres)(a0/a1/a2)
 ; Calls: int JS_GetLength(ctx, obj, pres)
-;   obj by value (8 bytes), pres is long long*
+;   obj by value (16 bytes), pres is long long*
 ; Returns: int in d0
 ; ===================================================================
 _QJS_GetLength:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
 	move.l	a2,-(sp)		; pres
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_GetLength
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1591,14 +1536,11 @@ _QJS_GetLength:
 ; QJS_SetLength
 ; SFD: (ctx,obj_ptr,len)(a0/a1/d0)
 ; Calls: int JS_SetLength(ctx, obj, len)
-;   obj by value (8 bytes), len sign-extended to long long
+;   obj by value (16 bytes), len sign-extended to long long
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetLength:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
 	; Sign-extend d0 (LONG) to long long
 	move.l	d0,d6			; len low
 	move.l	d0,d7
@@ -1608,11 +1550,13 @@ _QJS_SetLength:
 	asr.l	#7,d7			; d7 = sign extension
 	move.l	d6,-(sp)		; len low
 	move.l	d7,-(sp)		; len high
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetLength
-	lea	20(sp),sp
+	lea	28(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1620,19 +1564,18 @@ _QJS_SetLength:
 ; ===================================================================
 ; QJS_IsExtensible
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: int JS_IsExtensible(ctx, obj)  — obj by value (8 bytes)
+; Calls: int JS_IsExtensible(ctx, obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsExtensible:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsExtensible
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1640,19 +1583,18 @@ _QJS_IsExtensible:
 ; ===================================================================
 ; QJS_PreventExtensions
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: int JS_PreventExtensions(ctx, obj)  — obj by value (8 bytes)
+; Calls: int JS_PreventExtensions(ctx, obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_PreventExtensions:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_PreventExtensions
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1660,19 +1602,18 @@ _QJS_PreventExtensions:
 ; ===================================================================
 ; QJS_SealObject
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: int JS_SealObject(ctx, obj)  — obj by value (8 bytes)
+; Calls: int JS_SealObject(ctx, obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SealObject:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SealObject
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1680,19 +1621,18 @@ _QJS_SealObject:
 ; ===================================================================
 ; QJS_FreezeObject
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: int JS_FreezeObject(ctx, obj)  — obj by value (8 bytes)
+; Calls: int JS_FreezeObject(ctx, obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_FreezeObject:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_FreezeObject
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1701,27 +1641,26 @@ _QJS_FreezeObject:
 ; QJS_DefinePropertyValue
 ; SFD: (ctx,this_ptr,prop,val_ptr,flags)(a0/a1/d0/a2/d1)
 ; Calls: int JS_DefinePropertyValue(ctx, this_obj, prop, val, flags)
-;   this_obj by value (8 bytes), val by value (8 bytes, consumed)
+;   this_obj by value (16 bytes), val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_DefinePropertyValue:
 	movem.l	d2-d7/a2-a6,-(sp)
 	; Read JSValues BEFORE push
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-	move.l	(a2),d6			; val high
-	move.l	4(a2),d7		; val low
-
 	; Push right-to-left: flags, val, prop, this_obj, ctx
 	move.l	d1,-(sp)		; flags
-	move.l	d7,-(sp)		; val low
-	move.l	d6,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	d0,-(sp)		; prop
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_DefinePropertyValue
-	lea	28(sp),sp
+	lea	44(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1730,25 +1669,24 @@ _QJS_DefinePropertyValue:
 ; QJS_DefinePropertyValueUint32
 ; SFD: (ctx,this_ptr,idx,val_ptr,flags)(a0/a1/d0/a2/d1)
 ; Calls: int JS_DefinePropertyValueUint32(ctx, this_obj, idx, val, flags)
-;   this_obj by value (8 bytes), val by value (8 bytes, consumed)
+;   this_obj by value (16 bytes), val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_DefinePropertyValueUint32:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-	move.l	(a2),d6			; val high
-	move.l	4(a2),d7		; val low
-
 	move.l	d1,-(sp)		; flags
-	move.l	d7,-(sp)		; val low
-	move.l	d6,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	d0,-(sp)		; idx
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_DefinePropertyValueUint32
-	lea	28(sp),sp
+	lea	44(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1757,27 +1695,26 @@ _QJS_DefinePropertyValueUint32:
 ; QJS_DefinePropertyValueStr
 ; SFD: (ctx,this_ptr,val_ptr,prop_str,flags)(a0/a1/a2/a3/d0)
 ; Calls: int JS_DefinePropertyValueStr(ctx, this_obj, prop, val, flags)
-;   this_obj by value (8 bytes), val by value (8 bytes, consumed)
+;   this_obj by value (16 bytes), val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_DefinePropertyValueStr:
 	movem.l	d2-d7/a2-a6,-(sp)
 	; Read JSValues BEFORE push
-	move.l	(a1),d4			; this high
-	move.l	4(a1),d5		; this low
-	move.l	(a2),d6			; val high
-	move.l	4(a2),d7		; val low
-
 	; Push right-to-left: flags, val, prop_str, this_obj, ctx
 	move.l	d0,-(sp)		; flags
-	move.l	d7,-(sp)		; val low
-	move.l	d6,-(sp)		; val high
+	move.l	12(a2),-(sp)		; val tag lo
+	move.l	8(a2),-(sp)		; val tag hi
+	move.l	4(a2),-(sp)		; val u lo
+	move.l	(a2),-(sp)		; val u hi
 	move.l	a3,-(sp)		; prop_str
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a1),-(sp)		; this tag lo
+	move.l	8(a1),-(sp)		; this tag hi
+	move.l	4(a1),-(sp)		; this u lo
+	move.l	(a1),-(sp)		; this u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_DefinePropertyValueStr
-	lea	28(sp),sp
+	lea	44(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1785,19 +1722,18 @@ _QJS_DefinePropertyValueStr:
 ; ===================================================================
 ; QJS_SetOpaque
 ; SFD: (obj_ptr,opaque)(a1/a0)  — NOTE: swapped! a1=obj_ptr, a0=opaque
-; Calls: int JS_SetOpaque(obj, opaque)  — obj by value (8 bytes)
+; Calls: int JS_SetOpaque(obj, opaque)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetOpaque:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
 	move.l	a0,-(sp)		; opaque
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	jsr	_JS_SetOpaque
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1805,19 +1741,18 @@ _QJS_SetOpaque:
 ; ===================================================================
 ; QJS_GetOpaque
 ; SFD: (obj_ptr,class_id)(a0/d0)
-; Calls: void *JS_GetOpaque(obj, class_id)  — obj by value (8 bytes)
+; Calls: void *JS_GetOpaque(obj, class_id)  — obj by value (16 bytes)
 ; Returns: pointer in d0
 ; ===================================================================
 _QJS_GetOpaque:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; obj high
-	move.l	4(a0),d5		; obj low
-
 	move.l	d0,-(sp)		; class_id
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a0),-(sp)		; obj tag lo
+	move.l	8(a0),-(sp)		; obj tag hi
+	move.l	4(a0),-(sp)		; obj u lo
+	move.l	(a0),-(sp)		; obj u hi
 	jsr	_JS_GetOpaque
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1825,20 +1760,19 @@ _QJS_GetOpaque:
 ; ===================================================================
 ; QJS_GetOpaque2
 ; SFD: (ctx,obj_ptr,class_id)(a0/a1/d0)
-; Calls: void *JS_GetOpaque2(ctx, obj, class_id)  — obj by value (8 bytes)
+; Calls: void *JS_GetOpaque2(ctx, obj, class_id)  — obj by value (16 bytes)
 ; Returns: pointer in d0
 ; ===================================================================
 _QJS_GetOpaque2:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
 	move.l	d0,-(sp)		; class_id
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_GetOpaque2
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1847,22 +1781,21 @@ _QJS_GetOpaque2:
 ; QJS_GetOwnPropertyNames
 ; SFD: (ctx,ptab,plen,obj_ptr,flags)(a0/a1/a2/a3/d0)
 ; Calls: int JS_GetOwnPropertyNames(ctx, ptab, plen, obj, flags)
-;   obj by value (8 bytes)
+;   obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_GetOwnPropertyNames:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a3),d4			; obj high
-	move.l	4(a3),d5		; obj low
-
 	move.l	d0,-(sp)		; flags
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a3),-(sp)		; obj tag lo
+	move.l	8(a3),-(sp)		; obj tag hi
+	move.l	4(a3),-(sp)		; obj u lo
+	move.l	(a3),-(sp)		; obj u hi
 	move.l	a2,-(sp)		; plen
 	move.l	a1,-(sp)		; ptab
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_GetOwnPropertyNames
-	lea	24(sp),sp
+	lea	32(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1871,23 +1804,22 @@ _QJS_GetOwnPropertyNames:
 ; QJS_IsInstanceOf
 ; SFD: (ctx,val_ptr,obj_ptr)(a0/a1/a2)
 ; Calls: int JS_IsInstanceOf(ctx, val, obj)
-;   val by value (8 bytes), obj by value (8 bytes)
+;   val by value (16 bytes), obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsInstanceOf:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-	move.l	(a2),d6			; obj high
-	move.l	4(a2),d7		; obj low
-
-	move.l	d7,-(sp)		; obj low
-	move.l	d6,-(sp)		; obj high
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_IsInstanceOf
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1896,7 +1828,7 @@ _QJS_IsInstanceOf:
 ; QJS_AtomToValue
 ; SFD: (result,ctx,atom)(a0/a1/d0)
 ; Calls: JSValue JS_AtomToValue(ctx, atom)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_AtomToValue:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1907,8 +1839,7 @@ _QJS_AtomToValue:
 	jsr	_JS_AtomToValue
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1916,7 +1847,7 @@ _QJS_AtomToValue:
 ; QJS_AtomToString
 ; SFD: (result,ctx,atom)(a0/a1/d0)
 ; Calls: JSValue JS_AtomToString(ctx, atom)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_AtomToString:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -1927,27 +1858,25 @@ _QJS_AtomToString:
 	jsr	_JS_AtomToString
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_ValueToAtom
 ; SFD: (ctx,val_ptr)(a0/a1)
-; Calls: JSAtom JS_ValueToAtom(ctx, val)  — val by value (8 bytes)
+; Calls: JSAtom JS_ValueToAtom(ctx, val)  — val by value (16 bytes)
 ; Returns: ULONG in d0
 ; ===================================================================
 _QJS_ValueToAtom:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; val high
-	move.l	4(a1),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a1),-(sp)		; val tag lo
+	move.l	8(a1),-(sp)		; val tag hi
+	move.l	4(a1),-(sp)		; val u lo
+	move.l	(a1),-(sp)		; val u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ValueToAtom
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -1955,23 +1884,21 @@ _QJS_ValueToAtom:
 ; ===================================================================
 ; QJS_EvalFunction
 ; SFD: (result,ctx,fun_ptr)(a0/a1/a2)
-; Calls: JSValue JS_EvalFunction(ctx, fun_obj)  — fun by value (8 bytes, consumed)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_EvalFunction(ctx, fun_obj)  — fun by value (16 bytes, consumed)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_EvalFunction:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; fun high
-	move.l	4(a2),d5		; fun low
-
-	move.l	d5,-(sp)		; fun low
-	move.l	d4,-(sp)		; fun high
+	move.l	12(a2),-(sp)		; fun tag lo
+	move.l	8(a2),-(sp)		; fun tag hi
+	move.l	4(a2),-(sp)		; fun u lo
+	move.l	(a2),-(sp)		; fun u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_EvalFunction
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -1979,32 +1906,30 @@ _QJS_EvalFunction:
 ; QJS_Call
 ; SFD: (result,ctx,func_ptr,this_ptr,argc,argv_addr)(a0/a1/a2/a3/d0/d1)
 ; Calls: JSValue JS_Call(ctx, func_obj, this_obj, argc, argv)
-;   func by value (8 bytes), this by value (8 bytes)
+;   func by value (16 bytes), this by value (16 bytes)
 ;   argv_addr is a ULONG cast of JSValue* pointer
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_Call:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
 	; Read JSValues BEFORE push
-	move.l	(a2),d4			; func high
-	move.l	4(a2),d5		; func low
-	move.l	(a3),d6			; this high
-	move.l	4(a3),d7		; this low
-
 	; Push right-to-left: argv, argc, this_obj, func_obj, ctx
 	move.l	d1,-(sp)		; argv_addr (pointer)
 	move.l	d0,-(sp)		; argc
-	move.l	d7,-(sp)		; this low
-	move.l	d6,-(sp)		; this high
-	move.l	d5,-(sp)		; func low
-	move.l	d4,-(sp)		; func high
+	move.l	12(a3),-(sp)		; this tag lo
+	move.l	8(a3),-(sp)		; this tag hi
+	move.l	4(a3),-(sp)		; this u lo
+	move.l	(a3),-(sp)		; this u hi
+	move.l	12(a2),-(sp)		; func tag lo
+	move.l	8(a2),-(sp)		; func tag hi
+	move.l	4(a2),-(sp)		; func u lo
+	move.l	(a2),-(sp)		; func u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_Call
-	lea	28(sp),sp
+	lea	44(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2012,27 +1937,25 @@ _QJS_Call:
 ; QJS_Invoke
 ; SFD: (result,ctx,this_ptr,argv,atom,argc)(a0/a1/a2/a3/d0/d1)
 ; Calls: JSValue JS_Invoke(ctx, this_val, atom, argc, argv)
-;   this by value (8 bytes), argv is JSValue* pointer (passed through)
-; Result: 8 bytes written through *result
+;   this by value (16 bytes), argv is JSValue* pointer (passed through)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_Invoke:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; this high
-	move.l	4(a2),d5		; this low
-
 	; Push right-to-left: argv, argc, atom, this_val, ctx
 	move.l	a3,-(sp)		; argv (pointer, not dereferenced)
 	move.l	d1,-(sp)		; argc
 	move.l	d0,-(sp)		; atom
-	move.l	d5,-(sp)		; this low
-	move.l	d4,-(sp)		; this high
+	move.l	12(a2),-(sp)		; this tag lo
+	move.l	8(a2),-(sp)		; this tag hi
+	move.l	4(a2),-(sp)		; this u lo
+	move.l	(a2),-(sp)		; this u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_Invoke
-	lea	24(sp),sp
+	lea	32(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2040,26 +1963,24 @@ _QJS_Invoke:
 ; QJS_CallConstructor
 ; SFD: (result,ctx,func_ptr,argv,argc)(a0/a1/a2/a3/d0)
 ; Calls: JSValue JS_CallConstructor(ctx, func_obj, argc, argv)
-;   func by value (8 bytes), argv is JSValue* pointer (passed through)
-; Result: 8 bytes written through *result
+;   func by value (16 bytes), argv is JSValue* pointer (passed through)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_CallConstructor:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; func high
-	move.l	4(a2),d5		; func low
-
 	; Push right-to-left: argv, argc, func_obj, ctx
 	move.l	a3,-(sp)		; argv (pointer)
 	move.l	d0,-(sp)		; argc
-	move.l	d5,-(sp)		; func low
-	move.l	d4,-(sp)		; func high
+	move.l	12(a2),-(sp)		; func tag lo
+	move.l	8(a2),-(sp)		; func tag hi
+	move.l	4(a2),-(sp)		; func u lo
+	move.l	(a2),-(sp)		; func u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_CallConstructor
-	lea	20(sp),sp
+	lea	28(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2067,7 +1988,7 @@ _QJS_CallConstructor:
 ; QJS_ParseJSON
 ; SFD: (result,ctx,buf,filename,buf_len)(a0/a1/a2/a3/d0)
 ; Calls: JSValue JS_ParseJSON(ctx, buf, buf_len, filename)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write
 ; ===================================================================
 _QJS_ParseJSON:
@@ -2082,8 +2003,7 @@ _QJS_ParseJSON:
 	jsr	_JS_ParseJSON
 	lea	16(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2091,30 +2011,32 @@ _QJS_ParseJSON:
 ; QJS_JSONStringify
 ; SFD: (result,ctx,obj_ptr)(a0/a1/a2)
 ; Calls: JSValue JS_JSONStringify(ctx, obj, replacer, space0)
-;   obj by value (8 bytes), replacer=undefined, space0=undefined
+;   obj by value (16 bytes), replacer=undefined, space0=undefined
 ;   undefined = { .u.int32=0, .tag=3 } = high=3, low=0
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_JSONStringify:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; obj high
-	move.l	4(a2),d5		; obj low
-
 	; Push right-to-left: space0(undef), replacer(undef), obj, ctx
 	; undefined JSValue: tag=3 (high), int32=0 (low)
-	clr.l	-(sp)			; space0 low (0)
-	move.l	#3,-(sp)		; space0 high (tag=3=UNDEFINED)
-	clr.l	-(sp)			; replacer low (0)
-	move.l	#3,-(sp)		; replacer high (tag=3=UNDEFINED)
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	#3,-(sp)		; space0 tag lo (UNDEFINED)
+	clr.l	-(sp)			; space0 tag hi
+	clr.l	-(sp)			; space0 u lo
+	clr.l	-(sp)			; space0 u hi
+	move.l	#3,-(sp)		; replacer tag lo (UNDEFINED)
+	clr.l	-(sp)			; replacer tag hi
+	clr.l	-(sp)			; replacer u lo
+	clr.l	-(sp)			; replacer u hi
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_JSONStringify
-	lea	28(sp),sp
+	lea	52(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2122,7 +2044,7 @@ _QJS_JSONStringify:
 ; QJS_WriteObject
 ; SFD: (ctx,psize,obj_ptr,flags)(a0/a1/a2/d0)
 ; Calls: unsigned char *JS_WriteObject(ctx, &ssize, obj, flags)
-;   obj by value (8 bytes)
+;   obj by value (16 bytes)
 ; Returns: pointer in d0
 ; NOTE: C wrapper uses local size_t then copies to *psize.
 ;   In asm we pass psize directly — JS_WriteObject takes size_t*
@@ -2130,16 +2052,15 @@ _QJS_JSONStringify:
 ; ===================================================================
 _QJS_WriteObject:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a2),d4			; obj high
-	move.l	4(a2),d5		; obj low
-
 	move.l	d0,-(sp)		; flags
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
 	move.l	a1,-(sp)		; psize
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_WriteObject
-	lea	20(sp),sp
+	lea	28(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2148,7 +2069,7 @@ _QJS_WriteObject:
 ; QJS_ReadObject
 ; SFD: (result,ctx,buf,buf_len,flags)(a0/a1/a2/d0/d1)
 ; Calls: JSValue JS_ReadObject(ctx, buf, buf_len, flags)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write
 ; ===================================================================
 _QJS_ReadObject:
@@ -2162,26 +2083,24 @@ _QJS_ReadObject:
 	jsr	_JS_ReadObject
 	lea	16(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_GetClassID
 ; SFD: (val_ptr)(a0)
-; Calls: unsigned long JS_GetClassID(v)  — v by value (8 bytes)
+; Calls: unsigned long JS_GetClassID(v)  — v by value (16 bytes)
 ; Returns: ULONG in d0
 ; ===================================================================
 _QJS_GetClassID:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_GetClassID
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2190,7 +2109,7 @@ _QJS_GetClassID:
 ; QJS_GetImportMeta
 ; SFD: (result,ctx,m)(a0/a1/a2)
 ; Calls: JSValue JS_GetImportMeta(ctx, m)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; m is JSModuleDef* (plain pointer, not JSValue*)
 ; ===================================================================
 _QJS_GetImportMeta:
@@ -2202,8 +2121,7 @@ _QJS_GetImportMeta:
 	jsr	_JS_GetImportMeta
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2211,7 +2129,7 @@ _QJS_GetImportMeta:
 ; QJS_GetModuleNamespace
 ; SFD: (result,ctx,m)(a0/a1/a2)
 ; Calls: JSValue JS_GetModuleNamespace(ctx, m)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_GetModuleNamespace:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -2222,8 +2140,7 @@ _QJS_GetModuleNamespace:
 	jsr	_JS_GetModuleNamespace
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2231,21 +2148,20 @@ _QJS_GetModuleNamespace:
 ; QJS_SetModuleExport
 ; SFD: (ctx,m,export_name,val_ptr)(a0/a1/a2/a3)
 ; Calls: int JS_SetModuleExport(ctx, m, export_name, val)
-;   val by value (8 bytes, consumed)
+;   val by value (16 bytes, consumed)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetModuleExport:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a3),d4			; val high
-	move.l	4(a3),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a3),-(sp)		; val tag lo
+	move.l	8(a3),-(sp)		; val tag hi
+	move.l	4(a3),-(sp)		; val u lo
+	move.l	(a3),-(sp)		; val u hi
 	move.l	a2,-(sp)		; export_name
 	move.l	a1,-(sp)		; m
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetModuleExport
-	lea	20(sp),sp
+	lea	28(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2253,19 +2169,18 @@ _QJS_SetModuleExport:
 ; ===================================================================
 ; QJS_ResolveModule
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: int JS_ResolveModule(ctx, obj)  — obj by value (8 bytes)
+; Calls: int JS_ResolveModule(ctx, obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_ResolveModule:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_ResolveModule
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2274,7 +2189,7 @@ _QJS_ResolveModule:
 ; QJS_NewCFunction2
 ; SFD: (result,ctx,func,name,length,cproto,magic)(a0/a1/a2/a3/d0/d1/d2)
 ; Calls: JSValue JS_NewCFunction2(ctx, func, name, length, cproto, magic)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write (and 7 reg params)
 ; ===================================================================
 _QJS_NewCFunction2:
@@ -2291,8 +2206,7 @@ _QJS_NewCFunction2:
 	jsr	_JS_NewCFunction2
 	lea	24(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2300,23 +2214,22 @@ _QJS_NewCFunction2:
 ; QJS_SetConstructor
 ; SFD: (ctx,func_ptr,proto_ptr)(a0/a1/a2)
 ; Calls: int JS_SetConstructor(ctx, func_obj, proto)
-;   func by value (8 bytes), proto by value (8 bytes)
+;   func by value (16 bytes), proto by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetConstructor:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; func high
-	move.l	4(a1),d5		; func low
-	move.l	(a2),d6			; proto high
-	move.l	4(a2),d7		; proto low
-
-	move.l	d7,-(sp)		; proto low
-	move.l	d6,-(sp)		; proto high
-	move.l	d5,-(sp)		; func low
-	move.l	d4,-(sp)		; func high
+	move.l	12(a2),-(sp)		; proto tag lo
+	move.l	8(a2),-(sp)		; proto tag hi
+	move.l	4(a2),-(sp)		; proto u lo
+	move.l	(a2),-(sp)		; proto u hi
+	move.l	12(a1),-(sp)		; func tag lo
+	move.l	8(a1),-(sp)		; func tag hi
+	move.l	4(a1),-(sp)		; func u lo
+	move.l	(a1),-(sp)		; func u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetConstructor
-	lea	20(sp),sp
+	lea	36(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2325,21 +2238,20 @@ _QJS_SetConstructor:
 ; QJS_SetPropertyFunctionList
 ; SFD: (ctx,obj_ptr,tab,len)(a0/a1/a2/d0)
 ; Calls: int JS_SetPropertyFunctionList(ctx, obj, tab, len)
-;   obj by value (8 bytes)
+;   obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetPropertyFunctionList:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
 	move.l	d0,-(sp)		; len
 	move.l	a2,-(sp)		; tab
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetPropertyFunctionList
-	lea	20(sp),sp
+	lea	28(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2349,7 +2261,7 @@ _QJS_SetPropertyFunctionList:
 ; SFD: (result,ctx,resolving_funcs)(a0/a1/a2)
 ; Calls: JSValue JS_NewPromiseCapability(ctx, resolving_funcs)
 ;   resolving_funcs is JSValue* array (pointer, not dereferenced as value)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewPromiseCapability:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -2360,27 +2272,25 @@ _QJS_NewPromiseCapability:
 	jsr	_JS_NewPromiseCapability
 	lea	8(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_PromiseState
 ; SFD: (ctx,promise_ptr)(a0/a1)
-; Calls: int JS_PromiseState(ctx, promise)  — promise by value (8 bytes)
+; Calls: int JS_PromiseState(ctx, promise)  — promise by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_PromiseState:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; promise high
-	move.l	4(a1),d5		; promise low
-
-	move.l	d5,-(sp)		; promise low
-	move.l	d4,-(sp)		; promise high
+	move.l	12(a1),-(sp)		; promise tag lo
+	move.l	8(a1),-(sp)		; promise tag hi
+	move.l	4(a1),-(sp)		; promise u lo
+	move.l	(a1),-(sp)		; promise u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_PromiseState
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2388,41 +2298,38 @@ _QJS_PromiseState:
 ; ===================================================================
 ; QJS_PromiseResult
 ; SFD: (result,ctx,promise_ptr)(a0/a1/a2)
-; Calls: JSValue JS_PromiseResult(ctx, promise)  — promise by value (8 bytes)
-; Result: 8 bytes written through *result
+; Calls: JSValue JS_PromiseResult(ctx, promise)  — promise by value (16 bytes)
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_PromiseResult:
 	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	a0,a4			; save result pointer
-	move.l	(a2),d4			; promise high
-	move.l	4(a2),d5		; promise low
-
-	move.l	d5,-(sp)		; promise low
-	move.l	d4,-(sp)		; promise high
+	move.l	12(a2),-(sp)		; promise tag lo
+	move.l	8(a2),-(sp)		; promise tag hi
+	move.l	4(a2),-(sp)		; promise u lo
+	move.l	(a2),-(sp)		; promise u hi
 	move.l	a1,-(sp)		; ctx
 	jsr	_JS_PromiseResult
-	lea	12(sp),sp
+	lea	20(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_IsPromise
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsPromise(val)  — val by value (8 bytes)
+; Calls: int JS_IsPromise(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsPromise:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsPromise
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2431,7 +2338,7 @@ _QJS_IsPromise:
 ; QJS_NewArrayBufferCopy
 ; SFD: (result,ctx,buf,len)(a0/a1/a2/d0)
 ; Calls: JSValue JS_NewArrayBufferCopy(ctx, buf, len)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write
 ; ===================================================================
 _QJS_NewArrayBufferCopy:
@@ -2444,8 +2351,7 @@ _QJS_NewArrayBufferCopy:
 	jsr	_JS_NewArrayBufferCopy
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
@@ -2453,20 +2359,19 @@ _QJS_NewArrayBufferCopy:
 ; QJS_GetArrayBuffer
 ; SFD: (ctx,psize,obj_ptr)(a0/a1/a2)
 ; Calls: unsigned char *JS_GetArrayBuffer(ctx, psize, obj)
-;   obj by value (8 bytes)
+;   obj by value (16 bytes)
 ; Returns: pointer in d0
 ; ===================================================================
 _QJS_GetArrayBuffer:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a2),d4			; obj high
-	move.l	4(a2),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
 	move.l	a1,-(sp)		; psize
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_GetArrayBuffer
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2474,18 +2379,17 @@ _QJS_GetArrayBuffer:
 ; ===================================================================
 ; QJS_IsArrayBuffer
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsArrayBuffer(obj)  — obj by value (8 bytes)
+; Calls: int JS_IsArrayBuffer(obj)  — obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsArrayBuffer:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsArrayBuffer
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2493,18 +2397,17 @@ _QJS_IsArrayBuffer:
 ; ===================================================================
 ; QJS_DetachArrayBuffer
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: void JS_DetachArrayBuffer(ctx, obj)  — obj by value (8 bytes)
+; Calls: void JS_DetachArrayBuffer(ctx, obj)  — obj by value (16 bytes)
 ; ===================================================================
 _QJS_DetachArrayBuffer:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_DetachArrayBuffer
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2513,20 +2416,19 @@ _QJS_DetachArrayBuffer:
 ; QJS_GetUint8Array
 ; SFD: (ctx,psize,obj_ptr)(a0/a1/a2)
 ; Calls: unsigned char *JS_GetUint8Array(ctx, psize, obj)
-;   obj by value (8 bytes)
+;   obj by value (16 bytes)
 ; Returns: pointer in d0
 ; ===================================================================
 _QJS_GetUint8Array:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a2),d4			; obj high
-	move.l	4(a2),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a2),-(sp)		; obj tag lo
+	move.l	8(a2),-(sp)		; obj tag hi
+	move.l	4(a2),-(sp)		; obj u lo
+	move.l	(a2),-(sp)		; obj u hi
 	move.l	a1,-(sp)		; psize
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_GetUint8Array
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2535,7 +2437,7 @@ _QJS_GetUint8Array:
 ; QJS_NewUint8ArrayCopy
 ; SFD: (result,ctx,buf,len)(a0/a1/a2/d0)
 ; Calls: JSValue JS_NewUint8ArrayCopy(ctx, buf, len)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; ===================================================================
 _QJS_NewUint8ArrayCopy:
 	movem.l	d2-d7/a2-a6,-(sp)
@@ -2547,26 +2449,24 @@ _QJS_NewUint8ArrayCopy:
 	jsr	_JS_NewUint8ArrayCopy
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_IsDate
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsDate(val)  — val by value (8 bytes)
+; Calls: int JS_IsDate(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsDate:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsDate
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2574,18 +2474,17 @@ _QJS_IsDate:
 ; ===================================================================
 ; QJS_IsRegExp
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsRegExp(val)  — val by value (8 bytes)
+; Calls: int JS_IsRegExp(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsRegExp:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsRegExp
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2593,18 +2492,17 @@ _QJS_IsRegExp:
 ; ===================================================================
 ; QJS_IsMap
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsMap(val)  — val by value (8 bytes)
+; Calls: int JS_IsMap(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsMap:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsMap
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2612,18 +2510,17 @@ _QJS_IsMap:
 ; ===================================================================
 ; QJS_IsSet
 ; SFD: (val_ptr)(a0)
-; Calls: int JS_IsSet(val)  — val by value (8 bytes)
+; Calls: int JS_IsSet(val)  — val by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_IsSet:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a0),d4			; val high
-	move.l	4(a0),d5		; val low
-
-	move.l	d5,-(sp)		; val low
-	move.l	d4,-(sp)		; val high
+	move.l	12(a0),-(sp)		; val tag lo
+	move.l	8(a0),-(sp)		; val tag hi
+	move.l	4(a0),-(sp)		; val u lo
+	move.l	(a0),-(sp)		; val u hi
 	jsr	_JS_IsSet
-	lea	8(sp),sp
+	lea	16(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2632,7 +2529,7 @@ _QJS_IsSet:
 ; QJS_NewSymbol
 ; SFD: (result,ctx,description,is_global)(a0/a1/a2/d0)
 ; Calls: JSValue JS_NewSymbol(ctx, description, is_global)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write
 ; ===================================================================
 _QJS_NewSymbol:
@@ -2645,26 +2542,24 @@ _QJS_NewSymbol:
 	jsr	_JS_NewSymbol
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 
 ; ===================================================================
 ; QJS_SetIsHTMLDDA
 ; SFD: (ctx,obj_ptr)(a0/a1)
-; Calls: void JS_SetIsHTMLDDA(ctx, obj)  — obj by value (8 bytes)
+; Calls: void JS_SetIsHTMLDDA(ctx, obj)  — obj by value (16 bytes)
 ; ===================================================================
 _QJS_SetIsHTMLDDA:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; obj high
-	move.l	4(a1),d5		; obj low
-
-	move.l	d5,-(sp)		; obj low
-	move.l	d4,-(sp)		; obj high
+	move.l	12(a1),-(sp)		; obj tag lo
+	move.l	8(a1),-(sp)		; obj tag hi
+	move.l	4(a1),-(sp)		; obj u lo
+	move.l	(a1),-(sp)		; obj u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetIsHTMLDDA
-	lea	12(sp),sp
+	lea	20(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2673,20 +2568,19 @@ _QJS_SetIsHTMLDDA:
 ; QJS_SetConstructorBit
 ; SFD: (ctx,func_ptr,val)(a0/a1/d0)
 ; Calls: int JS_SetConstructorBit(ctx, func_obj, val)
-;   func_obj by value (8 bytes)
+;   func_obj by value (16 bytes)
 ; Returns: int in d0
 ; ===================================================================
 _QJS_SetConstructorBit:
 	movem.l	d2-d7/a2-a6,-(sp)
-	move.l	(a1),d4			; func high
-	move.l	4(a1),d5		; func low
-
 	move.l	d0,-(sp)		; val (int)
-	move.l	d5,-(sp)		; func low
-	move.l	d4,-(sp)		; func high
+	move.l	12(a1),-(sp)		; func tag lo
+	move.l	8(a1),-(sp)		; func tag hi
+	move.l	4(a1),-(sp)		; func u lo
+	move.l	(a1),-(sp)		; func u hi
 	move.l	a0,-(sp)		; ctx
 	jsr	_JS_SetConstructorBit
-	lea	16(sp),sp
+	lea	24(sp),sp
 
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
@@ -2695,7 +2589,7 @@ _QJS_SetConstructorBit:
 ; QJS_LoadModule
 ; SFD: (result,ctx,basename,filename)(a0/a1/a2/a3)
 ; Calls: JSValue JS_LoadModule(ctx, basename, filename)
-; Result: 8 bytes written through *result
+; Result: 16 bytes written through *result
 ; No JSValue* read, but has *result write
 ; ===================================================================
 _QJS_LoadModule:
@@ -2708,8 +2602,7 @@ _QJS_LoadModule:
 	jsr	_JS_LoadModule
 	lea	12(sp),sp
 
-	move.l	d0,(a4)
-	move.l	d1,4(a4)
+	movem.l	d0/d1/a0/a1,(a4)	; store 16-byte JSValue (u hi/lo, tag hi/lo)
 	movem.l	(sp)+,d2-d7/a2-a6
 	rts
 

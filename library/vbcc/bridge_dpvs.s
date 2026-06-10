@@ -7,10 +7,10 @@
 ; Stack layout at entry (after JSR pushes return address):
 ;   SP+0:  return address (4 bytes)
 ;   SP+4:  ctx (4 bytes)
-;   SP+8:  this_obj (8 bytes, JSValue = uint64_t)
-;   SP+16: prop (4 bytes, const char *)
-;   SP+20: val (8 bytes, JSValue = uint64_t)
-;   SP+28: flags (4 bytes, int)
+;   SP+8:  this_obj (16 bytes, JSValue struct)
+;   SP+24: prop (4 bytes, const char *)
+;   SP+28: val (16 bytes, JSValue struct)
+;   SP+44: flags (4 bytes, int)
 ;
 ; LVO -666: QJS_DefinePropertyValueStr(ctx,this_ptr,val_ptr,prop_str,flags)
 ;           Registers: a0=ctx, a1=&this_obj, a2=&val, a3=prop, d0=flags, a6=base
@@ -24,12 +24,12 @@
 _JS_DefinePropertyValueStr:
 	movem.l	d2/a2-a6,-(sp)		; save callee-saved (6 regs = 24 bytes)
 	; Stack: 24(saved regs) + 4(ret addr) = 28 bytes before first param
-	; Params: ctx(4) this_obj(8) prop(4) val(8) flags(4)
+	; Params: ctx(4) this_obj(16) prop(4) val(16) flags(4)
 	move.l	28(sp),a0		; a0 = ctx
-	lea	32(sp),a1		; a1 = &this_obj (8-byte JSValue on stack)
-	move.l	40(sp),a3		; a3 = prop string
-	lea	44(sp),a2		; a2 = &val (8-byte JSValue on stack)
-	move.l	52(sp),d0		; d0 = flags
+	lea	32(sp),a1		; a1 = &this_obj (16-byte JSValue on stack)
+	move.l	48(sp),a3		; a3 = prop string
+	lea	52(sp),a2		; a2 = &val (16-byte JSValue on stack)
+	move.l	68(sp),d0		; d0 = flags
 	move.l	_QJSBase,a6		; a6 = library base
 	; Compute LVO address
 	move.l	a6,a5
