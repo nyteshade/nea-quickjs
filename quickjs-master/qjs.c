@@ -39,9 +39,9 @@
 #ifdef __VBCC__
 /* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
  * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
-#define AMIGA_PORT_VERSION "0.078"
-#define AMIGA_PORT_DATE    "15.4.2026"
-#define AMIGA_PORT_DATE_US "04/15/2026"
+#define AMIGA_PORT_VERSION "0.199"
+#define AMIGA_PORT_DATE    "10.6.2026"
+#define AMIGA_PORT_DATE_US "06/10/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] =
     "$VER: qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE ")";
@@ -543,6 +543,31 @@ static const JSMallocFunctions mi_mf = {
 #define QJS_ENGINE_VERSION_STATIC \
     QJS__XSTR(QJS_VERSION_MAJOR) "." QJS__XSTR(QJS_VERSION_MINOR) "." QJS__XSTR(QJS_VERSION_PATCH)
 
+/* Ctrl-C aborts the running script (T-ctrl-c-kill-jsvm). The engine
+ * polls this handler periodically during interpretation; returning 1
+ * raises an uncatchable interrupted error, so a runaway script (e.g.
+ * for(;;);) returns control to the Shell / REPL instead of requiring
+ * the whole Shell to be killed.
+ *
+ * SetSignal(0, SIGBREAKF_CTRL_C) atomically test-and-clears the
+ * Ctrl-C bit and returns the previous signal set. Raw exec call
+ * (SysBase@4, LVO -306) in the established qjs.c style so this
+ * callback — invoked from inside quickjs.library's interpreter
+ * loop — has zero dependence on the CLI's data segment or any
+ * link library. SIGBREAKF_CTRL_C = 1<<12. */
+static int amiga_ctrl_c_interrupt(JSRuntime *rt, void *opaque)
+{
+    void *sysbase = *(void **)4;
+    unsigned long (*setsignal)(__reg("a6") void *,
+                               __reg("d0") unsigned long,
+                               __reg("d1") unsigned long) =
+        (void *)((char *)sysbase - 306);
+    (void)rt; (void)opaque;
+    if (setsignal(sysbase, 0UL, 0x1000UL) & 0x1000UL)
+        return 1; /* abort the running script */
+    return 0;
+}
+
 #endif /* __VBCC__ */
 
 void help(void)
@@ -924,6 +949,10 @@ start:
         JS_SetMaxStackSize(rt, (size_t)stack_size);
     if (dump_flags != 0)
         JS_SetDumpFlags(rt, dump_flags);
+#ifdef __VBCC__
+    /* Shell Ctrl-C aborts the running script — see amiga_ctrl_c_interrupt. */
+    JS_SetInterruptHandler(rt, amiga_ctrl_c_interrupt, NULL);
+#endif
 #ifndef QJS_USE_LIBRARY
     js_std_set_worker_new_context_func(JS_NewCustomContext);
 #endif
