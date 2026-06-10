@@ -83,9 +83,22 @@ export class TextEditor extends GadgetBase {
    * NOT 0x85026000+0x24. Earlier Fina notes had this wrong.
    */
   static METHOD = Object.freeze({
+    ARexxCmd:   0x00045023,   /* GP_TEXTEDITOR_ARexxCmd   { ULONG; GadgetInfo*; STRPTR } */
     ClearText:  0x00045024,   /* GP_TEXTEDITOR_ClearText  { ULONG; GadgetInfo* } */
     ExportText: 0x00045025,
     InsertText: 0x00045026,   /* GP_TEXTEDITOR_InsertText { ULONG; GadgetInfo*; STRPTR; LONG } */
+    Search:     0x0004502B,   /* GP_TEXTEDITOR_Search     { ULONG; GadgetInfo*; STRPTR; ULONG flags } */
+    MarkText:   0x0004502C,   /* GP_TEXTEDITOR_MarkText   { ULONG; GadgetInfo*; ULONG x4 } */
+    BlockInfo:  0x00045030,   /* GP_TEXTEDITOR_BlockInfo  { ULONG; GadgetInfo*; ULONG* x4 } */
+  });
+
+  /** GM_TEXTEDITOR_Search flag values per gadgets/texteditor.h:177-183. */
+  static SearchFlags = Object.freeze({
+    FROM_TOP:       0x0001,
+    NEXT:           0x0002,
+    INCREMENTAL:    0x0003,
+    BACKWARDS:      0x0010,
+    CASE_SENSITIVE: 0x0004,  /* GF_TEXTEDITOR_Search_CaseSensitive (1<<2) */
   });
 
   /** GP_TEXTEDITOR_InsertText pos values per gadgets/texteditor.h:165-167. */
@@ -267,6 +280,219 @@ export class TextEditor extends GadgetBase {
     this.clearText();
     if (text != null && text.length > 0) {
       this.insertText(text, TextEditor.InsertPos.TOP);
+    }
+  }
+
+  /**
+   * Send a texteditor.gadget ARexx-style command string. This is the
+   * OS3.2 class's universal control surface — there are no dedicated
+   * GM_ methods for undo/scroll/cursor movement; they are all command
+   * strings dispatched via GM_TEXTEDITOR_ARexxCmd. Useful commands
+   * (see texteditor.gadget autodoc): "UNDO", "REDO", "CLEAR",
+   * "CURSOR UP|DOWN|LEFT|RIGHT", "GOTOLINE n", "GOTOCOLUMN n",
+   * "SCROLL UP n", "SCROLL DOWN n", "MARK ON|OFF", "CUT", "COPY",
+   * "PASTE", "ERASE", "SELECTALL".
+   *
+   * @param {string} cmd — command string (case-insensitive)
+   * @returns {number} class dispatcher result (command-specific)
+   */
+  arexxCmd(cmd) {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.arexxCmd: window not open');
+    }
+    let s = String(cmd == null ? '' : cmd);
+    let strBytes = s.length + 1;
+    let strBuf = globalThis.amiga.allocMem(strBytes);
+    if (!strBuf) throw new Error('TextEditor.arexxCmd: allocMem(str) failed');
+    /* GP_TEXTEDITOR_ARexxCmd: { MethodID; GInfo*; STRPTR } — 12 bytes */
+    const MSG_BYTES = 12;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) {
+      globalThis.amiga.freeMem(strBuf, strBytes);
+      throw new Error('TextEditor.arexxCmd: allocMem(msg) failed');
+    }
+    try {
+      globalThis.amiga.pokeString(strBuf, s);
+      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ARexxCmd);
+      globalThis.amiga.poke32(msg + 4, 0);       /* GInfo — filled by LVO */
+      globalThis.amiga.poke32(msg + 8, strBuf);  /* STRPTR command */
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      );
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(strBuf, strBytes);
+    }
+  }
+
+  /**
+   * Undo the last edit. GA_TEXTEDITOR_UndoAvailable reports whether
+   * anything is undoable.
+   *
+   * @returns {number}
+   */
+  undo() { return this.arexxCmd('UNDO'); }
+
+  /**
+   * Redo the last undone edit. GA_TEXTEDITOR_RedoAvailable reports
+   * whether anything is redoable.
+   *
+   * @returns {number}
+   */
+  redo() { return this.arexxCmd('REDO'); }
+
+  /**
+   * Scroll the view by whole lines without moving the cursor.
+   *
+   * @param {number} lines — positive scrolls down, negative up
+   * @returns {number}
+   */
+  scroll(lines) {
+    let n = lines | 0;
+    if (n === 0) return 0;
+    return this.arexxCmd(n > 0 ? ('SCROLL DOWN ' + n) : ('SCROLL UP ' + (-n)));
+  }
+
+  /**
+   * Move the cursor to a given line (and optionally column). Lines
+   * and columns are 0-based per the class's GOTOLINE/GOTOCOLUMN
+   * commands; the view scrolls to keep the cursor visible.
+   *
+   * @param {number} line
+   * @param {number} [column]
+   * @returns {number}
+   */
+  gotoLine(line, column) {
+    let rc = this.arexxCmd('GOTOLINE ' + (line | 0));
+    if (column !== undefined) rc = this.arexxCmd('GOTOCOLUMN ' + (column | 0));
+    return rc;
+  }
+
+  /**
+   * Select (mark) a text range. Coordinates are character x / line y
+   * pairs, 0-based, matching GA_TEXTEDITOR_CursorX/CursorY semantics.
+   *
+   * @param {number} startX
+   * @param {number} startY
+   * @param {number} stopX
+   * @param {number} stopY
+   * @returns {number}
+   */
+  markText(startX, startY, stopX, stopY) {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.markText: window not open');
+    }
+    /* GP_TEXTEDITOR_MarkText: { MethodID; GInfo*; ULONG x4 } — 24 bytes */
+    const MSG_BYTES = 24;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) throw new Error('TextEditor.markText: allocMem failed');
+    try {
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.MarkText);
+      globalThis.amiga.poke32(msg + 4,  0);            /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  startX >>> 0);
+      globalThis.amiga.poke32(msg + 12, startY >>> 0);
+      globalThis.amiga.poke32(msg + 16, stopX  >>> 0);
+      globalThis.amiga.poke32(msg + 20, stopY  >>> 0);
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      );
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+    }
+  }
+
+  /**
+   * Get the current marked-block bounds, or null when no block is
+   * marked. Same coordinate space as markText().
+   *
+   * @returns {?{startX: number, startY: number,
+   *             stopX: number, stopY: number}}
+   */
+  blockInfo() {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.blockInfo: window not open');
+    }
+    /* GP_TEXTEDITOR_BlockInfo: { MethodID; GInfo*; ULONG* x4 } — 24
+     * bytes of message + 16 bytes of result slots the pointers aim at. */
+    const MSG_BYTES = 24, RES_BYTES = 16;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) throw new Error('TextEditor.blockInfo: allocMem(msg) failed');
+    let res = globalThis.amiga.allocMem(RES_BYTES);
+    if (!res) {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      throw new Error('TextEditor.blockInfo: allocMem(res) failed');
+    }
+    try {
+      globalThis.amiga.poke32(res + 0, 0);
+      globalThis.amiga.poke32(res + 4, 0);
+      globalThis.amiga.poke32(res + 8, 0);
+      globalThis.amiga.poke32(res + 12, 0);
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.BlockInfo);
+      globalThis.amiga.poke32(msg + 4,  0);          /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  res + 0);    /* &startx */
+      globalThis.amiga.poke32(msg + 12, res + 4);    /* &starty */
+      globalThis.amiga.poke32(msg + 16, res + 8);    /* &stopx  */
+      globalThis.amiga.poke32(msg + 20, res + 12);   /* &stopy  */
+      let marked = globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      ) | 0;
+      if (!marked) return null;
+      return {
+        startX: globalThis.amiga.peek32(res + 0),
+        startY: globalThis.amiga.peek32(res + 4),
+        stopX:  globalThis.amiga.peek32(res + 8),
+        stopY:  globalThis.amiga.peek32(res + 12),
+      };
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(res, RES_BYTES);
+    }
+  }
+
+  /**
+   * Search for a string from the current cursor position (or the top
+   * with {@link TextEditor.SearchFlags.FROM_TOP}); a hit moves the
+   * cursor to and marks the match.
+   *
+   * @param {string} needle — text to find
+   * @param {number} [flags=0] — OR of {@link TextEditor.SearchFlags}
+   * @returns {boolean} true when found
+   */
+  search(needle, flags) {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.search: window not open');
+    }
+    let s = String(needle == null ? '' : needle);
+    let strBytes = s.length + 1;
+    let strBuf = globalThis.amiga.allocMem(strBytes);
+    if (!strBuf) throw new Error('TextEditor.search: allocMem(str) failed');
+    /* GP_TEXTEDITOR_Search: { MethodID; GInfo*; STRPTR; ULONG } — 16 bytes */
+    const MSG_BYTES = 16;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) {
+      globalThis.amiga.freeMem(strBuf, strBytes);
+      throw new Error('TextEditor.search: allocMem(msg) failed');
+    }
+    try {
+      globalThis.amiga.pokeString(strBuf, s);
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.Search);
+      globalThis.amiga.poke32(msg + 4,  0);                 /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  strBuf);            /* STRPTR */
+      globalThis.amiga.poke32(msg + 12, (flags || 0) >>> 0);/* ULONG flags */
+      return !!(globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      ) | 0);
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(strBuf, strBytes);
     }
   }
 }

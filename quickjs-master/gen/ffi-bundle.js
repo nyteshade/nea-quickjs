@@ -9276,9 +9276,22 @@ class TextEditor extends GadgetBase {
    * NOT 0x85026000+0x24. Earlier Fina notes had this wrong.
    */
   static METHOD = Object.freeze({
+    ARexxCmd:   0x00045023,   /* GP_TEXTEDITOR_ARexxCmd   { ULONG; GadgetInfo*; STRPTR } */
     ClearText:  0x00045024,   /* GP_TEXTEDITOR_ClearText  { ULONG; GadgetInfo* } */
     ExportText: 0x00045025,
     InsertText: 0x00045026,   /* GP_TEXTEDITOR_InsertText { ULONG; GadgetInfo*; STRPTR; LONG } */
+    Search:     0x0004502B,   /* GP_TEXTEDITOR_Search     { ULONG; GadgetInfo*; STRPTR; ULONG flags } */
+    MarkText:   0x0004502C,   /* GP_TEXTEDITOR_MarkText   { ULONG; GadgetInfo*; ULONG x4 } */
+    BlockInfo:  0x00045030,   /* GP_TEXTEDITOR_BlockInfo  { ULONG; GadgetInfo*; ULONG* x4 } */
+  });
+
+  /** GM_TEXTEDITOR_Search flag values per gadgets/texteditor.h:177-183. */
+  static SearchFlags = Object.freeze({
+    FROM_TOP:       0x0001,
+    NEXT:           0x0002,
+    INCREMENTAL:    0x0003,
+    BACKWARDS:      0x0010,
+    CASE_SENSITIVE: 0x0004,  /* GF_TEXTEDITOR_Search_CaseSensitive (1<<2) */
   });
 
   /** GP_TEXTEDITOR_InsertText pos values per gadgets/texteditor.h:165-167. */
@@ -9462,6 +9475,219 @@ class TextEditor extends GadgetBase {
       this.insertText(text, TextEditor.InsertPos.TOP);
     }
   }
+
+  /**
+   * Send a texteditor.gadget ARexx-style command string. This is the
+   * OS3.2 class's universal control surface — there are no dedicated
+   * GM_ methods for undo/scroll/cursor movement; they are all command
+   * strings dispatched via GM_TEXTEDITOR_ARexxCmd. Useful commands
+   * (see texteditor.gadget autodoc): "UNDO", "REDO", "CLEAR",
+   * "CURSOR UP|DOWN|LEFT|RIGHT", "GOTOLINE n", "GOTOCOLUMN n",
+   * "SCROLL UP n", "SCROLL DOWN n", "MARK ON|OFF", "CUT", "COPY",
+   * "PASTE", "ERASE", "SELECTALL".
+   *
+   * @param {string} cmd — command string (case-insensitive)
+   * @returns {number} class dispatcher result (command-specific)
+   */
+  arexxCmd(cmd) {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.arexxCmd: window not open');
+    }
+    let s = String(cmd == null ? '' : cmd);
+    let strBytes = s.length + 1;
+    let strBuf = globalThis.amiga.allocMem(strBytes);
+    if (!strBuf) throw new Error('TextEditor.arexxCmd: allocMem(str) failed');
+    /* GP_TEXTEDITOR_ARexxCmd: { MethodID; GInfo*; STRPTR } — 12 bytes */
+    const MSG_BYTES = 12;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) {
+      globalThis.amiga.freeMem(strBuf, strBytes);
+      throw new Error('TextEditor.arexxCmd: allocMem(msg) failed');
+    }
+    try {
+      globalThis.amiga.pokeString(strBuf, s);
+      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ARexxCmd);
+      globalThis.amiga.poke32(msg + 4, 0);       /* GInfo — filled by LVO */
+      globalThis.amiga.poke32(msg + 8, strBuf);  /* STRPTR command */
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      );
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(strBuf, strBytes);
+    }
+  }
+
+  /**
+   * Undo the last edit. GA_TEXTEDITOR_UndoAvailable reports whether
+   * anything is undoable.
+   *
+   * @returns {number}
+   */
+  undo() { return this.arexxCmd('UNDO'); }
+
+  /**
+   * Redo the last undone edit. GA_TEXTEDITOR_RedoAvailable reports
+   * whether anything is redoable.
+   *
+   * @returns {number}
+   */
+  redo() { return this.arexxCmd('REDO'); }
+
+  /**
+   * Scroll the view by whole lines without moving the cursor.
+   *
+   * @param {number} lines — positive scrolls down, negative up
+   * @returns {number}
+   */
+  scroll(lines) {
+    let n = lines | 0;
+    if (n === 0) return 0;
+    return this.arexxCmd(n > 0 ? ('SCROLL DOWN ' + n) : ('SCROLL UP ' + (-n)));
+  }
+
+  /**
+   * Move the cursor to a given line (and optionally column). Lines
+   * and columns are 0-based per the class's GOTOLINE/GOTOCOLUMN
+   * commands; the view scrolls to keep the cursor visible.
+   *
+   * @param {number} line
+   * @param {number} [column]
+   * @returns {number}
+   */
+  gotoLine(line, column) {
+    let rc = this.arexxCmd('GOTOLINE ' + (line | 0));
+    if (column !== undefined) rc = this.arexxCmd('GOTOCOLUMN ' + (column | 0));
+    return rc;
+  }
+
+  /**
+   * Select (mark) a text range. Coordinates are character x / line y
+   * pairs, 0-based, matching GA_TEXTEDITOR_CursorX/CursorY semantics.
+   *
+   * @param {number} startX
+   * @param {number} startY
+   * @param {number} stopX
+   * @param {number} stopY
+   * @returns {number}
+   */
+  markText(startX, startY, stopX, stopY) {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.markText: window not open');
+    }
+    /* GP_TEXTEDITOR_MarkText: { MethodID; GInfo*; ULONG x4 } — 24 bytes */
+    const MSG_BYTES = 24;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) throw new Error('TextEditor.markText: allocMem failed');
+    try {
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.MarkText);
+      globalThis.amiga.poke32(msg + 4,  0);            /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  startX >>> 0);
+      globalThis.amiga.poke32(msg + 12, startY >>> 0);
+      globalThis.amiga.poke32(msg + 16, stopX  >>> 0);
+      globalThis.amiga.poke32(msg + 20, stopY  >>> 0);
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      );
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+    }
+  }
+
+  /**
+   * Get the current marked-block bounds, or null when no block is
+   * marked. Same coordinate space as markText().
+   *
+   * @returns {?{startX: number, startY: number,
+   *             stopX: number, stopY: number}}
+   */
+  blockInfo() {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.blockInfo: window not open');
+    }
+    /* GP_TEXTEDITOR_BlockInfo: { MethodID; GInfo*; ULONG* x4 } — 24
+     * bytes of message + 16 bytes of result slots the pointers aim at. */
+    const MSG_BYTES = 24, RES_BYTES = 16;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) throw new Error('TextEditor.blockInfo: allocMem(msg) failed');
+    let res = globalThis.amiga.allocMem(RES_BYTES);
+    if (!res) {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      throw new Error('TextEditor.blockInfo: allocMem(res) failed');
+    }
+    try {
+      globalThis.amiga.poke32(res + 0, 0);
+      globalThis.amiga.poke32(res + 4, 0);
+      globalThis.amiga.poke32(res + 8, 0);
+      globalThis.amiga.poke32(res + 12, 0);
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.BlockInfo);
+      globalThis.amiga.poke32(msg + 4,  0);          /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  res + 0);    /* &startx */
+      globalThis.amiga.poke32(msg + 12, res + 4);    /* &starty */
+      globalThis.amiga.poke32(msg + 16, res + 8);    /* &stopx  */
+      globalThis.amiga.poke32(msg + 20, res + 12);   /* &stopy  */
+      let marked = globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      ) | 0;
+      if (!marked) return null;
+      return {
+        startX: globalThis.amiga.peek32(res + 0),
+        startY: globalThis.amiga.peek32(res + 4),
+        stopX:  globalThis.amiga.peek32(res + 8),
+        stopY:  globalThis.amiga.peek32(res + 12),
+      };
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(res, RES_BYTES);
+    }
+  }
+
+  /**
+   * Search for a string from the current cursor position (or the top
+   * with {@link TextEditor.SearchFlags.FROM_TOP}); a hit moves the
+   * cursor to and marks the match.
+   *
+   * @param {string} needle — text to find
+   * @param {number} [flags=0] — OR of {@link TextEditor.SearchFlags}
+   * @returns {boolean} true when found
+   */
+  search(needle, flags) {
+    let winPtr = this._findWindowPtr();
+    if (!winPtr) {
+      throw new Error('TextEditor.search: window not open');
+    }
+    let s = String(needle == null ? '' : needle);
+    let strBytes = s.length + 1;
+    let strBuf = globalThis.amiga.allocMem(strBytes);
+    if (!strBuf) throw new Error('TextEditor.search: allocMem(str) failed');
+    /* GP_TEXTEDITOR_Search: { MethodID; GInfo*; STRPTR; ULONG } — 16 bytes */
+    const MSG_BYTES = 16;
+    let msg = globalThis.amiga.allocMem(MSG_BYTES);
+    if (!msg) {
+      globalThis.amiga.freeMem(strBuf, strBytes);
+      throw new Error('TextEditor.search: allocMem(msg) failed');
+    }
+    try {
+      globalThis.amiga.pokeString(strBuf, s);
+      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.Search);
+      globalThis.amiga.poke32(msg + 4,  0);                 /* GInfo */
+      globalThis.amiga.poke32(msg + 8,  strBuf);            /* STRPTR */
+      globalThis.amiga.poke32(msg + 12, (flags || 0) >>> 0);/* ULONG flags */
+      return !!(globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, msg
+      ) | 0);
+    }
+    finally {
+      globalThis.amiga.freeMem(msg, MSG_BYTES);
+      globalThis.amiga.freeMem(strBuf, strBytes);
+    }
+  }
 }
 
 EventKind.define('TEXT_CHANGE', {
@@ -9478,24 +9704,67 @@ EventKind.define('TEXT_CHANGE', {
  *
  * sketchboard.gadget — Reaction free-draw canvas.
  *
- * SKETCHBOARD_Dummy = REACTION_Dummy + 0x24600 = 0x85024600.
+ * Tag values derived from NDK3.2R4 Include_H/gadgets/sketchboard.h
+ * (audit 10.6.2026, T-reaction-audit-remaining-4):
+ *   SKETCHBOARD_Dummy = REACTION_Dummy + 0x24600 = 0x85024600
+ *   real tags are SGA_* at +0 .. +33.
+ * The previous table (MinWidth/RenderHook/PenFG/...) was entirely
+ * invented — none of those names or numbers exist in the NDK.
  */
 
 
-const SKETCHBOARD = Object.freeze({
-  MinWidth:     0x85024601,
-  MinHeight:    0x85024602,
-  RenderHook:   0x85024603,
-  AreaBox:      0x85024604,
-  BevelStyle:   0x85024605,
-  PenFG:        0x85024606,
-  PenBG:        0x85024607,
-  PenColor:     0x85024608,
-  Drawing:      0x85024609,
+const SGA = Object.freeze({
+  BitMap:              0x85024600,  /* + 0  (struct BitMap *)        */
+  MouseX:              0x85024601,  /* + 1  (LONG, OM_GET/NOTIFY)    */
+  MouseY:              0x85024602,  /* + 2  (LONG, OM_GET/NOTIFY)    */
+  Width:               0x85024603,  /* + 3  (LONG)                   */
+  Height:              0x85024604,  /* + 4  (LONG)                   */
+  APen:                0x85024605,  /* + 5  (ULONG pen number)       */
+  Tool:                0x85024606,  /* + 6  (ULONG, SGTOOL_*)        */
+  UndoAvailable:       0x85024607,  /* + 7  (BOOL, OM_GET/NOTIFY)    */
+  RedoAvailable:       0x85024608,  /* + 8  (BOOL, OM_GET/NOTIFY)    */
+  ShowGrid:            0x85024609,  /* + 9  (BOOL)                   */
+  Scale:               0x8502460A,  /* + 10 (ULONG zoom factor)      */
+  AfPt:                0x8502460B,  /* + 11 (UWORD * area fill pat)  */
+  AfPtSize:            0x8502460C,  /* + 12 (ULONG)                  */
+  HPropTotal:          0x8502460D,  /* + 13 (ULONG, scroller wiring) */
+  HPropTop:            0x8502460E,  /* + 14 (ULONG)                  */
+  HPropVisible:        0x8502460F,  /* + 15 (ULONG)                  */
+  VPropTotal:          0x85024610,  /* + 16 (ULONG)                  */
+  VPropTop:            0x85024611,  /* + 17 (ULONG)                  */
+  VPropVisible:        0x85024612,  /* + 18 (ULONG)                  */
+  HotSpot:             0x85024613,  /* + 19 (ULONG)                  */
+  Changed:             0x85024614,  /* + 20 (BOOL, OM_GET/NOTIFY)    */
+  RastPort:            0x85024615,  /* + 21 (struct RastPort *)      */
+  SketchBoardRect:     0x85024616,  /* + 22 (struct Rectangle *)     */
+  SubWidth:            0x85024617,  /* + 23 (LONG)                   */
+  SubHeight:           0x85024618,  /* + 24 (LONG)                   */
+  DoubleScaleX:        0x85024619,  /* + 25 (BOOL)                   */
+  DoubleScaleY:        0x8502461A,  /* + 26 (BOOL)                   */
+  TopLayerBitmap:      0x8502461B,  /* + 27 (struct BitMap *)        */
+  TopLayerWidth:       0x8502461C,  /* + 28 (LONG)                   */
+  WithBevel:           0x8502461D,  /* + 29 (BOOL)                   */
+  ScrollWheelResponse: 0x8502461E,  /* + 30 (ULONG)                  */
+  MaxUndoSteps:        0x8502461F,  /* + 31 (ULONG)                  */
+  UpdatedBitMap:       0x85024620,  /* + 32 (struct BitMap *)        */
+  MaxScale:            0x85024621,  /* + 33 (ULONG)                  */
 });
 
 /**
- * sketchboard.gadget — free-draw canvas.
+ * Drawing tool values for SGA_Tool (NDK SGTOOL_* constants).
+ *
+ * @readonly
+ * @enum {number}
+ */
+const SketchTool = Object.freeze({
+  FREEHAND_DOTS:  0,  /* default */
+  FREEHAND:       1,
+  ELLIPSE:        2,
+  ELLIPSE_FILLED: 3,
+});
+
+/**
+ * sketchboard.gadget — free-draw canvas over a BitMap.
  *
  * @extends GadgetBase
  */
@@ -9506,15 +9775,22 @@ class SketchBoard extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    minWidth:   { tagID: SKETCHBOARD.MinWidth,   type: 'int32' },
-    minHeight:  { tagID: SKETCHBOARD.MinHeight,  type: 'int32' },
-    renderHook: { tagID: SKETCHBOARD.RenderHook, type: 'ptr' },
-    areaBox:    { tagID: SKETCHBOARD.AreaBox,    type: 'ptr' },
-    bevelStyle: { tagID: SKETCHBOARD.BevelStyle, type: 'uint32' },
-    penFG:      { tagID: SKETCHBOARD.PenFG,      type: 'uint32' },
-    penBG:      { tagID: SKETCHBOARD.PenBG,      type: 'uint32' },
-    penColor:   { tagID: SKETCHBOARD.PenColor,   type: 'uint32' },
-    drawing:    { tagID: SKETCHBOARD.Drawing,    type: 'bool' },
+    bitMap:        { tagID: SGA.BitMap,        type: 'ptr' },
+    mouseX:        { tagID: SGA.MouseX,        type: 'int32' },
+    mouseY:        { tagID: SGA.MouseY,        type: 'int32' },
+    bmWidth:       { tagID: SGA.Width,         type: 'int32' },
+    bmHeight:      { tagID: SGA.Height,        type: 'int32' },
+    aPen:          { tagID: SGA.APen,          type: 'uint32' },
+    tool:          { tagID: SGA.Tool,          type: 'uint32' },
+    undoAvailable: { tagID: SGA.UndoAvailable, type: 'bool' },
+    redoAvailable: { tagID: SGA.RedoAvailable, type: 'bool' },
+    showGrid:      { tagID: SGA.ShowGrid,      type: 'bool' },
+    scale:         { tagID: SGA.Scale,         type: 'uint32' },
+    changed:       { tagID: SGA.Changed,       type: 'bool' },
+    rastPort:      { tagID: SGA.RastPort,      type: 'ptr' },
+    withBevel:     { tagID: SGA.WithBevel,     type: 'bool' },
+    maxUndoSteps:  { tagID: SGA.MaxUndoSteps,  type: 'uint32' },
+    maxScale:      { tagID: SGA.MaxScale,      type: 'uint32' },
   };
 }
 
@@ -9531,37 +9807,45 @@ EventKind.define('SKETCH_UPDATE', {
 /* quickjs-master/amiga/ffi/boopsi/gadgets/TapeDeck.js
  *
  * tapedeck.gadget — Reaction VCR-style transport button group
- * (play / stop / rew / fwd / record / etc). Extends gadgetclass.
+ * (rewind / play / forward / stop / pause / frame-step). Extends
+ * gadgetclass.
  *
- * TDECK_Dummy = TAG_USER + 0x05000000 = 0x85000000 (shares the
- * Reaction base range).
+ * Tag values derived from NDK3.2R4 Include_H/gadgets/tapedeck.h
+ * (audit 10.6.2026, T-reaction-audit-remaining-4):
+ *   TDECK_Dummy = TAG_USER + 0x05000000 = 0x85000000
+ *   TDECK_Mode/Paused/Tape = +1..+3, TDECK_Frames/CurrentFrame = +11/+12.
+ * The previous table's Buttons(+4)/Disabled(+5)/Step(+6) tags do not
+ * exist in the NDK header and were removed.
  */
 
 
 const TDECK = Object.freeze({
-  Mode:     0x85000001,
-  Paused:   0x85000002,
-  Tape:     0x85000003,
-  Buttons:  0x85000004,
-  Disabled: 0x85000005,
-  Step:     0x85000006,
-});
-
-/** TDECK_Mode values. */
-const TapeDeckMode = Object.freeze({
-  STOP:    0,
-  PLAY:    1,
-  FFWD:    2,
-  REW:     3,
-  RECORD:  4,
-  EJECT:   5,
-  PAUSE:   6,
-  STEP_FWD:7,
-  STEP_REW:8,
+  Mode:         0x85000001,  /* TDECK_Dummy + 1  */
+  Paused:       0x85000002,  /* TDECK_Dummy + 2  */
+  Tape:         0x85000003,  /* TDECK_Dummy + 3  */
+  Frames:       0x8500000B,  /* TDECK_Dummy + 11 */
+  CurrentFrame: 0x8500000C,  /* TDECK_Dummy + 12 */
 });
 
 /**
- * tapedeck.gadget — VCR transport.
+ * TDECK_Mode values (NDK BUT_* constants from gadgets/tapedeck.h).
+ *
+ * @readonly
+ * @enum {number}
+ */
+const TapeDeckMode = Object.freeze({
+  REWIND:  0,  /* BUT_REWIND  */
+  PLAY:    1,  /* BUT_PLAY    */
+  FORWARD: 2,  /* BUT_FORWARD */
+  STOP:    3,  /* BUT_STOP    */
+  PAUSE:   4,  /* BUT_PAUSE   */
+  BEGIN:   5,  /* BUT_BEGIN   */
+  FRAME:   6,  /* BUT_FRAME   */
+  END:     7,  /* BUT_END     */
+});
+
+/**
+ * tapedeck.gadget — VCR/animation transport.
  *
  * @extends GadgetBase
  */
@@ -9572,11 +9856,16 @@ class TapeDeck extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    mode:     { tagID: TDECK.Mode,     type: 'uint32' },
-    paused:   { tagID: TDECK.Paused,   type: 'bool' },
-    tape:     { tagID: TDECK.Tape,     type: 'bool' },
-    buttons:  { tagID: TDECK.Buttons,  type: 'uint32' },
-    step:     { tagID: TDECK.Step,     type: 'bool' },
+    /** Current transport mode — one of {@link TapeDeckMode}. */
+    mode:         { tagID: TDECK.Mode,         type: 'uint32' },
+    /** Pause toggle state. */
+    paused:       { tagID: TDECK.Paused,       type: 'bool' },
+    /** TRUE = tapedeck-style controls, FALSE = animation controls. */
+    tape:         { tagID: TDECK.Tape,         type: 'bool' },
+    /** Number of frames (animation controls only). */
+    frames:       { tagID: TDECK.Frames,       type: 'int32' },
+    /** Current frame (animation controls only). */
+    currentFrame: { tagID: TDECK.CurrentFrame, type: 'int32' },
   };
 
   constructor(init) {
@@ -9600,26 +9889,37 @@ EventKind.define('TAPEDECK_CLICK', {
  *
  * colorwheel.gadget — circular HSB color-picker wheel.
  *
- * WHEEL_Dummy = TAG_USER + 0x04000000 = 0x84000000 (shares pre-Reaction
- * base, distinct from REACTION_Dummy namespace).
+ * Tag values derived from NDK3.2R4 Include_H/gadgets/colorwheel.h
+ * (audit 10.6.2026, T-reaction-audit-remaining-4):
+ *   WHEEL_Dummy = TAG_USER + 0x04000000 = 0x84000000
+ * The previous table was misnumbered across the board (e.g. Hue was
+ * +4 instead of +1, Screen was +1 instead of +9) and had two invented
+ * tags (ColorMap, Silent, Screen2) that do not exist in the NDK.
  */
 
 
 const WHEEL = Object.freeze({
-  Screen:      0x84000001,
-  ColorMap:    0x84000002,
-  Saturation:  0x84000003,
-  Hue:         0x84000004,
-  Brightness:  0x84000005,
-  HSB:         0x84000006,
-  RGB:         0x84000007,
-  Silent:      0x84000008,
-  BevelBox:    0x84000009,
-  Screen2:     0x8400000A,
+  Hue:            0x84000001,  /* WHEEL_Dummy + 1  (ULONG fraction)   */
+  Saturation:     0x84000002,  /* WHEEL_Dummy + 2  (ULONG fraction)   */
+  Brightness:     0x84000003,  /* WHEEL_Dummy + 3  (ULONG fraction)   */
+  HSB:            0x84000004,  /* WHEEL_Dummy + 4  (ColorWheelHSB *)  */
+  Red:            0x84000005,  /* WHEEL_Dummy + 5  (ULONG fraction)   */
+  Green:          0x84000006,  /* WHEEL_Dummy + 6  (ULONG fraction)   */
+  Blue:           0x84000007,  /* WHEEL_Dummy + 7  (ULONG fraction)   */
+  RGB:            0x84000008,  /* WHEEL_Dummy + 8  (ColorWheelRGB *)  */
+  Screen:         0x84000009,  /* WHEEL_Dummy + 9  (struct Screen *)  */
+  Abbrv:          0x8400000A,  /* WHEEL_Dummy + 10 (STRPTR "GCBMRY")  */
+  Donation:       0x8400000B,  /* WHEEL_Dummy + 11 (pens donated)     */
+  BevelBox:       0x8400000C,  /* WHEEL_Dummy + 12 (BOOL)             */
+  GradientSlider: 0x8400000D,  /* WHEEL_Dummy + 13 (Object *)         */
+  MaxPens:        0x8400000E,  /* WHEEL_Dummy + 14 (UWORD)            */
 });
 
 /**
  * colorwheel.gadget — circular HSB color picker.
+ *
+ * Hue/saturation/brightness and red/green/blue components are 32-bit
+ * "fraction" values (0x00000000 .. 0xFFFFFFFF maps 0.0 .. 1.0).
  *
  * @extends GadgetBase
  */
@@ -9630,15 +9930,20 @@ class ColorWheel extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    screen:     { tagID: WHEEL.Screen,     type: 'ptr' },
-    colorMap:   { tagID: WHEEL.ColorMap,   type: 'ptr' },
-    saturation: { tagID: WHEEL.Saturation, type: 'uint32' },
-    hue:        { tagID: WHEEL.Hue,        type: 'uint32' },
-    brightness: { tagID: WHEEL.Brightness, type: 'uint32' },
-    hsb:        { tagID: WHEEL.HSB,        type: 'ptr' },
-    rgb:        { tagID: WHEEL.RGB,        type: 'ptr' },
-    silent:     { tagID: WHEEL.Silent,     type: 'bool' },
-    bevelBox:   { tagID: WHEEL.BevelBox,   type: 'bool' },
+    hue:            { tagID: WHEEL.Hue,            type: 'uint32' },
+    saturation:     { tagID: WHEEL.Saturation,     type: 'uint32' },
+    brightness:     { tagID: WHEEL.Brightness,     type: 'uint32' },
+    hsb:            { tagID: WHEEL.HSB,            type: 'ptr' },
+    red:            { tagID: WHEEL.Red,            type: 'uint32' },
+    green:          { tagID: WHEEL.Green,          type: 'uint32' },
+    blue:           { tagID: WHEEL.Blue,           type: 'uint32' },
+    rgb:            { tagID: WHEEL.RGB,            type: 'ptr' },
+    screen:         { tagID: WHEEL.Screen,         type: 'ptr' },
+    abbrv:          { tagID: WHEEL.Abbrv,          type: 'string' },
+    donation:       { tagID: WHEEL.Donation,       type: 'uint32' },
+    bevelBox:       { tagID: WHEEL.BevelBox,       type: 'bool' },
+    gradientSlider: { tagID: WHEEL.GradientSlider, type: 'ptr' },
+    maxPens:        { tagID: WHEEL.MaxPens,        type: 'uint32' },
   };
 
   constructor(init) {
@@ -10207,21 +10512,32 @@ class Page extends Layout {
  *
  * virtual.gadget — Reaction scrollable virtual container. Wraps a
  * child layout that's larger than the visible area and supplies
- * scroller gadgets to pan around.
+ * scroller gadgets to pan around. Needs OS3.9+BB1 (V45) or OS3.2.
  *
- * VIRTUAL_Dummy = REACTION_Dummy + 0x62000 = 0x85062000.
+ * Tag values derived from NDK3.2R4 Include_H/gadgets/virtual.h
+ * (audit 10.6.2026, T-reaction-audit-remaining-4):
+ *   VIRTUALA_Base = REACTION_Dummy + 0x24500 = 0x85024500
+ * The previous table used an invented 0x85062000 base and invented
+ * names (NoHorizScroller/TopPixel/...) — none exist in the NDK.
+ * TargetX/Y and MapX/Y (+14..+17) are OS4-only and omitted.
  */
 
 
-const VIRTUAL = Object.freeze({
-  NoHorizScroller: 0x85062001,
-  NoVertScroller:  0x85062002,
-  HorizScroller:   0x85062003,
-  VertScroller:    0x85062004,
-  TopPixel:        0x85062005,
-  LeftPixel:       0x85062006,
-  TotalPixels:     0x85062007,
-  VisiblePixels:   0x85062008,
+const VIRTUALA = Object.freeze({
+  Contents:    0x85024500,  /* + 0  (Object *) child layout          */
+  Scroller:    0x85024501,  /* + 1  (BOOL) show scrollbars, def TRUE */
+  ScrollX:     0x85024502,  /* + 2  (WORD) scroll by N pixels        */
+  ScrollY:     0x85024503,  /* + 3  (WORD) scroll by N pixels        */
+  VisibleX:    0x85024504,  /* + 4  (UWORD, OM_GET/NOTIFY)           */
+  VisibleY:    0x85024505,  /* + 5  (UWORD, OM_GET/NOTIFY)           */
+  TopX:        0x85024506,  /* + 6  (UWORD) current top, set/get     */
+  TopY:        0x85024507,  /* + 7  (UWORD) current top, set/get     */
+  TotalX:      0x85024508,  /* + 8  (UWORD, OM_GET/NOTIFY)           */
+  TotalY:      0x85024509,  /* + 9  (UWORD, OM_GET/NOTIFY)           */
+  ScrollerX:   0x8502450A,  /* + 10 (Object *) own h-scroller, OM_NEW*/
+  ScrollerY:   0x8502450B,  /* + 11 (Object *) own v-scroller, OM_NEW*/
+  InputScroll: 0x8502450C,  /* + 12 (BOOL) drag-scroll, def TRUE     */
+  NoDispose:   0x8502450D,  /* + 13 (BOOL) don't dispose contents    */
 });
 
 /**
@@ -10236,14 +10552,34 @@ class Virtual extends Layout {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...Layout.ATTRS,
-    noHorizScroller: { tagID: VIRTUAL.NoHorizScroller, type: 'bool' },
-    noVertScroller:  { tagID: VIRTUAL.NoVertScroller,  type: 'bool' },
-    horizScroller:   { tagID: VIRTUAL.HorizScroller,   type: 'ptr' },
-    vertScroller:    { tagID: VIRTUAL.VertScroller,    type: 'ptr' },
-    topPixel:        { tagID: VIRTUAL.TopPixel,        type: 'int32' },
-    leftPixel:       { tagID: VIRTUAL.LeftPixel,       type: 'int32' },
-    totalPixels:     { tagID: VIRTUAL.TotalPixels,     type: 'int32' },
-    visiblePixels:   { tagID: VIRTUAL.VisiblePixels,   type: 'int32' },
+    /** Child object (usually a Layout) displayed inside the view. */
+    contents:    { tagID: VIRTUALA.Contents,    type: 'ptr' },
+    /** Show the built-in scrollbars (default TRUE). */
+    scroller:    { tagID: VIRTUALA.Scroller,    type: 'bool' },
+    /** Scroll the contents horizontally by N pixels. */
+    scrollX:     { tagID: VIRTUALA.ScrollX,     type: 'int32' },
+    /** Scroll the contents vertically by N pixels. */
+    scrollY:     { tagID: VIRTUALA.ScrollY,     type: 'int32' },
+    /** Visible width of the contents (get/notify). */
+    visibleX:    { tagID: VIRTUALA.VisibleX,    type: 'uint32' },
+    /** Visible height of the contents (get/notify). */
+    visibleY:    { tagID: VIRTUALA.VisibleY,    type: 'uint32' },
+    /** Current horizontal top offset (set/get/notify). */
+    topX:        { tagID: VIRTUALA.TopX,        type: 'uint32' },
+    /** Current vertical top offset (set/get/notify). */
+    topY:        { tagID: VIRTUALA.TopY,        type: 'uint32' },
+    /** Total width of the contents (get/notify). */
+    totalX:      { tagID: VIRTUALA.TotalX,      type: 'uint32' },
+    /** Total height of the contents (get/notify). */
+    totalY:      { tagID: VIRTUALA.TotalY,      type: 'uint32' },
+    /** Caller-supplied horizontal scroller object (create-only). */
+    scrollerX:   { tagID: VIRTUALA.ScrollerX,   type: 'ptr' },
+    /** Caller-supplied vertical scroller object (create-only). */
+    scrollerY:   { tagID: VIRTUALA.ScrollerY,   type: 'ptr' },
+    /** Drag-past-edge auto-scroll (default TRUE). */
+    inputScroll: { tagID: VIRTUALA.InputScroll, type: 'bool' },
+    /** Don't auto-dispose the contents with the gadget. */
+    noDispose:   { tagID: VIRTUALA.NoDispose,   type: 'bool' },
   };
 }
 
