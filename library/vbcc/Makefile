@@ -381,11 +381,13 @@ $(TARGET_SOFT): $(SOFT_ALL) | $(LIBSDIR)
 	@ls -la $@
 
 # ulimit: precautionary headroom for vbccm68k's recursive descent over the
-# 2 MB quickjs.c. NOTE (9.6.2026): the intermittent SIGSEGV in for_statement
-# while compiling this file is a REAL layout-dependent vbccm68k bug (see
-# T-vbccm68k-soft-quickjs-segv), NOT a stack overflow — identical commands
-# crash ~50% of runs regardless of this limit. If the build fails here,
-# simply re-run make; it resumes and usually succeeds on the next attempt.
+# 2 MB quickjs.c. HISTORY (9-10.6.2026): vbccm68k used to SIGSEGV here ~50%
+# of runs — an IC use-after-free in add_IC()'s peepholes vs the statement
+# handlers' saved cursors. Fixed in /Users/brie/vbcc/src/vbcc (deferred-free
+# graveyard in supp.c/ic.c/main.c + move_freereg assertion fix in
+# machines/m68k/machine.c) and installed 10.6.2026; see Fina
+# T-vbccm68k-soft-quickjs-segv. If this ever flakes again, check that
+# ~/vbcc/bin/vbccm68k is still the fixed binary (sha 475e0818...).
 $(OBJDIR_SOFT)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_SOFT)
 	ulimit -s 65520 && $(VC) $(CFLAGS_SOFT_QUICKJS) $< -o $@
 

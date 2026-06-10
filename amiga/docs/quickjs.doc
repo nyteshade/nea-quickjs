@@ -86,8 +86,10 @@ quickjs.library/QJS_InitModuleBJSON
 quickjs.library/QJS_InitModuleNet
 quickjs.library/QJS_InitModuleOS
 quickjs.library/QJS_InitModuleStd
+quickjs.library/QJS_InstallAmigaFFIGlobal
 quickjs.library/QJS_InstallChildProcessGlobal
 quickjs.library/QJS_InstallCryptoGlobal
+quickjs.library/QJS_InstallExtended
 quickjs.library/QJS_Invoke
 quickjs.library/QJS_IsArray
 quickjs.library/QJS_IsArrayBuffer
@@ -6686,6 +6688,60 @@ quickjs.library/QJS_InitModuleNet           quickjs.library/QJS_InitModuleNet
 	QJS_InitModuleStd, QJS_InitModuleOS, QJS_GetNetCapabilities
 
 
+quickjs.library/QJS_InstallAmigaFFIGlobal   quickjs.library/QJS_InstallAmigaFFIGlobal
+
+    NAME
+	QJS_InstallAmigaFFIGlobal -- Install the raw Amiga FFI
+	    primitives (__qjs_amiga_*) on globalThis for the context.
+
+    SYNOPSIS
+	QJS_InstallAmigaFFIGlobal(ctx)
+	                          A0
+
+	void QJS_InstallAmigaFFIGlobal(JSContext *ctx);
+
+    FUNCTION
+	Attaches the generic Amiga FFI layer as native C functions on
+	globalThis:
+
+	    __qjs_amiga_openLibrary(name, version)  -> base (Number)
+	    __qjs_amiga_closeLibrary(base)
+	    __qjs_amiga_call(base, lvo, regs)       -> D0 result
+	        - regs is an object naming register values
+	          ({d0..d3, a0..a3}); the call trampoline loads them,
+	          sets A6 = base and JSRs through the LVO.
+	    __qjs_amiga_doMethod(obj, msg)          -> DoMethodA result
+	    __qjs_amiga_peek8/16/32(addr)           -> Number
+	    __qjs_amiga_poke8/16/32(addr, value)
+	    __qjs_amiga_peekString(addr, maxLen)    -> String
+	    __qjs_amiga_pokeString(addr, str)
+	    __qjs_amiga_allocMem(size, flags)       -> addr
+	    __qjs_amiga_freeMem(addr, size)
+	    __qjs_amiga_makeTags(pairsArray)        -> tag-list addr
+
+	Pointers travel as JS Numbers (32-bit values fit the 53-bit
+	safe-integer range).  Direct memory access carries the usual
+	Amiga risk: a bad poke can crash the machine -- these are
+	deliberately low-level primitives.
+
+	extended.js (Amiga CLI startup bundle) wraps them in the
+	ergonomic globalThis.amiga module: openLibrary()/call() with
+	LVO constant tables for exec/dos/intuition/graphics/gadtools,
+	amiga.tags.{WA_*, SA_*, IDCMP_*, ...} constants, MEMF_*/TAG_*
+	values and the amiga.withTags(pairs, fn) alloc-run-free
+	helper.  The Reaction/Boopsi OO layer builds on this module.
+
+    INPUTS
+	ctx - Context that should receive the FFI primitives.
+
+    RESULT
+	None.  Overwrites any previous bindings if called again.
+
+    SEE ALSO
+	QJS_InstallExtended, QJS_InstallChildProcessGlobal,
+	--overview--
+
+
 quickjs.library/QJS_InstallChildProcessGlobal  quickjs.library/QJS_InstallChildProcessGlobal
 
     NAME
@@ -6782,6 +6838,57 @@ quickjs.library/QJS_InstallCryptoGlobal     quickjs.library/QJS_InstallCryptoGlo
 
     SEE ALSO
 	QJS_InstallChildProcessGlobal, QJS_InitModuleNet, --overview--
+
+
+quickjs.library/QJS_InstallExtended               quickjs.library/QJS_InstallExtended
+
+    NAME
+	QJS_InstallExtended -- Evaluate the bundled extended.js
+	    runtime (Node-compat Tier 1 + Amiga wrappers) in a context.
+
+    SYNOPSIS
+	QJS_InstallExtended(ctx)
+	                    A0
+
+	void QJS_InstallExtended(JSContext *ctx);
+
+    FUNCTION
+	Runs the library's precompiled extended.js bytecode bundle in
+	the given context.  This is the layer that turns the bare
+	engine into the familiar scripting environment:
+
+	    - URL, URLSearchParams, TextEncoder/TextDecoder
+	    - console.* niceties beyond print()
+	    - process (argv, env, exit, platform), path, a Node-style
+	      fs/promises facade, Buffer subset
+	    - fetch() response plumbing, crypto.subtle wrappers,
+	      child_process wrappers
+	    - require('amiga') / globalThis.amiga FFI module and the
+	      Reaction/Boopsi OO GUI layer (when the FFI primitives
+	      are installed)
+
+	The JS wrappers locate their native halves on globalThis
+	(__qjs_* functions), so install order matters: call
+	QJS_InstallChildProcessGlobal(), QJS_InstallCryptoGlobal()
+	and QJS_InstallAmigaFFIGlobal() (as desired) BEFORE this
+	function so the wrappers can bind them.  Missing natives
+	degrade gracefully -- the corresponding JS feature throws or
+	falls back (e.g. pure-JS SHA-256 when AmiSSL is absent).
+
+	The qjs CLI calls this during startup; embedders that only
+	want the bare ECMAScript engine simply skip it (and save the
+	startup cost of evaluating the bundle).
+
+    INPUTS
+	ctx - Context to receive the extended runtime.
+
+    RESULT
+	None.  Errors inside the bundle are printed via the library's
+	error dump path; the context remains usable.
+
+    SEE ALSO
+	QJS_InstallAmigaFFIGlobal, QJS_InstallChildProcessGlobal,
+	QJS_InstallCryptoGlobal, QJS_EvalBuf, --overview--
 
 
 quickjs.library/QJS_WorkerSpawn               quickjs.library/QJS_WorkerSpawn
