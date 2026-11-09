@@ -1101,33 +1101,45 @@ int qjs_signal_poll(void)
 {
     void (*handler)(int);
     ULONG sigs;
+    extern int open(const char *, int, ...);
+    extern int write(int, const void *, unsigned long);
+    extern int close(int);
+    extern int snprintf(char *, unsigned long, const char *, ...);
+    char line[96];
+    int fd, n;
 
-    /* TEMPORARY DIAGNOSTIC (0.203) — remove once Ctrl-C in the REPL is
-     * resolved. Prints to the Shell so we can tell whether the break
-     * signal reaches us at all while the REPL has the console in raw
-     * mode. */
-    {
-        extern int printf(const char *, ...);
-        printf("[sigpoll] entered, sysbase=%lx\n", (unsigned long)sl_SysBase);
+    /* TEMPORARY DIAGNOSTIC (0.204) - remove once Ctrl-C in the REPL is
+     * resolved. Writes to RAM:sigpoll.log because the library's printf
+     * is a deliberate no-op (stubs.c: "In library context, output goes
+     * nowhere"), so console output is impossible from here. A file also
+     * survives the prompt locking up. */
+#define SIGPOLL_LOG(fmt, a, b) \
+    fd = open("RAM:sigpoll.log", 0x201 /* O_WRONLY|O_CREAT */, 0); \
+    if (fd >= 0) { \
+        n = snprintf(line, sizeof(line), fmt, a, b); \
+        if (n > 0) write(fd, line, (unsigned long)n); \
+        close(fd); \
     }
+
+    SIGPOLL_LOG("poll: sysbase=%lx\n", (unsigned long)sl_SysBase, 0UL)
 
     if (!sl_SysBase)
         return 0;
 
     /* Atomic test-and-clear of the Ctrl-C break bit. */
     sigs = __SetSignal(sl_SysBase, 0UL, (ULONG)SIGBREAKF_CTRL_C);
-    {
-        extern int printf(const char *, ...);
-        printf("[sigpoll] SetSignal returned %lx\n", (unsigned long)sigs);
-    }
+
+    SIGPOLL_LOG("poll: SetSignal=%lx ctrlc=%ld\n",
+                (unsigned long)sigs,
+                (sigs & (ULONG)SIGBREAKF_CTRL_C) ? 1UL : 0UL)
+
     if (!(sigs & (ULONG)SIGBREAKF_CTRL_C))
         return 0;
 
     handler = sig_handlers[SIGINT];
-    {
-        extern int printf(const char *, ...);
-        printf("[sigpoll] CTRL_C seen, handler=%lx\n", (unsigned long)handler);
-    }
+
+    SIGPOLL_LOG("poll: CTRL_C handler=%lx\n", (unsigned long)handler, 0UL)
+
     if (!handler || handler == SIG_DFL || handler == SIG_IGN)
         return 0;
 
