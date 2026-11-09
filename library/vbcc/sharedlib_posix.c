@@ -1101,47 +1101,63 @@ void (*signal(int sig, void (*handler)(int)))(int)
 }
 
 /* Called from the engine's interrupt handler. Returns 1 if a handler
- * ran, 0 otherwise. Only SIGINT is wired to a real AmigaOS signal. */
+ * ran, 0 otherwise. Only SIGINT is wired to a real AmigaOS signal.
+ *
+ * Why this does not just read the break bit:
+ *
+ * The REPL puts the console into raw mode (repl.js calls os.ttySetRaw
+ * before os.signal). In raw mode the console delivers Ctrl-C as a
+ * character, not as SIGBREAKF_CTRL_C, so SetSignal never sees it. That
+ * was measured, not assumed: 0.205 traced SetSignal on every poll and
+ * it returned ctrlc=0 every time while the prompt sat there.
+ *
+ * So the poll also looks for a pending 0x03 on the console. It only
+ * consumes the byte when it IS 0x03, so ordinary typing is untouched.
+ * The REPL's own handler then feeds 0x03 to readline, which is exactly
+ * what its sigint_handler does.
+ *
+ * The byte is only taken when a handler is registered, so a plain
+ * script that never calls os.signal cannot lose input. */
 int qjs_signal_poll(void)
 {
     void (*handler)(int);
     ULONG sigs;
-    extern int snprintf(char *, unsigned long, const char *, ...);
-    char line[96];
-    int n;
-
-    /* TEMPORARY DIAGNOSTIC (0.205) - remove once Ctrl-C in the REPL is
-     * resolved. Writes straight to the Shell's Output() handle.
-     *
-     * Not printf: the library's printf is a deliberate no-op (stubs.c).
-     * Not a file: 0.204 wrote RAM:sigpoll.log and the handle stayed
-     * locked, so it could not be read while qjs was running.
-     * Not CON:: that opens a NEW console window rather than writing to
-     * the one the user is looking at. Output() is the current Shell. */
-#define SIGPOLL_OUT(fmt, a, b) \
-    n = snprintf(line, sizeof(line), fmt, a, b); \
-    if (n > 0 && sl_DOSBase) \
-        __sl_Write(sl_DOSBase, sl_Output(), line, (LONG)n);
-
-    SIGPOLL_OUT("poll: sysbase=%lx\n", (unsigned long)sl_SysBase, 0UL)
+    int got_ctrlc = 0;
+    extern int read(int, void *, unsigned long);
+    extern int write(int, const void *, unsigned long);
 
     if (!sl_SysBase)
         return 0;
 
-    /* Atomic test-and-clear of the Ctrl-C break bit. */
+    /* Path 1: the break bit, for when the console is NOT in raw mode. */
     sigs = __SetSignal(sl_SysBase, 0UL, (ULONG)SIGBREAKF_CTRL_C);
+    if (sigs & (ULONG)SIGBREAKF_CTRL_C)
+        got_ctrlc = 1;
 
-    SIGPOLL_OUT("poll: SetSignal=%lx ctrlc=%ld\n",
-                (unsigned long)sigs,
-                (sigs & (ULONG)SIGBREAKF_CTRL_C) ? 1UL : 0UL)
+    /* Path 2: a pending 0x03 on the console, for raw mode. */
+    if (!got_ctrlc && sl_DOSBase) {
+        handler = sig_handlers[SIGINT];
+        if (handler && handler != SIG_DFL && handler != SIG_IGN) {
+            BPTR in = sl_Input();
+            if (in && sl_WaitForChar(in, 0)) {
+                unsigned char c = 0;
+                if (read(0, &c, 1) == 1) {
+                    if (c == 0x03) {
+                        got_ctrlc = 1;
+                    } else {
+                        /* Not Ctrl-C: put it back so the REPL still
+                         * receives it. */
+                        write(0, &c, 1);
+                    }
+                }
+            }
+        }
+    }
 
-    if (!(sigs & (ULONG)SIGBREAKF_CTRL_C))
+    if (!got_ctrlc)
         return 0;
 
     handler = sig_handlers[SIGINT];
-
-    SIGPOLL_OUT("poll: CTRL_C handler=%lx\n", (unsigned long)handler, 0UL)
-
     if (!handler || handler == SIG_DFL || handler == SIG_IGN)
         return 0;
 
