@@ -1100,16 +1100,34 @@ void (*signal(int sig, void (*handler)(int)))(int)
 int qjs_signal_poll(void)
 {
     void (*handler)(int);
+    ULONG sigs;
+
+    /* TEMPORARY DIAGNOSTIC (0.203) — remove once Ctrl-C in the REPL is
+     * resolved. Prints to the Shell so we can tell whether the break
+     * signal reaches us at all while the REPL has the console in raw
+     * mode. */
+    {
+        extern int printf(const char *, ...);
+        printf("[sigpoll] entered, sysbase=%lx\n", (unsigned long)sl_SysBase);
+    }
 
     if (!sl_SysBase)
         return 0;
 
     /* Atomic test-and-clear of the Ctrl-C break bit. */
-    if (!(__SetSignal(sl_SysBase, 0UL, (ULONG)SIGBREAKF_CTRL_C)
-          & (ULONG)SIGBREAKF_CTRL_C))
+    sigs = __SetSignal(sl_SysBase, 0UL, (ULONG)SIGBREAKF_CTRL_C);
+    {
+        extern int printf(const char *, ...);
+        printf("[sigpoll] SetSignal returned %lx\n", (unsigned long)sigs);
+    }
+    if (!(sigs & (ULONG)SIGBREAKF_CTRL_C))
         return 0;
 
     handler = sig_handlers[SIGINT];
+    {
+        extern int printf(const char *, ...);
+        printf("[sigpoll] CTRL_C seen, handler=%lx\n", (unsigned long)handler);
+    }
     if (!handler || handler == SIG_DFL || handler == SIG_IGN)
         return 0;
 
