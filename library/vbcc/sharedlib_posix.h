@@ -398,8 +398,13 @@ pid_t  waitpid(pid_t pid, int *status, int options);
 int    kill(pid_t pid, int sig);
 int    pipe(int pipefd[2]);
 
-/* -- Signal (stubs) -- */
+/* -- Signals --
+ *
+ * SIGINT is mapped onto the AmigaOS Ctrl-C break bit. signal() records
+ * the handler; qjs_signal_poll() delivers it. See sharedlib_posix.c. */
 void (*signal(int sig, void (*handler)(int)))(int);
+int    qjs_signal_poll(void);
+void   sharedlib_signal_init(struct ExecBase *sysBase);
 int    setitimer(int which, const struct itimerval *nval,
                  struct itimerval *oval);
 

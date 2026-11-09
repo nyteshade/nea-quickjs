@@ -27,10 +27,13 @@
 #pragma amiga-align
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/tasks.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/datetime.h>
 #pragma default-align
+
+#include "execinline.h"
 
 /* ================================================================
  * DOSBase -- set via sharedlib_posix_init() from CustomLibInit.
@@ -1039,10 +1042,34 @@ int pipe(int pipefd[2])
 }
 
 /* ================================================================
- * Signal stubs
+ * Signals
+ *
+ * AmigaOS has no POSIX signal delivery. What it does have is a per-task
+ * signal set, and the Shell sets SIGBREAKF_CTRL_C in it when you press
+ * Ctrl-C. So SIGINT is mapped onto that bit:
+ *
+ *   signal(SIGINT, handler)  records the handler and arms the mapping
+ *   qjs_signal_poll()        test-and-clears the bit and calls the handler
+ *
+ * The poll has to happen somewhere the interpreter passes through
+ * regularly. quickjs-libc.c calls it from its own interrupt handler,
+ * which the engine invokes periodically while evaluating.
+ *
+ * This is what makes Ctrl-C work inside the interactive prompt. The
+ * prompt installs its handler through os.signal(SIGINT), which lands
+ * here; without a real poll the handler was recorded and never called,
+ * so the prompt locked up instead of returning to the input line.
  * ================================================================ */
 
 static void (*sig_handlers[16])(int);
+
+/* Set by sharedlib_posix_init(). Needed to reach exec.library. */
+static struct ExecBase *sl_SysBase;
+
+void sharedlib_signal_init(struct ExecBase *sysBase)
+{
+    sl_SysBase = sysBase;
+}
 
 void (*signal(int sig, void (*handler)(int)))(int)
 {
@@ -1056,6 +1083,28 @@ void (*signal(int sig, void (*handler)(int)))(int)
     old = sig_handlers[sig];
     sig_handlers[sig] = handler;
     return old ? old : SIG_DFL;
+}
+
+/* Called from the engine's interrupt handler. Returns 1 if a handler
+ * ran, 0 otherwise. Only SIGINT is wired to a real AmigaOS signal. */
+int qjs_signal_poll(void)
+{
+    void (*handler)(int);
+
+    if (!sl_SysBase)
+        return 0;
+
+    /* Atomic test-and-clear of the Ctrl-C break bit. */
+    if (!(__SetSignal(sl_SysBase, 0UL, (ULONG)SIGBREAKF_CTRL_C)
+          & (ULONG)SIGBREAKF_CTRL_C))
+        return 0;
+
+    handler = sig_handlers[SIGINT];
+    if (!handler || handler == SIG_DFL || handler == SIG_IGN)
+        return 0;
+
+    handler(SIGINT);
+    return 1;
 }
 
 int setitimer(int which, const struct itimerval *nval,

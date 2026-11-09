@@ -44,6 +44,8 @@ void __CopyMem(struct ExecBase *sysBase,
 /* ---- Signals / lists / devices (for timer.device setup) ---- */
 LONG __AllocSignal(struct ExecBase *sysBase, LONG signalNum);
 void __FreeSignal(struct ExecBase *sysBase, LONG signalNum);
+ULONG __SetSignal(struct ExecBase *sysBase, ULONG newSignals,
+                  ULONG signalMask);
 void __NewList(struct ExecBase *sysBase, struct List *list);
 LONG __OpenDevice(struct ExecBase *sysBase, const char *name, ULONG unit,
                   struct IORequest *ior, ULONG flags);

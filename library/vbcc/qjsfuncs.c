@@ -501,6 +501,10 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
     /* Init POSIX shim with DOSBase for file I/O, stat, getcwd, etc. */
     sharedlib_posix_init(aBase->iDOSBase);
 
+    /* Give the POSIX shim SysBase so signal()/SIGINT can reach the
+     * AmigaOS Ctrl-C break bit. */
+    sharedlib_signal_init(aBase->iSysBase);
+
     /* Init quickjs-libc DOSBase for proto/dos.h inline calls */
     quickjs_libc_lib_init(aBase->iDOSBase);
 

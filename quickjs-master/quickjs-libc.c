@@ -32,6 +32,9 @@ extern int amiga_force_color;
 #include "amiga_ssl.h"
 #include <proto/exec.h>
 extern int amiga_force_color;
+/* Delivers a pending SIGINT to the handler registered via signal().
+ * Implemented in library/vbcc/sharedlib_posix.c. */
+extern int qjs_signal_poll(void);
 #endif
 #include "quickjs.h"
 #include <stdlib.h>
@@ -1109,6 +1112,13 @@ static JSValue js_std_gc(JSContext *ctx, JSValueConst this_val,
 
 static int interrupt_handler(JSRuntime *rt, void *opaque)
 {
+    /* Deliver a pending SIGINT to its handler. On AmigaOS that means
+     * test-and-clearing the Ctrl-C break bit and calling whatever the
+     * REPL registered through os.signal(). Without this the handler was
+     * recorded and never run, so Ctrl-C inside the interactive prompt
+     * did nothing and left the prompt locked. */
+    qjs_signal_poll();
+
     return (os_pending_signals >> SIGINT) & 1;
 }
 

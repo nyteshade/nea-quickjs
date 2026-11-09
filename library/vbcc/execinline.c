@@ -173,6 +173,22 @@ void __FreeSignal(struct ExecBase *sysBase, LONG signalNum)
             __reg("d0") LONG))(sysBase, signalNum);
 }
 
+/* SetSignal — LVO -306
+ *
+ * Sets the bits in newSignals and clears the bits in signalMask, for the
+ * calling task. Returns the previous signal set. Passing 0 for
+ * newSignals makes this an atomic test-and-clear, which is how the
+ * Ctrl-C break bit is consumed. */
+ULONG __SetSignal(struct ExecBase *sysBase, ULONG newSignals,
+                  ULONG signalMask)
+{
+    return LVO(sysBase, 306,
+        ULONG (*)(
+            __reg("a6") struct ExecBase *,
+            __reg("d0") ULONG,
+            __reg("d1") ULONG))(sysBase, newSignals, signalMask);
+}
+
 /* NewList — manual inline (it's really a macro that zeros head/tail) */
 void __NewList(struct ExecBase *sysBase, struct List *list)
 {
