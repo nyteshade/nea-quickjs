@@ -1063,8 +1063,18 @@ int pipe(int pipefd[2])
 
 static void (*sig_handlers[16])(int);
 
-/* Set by sharedlib_posix_init(). Needed to reach exec.library. */
-static struct ExecBase *sl_SysBase;
+/* Set by sharedlib_signal_init() from CustomLibInit. Needed to reach
+ * exec.library for the Ctrl-C break bit.
+ *
+ * NOT static, and the comment is not decoration: this project has hit
+ * the same trap twice. qjsfuncs.c:255 records that sharedlib_time.c's
+ * static sl_DOSBase lost writes made during init, so reads from
+ * _qjs_time_us always saw NULL. The 0.183-0.186 arc then lost four
+ * builds to the same class of bug on _qjs_time_offset_us. A static
+ * file-scope pointer in this library does not reliably keep a value
+ * written at init time. sl_DOSBase above is non-static for the same
+ * reason. Do not re-add `static` here. */
+struct ExecBase *sl_SysBase;
 
 void sharedlib_signal_init(struct ExecBase *sysBase)
 {
