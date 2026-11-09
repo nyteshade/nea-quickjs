@@ -148,6 +148,11 @@ static LONG __sl_IsInteractive(__reg("a6") struct Library *base,
 static BPTR __sl_Input(__reg("a6") struct Library *base) = "\tjsr\t-54(a6)";
 #define sl_Input() __sl_Input(sl_DOSBase)
 
+static LONG __sl_Write(__reg("a6") struct Library *base,
+                       __reg("d1") BPTR file,
+                       __reg("d2") const void *buf,
+                       __reg("d3") LONG len) = "\tjsr\t-48(a6)";
+
 static BPTR __sl_Output(__reg("a6") struct Library *base) = "\tjsr\t-60(a6)";
 #define sl_Output() __sl_Output(sl_DOSBase)
 
@@ -1101,27 +1106,24 @@ int qjs_signal_poll(void)
 {
     void (*handler)(int);
     ULONG sigs;
-    extern int open(const char *, int, ...);
-    extern int write(int, const void *, unsigned long);
-    extern int close(int);
     extern int snprintf(char *, unsigned long, const char *, ...);
     char line[96];
-    int fd, n;
+    int n;
 
-    /* TEMPORARY DIAGNOSTIC (0.204) - remove once Ctrl-C in the REPL is
-     * resolved. Writes to RAM:sigpoll.log because the library's printf
-     * is a deliberate no-op (stubs.c: "In library context, output goes
-     * nowhere"), so console output is impossible from here. A file also
-     * survives the prompt locking up. */
-#define SIGPOLL_LOG(fmt, a, b) \
-    fd = open("RAM:sigpoll.log", 0x201 /* O_WRONLY|O_CREAT */, 0); \
-    if (fd >= 0) { \
-        n = snprintf(line, sizeof(line), fmt, a, b); \
-        if (n > 0) write(fd, line, (unsigned long)n); \
-        close(fd); \
-    }
+    /* TEMPORARY DIAGNOSTIC (0.205) - remove once Ctrl-C in the REPL is
+     * resolved. Writes straight to the Shell's Output() handle.
+     *
+     * Not printf: the library's printf is a deliberate no-op (stubs.c).
+     * Not a file: 0.204 wrote RAM:sigpoll.log and the handle stayed
+     * locked, so it could not be read while qjs was running.
+     * Not CON:: that opens a NEW console window rather than writing to
+     * the one the user is looking at. Output() is the current Shell. */
+#define SIGPOLL_OUT(fmt, a, b) \
+    n = snprintf(line, sizeof(line), fmt, a, b); \
+    if (n > 0 && sl_DOSBase) \
+        __sl_Write(sl_DOSBase, sl_Output(), line, (LONG)n);
 
-    SIGPOLL_LOG("poll: sysbase=%lx\n", (unsigned long)sl_SysBase, 0UL)
+    SIGPOLL_OUT("poll: sysbase=%lx\n", (unsigned long)sl_SysBase, 0UL)
 
     if (!sl_SysBase)
         return 0;
@@ -1129,7 +1131,7 @@ int qjs_signal_poll(void)
     /* Atomic test-and-clear of the Ctrl-C break bit. */
     sigs = __SetSignal(sl_SysBase, 0UL, (ULONG)SIGBREAKF_CTRL_C);
 
-    SIGPOLL_LOG("poll: SetSignal=%lx ctrlc=%ld\n",
+    SIGPOLL_OUT("poll: SetSignal=%lx ctrlc=%ld\n",
                 (unsigned long)sigs,
                 (sigs & (ULONG)SIGBREAKF_CTRL_C) ? 1UL : 0UL)
 
@@ -1138,7 +1140,7 @@ int qjs_signal_poll(void)
 
     handler = sig_handlers[SIGINT];
 
-    SIGPOLL_LOG("poll: CTRL_C handler=%lx\n", (unsigned long)handler, 0UL)
+    SIGPOLL_OUT("poll: CTRL_C handler=%lx\n", (unsigned long)handler, 0UL)
 
     if (!handler || handler == SIG_DFL || handler == SIG_IGN)
         return 0;
