@@ -49,6 +49,9 @@ export class TapeDeck extends GadgetBase {
   /** @type {string} */
   static _classLibName = 'gadgets/tapedeck.gadget';
 
+  /** @type {string} — no XXX_GetClass in this library; instantiate by name */
+  static _publicClassID = 'tapedeck.gadget';
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,

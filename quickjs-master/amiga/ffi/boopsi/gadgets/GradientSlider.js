@@ -27,6 +27,9 @@ export class GradientSlider extends GadgetBase {
   /** @type {string} */
   static _classLibName = 'gadgets/gradientslider.gadget';
 
+  /** @type {string} — no XXX_GetClass in this library; instantiate by name */
+  static _publicClassID = 'gradientslider.gadget';
+
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,

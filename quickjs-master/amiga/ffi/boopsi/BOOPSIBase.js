@@ -76,6 +76,23 @@ export class BOOPSIBase {
   /** @type {number} — cached pointer returned by the class library's GetClass; 0 until ensureClass() */
   static _classPtr = 0;
 
+  /**
+   * Public class name, for class libraries that have NO XXX_GetClass
+   * function. The pre-Reaction V39 gadgets (tapedeck, colorwheel,
+   * gradientslider) register a public class when their library is
+   * opened and are instantiated by name: NewObject(NULL, "tapedeck.gadget").
+   * tapedeck and gradientslider have no library functions at all, and
+   * colorwheel's LVO -30 is ConvertHSBToRGB — so calling -30 on any of
+   * them crashes the machine (guru 80000006 at 0.206). When this is
+   * set, ensureClass() skips the LVO call entirely.
+   *
+   * @type {string}
+   */
+  static _publicClassID = '';
+
+  /** @type {number} — cached C-string copy of _publicClassID; 0 until ensureClass() */
+  static _classIDPtr = 0;
+
   /** @type {number} — cached library base for the .class/.gadget/.image lib */
   static _libBase = 0;
 
@@ -94,13 +111,15 @@ export class BOOPSIBase {
   /**
    * Open the backing Reaction library and cache its Class* pointer.
    * Most Reaction libraries expose a XXX_GetClass() function at
-   * LVO -30 that returns the Class*.
+   * LVO -30 that returns the Class*. Classes that set _publicClassID
+   * are instantiated by name instead: the library is opened (which
+   * registers the class) and the name is cached in _classIDPtr.
    *
-   * @returns {number} cached Class* pointer
+   * @returns {number} cached Class* pointer; 0 for a public-name class
    * @throws  {Error}  if the library can't be opened or GetClass fails
    */
   static ensureClass() {
-    if (this._classPtr) return this._classPtr;
+    if (this._classPtr || this._classIDPtr) return this._classPtr;
 
     if (!this._classLibName) {
       throw new Error(
@@ -114,6 +133,21 @@ export class BOOPSIBase {
         this.name + ': cannot open ' + this._classLibName +
         ' (v40+ required)'
       );
+    }
+
+    if (this._publicClassID) {
+      /* Never freed: the name must outlive every instance, and the
+       * class stays registered for as long as the library is open. */
+      let bytes = this._publicClassID.length + 1;
+      let idPtr = globalThis.amiga.allocMem(bytes);
+      if (!idPtr) {
+        globalThis.amiga.closeLibrary(base);
+        throw new Error(this.name + ': allocMem failed for class name');
+      }
+      globalThis.amiga.pokeString(idPtr, this._publicClassID);
+      this._libBase    = base;
+      this._classIDPtr = idPtr;
+      return 0;
     }
 
     let classPtr = globalThis.amiga.call(base, this._classLibLvo, {});
@@ -194,10 +228,11 @@ export class BOOPSIBase {
 
     try {
       /* Intuition.NewObjectA(class, classID, tagList) — a0/a1/a2.
-       * We always instantiate from a private Class* (returned by the
-       * class library's XXX_GetClass), so classID is NULL. */
+       * Normally a private Class* (from the class library's
+       * XXX_GetClass) with a NULL classID; public-name classes pass
+       * a NULL Class* and the name instead. */
       let raw = globalThis.amiga.Intuition.NewObjectA(
-        classPtr, 0, tags.ptr
+        classPtr, this.constructor._classIDPtr, tags.ptr
       );
 
       if (!raw) {
@@ -664,7 +699,7 @@ export class BOOPSIBase {
 
     try {
       newPtr = globalThis.amiga.Intuition.NewObjectA(
-        classPtr, 0, newTags.ptr
+        classPtr, this.constructor._classIDPtr, newTags.ptr
       );
       if (!newPtr) {
         throw new Error(

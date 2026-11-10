@@ -31,6 +31,9 @@ const GID = { EDITOR: 1, SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5,
 
 const NOTES_PATH = 'RAM:notes.txt';
 
+/** @type {string} — needle of the last successful Find, '' when none */
+let lastNeedle = '';
+
 /* Start with an EMPTY editor. Earlier versions of this demo opened
  * with a placeholder string in `contents` — but if the user clicked
  * Save before typing anything, the placeholder got persisted to
@@ -150,7 +153,10 @@ function clearNotes() {
 }
 
 /**
- * Search for the text in the needle field, continuing from the cursor.
+ * Search for the text in the needle field. A new needle searches from
+ * the top of the text; pressing Find again with the same needle moves
+ * on to the next match. (A forward search from the cursor finds
+ * nothing right after typing, because the cursor is at the end.)
  * A hit moves the cursor to the match and marks it.
  *
  * @returns {undefined}
@@ -161,8 +167,12 @@ function findNeedle() {
     setStatus('type something to find first.');
     return;
   }
-  let found = editor.search(s, TextEditor.SearchFlags.NEXT);
-  setStatus(found ? ('found "' + s + '"') : ('"' + s + '" not found'));
+  let again = (s === lastNeedle);
+  let found = editor.search(s, again ? TextEditor.SearchFlags.NEXT
+                                     : TextEditor.SearchFlags.FROM_TOP);
+  lastNeedle = found ? s : '';
+  setStatus(found ? ('found "' + s + '"')
+                  : ('"' + s + '" not found' + (again ? ' again' : '')));
 }
 
 /**

@@ -27,7 +27,8 @@ let win = new Window({
 
 win.open();
 
-const modeNames = ['STOP','PLAY','FFWD','REW','RECORD','EJECT','PAUSE','STEP_FWD','STEP_REW'];
+/* Indexed by TapeDeckMode (NDK BUT_* values, gadgets/tapedeck.h). */
+const modeNames = ['REWIND','PLAY','FORWARD','STOP','PAUSE','BEGIN','FRAME','END'];
 
 try {
   for (let e of win.events()) {
