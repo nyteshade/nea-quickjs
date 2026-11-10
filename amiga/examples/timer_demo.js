@@ -18,7 +18,7 @@
 import * as std from 'qjs:std';
 
 if (typeof TimerRequest !== 'function' || typeof Exec !== 'function') {
-  print('Q2 wrappers unavailable — need quickjs.library 0.134+');
+  print('Q2 wrappers unavailable - need quickjs.library 0.134+');
   std.exit(1);
 }
 

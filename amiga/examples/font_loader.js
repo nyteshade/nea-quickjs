@@ -22,7 +22,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Diskfont !== 'function' || typeof TextAttr !== 'function') {
-  print('Q2 wrappers unavailable — need quickjs.library 0.135+');
+  print('Q2 wrappers unavailable - need quickjs.library 0.135+');
   std.exit(1);
 }
 
@@ -79,7 +79,7 @@ let { ta, nameAlloc } = makeTextAttr(fontName, fontSize);
 let font = Diskfont.OpenDiskFont(ta);
 
 if (!font) {
-  print('OpenDiskFont failed — is "' + fontName +
+  print('OpenDiskFont failed - is "' + fontName +
         '" in FONTS:? Does size ' + fontSize + ' exist?');
   amiga.freeMem(nameAlloc.ptr, nameAlloc.size);
   ta.free();

@@ -13,14 +13,14 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.127+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.127+');
   std.exit(1);
 }
 
 let screen = Intuition.LockPubScreen(null);
 
 if (!screen) {
-  print('LockPubScreen(null) failed — is Workbench running?');
+  print('LockPubScreen(null) failed - is Workbench running?');
   std.exit(1);
 }
 

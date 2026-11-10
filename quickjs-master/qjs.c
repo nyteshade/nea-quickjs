@@ -39,7 +39,7 @@
 #ifdef __VBCC__
 /* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
  * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
-#define AMIGA_PORT_VERSION "0.207"
+#define AMIGA_PORT_VERSION "0.208"
 #define AMIGA_PORT_DATE    "10.11.2026"
 #define AMIGA_PORT_DATE_US "11/09/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
@@ -642,7 +642,9 @@ int main(int argc, char **argv)
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
 
-#ifdef __VBCC__
+#if defined(__VBCC__) && !defined(QJS_NO_STACK_CHECK)
+    /* (QJS_NO_STACK_CHECK is a host-test hook: vamos reports a zero
+     * tc_SPLower/tc_SPUpper, so the check can never pass there.) */
     /* AmigaOS task stack check. The QuickJS bytecode interpreter uses
      * alloca() for argument buffers and has deep call chains. Shell
      * default stack (4KB) is far too small — 64KB minimum required.

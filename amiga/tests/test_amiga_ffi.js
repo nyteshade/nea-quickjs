@@ -65,7 +65,7 @@ async function run(title, fn) {
  * point running 100 FAILs. */
 if (typeof globalThis.amiga !== 'object' ||
     typeof globalThis.amiga.openLibrary !== 'function') {
-    print("FATAL: globalThis.amiga not installed — library version < 0.124?");
+    print("FATAL: globalThis.amiga not installed - library version < 0.124?");
     std.exit(2);
 }
 
@@ -132,7 +132,7 @@ await run("LVO table integrity (0.125)", async () => {
     ok(amiga.gadtools.lvo.CreateContext === -114, 'gadtools.lvo.CreateContext');
 });
 
-await run("full NDK coverage (0.126) — all 76 libraries", async () => {
+await run("full NDK coverage (0.126) - all 76 libraries", async () => {
     /* 0.126 added auto-attached LVO tables for every library in the NDK 3.2
      * FD files beyond the 5 hand-structured namespaces. Spot-check a range
      * of them — if one is missing the bake-in is broken. */
@@ -184,7 +184,7 @@ await run("full NDK coverage (0.126) — all 76 libraries", async () => {
        'at least 70 FFI-exposed libraries (got ' + ffiLibCount + ')');
 });
 
-await run("memory round-trip — peek8/16/32, poke8/16/32, allocMem/freeMem", async () => {
+await run("memory round-trip - peek8/16/32, poke8/16/32, allocMem/freeMem", async () => {
     const ptr = amiga.allocMem(32, amiga.exec.MEMF_PUBLIC | amiga.exec.MEMF_CLEAR);
     ok(ptr !== 0, 'allocMem(32) returned non-zero');
     if (ptr === 0) return;
@@ -218,7 +218,7 @@ await run("memory round-trip — peek8/16/32, poke8/16/32, allocMem/freeMem", as
     /* Don't verify anything after freeMem — the memory may be recycled. */
 });
 
-await run("string round-trip — pokeString / peekString", async () => {
+await run("string round-trip - pokeString / peekString", async () => {
     const ptr = amiga.allocMem(64);
     ok(ptr !== 0, 'allocMem(64)');
     if (ptr === 0) return;
@@ -271,7 +271,7 @@ await run("OpenLibrary / CloseLibrary round-trip", async () => {
     ok(bogus === 0, 'openLibrary on non-existent returns 0');
 });
 
-await run("generic trampoline — exec AllocMem/FreeMem via amiga.call", async () => {
+await run("generic trampoline - exec AllocMem/FreeMem via amiga.call", async () => {
     /* This is the critical trampoline test: open exec.library, then
      * call AllocMem and FreeMem through `amiga.call` rather than the
      * direct wrappers. If this works, the asm trampoline + register
@@ -302,7 +302,7 @@ await run("generic trampoline — exec AllocMem/FreeMem via amiga.call", async (
     }
 });
 
-await run("generic trampoline — dos.Output()", async () => {
+await run("generic trampoline - dos.Output()", async () => {
     const doslib = amiga.openLibrary('dos.library', 0);
     ok(doslib !== 0, 'openLibrary("dos.library")');
     if (doslib === 0) return;
@@ -321,7 +321,7 @@ await run("generic trampoline — dos.Output()", async () => {
     amiga.closeLibrary(doslib);
 });
 
-await run("per-library reachability — exec/dos/intuition/graphics", async () => {
+await run("per-library reachability - exec/dos/intuition/graphics", async () => {
     /* For each library we have LVOs for, open it and call one
      * side-effect-free function that proves we reach the code. */
 
@@ -386,7 +386,7 @@ await run("per-library reachability — exec/dos/intuition/graphics", async () =
     }
 });
 
-await run("makeTags — TagItem array construction", async () => {
+await run("makeTags - TagItem array construction", async () => {
     const tags = amiga.makeTags([
         [amiga.intuition.WA_Left,   50],
         [amiga.intuition.WA_Top,    40],
@@ -422,7 +422,7 @@ await run("makeTags — TagItem array construction", async () => {
     amiga.freeMem(tags, 40);
 });
 
-await run("withTags — scoped tag allocation", async () => {
+await run("withTags - scoped tag allocation", async () => {
     let captured = 0;
     const result = amiga.withTags(
         [[amiga.intuition.WA_Width, 100], [amiga.intuition.WA_Height, 50]],

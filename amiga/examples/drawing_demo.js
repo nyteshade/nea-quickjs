@@ -20,7 +20,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.127+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.127+');
   std.exit(1);
 }
 

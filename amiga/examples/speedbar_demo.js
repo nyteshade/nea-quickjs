@@ -49,13 +49,22 @@ try {
   for (let e of win.events()) {
     if (e.kind === EventKind.CLOSE_WINDOW) break;
     if (e.kind === EventKind.BUTTON_CLICK && e.sourceId === GID.QUIT) break;
-    if (e.kind === EventKind.SPEEDBAR_CLICK && e.sourceId === GID.BAR) {
-      /* SPEEDBAR_Selected is the ordinal of the clicked button
-       * (which we set = index via AllocSpeedButtonNodeA's d0 arg). */
-      let ord = bar.get('selected');
+    if (e.sourceId === GID.BAR) {
+      /* speedbar.gadget reports the clicked button's ordinal in the
+       * event code (NDK Examples/SpeedBar.c reads it from WMHI_GADGETUP's
+       * code), which we set = index via AllocSpeedButtonNodeA's d0 arg.
+       * SPEEDBAR_Selected is only a fallback. Anything unexpected is
+       * shown instead of being dropped, so a click is never silent. */
+      let ord = e.raw.code;
+      if (!(ord >= 0 && ord < ACTIONS.length)) ord = bar.get('selected');
       if (typeof ord === 'number' && ord >= 0 && ord < ACTIONS.length) {
         status.text = 'Clicked: ' + ACTIONS[ord] + ' (#' + ord + ')';
         print('speedbar ' + ACTIONS[ord]);
+      }
+      else {
+        let what = 'code=' + e.raw.code + ' selected=' + bar.get('selected');
+        status.text = 'Click, but no button id: ' + what;
+        print('speedbar event with no button id: ' + what);
       }
     }
   }

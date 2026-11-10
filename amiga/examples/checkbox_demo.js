@@ -57,7 +57,7 @@ try {
 
     if (e.kind === EventKind.CHECKBOX_TOGGLE) {
       let checked = e.source ? e.source.checked : null;
-      print('CB' + e.sourceId + ' → ' + (checked ? 'checked' : 'unchecked'));
+      print('CB' + e.sourceId + ' -> ' + (checked ? 'checked' : 'unchecked'));
     }
   }
 }

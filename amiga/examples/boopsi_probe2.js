@@ -19,12 +19,12 @@ print('=== B: new Button({id:1, text:"Quit"}) ===');
 let btn = new Button({ id: 1, text: 'Quit' });
 print('    button.ptr = ' + hex(btn.ptr));
 
-print('=== C: new Layout({orientation:"vertical"}) — NO children ===');
+print('=== C: new Layout({orientation:"vertical"}) - NO children ===');
 let lay = new Layout({ orientation: 'vertical' });
 print('    layout.ptr = ' + hex(lay.ptr));
 lay.dispose();
 
-print('=== D: new Layout({children:[label]}) — one child via _extraPairs ===');
+print('=== D: new Layout({children:[label]}) - one child via _extraPairs ===');
 let lbl2 = new Label({ text: 'child' });
 print('    child.ptr = ' + hex(lbl2.ptr));
 let lay2 = new Layout({
@@ -34,7 +34,7 @@ let lay2 = new Layout({
 print('    layout.ptr = ' + hex(lay2.ptr));
 lay2.dispose();
 
-print('=== E: new Layout({children:[label, button, button]}) — three children ===');
+print('=== E: new Layout({children:[label, button, button]}) - three children ===');
 let lbl3 = new Label({ text: 'x' });
 let btn3 = new Button({ id: 1, text: 'a' });
 let btn4 = new Button({ id: 2, text: 'b' });
@@ -49,7 +49,7 @@ let lay3 = new Layout({
 print('    layout.ptr = ' + hex(lay3.ptr));
 lay3.dispose();
 
-print('=== F: new Window({title, innerWidth, innerHeight, layout}) — no open ===');
+print('=== F: new Window({title, innerWidth, innerHeight, layout}) - no open ===');
 let lbl4 = new Label({ text: 'hi' });
 let lay4 = new Layout({ orientation: 'vertical', children: [lbl4] });
 let w = new Window({

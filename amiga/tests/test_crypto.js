@@ -66,7 +66,7 @@ ok(!crypto.subtle.has("BOGUS"),  "has('BOGUS') is false");
             ok(h.byteLength === 64, "SHA-512 length is 64 bytes");
             ok(bytesToHex(h) === expected, "SHA-512('') matches reference (AmiSSL path)");
         } catch (e) {
-            print("  SKIP: SHA-512 unavailable (AmiSSL not installed) — " + e.message);
+            print("  SKIP: SHA-512 unavailable (AmiSSL not installed) - " + e.message);
         }
     } else {
         print("  SKIP: SHA-512 requires AmiSSL, not advertised as supported");

@@ -22,7 +22,7 @@
 import * as std from 'qjs:std';
 
 if (typeof TimerRequest !== 'function' || typeof Exec !== 'function') {
-  print('Q2 wrappers unavailable — need quickjs.library 0.134+');
+  print('Q2 wrappers unavailable - need quickjs.library 0.134+');
   std.exit(1);
 }
 
@@ -39,7 +39,7 @@ let win = Intuition.OpenWindowTags([
   [C.WA_Top,    60],
   [C.WA_Width,  300],
   [C.WA_Height, 80],
-  [C.WA_Title,  'Clock — close to exit'],
+  [C.WA_Title,  'Clock - close to exit'],
   [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
               | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
   [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],

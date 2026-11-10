@@ -123,7 +123,7 @@ function saveNotes() {
   let contents = getEditorContents();
   let f = std.open(NOTES_PATH, 'w');
   if (!f) {
-    setStatus('save FAILED — could not open ' + NOTES_PATH);
+    setStatus('save FAILED - could not open ' + NOTES_PATH);
     return;
   }
   f.puts(contents);

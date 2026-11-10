@@ -21,7 +21,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.130+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
   std.exit(1);
 }
 
@@ -38,7 +38,7 @@ let win = Intuition.OpenWindowTags([
   [C.WA_Top,    40],
   [C.WA_Width,  400],
   [C.WA_Height, 240],
-  [C.WA_Title,  'Drag to draw — click close to exit'],
+  [C.WA_Title,  'Drag to draw - click close to exit'],
   [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
               | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE
               | C.WFLG_REPORTMOUSE],

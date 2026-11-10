@@ -20,7 +20,7 @@
 import * as std from 'qjs:std';
 
 if (!amiga.boopsi || !amiga.boopsi.Window) {
-  print('Reaction Phase B not installed — need quickjs.library 0.139+');
+  print('Reaction Phase B not installed - need quickjs.library 0.139+');
   std.exit(1);
 }
 
@@ -56,12 +56,12 @@ let win = new Window({
 
 /* A handler dispatched by the event pump before yielding. */
 win.on('CLOSE_WINDOW', () => {
-  print('on(CLOSE_WINDOW) — user clicked the close gadget');
+  print('on(CLOSE_WINDOW) - user clicked the close gadget');
 });
 
 win.open();
 
-print('Window opened — try the buttons, or click close to exit.');
+print('Window opened - try the buttons, or click close to exit.');
 
 try {
   for (let evt of win.events()) {
@@ -70,13 +70,13 @@ try {
     }
 
     if (evt.kind === EventKind.BUTTON_CLICK) {
-      print('BUTTON_CLICK — id=' + evt.sourceId +
+      print('BUTTON_CLICK - id=' + evt.sourceId +
             ' text="' + (evt.source ? evt.source.text : '?') + '"');
       if (evt.sourceId === 2) break;   /* Quit */
     }
 
     else if (evt.kind === EventKind.ATTR_UPDATE) {
-      print('ATTR_UPDATE — id=' + evt.sourceId +
+      print('ATTR_UPDATE - id=' + evt.sourceId +
             ' code=0x' + evt.raw.code.toString(16));
     }
 

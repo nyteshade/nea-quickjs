@@ -19,7 +19,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.130+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
   std.exit(1);
 }
 
@@ -35,7 +35,7 @@ let win = Intuition.OpenWindowTags([
   [C.WA_Top,    30],
   [C.WA_Width,  420],
   [C.WA_Height, 180],
-  [C.WA_Title,  'Type anything — ESC or close to exit'],
+  [C.WA_Title,  'Type anything - ESC or close to exit'],
   [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
               | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
   [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_VANILLAKEY

@@ -23,7 +23,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.127+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.127+');
   std.exit(1);
 }
 
@@ -47,7 +47,7 @@ if (!win) {
   std.exit(1);
 }
 
-print('Window open — close-gadget or CTRL-C to exit.');
+print('Window open - close-gadget or CTRL-C to exit.');
 
 let frames = [];
 let fontYSize = win.screen.font.ySize;

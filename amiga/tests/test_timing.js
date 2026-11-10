@@ -121,11 +121,11 @@ print("=== AmigaOS timing diagnostics ===");
     const t2 = os.now();
     print("  before:", t1);
     print("  after :", t2);
-    print("  delta :", (t2 - t1), "µs (expected ≈ 50000)");
+    print("  delta :", (t2 - t1), "us (expected ~ 50000)");
     if (t2 === t1) {
-        print("  *** os.now() didn't advance — gettimeofday is frozen? ***");
+        print("  *** os.now() didn't advance - gettimeofday is frozen? ***");
     } else if (t2 < t1) {
-        print("  *** time went BACKWARDS — int64 overflow? ***");
+        print("  *** time went BACKWARDS - int64 overflow? ***");
     }
 }
 
@@ -136,7 +136,7 @@ print("=== AmigaOS timing diagnostics ===");
     for (let i = 0; i < 10; i++) samples.push(os.now());
     for (let i = 0; i < 10; i++) {
         const delta = i > 0 ? samples[i] - samples[i-1] : 0;
-        print("  sample", i, "=", samples[i], "delta=", delta, "µs");
+        print("  sample", i, "=", samples[i], "delta=", delta, "us");
     }
 }
 
@@ -148,7 +148,7 @@ print("=== AmigaOS timing diagnostics ===");
     const after = os.now();
     print("  before =", before);
     print("  after  =", after);
-    print("  delta  =", (after - before), "µs (expected ≈ 100000)");
+    print("  delta  =", (after - before), "us (expected ~ 100000)");
 }
 
 print("\n=== done ===");

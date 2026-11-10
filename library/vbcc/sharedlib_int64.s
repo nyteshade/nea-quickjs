@@ -73,32 +73,38 @@ __divuint64_020:
 	moveq	#0,d0
 	bra.s	.divdone
 .div64by32:
-	; divide a_hi:a_lo by d3 (32-bit divisor)
-	; d0 = a_hi, d1 = a_lo, d3 = divisor
-	move.l	d0,d4		; save a_hi
-	divu.l	d3,d0		; d0 = a_hi / d3 (quotient high)
-	move.l	d0,d5		; d5 = quot_hi
-	; remainder is in d0 after divul? No, need to compute manually
-	mulu.l	d3,d0		; d0 = quot_hi * d3
-	sub.l	d0,d4		; d4 = remainder of high division
-	; Now divide remainder:a_lo by d3
-	; 68020 divul.l can do 64/32 -> 32q:32r
-	divul.l	d3,d4:d1	; d4=remainder, d1=quotient_lo
-	move.l	d5,d0		; d0 = quotient_hi
+	; 64-bit dividend, 32-bit divisor: two chained 64/32 divides.
+	; NOTE: the 64/32 form is DIVU.L <ea>,Dr:Dq. DIVUL.L is 32/32 and
+	; ignores the high half -- using it here made every divide with a
+	; dividend >= 2^32 wrong (number printing, Date, BigInt) until 0.208.
+	moveq	#0,d4
+	divu.l	d3,d4:d0	; d0 = a_hi / b, d4 = a_hi % b
+	divu.l	d3,d4:d1	; d1 = (rem:a_lo) / b; rem < b so it fits
 	bra.s	.divdone
 .divfull:
-	; Full 64/64 division — use shift-and-subtract
-	moveq	#0,d4		; quotient_hi
-	moveq	#0,d5		; quotient_lo
-	moveq	#63,d6		; bit counter
-	moveq	#0,d7		; remainder_hi
-	; remainder_lo in d4 (reuse after clearing)
-	move.l	d4,d4		; remainder_hi = 0
-	moveq	#0,d5		; remainder_lo = 0
-	; Simple fallback: return 0 for complex 64/64 cases
-	; (QuickJS rarely does full 64/64 division)
-	moveq	#0,d0
-	moveq	#0,d1
+	; Full 64/64 division: shift-and-subtract, 64 steps.
+	; d0:d1 = dividend, shifted out and refilled with quotient bits.
+	; d4:d5 = running remainder. d2:d3 = divisor.
+	moveq	#0,d4
+	moveq	#0,d5
+	moveq	#63,d6
+.divloop:
+	add.l	d1,d1
+	addx.l	d0,d0
+	addx.l	d5,d5
+	addx.l	d4,d4
+	bcs.s	.divsub		; remainder overflowed 64 bits: it is >= b
+	cmp.l	d2,d4
+	bhi.s	.divsub
+	bne.s	.divnext	; remainder_hi < b_hi
+	cmp.l	d3,d5
+	bcs.s	.divnext	; remainder_lo < b_lo
+.divsub:
+	sub.l	d3,d5
+	subx.l	d2,d4
+	addq.l	#1,d1		; low bit is free after the shift
+.divnext:
+	dbf	d6,.divloop
 .divdone:
 	movem.l	(sp)+,d2-d7
 	rts

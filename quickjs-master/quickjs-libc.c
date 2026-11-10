@@ -5111,7 +5111,10 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val,
 
     for(i = 0; i < argc; i++) {
         if (i != 0)
-            putchar(' ');
+            fputc(' ', stdout); /* not putchar(): VBCC's macro pokes the
+                                 * FILE buffer directly, which the library's
+                                 * own stdio never flushes -- the space was
+                                 * silently dropped on AmigaOS. */
         v = argv[i];
         if (JS_IsString(v)) {
             const char *str;
@@ -5125,7 +5128,7 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val,
             JS_PrintValue(ctx, js_print_value_write, stdout, v, NULL);
         }
     }
-    putchar('\n');
+    fputc('\n', stdout);
     fflush(stdout);
     return JS_UNDEFINED;
 }

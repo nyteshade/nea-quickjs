@@ -119,7 +119,7 @@ function clearAll() {
 function saveTasks() {
   let f = std.open(FILE_PATH, 'w');
   if (!f) {
-    status.text = 'Save FAILED — could not open ' + FILE_PATH;
+    status.text = 'Save FAILED - could not open ' + FILE_PATH;
     return;
   }
   for (let i = 0; i < activeCount; i++) {

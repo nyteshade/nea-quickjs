@@ -21,7 +21,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.127+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.127+');
   std.exit(1);
 }
 
@@ -47,13 +47,13 @@ print('Window open. Click inside or hit the close gadget to exit.');
 try {
   for (let msg of win.messages()) {
     if (msg.class === C.IDCMP_CLOSEWINDOW) {
-      print('Got CLOSEWINDOW — exiting.');
+      print('Got CLOSEWINDOW - exiting.');
       break;
     }
 
     if (msg.class === C.IDCMP_MOUSEBUTTONS) {
       print('Got MOUSEBUTTONS (code=0x' + msg.code.toString(16) +
-            ') — exiting.');
+            ') - exiting.');
       break;
     }
   }

@@ -31,7 +31,7 @@ print("=== fetch abort (pre-aborted signal only) ===");
     let caught = null;
     try {
         await fetch("http://example.com/", { signal: s });
-        print("  [step] fetch resolved (UNEXPECTED — signal was pre-aborted)");
+        print("  [step] fetch resolved (UNEXPECTED - signal was pre-aborted)");
     } catch (e) {
         caught = e;
         print("  [step] fetch rejected: " +

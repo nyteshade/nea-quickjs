@@ -29,4 +29,4 @@ const price = new Money(42.50, '$');
 
 print('price object:', price);  /* prints default repr via print() */
 print('inspect result:', price[inspectSym]());  /* prints "$42.50" */
-print('In REPL, type "price" — should show: $42.50');
+print('In REPL, type "price" - should show: $42.50');

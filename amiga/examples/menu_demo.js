@@ -31,7 +31,7 @@ import * as std from 'qjs:std';
 if (typeof Intuition !== 'function' ||
     typeof amiga.intuition.Menu !== 'function' ||
     typeof amiga.intuition.IntuiText !== 'function') {
-  print('Required wrappers unavailable — need quickjs.library 0.137+');
+  print('Required wrappers unavailable - need quickjs.library 0.137+');
   std.exit(1);
 }
 
@@ -184,7 +184,7 @@ let win = Intuition.OpenWindowTags([
   [C.WA_Top,    40],
   [C.WA_Width,  480],
   [C.WA_Height, 180],
-  [C.WA_Title,  'Menu Demo — press right-Amiga + Q to quit'],
+  [C.WA_Title,  'Menu Demo - press right-Amiga + Q to quit'],
   [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
               | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
   [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_MENUPICK
@@ -197,7 +197,7 @@ if (!win) {
 }
 
 let projectMenu = makeMenu('Project', 0, [
-  { label: 'Open…', width: 140, command: 'O'.charCodeAt(0) },
+  { label: 'Open...', width: 140, command: 'O'.charCodeAt(0) },
   { label: 'Save',  width: 140, command: 'S'.charCodeAt(0) },
   { label: 'Quit',  width: 140, command: 'Q'.charCodeAt(0) },
 ]);

@@ -21,7 +21,7 @@
 import * as std from 'qjs:std';
 
 if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available — need quickjs.library 0.130+');
+  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
   std.exit(1);
 }
 
@@ -106,7 +106,7 @@ print('Custom screen open: ' + screen.width + 'x' + screen.height +
 let win = openWindowOnScreen(screen);
 
 if (!win) {
-  print('OpenWindowTags failed — closing screen and exiting');
+  print('OpenWindowTags failed - closing screen and exiting');
   Intuition.CloseScreen(screen);
   std.exit(1);
 }

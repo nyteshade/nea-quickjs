@@ -32,7 +32,7 @@ async function run(title, fn) {
 
 if (typeof LibraryBase !== 'function' ||
     typeof Intuition !== 'function') {
-  print('FATAL: Q2 wrapper classes not installed — library < 0.128?');
+  print('FATAL: Q2 wrapper classes not installed - library < 0.128?');
   std.exit(2);
 }
 

@@ -26,8 +26,8 @@ const GID = { NEXT: 1, QUIT: 2 };
 
 const SAMPLES = [
   'Initial text, fairly short.',
-  'Second text — a bit longer than the first.',
-  'Third — short.',
+  'Second text - a bit longer than the first.',
+  'Third - short.',
   'Fourth, longer still, growing the label area.',
 ];
 
@@ -69,7 +69,7 @@ try {
       if (e.sourceId === GID.QUIT) break;
       if (e.sourceId === GID.NEXT) {
         idx = (idx + 1) % SAMPLES.length;
-        print('\n=== Next click #' + idx + ' → ' + SAMPLES[idx]);
+        print('\n=== Next click #' + idx + ' -> ' + SAMPLES[idx]);
         lbl.text = SAMPLES[idx];
         /* Read back — if get() reports the new text, OM_SET did
          * update the label's internal state and this is purely a
