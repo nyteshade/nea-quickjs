@@ -5485,6 +5485,19 @@ class BOOPSIBase {
     let cleanInit = { ...initObj };
     delete cleanInit.children;
 
+    /* `layoutHints` is not an attribute of this object: it tells the
+     * PARENT Layout how to place it (CHILD_MinWidth, CHILD_Label, ...).
+     * Layout reads it from `_childOpts` when it adds this child, so it
+     * can be given inline with everything else:
+     *   new Button({ text: 'OK', layoutHints: { minWidth: 80 } })
+     * Keys: label, minWidth, minHeight, maxWidth, maxHeight,
+     * weightedWidth, weightedHeight, noDispose (see Layout.js). */
+    if (cleanInit.layoutHints !== undefined) {
+      /** @type {object|undefined} */
+      this._childOpts = cleanInit.layoutHints;
+      delete cleanInit.layoutHints;
+    }
+
     /* Snapshot for dispose-replace. We intentionally strip children +
      * _extraPairs — repeated-tag constructs aren't meaningful for a
      * replacement instance, and children are re-adopted separately. */
