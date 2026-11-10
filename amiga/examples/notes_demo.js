@@ -14,8 +14,10 @@
  *     for an async character-count refresh; an interactive "as-you-type"
  *     update would need a TEXTEDITOR_HasChanged notification hook,
  *     which is a Phase D refinement)
+ *   - TextEditor method wrappers (library 0.200+): undo(), redo(),
+ *     gotoLine(), search() and blockInfo() on the second toolbar row
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.200+.
  * Run:  qjs examples/notes_demo.js
  */
 
@@ -24,7 +26,8 @@ import * as std from 'qjs:std';
 const { Window, Layout, Button, StringGadget, TextEditor,
         EventKind, WindowPosition, BevelStyle } = amiga.boopsi;
 
-const GID = { EDITOR: 1, SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5 };
+const GID = { EDITOR: 1, SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5,
+              UNDO: 6, REDO: 7, TOP: 8, FIND: 9, NEEDLE: 10, BLOCK: 11 };
 
 const NOTES_PATH = 'RAM:notes.txt';
 
@@ -56,6 +59,19 @@ let toolbar = new Layout({
   children: [ saveBtn, loadBtn, clearBtn, quitBtn ],
 });
 
+/* Second row — exercises the TextEditor method wrappers. */
+let undoBtn  = new Button({ id: GID.UNDO,  text: '_Undo'  });
+let redoBtn  = new Button({ id: GID.REDO,  text: '_Redo'  });
+let topBtn   = new Button({ id: GID.TOP,   text: '_Top'   });
+let blockBtn = new Button({ id: GID.BLOCK, text: '_Block' });
+let needle   = new StringGadget({ id: GID.NEEDLE, text: '', maxChars: 40 });
+let findBtn  = new Button({ id: GID.FIND,  text: '_Find'  });
+
+let editbar = new Layout({
+  orientation: 'horizontal', innerSpacing: 4,
+  children: [ undoBtn, redoBtn, topBtn, blockBtn, needle, findBtn ],
+});
+
 let statusBox = new Layout({
   orientation: 'horizontal', innerSpacing: 4,
   bevelStyle: BevelStyle.FIELD,
@@ -74,6 +90,7 @@ let win = new Window({
     children: [
       editor,
       statusBox,
+      editbar,
       toolbar,
     ],
   }),
@@ -132,6 +149,34 @@ function clearNotes() {
   setStatus('cleared.');
 }
 
+/**
+ * Search for the text in the needle field, continuing from the cursor.
+ * A hit moves the cursor to the match and marks it.
+ *
+ * @returns {undefined}
+ */
+function findNeedle() {
+  let s = needle.text;
+  if (!s) {
+    setStatus('type something to find first.');
+    return;
+  }
+  let found = editor.search(s, TextEditor.SearchFlags.NEXT);
+  setStatus(found ? ('found "' + s + '"') : ('"' + s + '" not found'));
+}
+
+/**
+ * Report the marked block's bounds in the status line.
+ *
+ * @returns {undefined}
+ */
+function showBlock() {
+  let b = editor.blockInfo();
+  setStatus(b
+    ? ('block ' + b.startX + ',' + b.startY + ' to ' + b.stopX + ',' + b.stopY)
+    : 'no block marked.');
+}
+
 win.open();
 print('Notes open. Type something, then Save / Load / Clear / Quit.');
 
@@ -145,6 +190,11 @@ try {
         case GID.LOAD:  loadNotes();  break;
         case GID.CLEAR: clearNotes(); break;
         case GID.QUIT:  done = true;  break;
+        case GID.UNDO:  editor.undo();  setStatus('undo.');  break;
+        case GID.REDO:  editor.redo();  setStatus('redo.');  break;
+        case GID.TOP:   editor.gotoLine(0, 0); setStatus('cursor at top.'); break;
+        case GID.FIND:  findNeedle(); break;
+        case GID.BLOCK: showBlock();  break;
       }
       if (done) break;
     }
