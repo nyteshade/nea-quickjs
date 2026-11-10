@@ -92,7 +92,7 @@ print("=== AmigaOS timing diagnostics ===");
         return hi + " " + lo;
     }
     print("bits of 1.0            =", bits(1.0),           "(expected 3ff00000 00000000)");
-    print("bits of 2.71828...     =", bits(2.718281828),   "(expected 4005bf09 95aaf790)");
+    print("bits of 2.718281828    =", bits(2.718281828),   "(expected 4005bf0a 8b04919b)");
     print("bits of Math.exp(1)    =", bits(Math.exp(1)),   "(should == bits of 2.71828...)");
     print("bits of Math.exp(0)    =", bits(Math.exp(0)),   "(expected 3ff00000 00000000)");
     print("bits of Math.E         =", bits(Math.E),        "(expected 4005bf0a 8b145769)");

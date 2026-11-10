@@ -5111,10 +5111,10 @@ static JSValue js_print(JSContext *ctx, JSValueConst this_val,
 
     for(i = 0; i < argc; i++) {
         if (i != 0)
-            fputc(' ', stdout); /* not putchar(): VBCC's macro pokes the
-                                 * FILE buffer directly, which the library's
-                                 * own stdio never flushes -- the space was
-                                 * silently dropped on AmigaOS. */
+            fputc(' ', stdout); /* not putchar(): VBCC's macro bypasses
+                                 * the library's own stdio, so on AmigaOS
+                                 * the space was lost or arrived out of
+                                 * order. */
         v = argv[i];
         if (JS_IsString(v)) {
             const char *str;

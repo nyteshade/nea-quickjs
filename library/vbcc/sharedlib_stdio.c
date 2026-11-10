@@ -353,11 +353,17 @@ int fgetc(FILE *f)
 int fputc(int c, FILE *f)
 {
     long r, fh;
+    char ch;
     if (!f) return EOF;
     fh = get_filehandle(f);
     if (!fh) return EOF;
-    r = dos_FPutC(fh, (long)c);
-    if (r < 0) {
+    /* Write(), not FPutC(): FPutC is buffered by dos.library while every
+     * other output call here (fwrite, fputs, printf) goes straight to
+     * Write(). Mixing the two reorders output -- print("a", 1) emitted
+     * its separator spaces at the end of the line (seen on 0.208). */
+    ch = (char)c;
+    r = dos_Write(fh, &ch, 1L);
+    if (r != 1) {
         f->flags |= _ERR;
         return EOF;
     }
