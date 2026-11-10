@@ -30,6 +30,8 @@ const LAYOUT = Object.freeze({
   ShrinkWrap:      0x85007006,
   EvenSize:        0x85007007,
   InnerSpacing:    0x85007009,
+  SpaceInner:      0x85007025,  /* LAYOUT_Dummy + 37 */
+  SpaceOuter:      0x85007026,  /* LAYOUT_Dummy + 38 */
   TopSpacing:      0x8500700A,
   BottomSpacing:   0x8500700B,
   LeftSpacing:     0x8500700C,
@@ -155,6 +157,13 @@ export class Layout extends GadgetBase {
     vertAlignment:  { tagID: LAYOUT.VertAlignment,  type: 'uint32' },
     shrinkWrap:     { tagID: LAYOUT.ShrinkWrap,     type: 'bool'   },
     evenSize:       { tagID: LAYOUT.EvenSize,       type: 'bool'   },
+    /* The two spacing switches layout.gadget recommends over the
+     * pixel-count attributes below (gadgets/layout.h): the gadget picks
+     * a gap suited to the screen resolution and font.
+     *   spaceOuter - a margin all round the group's contents
+     *   spaceInner - a gap between neighbouring children */
+    spaceOuter:     { tagID: LAYOUT.SpaceOuter,     type: 'bool'   },
+    spaceInner:     { tagID: LAYOUT.SpaceInner,     type: 'bool'   },
     innerSpacing:   { tagID: LAYOUT.InnerSpacing,   type: 'int32'  },
     topSpacing:     { tagID: LAYOUT.TopSpacing,     type: 'int32'  },
     bottomSpacing:  { tagID: LAYOUT.BottomSpacing,  type: 'int32'  },

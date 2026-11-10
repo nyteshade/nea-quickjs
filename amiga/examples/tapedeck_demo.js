@@ -2,12 +2,18 @@
  * tapedeck_demo.js - a tape deck front panel in Reaction, from JavaScript.
  *
  *   +----------------------------------------------+
- *   | PLAY   2/5   00:17 / 00:45                   |   display
- *   | Second Wind                                  |
- *   | ======|===================================   |   seek bar
- *   | [|<] [<<] [> ] [||] [[]] [>>] [>|]           |   transport
- *   | Volume  ====================|=============   |
- *   | [ ] Shuffle    [ ] Repeat          [ Quit ]  |
+ *   | +- Now playing ----------------------------+ |
+ *   | | PLAY   2/5   00:17 / 00:45               | |   display
+ *   | | Second Wind                              | |
+ *   | | ======|================================  | |   seek bar
+ *   | +------------------------------------------+ |
+ *   |                                              |
+ *   |  [|<] [<<] [> ] [||] [[]] [>>] [>|]          |   transport
+ *   |                                              |
+ *   | +- Options --------------------------------+ |
+ *   | | Volume  =================|=============  | |
+ *   | | [ ] Shuffle    [ ] Repeat      [ Quit ]  | |
+ *   | +------------------------------------------+ |
  *   +----------------------------------------------+
  *
  * The file is meant to be read top to bottom. It has four parts, and
@@ -44,13 +50,30 @@
  *   - At the end of a track the deck moves to the next one. At the end
  *     of the tape it stops, unless Repeat is on.
  *
- * Nothing is really played: the tracks are names and lengths, and time
- * comes from the system clock.
+ * Assumptions:
+ *   - Nothing is really played. The tracks are names and lengths.
+ *   - It opens on the Workbench screen, and takes its size from its
+ *     contents rather than asking for one.
+ *   - OS 3.2 Reaction is installed: window.class, layout, button,
+ *     slider, checkbox and string gadgets, and label and drawlist
+ *     images.
+ *   - Time comes from Date.now(), which on this port moves in steps of
+ *     about 20 ms. Fine for a display that changes once a second.
+ *   - The deck only advances on IDCMP_INTUITICKS, which Intuition sends
+ *     about ten times a second and only while this window is active.
+ *     Click on another window and the display pauses; the position
+ *     catches up on the next tick, because it is worked out from the
+ *     clock and not by counting ticks.
+ *   - button.gadget stretches its image to fill the button (observed on
+ *     OS 3.2, not documented). The glyph grid and the button's minimum
+ *     size therefore have the same proportions.
+ *   - In the glyph directives, pen 1 is taken to be the text colour
+ *     (observed: it draws black on a standard Workbench palette).
  *
  * The system's own transport gadget, tapedeck.gadget, is shown in
  * tapedeck_gadget_demo.js.
  *
- * Requires quickjs.library 0.211+.
+ * Requires quickjs.library 0.212+.
  * Run: qjs examples/tapedeck_demo.js
  */
 
@@ -434,26 +457,49 @@ function transportButton(id, glyphName, options) {
   });
 }
 
+/* Spacing. Reaction puts gadgets edge to edge unless asked not to, and
+ * a panel with no gaps is hard to take in. There are two ways to ask:
+ *
+ *   spaceOuter / spaceInner   switches. The layout picks a margin and
+ *                             a gap to suit the screen and its font.
+ *                             This is what layout.gadget recommends.
+ *   innerSpacing and friends  exact pixel counts, for when the default
+ *                             gap is not the one you want.
+ *
+ * The panel uses the switches everywhere, and one pixel count: the gap
+ * between its three sections is wider than the gap between the gadgets
+ * inside them, so that the sections read as groups. */
+const SECTION_GAP = 8;
+
 /**
- * Children side by side.
+ * Children side by side, with a gap between them.
  *
  * @param {...object} children
  * @returns {Layout}
  */
 function row(...children) {
-  return new Layout({ orientation: 'horizontal', innerSpacing: 4, children });
+  return new Layout({
+    orientation: 'horizontal',
+    spaceInner:  true,
+    children,
+  });
 }
 
 /**
- * Children stacked, inside a recessed frame.
+ * A titled group box: children stacked inside a frame that carries a
+ * label, with a margin between the frame and what it holds.
  *
+ * @param {string} label - the title shown in the frame
  * @param {...object} children
  * @returns {Layout}
  */
-function framed(...children) {
+function section(label, ...children) {
   return new Layout({
     orientation: 'vertical',
-    bevelStyle:  BevelStyle.FIELD,
+    bevelStyle:  BevelStyle.GROUP,
+    label,
+    spaceOuter:  true,
+    spaceInner:  true,
     children,
   });
 }
@@ -486,12 +532,30 @@ let nextButton     = transportButton(ID.NEXT,     'next');
 
 /* ---- everything else ---- */
 
-let seekBar      = new Slider({ id: ID.SEEK,   min: 0, max: 30,  level: 0 });
-let volumeSlider = new Slider({ id: ID.VOLUME, min: 0, max: 100, level: 70 });
+/* A slider is vertical unless told otherwise, so both of these say
+ * which way they run. */
+let seekBar = new Slider({
+  id: ID.SEEK,
+  orientation: 'horizontal',
+  min: 0, max: 30, level: 0,
+});
+
+let volumeSlider = new Slider({
+  id: ID.VOLUME,
+  orientation: 'horizontal',
+  min: 0, max: 100, level: 70,
+});
 
 let shuffleBox = new CheckBox({ id: ID.SHUFFLE, text: 'S_huffle' });
 let repeatBox  = new CheckBox({ id: ID.REPEAT,  text: '_Repeat' });
-let quitButton = new Button({ id: ID.QUIT, text: '_Quit' });
+
+/* Quit keeps its natural width instead of growing to fill its row; the
+ * two checkboxes share what is left. */
+let quitButton = new Button({
+  id: ID.QUIT,
+  text: '_Quit',
+  layoutHints: { weightedWidth: 0 },
+});
 
 /* ---- the window ---- */
 
@@ -510,20 +574,22 @@ let window = new Window({
   /* No size is given: the window is exactly as big as its contents
    * need, so the transport buttons come out at their natural size. */
   layout: new Layout({
-    orientation: 'vertical',
-    innerSpacing: 4,
+    orientation:  'vertical',
+    spaceOuter:   true,            /* a margin inside the window border */
+    innerSpacing: SECTION_GAP,
     children: [
 
-      framed(statusLine, titleLine),
-
-      seekBar,
+      section('Now playing',
+        statusLine,
+        titleLine,
+        seekBar),
 
       row(previousButton, rewindButton, playButton, pauseButton,
           stopButton, forwardButton, nextButton),
 
-      row(new Label({ text: 'Volume' }), volumeSlider),
-
-      row(shuffleBox, repeatBox, quitButton),
+      section('Options',
+        row(new Label({ text: 'Volume' }), volumeSlider),
+        row(shuffleBox, repeatBox, quitButton)),
 
     ],
   }),

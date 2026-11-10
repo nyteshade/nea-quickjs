@@ -31,18 +31,33 @@ const BEVEL = Object.freeze({
 });
 
 /**
- * BEVEL_Style values.
+ * BEVEL_Style values (BVS_*), from NDK3.2R4 Include_H/images/bevel.h.
+ * Also used for LAYOUT_BevelStyle and BUTTON_BevelStyle.
+ *
+ * The table here before 0.212 was hand-typed and did not match the
+ * header: it had no GROUP at all (so `BevelStyle.GROUP`, used by most
+ * of the demos, was undefined and drew as THIN), and its FIELD was 6,
+ * which is the header's vertical separator bar.
+ *
+ * @readonly
+ * @enum {number}
  */
 export const BevelStyle = Object.freeze({
-  NONE:      0,
-  XEN:       1,   /* XEN-style embossed frame */
-  RIDGE:     2,
-  GROOVE:    3,
-  BUTTON:    4,
-  DROPBOX:   5,
-  FIELD:     6,
-  TAB:       7,
-  ICON:      8,
+  THIN:        0,  /* BVS_THIN       thin, usually 1 pixel             */
+  BUTTON:      1,  /* BVS_BUTTON     standard button bevel             */
+  GROUP:       2,  /* BVS_GROUP      group box                         */
+  FIELD:       3,  /* BVS_FIELD      string / integer / text field     */
+  NONE:        4,  /* BVS_NONE       no bevel                          */
+  DROPBOX:     5,  /* BVS_DROPBOX    drop box area                     */
+  /* The header's names for the two separators are the wrong way
+   * round and it says so; these are named for what they draw. */
+  VERTICAL_BAR:   6,  /* BVS_SBAR_HORIZ  separator in a horizontal group */
+  HORIZONTAL_BAR: 7,  /* BVS_SBAR_VERT   separator in a vertical group   */
+  BOX:         8,  /* BVS_BOX        thin black border                 */
+  STANDARD:   11,  /* BVS_STANDARD   as BUTTON, never XEN              */
+  CONTAINER:  12,  /* BVS_CONTAINER  scroller container (V47)          */
+  KNOB:       13,  /* BVS_KNOB       scroller knob (V47)               */
+  DISPLAY:    14,  /* BVS_DISPLAY    read-only area (V47)              */
 });
 
 /**
