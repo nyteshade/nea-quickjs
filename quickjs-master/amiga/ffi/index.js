@@ -75,6 +75,7 @@ import { Label, LabelJustify } from './boopsi/images/Label.js';
 import { Led } from './boopsi/images/Led.js';
 import { Bevel, BevelStyle } from './boopsi/images/Bevel.js';
 import { Glyph, GlyphKind } from './boopsi/images/Glyph.js';
+import { DrawList, DrawOp } from './boopsi/images/DrawList.js';
 import { Bitmap } from './boopsi/images/Bitmap.js';
 import { Button } from './boopsi/gadgets/Button.js';
 import { CheckBox } from './boopsi/gadgets/CheckBox.js';
@@ -199,7 +200,7 @@ globalThis.amiga.boopsi.IMAGE_ATTRS  = IMAGE_ATTRS;
  * namespaced locations under amiga.boopsi.{classes,gadgets,images}. */
 const flat = {
   Window: ReactionWindow, Layout, Button, Label,
-  Led, Bevel, Glyph, Bitmap,
+  Led, Bevel, Glyph, Bitmap, DrawList,
   CheckBox, RadioButton, Slider, Scroller, Integer, StringGadget,
   Chooser, ClickTab, ListBrowser, Palette, Space, FuelGauge, SpeedBar,
   GetFile, GetFont, GetScreenMode, GetColor,
@@ -219,6 +220,8 @@ globalThis.amiga.boopsi.images.Label     = Label;
 globalThis.amiga.boopsi.images.Led       = Led;
 globalThis.amiga.boopsi.images.Bevel     = Bevel;
 globalThis.amiga.boopsi.images.Glyph     = Glyph;
+globalThis.amiga.boopsi.images.DrawList  = DrawList;
+globalThis.amiga.boopsi.DrawOp           = DrawOp;
 globalThis.amiga.boopsi.images.Bitmap    = Bitmap;
 globalThis.amiga.boopsi.gadgets.Button         = Button;
 globalThis.amiga.boopsi.gadgets.CheckBox       = CheckBox;

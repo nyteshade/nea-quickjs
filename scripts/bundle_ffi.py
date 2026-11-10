@@ -72,6 +72,7 @@ ORDER = [
     'boopsi/images/Led.js',
     'boopsi/images/Bevel.js',
     'boopsi/images/Glyph.js',
+    'boopsi/images/DrawList.js',
     'boopsi/images/Bitmap.js',
     # Interactive gadgets (all extend GadgetBase directly).
     'boopsi/gadgets/Button.js',    # also extends EventKind at load time

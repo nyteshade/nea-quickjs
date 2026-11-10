@@ -1,7 +1,7 @@
 /* quickjs-master/amiga/ffi/boopsi/images/Glyph.js
  *
- * glyph.image — standard OS3 system glyph (up-arrow, close-gadget,
- * drag-bar hatch, etc). Extends imageclass. Often used as BUTTON_Glyph
+ * glyph.image — standard Reaction glyph (arrows, checkmark, popup
+ * and requester-button symbols). Extends imageclass. Often used as BUTTON_Glyph
  * for arrow-style controls, or embedded directly in windows.
  *
  * GLYPH_Dummy = REACTION_Dummy + 0x15000 = 0x85015000.
@@ -16,24 +16,39 @@ const GLYPH = Object.freeze({
 });
 
 /**
- * GLYPH_Glyph values. Subset from images/glyph.h GLYPH_* enum.
+ * GLYPH_Glyph values, from NDK3.2R4 Include_H/images/glyph.h. (The
+ * table here before 0.210 was hand-typed and did not match the header:
+ * it had UPARROW as 1 and CHECKMARK as 5, and listed window-gadget
+ * names such as CLOSE and DEPTH that glyph.image does not have.)
+ *
+ * @readonly
+ * @enum {number}
  */
 export const GlyphKind = Object.freeze({
-  UPARROW:       1,
-  DOWNARROW:     2,
-  LEFTARROW:     3,
-  RIGHTARROW:    4,
-  CHECKMARK:     5,
-  RADIOBUTTON:   6,
-  POPUP:         7,
-  MX:            8,
-  HATCHFILL:     9,
-  SIZE:         10,
-  CLOSE:        11,
-  DEPTH:        12,
-  ZOOM:         13,
-  ICONIFY:      14,
-  DROPBOX:      15,
+  NONE:           0,
+  DOWNARROW:      1,
+  UPARROW:        2,
+  LEFTARROW:      3,
+  RIGHTARROW:     4,
+  DROPDOWN:       5,
+  POPUP:          6,
+  CHECKMARK:      7,
+  POPFONT:        8,
+  POPFILE:        9,
+  POPDRAWER:     10,
+  POPSCREENMODE: 11,
+  POPTIME:       12,
+  RADIOBUTTON:   18,
+  RETURNARROW:   20,
+  BDOWNARROW:    21,
+  BUPARROW:      22,
+  BLEFTARROW:    23,
+  BRIGHTARROW:   24,
+  DROPDOWNMENU:  25,
+  CYCLE:         26,
+  POPDATE:       27,
+  POPCOLOR:      28,
+  SHIFTKEY:      32,
 });
 
 /**

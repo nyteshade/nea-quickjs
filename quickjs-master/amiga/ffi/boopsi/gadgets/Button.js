@@ -48,6 +48,12 @@ export class Button extends GadgetBase {
     /* Most scripts use the inherited GA_Text ('text') + GA_ID ('id')
      * + GA_Selected ('selected'). Additions below. */
     pushButton:     { tagID: BUTTON.PushButton,   type: 'bool' },
+    /** BUTTON_RenderImage (= GA_Image, 0x8003000A): image drawn in
+     *  the button instead of text, e.g. a DrawList or Glyph. */
+    image:          { tagID: 0x8003000A,          type: 'ptr'  },
+    /** BUTTON_SelectImage (= GA_SelectRender, 0x8003000C): image
+     *  drawn while the button is pressed. */
+    selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },
     glyph:          { tagID: BUTTON.Glyph,        type: 'ptr'  },
     textPen:        { tagID: BUTTON.TextPen,      type: 'uint32' },
     fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
