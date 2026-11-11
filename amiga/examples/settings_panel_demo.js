@@ -28,8 +28,11 @@
  *   3. THE LOOP   - clicks in, settings read and printed.
  *
  * Assumptions:
- *   - opens on the default public screen (normally Workbench), which
- *     must have room for a window about 340 x 260 pixels inside
+ *   - opens on the default public screen (normally Workbench). The
+ *     window takes its size from its contents, and its margins from
+ *     the screen's font, so how big it is depends on that font
+ *   - Reaction draws its gadgets in the screen's own font, so that is
+ *     the font the margins are worked out from
  *   - window.class, layout.gadget, button.gadget, string.gadget,
  *     checkbox.gadget, radiobutton.gadget and label.image are
  *     installed in SYS:Classes, as they are on AmigaOS 3.2
@@ -39,12 +42,13 @@
  *     of the chosen button); `selected` on a radio group is the plain
  *     gadget "is pressed" flag and says nothing about which button
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.214+.
  * Run: qjs examples/settings_panel_demo.js
  */
 
 const { Window, Layout, Button, CheckBox, RadioButton, StringGadget,
         Label, EventKind, WindowPosition, BevelStyle } = amiga.boopsi;
+const { ScreenFont } = amiga;
 
 
 /* ==================================================================
@@ -101,8 +105,47 @@ const ID = {
   CANCEL:   102,
 };
 
+/* Spacing. Left alone, Reaction puts gadgets edge to edge. Every gap
+ * here is cut from the height of one line of the screen's font, so
+ * the dialog keeps its proportions on any font. ScreenFont looks that
+ * font up; across() turns a distance down the screen into the same
+ * distance across it, which differs when pixels are not square. */
+const screenFont = new ScreenFont();
+
+/** One line of text, in pixels. */
+const LINE = screenFont.height;
+
+/** Space between a frame and what is inside it. */
+const MARGIN_ACROSS = screenFont.across(LINE);
+const MARGIN_DOWN   = Math.round(LINE / 2);
+
+/** Space between neighbours in a row, and in a column. */
+const GAP_ACROSS = screenFont.across(Math.round(LINE / 2));
+const GAP_DOWN   = Math.round(LINE / 3);
+
+/** Space between the three boxes and the button row. */
+const BOX_GAP = Math.round(LINE * 2 / 3);
+
+/** How many characters an entry field shows before it scrolls. */
+const FIELD_VISIBLE_CHARS = 24;
+
 /**
- * A titled box with its children stacked inside.
+ * The four edge margins of a layout, ready to spread into its options.
+ *
+ * @returns {{leftSpacing: number, rightSpacing: number,
+ *            topSpacing: number, bottomSpacing: number}}
+ */
+function margins() {
+  return {
+    leftSpacing:   MARGIN_ACROSS,
+    rightSpacing:  MARGIN_ACROSS,
+    topSpacing:    MARGIN_DOWN,
+    bottomSpacing: MARGIN_DOWN,
+  };
+}
+
+/**
+ * A titled box with its children stacked inside, clear of the frame.
  *
  * @param {string} title
  * @param {...object} children
@@ -111,9 +154,10 @@ const ID = {
 function group(title, ...children) {
   return new Layout({
     orientation:  'vertical',
-    innerSpacing: 4,
     bevelStyle:   BevelStyle.GROUP,
     label:        title,
+    ...margins(),
+    innerSpacing: GAP_DOWN,
     children,
   });
 }
@@ -127,16 +171,18 @@ function group(title, ...children) {
  */
 function captioned(caption, field) {
   return new Layout({
-    orientation: 'horizontal', innerSpacing: 4,
+    orientation: 'horizontal', innerSpacing: GAP_ACROSS,
     children: [ new Label({ text: caption }), field ],
   });
 }
 
 let nameField = new StringGadget({
   id: ID.NAME, text: 'Brielle', maxChars: 64,
+  minVisible: FIELD_VISIBLE_CHARS,
 });
 let emailField = new StringGadget({
   id: ID.EMAIL, text: 'me@example.com', maxChars: 128,
+  minVisible: FIELD_VISIBLE_CHARS,
 });
 
 let notifyRadio = new RadioButton({
@@ -157,13 +203,14 @@ let darkModeBox = new CheckBox({
 
 let window = new Window({
   title:       'Preferences',
-  innerWidth:  340,
-  innerHeight: 260,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
 
+  /* No size is given: the window is as big as its contents need. */
   layout: new Layout({
-    orientation: 'vertical', innerSpacing: 6,
+    orientation: 'vertical',
+    ...margins(),
+    innerSpacing: BOX_GAP,
     children: [
 
       group('Identity',
@@ -175,7 +222,7 @@ let window = new Window({
       group('Behaviour', autoSaveBox, confirmBox, darkModeBox),
 
       new Layout({
-        orientation: 'horizontal', innerSpacing: 6, evenSize: true,
+        orientation: 'horizontal', innerSpacing: GAP_ACROSS, evenSize: true,
         children: [
           new Button({ id: ID.OK,     text: '_OK' }),
           new Button({ id: ID.APPLY,  text: 'Appl_y' }),
@@ -242,6 +289,7 @@ const onClick = {
 };
 
 window.open();
+screenFont.close();      /* the open window holds the screen from here */
 print('Settings dialog open. Try the controls, then OK / Apply / Cancel.');
 
 try {
@@ -260,6 +308,7 @@ try {
 }
 finally {
   window.dispose();
+  screenFont.close();    /* does nothing if it was closed above */
 }
 
 print('Bye.');

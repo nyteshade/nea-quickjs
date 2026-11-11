@@ -48,8 +48,11 @@ Fields:
   flags       {number} UBYTE at +30
   error       {number} BYTE at +31
 
-Setters exist for replyPort, messageLen, command, flags; device
-and unit are normally set by OpenDevice. Read 'error' after DoIO.
+Setters exist for replyPort, messageLen, command, flags, device and
+unit. OpenDevice fills in device and unit; set them yourself only to
+make a second request for a device that is already open, by copying
+both from the first. Never send a request that is still out: use one
+request per job. Read 'error' after DoIO.
 
 See TimerRequest for a concrete specialization.`;
   }
@@ -62,11 +65,17 @@ See TimerRequest for a concrete specialization.`;
   get messageLen()  { return this.read16(18); }
   set messageLen(v) { this.write16(18, v | 0); }
 
+  /* device and unit are filled in by OpenDevice. They are writable so
+   * that a second request can be pointed at a device that is already
+   * open, by copying both from the request that opened it. */
+
   /** @returns {number} */
   get device()      { return this.read32(20); }
+  set device(v)     { this.write32(20, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
   get unit()        { return this.read32(24); }
+  set unit(v)       { this.write32(24, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
   get command()     { return this.read16(28); }

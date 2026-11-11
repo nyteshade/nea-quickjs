@@ -160,6 +160,10 @@ if (openError !== 0) {
  *  wait for alongside the window. */
 const timerSignal = port.sigMask >>> 0;
 
+/** True from when the request is sent until it is taken back off the
+ *  port. While true, the request belongs to timer.device. */
+let timerIsOut = false;
+
 /**
  * Send the timer request off. Its reply arrives on the port when the
  * delay is over.
@@ -168,9 +172,32 @@ const timerSignal = port.sigMask >>> 0;
  * @returns {undefined}
  */
 function armTimer(seconds) {
+  if (timerIsOut) return;
+
   timerRequest.command = TR_ADDREQUEST;
   timerRequest.setTimeval(seconds | 0, 0);
   Exec.SendIO(timerRequest);
+  timerIsOut = true;
+}
+
+/**
+ * Take the finished request off the port, if it is there.
+ *
+ * A signal only says "look at the port"; it can be left over with
+ * nothing behind it. Only a request that has really come back may be
+ * sent again: sending one that is still out damages timer.device's
+ * queue and locks up the machine.
+ *
+ * @returns {boolean} true if the request came back
+ */
+function collectTimer() {
+  let messagePtr;
+
+  while ((messagePtr = Exec.GetMsg(portPointer)) !== 0) {
+    if ((messagePtr >>> 0) === (timerRequest.ptr >>> 0)) timerIsOut = false;
+  }
+
+  return !timerIsOut;
 }
 
 
@@ -209,10 +236,10 @@ try {
         event.sourceId === ID.QUIT) break;
 
     if (event.kind === EventKind.SIGNAL &&
-        (event.attrs.sigMask & timerSignal)) {
-      /* Take the finished request off the port, count it, show the
-       * new time, and set the timer going for the next second. */
-      Exec.GetMsg(portPointer);
+        (event.attrs.sigMask & timerSignal) &&
+        collectTimer()) {
+      /* The request is back: count it, show the new time, and set the
+       * timer going for the next second. */
       elapsedSeconds++;
       render();
       armTimer(TICK_SECONDS);
@@ -220,11 +247,13 @@ try {
   }
 }
 finally {
-  /* A request is always out when we get here. AbortIO returns 0 if it
-   * stopped the request and -1 if the request had already finished;
-   * either way WaitIO collects the reply before the device closes. */
-  Exec.AbortIO(timerRequest);
-  Exec.WaitIO(timerRequest);
+  /* If the request is still out, stop it and wait for it to come back
+   * before the device closes. If it is not out, leave it alone. */
+  if (timerIsOut) {
+    Exec.AbortIO(timerRequest);
+    Exec.WaitIO(timerRequest);
+  }
+
   Exec.CloseDevice(timerRequest);
   Exec.DeleteMsgPort(portPointer);
   timerRequest.free();

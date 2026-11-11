@@ -64,6 +64,10 @@
  *     Click on another window and the display pauses; the position
  *     catches up on the next tick, because it is worked out from the
  *     clock and not by counting ticks.
+ *   - Reaction draws its gadgets in the screen's own font (the one in
+ *     the screen's DrawInfo), so that is the font the sizes are
+ *     measured in. A user who has given Reaction a different font in
+ *     preferences will get slightly different proportions.
  *   - button.gadget stretches its image to fill the button (observed on
  *     OS 3.2, not documented). The glyph grid and the button's minimum
  *     size therefore have the same proportions.
@@ -73,13 +77,14 @@
  * The system's own transport gadget, tapedeck.gadget, is shown in
  * tapedeck_gadget_demo.js.
  *
- * Requires quickjs.library 0.212+.
+ * Requires quickjs.library 0.214+.
  * Run: qjs examples/tapedeck_demo.js
  */
 
 const { Window, Layout, Button, Slider, CheckBox, StringGadget, Label,
         DrawList, DrawOp, EventKind, IDCMP, IDCMP_REACTION_DEFAULT,
         WindowPosition, BevelStyle } = amiga.boopsi;
+const { ScreenFont } = amiga;
 
 
 /* ==================================================================
@@ -434,10 +439,51 @@ const ID = {
   QUIT: 99,
 };
 
-/** A transport button is a little wider than it is tall and does not
- *  stretch sideways, so its glyph keeps its shape whatever the window
- *  width. */
-const TRANSPORT_BUTTON = { minWidth: 40, minHeight: 24 };
+/* Sizes. Nothing in this panel is a fixed number of pixels. Every
+ * size is worked out from the font the screen draws its gadgets in,
+ * so the panel keeps its proportions whether that font is 8 pixels
+ * high or 24.
+ *
+ * ScreenFont looks the font up and measures text in it:
+ *
+ *   screenFont.height          pixels in one line of text
+ *   screenFont.widthOf('Quit') pixels that word takes up
+ *   screenFont.across(n)       n pixels down, as a distance across.
+ *                              The same number on square pixels; twice
+ *                              as many on a 640x256 screen, where each
+ *                              pixel is half as wide as it is tall.
+ *
+ * It holds the screen open until screenFont.close(), which is called
+ * once the window is up (see part 4). */
+const screenFont = new ScreenFont();
+
+/** One line of text, in pixels. The unit everything else is cut from. */
+const LINE = screenFont.height;
+
+/** Space between a frame and what is inside it. Wider than it is
+ *  high: text runs sideways, so a line needs more room at its ends
+ *  than above and below it. */
+const MARGIN_ACROSS = screenFont.across(LINE);
+const MARGIN_DOWN   = Math.round(LINE / 2);
+
+/** Space between neighbouring gadgets in a row, and in a column. */
+const GAP_ACROSS = screenFont.across(Math.round(LINE / 2));
+const GAP_DOWN   = Math.round(LINE / 3);
+
+/** Space between the panel's three sections: more than between the
+ *  gadgets inside them, so that the sections read as groups. */
+const SECTION_GAP = LINE;
+
+/** A transport button is one and a half lines high, and as wide as
+ *  that makes its glyph: the glyph grid's own proportions, so a
+ *  square on the grid is square on the screen. The row may stretch
+ *  the buttons wider than this, never narrower. */
+const TRANSPORT_HEIGHT = Math.round(LINE * 1.5);
+const TRANSPORT_BUTTON = {
+  minHeight: TRANSPORT_HEIGHT,
+  minWidth:  screenFont.across(
+               Math.round(TRANSPORT_HEIGHT * GRID_WIDTH / GRID_HEIGHT)),
+};
 
 /**
  * A transport button showing a glyph.
@@ -460,16 +506,30 @@ function transportButton(id, glyphName, options) {
 /* Spacing. Reaction puts gadgets edge to edge unless asked not to, and
  * a panel with no gaps is hard to take in. There are two ways to ask:
  *
- *   spaceOuter / spaceInner   switches. The layout picks a margin and
- *                             a gap to suit the screen and its font.
- *                             This is what layout.gadget recommends.
- *   innerSpacing and friends  exact pixel counts, for when the default
- *                             gap is not the one you want.
+ *   spaceOuter / spaceInner   switches. The layout uses the margin and
+ *                             gap set in the user's preferences: a
+ *                             few pixels, the same on any font.
+ *   leftSpacing, topSpacing,  exact pixel counts for each edge, and
+ *   innerSpacing ...          for the gap between children.
  *
- * The panel uses the switches everywhere, and one pixel count: the gap
- * between its three sections is wider than the gap between the gadgets
- * inside them, so that the sections read as groups. */
-const SECTION_GAP = 8;
+ * The switches are the least work, but their few pixels look cramped
+ * beside a large font. So this panel gives pixel counts, and takes
+ * them from the font (above). */
+
+/**
+ * The four edge margins of a layout, ready to spread into its options.
+ *
+ * @returns {{leftSpacing: number, rightSpacing: number,
+ *            topSpacing: number, bottomSpacing: number}}
+ */
+function margins() {
+  return {
+    leftSpacing:   MARGIN_ACROSS,
+    rightSpacing:  MARGIN_ACROSS,
+    topSpacing:    MARGIN_DOWN,
+    bottomSpacing: MARGIN_DOWN,
+  };
+}
 
 /**
  * Children side by side, with a gap between them.
@@ -479,8 +539,8 @@ const SECTION_GAP = 8;
  */
 function row(...children) {
   return new Layout({
-    orientation: 'horizontal',
-    spaceInner:  true,
+    orientation:  'horizontal',
+    innerSpacing: GAP_ACROSS,
     children,
   });
 }
@@ -495,11 +555,11 @@ function row(...children) {
  */
 function section(label, ...children) {
   return new Layout({
-    orientation: 'vertical',
-    bevelStyle:  BevelStyle.GROUP,
+    orientation:  'vertical',
+    bevelStyle:   BevelStyle.GROUP,
     label,
-    spaceOuter:  true,
-    spaceInner:  true,
+    ...margins(),
+    innerSpacing: GAP_DOWN,
     children,
   });
 }
@@ -549,12 +609,17 @@ let volumeSlider = new Slider({
 let shuffleBox = new CheckBox({ id: ID.SHUFFLE, text: 'S_huffle' });
 let repeatBox  = new CheckBox({ id: ID.REPEAT,  text: '_Repeat' });
 
-/* Quit keeps its natural width instead of growing to fill its row; the
- * two checkboxes share what is left. */
+/* Quit does not grow to fill its row; the two checkboxes share what is
+ * left. Its width is its label, measured, plus a margin at each end.
+ * (The underscore marks the keyboard shortcut and is not drawn, so it
+ * is left out of what is measured.) */
 let quitButton = new Button({
   id: ID.QUIT,
   text: '_Quit',
-  layoutHints: { weightedWidth: 0 },
+  layoutHints: {
+    weightedWidth: 0,
+    minWidth:      screenFont.widthOf('Quit') + 2 * MARGIN_ACROSS,
+  },
 });
 
 /* ---- the window ---- */
@@ -575,7 +640,7 @@ let window = new Window({
    * need, so the transport buttons come out at their natural size. */
   layout: new Layout({
     orientation:  'vertical',
-    spaceOuter:   true,            /* a margin inside the window border */
+    ...margins(),                  /* inside the window border */
     innerSpacing: SECTION_GAP,
     children: [
 
@@ -688,6 +753,7 @@ const onToggle = {
 };
 
 window.open();
+screenFont.close();      /* the open window holds the screen from here */
 render();
 print('Tape deck open. Press the play button to start.');
 
@@ -739,6 +805,7 @@ try {
 finally {
   window.dispose();
   for (let image of glyphImages) image.dispose();
+  screenFont.close();    /* does nothing if it was closed above */
 }
 
 print('Bye.');

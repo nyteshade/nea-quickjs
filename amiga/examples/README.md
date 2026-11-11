@@ -44,7 +44,7 @@ that each make a decision. The formula is at the top of
 `scripts/example_load.py`; regenerate these tables with
 `python3 scripts/example_load.py --index`.
 
-Now: 50 low, 10 medium, 1 high.
+Now: 49 low, 11 medium, 1 high.
 Before: 45 low, 15 medium, 1 high.
 
 ## Reaction examples
@@ -75,16 +75,16 @@ Before: 45 low, 15 medium, 1 high.
 | `quiz_demo.js` | A five-question multiple-choice quiz about the Amiga. | 31 medium | 34 medium |
 | `radiobutton_demo.js` | Pick one of three fruits with radio buttons. | 9 low | 9 low |
 | `react_hello.js` | The smallest Reaction window: a label and two buttons. | 14 low | 14 low |
-| `reaction_clock_demo.js` | A seconds counter driven by timer.device. | 16 low | 16 low |
+| `reaction_clock_demo.js` | A seconds counter driven by timer.device. | 22 low | 16 low |
 | `requester_demo.js` | Ask a question with a Reaction requester. | 2 low | 1 low |
 | `scroller_demo.js` | Two scrollbars that report their position. | 13 low | 11 low |
-| `settings_panel_demo.js` | A preferences dialog that reports your choices. | 21 low | 23 low |
+| `settings_panel_demo.js` | A preferences dialog that reports your choices. | 22 low | 23 low |
 | `slider_demo.js` | A slider from 0 to 100 that reports where it is. | 10 low | 9 low |
 | `speedbar_demo.js` | A toolbar of five text buttons that reports clicks. | 18 low | 18 low |
 | `stopwatch_demo.js` | A start / stop / reset stopwatch with LED digits. | 20 low | 30 medium |
 | `string_demo.js` | Two text fields, one of them hiding what you type. | 16 low | 15 low |
 | `tabs_demo.js` | Three pages in one window, switched by a row of buttons. | 16 low | 19 low |
-| `tapedeck_demo.js` | A tape deck front panel in Reaction, from JavaScript. | 47 medium | 46 medium |
+| `tapedeck_demo.js` | A tape deck front panel in Reaction, from JavaScript. | 49 medium | 46 medium |
 | `tapedeck_gadget_demo.js` | Both forms of the system's tape deck gadget. | 29 medium | 29 medium |
 | `todo_demo.js` | A to-do list of up to eight tasks, saved to RAM:. | 31 medium | 32 medium |
 | `wizard_demo.js` | A three-step setup wizard with Back, Next and Finish. | 21 low | 29 medium |
@@ -94,7 +94,7 @@ Before: 45 low, 15 medium, 1 high.
 | Example | What it is | Load | Was |
 |---|---|---|---|
 | `asl_filereq.js` | Ask for a file with the standard file requester. | 4 low | 4 low |
-| `clock_demo.js` | A window that counts the seconds since it opened. | 24 low | 29 medium |
+| `clock_demo.js` | A window that counts the seconds since it opened. | 28 medium | 29 medium |
 | `dir_listing.js` | List a directory, the way the Dir command does. Optional arguments: `[directory=SYS:]`. | 17 low | 16 low |
 | `drawing_demo.js` | Lines, boxes and text drawn straight into a window. | 12 low | 11 low |
 | `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 22 low | 19 low |

@@ -60,6 +60,7 @@ ORDER = [
     'Asl.js',
     'Diskfont.js',
     'Intuition.js',  # needs Window, Screen, Image
+    'ScreenFont.js', # needs Intuition, Graphics, DrawInfo
     # BOOPSI / Reaction infrastructure. Each layer depends on the
     # previous. EventKind must come before any class wrapper so the
     # class's module-load-time define() calls resolve.

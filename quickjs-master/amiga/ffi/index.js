@@ -43,6 +43,7 @@ import { Graphics } from './Graphics.js';
 import { GadTools } from './GadTools.js';
 import { Asl } from './Asl.js';
 import { Diskfont } from './Diskfont.js';
+import { ScreenFont } from './ScreenFont.js';
 
 import { Struct, withStruct } from './structs/Struct.js';
 import { NewWindow } from './structs/NewWindow.js';
@@ -126,6 +127,9 @@ const libs = {
 for (const [name, cls] of Object.entries(libs)) {
   globalThis.amiga[name] = cls;
 }
+
+/* Helpers built on the library wrappers. */
+globalThis.amiga.ScreenFont = ScreenFont;
 
 /* ------------------------------------------------------------------
  * Struct wrappers — amiga.<libname>.<StructName>
@@ -284,7 +288,7 @@ const everyGlobal = {
   /* BOOPSI bases — globalThis for discoverability at the REPL */
   BOOPSIBase, GadgetBase, ImageBase, EventKind,
   /* helpers (makeTags/withTags intentionally omitted — Q1 natives) */
-  ptrOf, withStruct,
+  ptrOf, withStruct, ScreenFont,
 };
 
 for (const [name, cls] of Object.entries(everyGlobal)) {

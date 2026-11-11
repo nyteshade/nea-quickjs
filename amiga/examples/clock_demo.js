@@ -30,8 +30,12 @@
  *     are drawn at fixed positions
  *   - pen 0 is the window background and pen 1 is visible against it
  *   - a timer request that has come back does not need ReplyMsg
+ *   - a request must never be sent while it is still out. Doing so
+ *     damages timer.device's queue and locks up the whole machine,
+ *     which is why this file keeps two requests and tracks whether
+ *     the tick is out (see part 2)
  *
- * Requires quickjs.library 0.213+.
+ * Requires quickjs.library 0.214+.
  * Run: qjs examples/clock_demo.js
  */
 
@@ -119,19 +123,34 @@ if (!timerPort.ptr) {
   std.exit(1);
 }
 
-let timerRequest = new TimerRequest();
-timerRequest.replyPort  = timerPort.ptr;
-timerRequest.messageLen = TimerRequest.SIZE;
+/* Two requests, one for each job, because a request can only be in
+ * one place at a time:
+ *
+ *   tickRequest   sent off for a second at a time, and so usually out
+ *   clockRequest  asks "what time is it?" and is answered at once
+ *
+ * OpenDevice fills in the first. The second is pointed at the same
+ * open device by copying the device and unit across, which is the
+ * usual way to get an extra request. */
+let tickRequest = new TimerRequest();
+tickRequest.replyPort  = timerPort.ptr;
+tickRequest.messageLen = TimerRequest.SIZE;
 
-let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK, timerRequest, 0);
+let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK, tickRequest, 0);
 
 if (openError !== 0) {
   print('OpenDevice(timer.device, UNIT_VBLANK) failed rc=' + openError);
   Exec.DeleteMsgPort(timerPort);
-  timerRequest.free();
+  tickRequest.free();
   window.close();
   std.exit(1);
 }
+
+let clockRequest = new TimerRequest();
+clockRequest.replyPort  = timerPort.ptr;
+clockRequest.messageLen = TimerRequest.SIZE;
+clockRequest.device     = tickRequest.device;
+clockRequest.unit       = tickRequest.unit;
 
 /* Each port wakes the script with its own signal bit. Waiting on both
  * bits together is what lets one loop serve the window and the
@@ -145,6 +164,11 @@ const eitherSignal = windowSignal | timerSignal;
  * 2. THE TIMER
  * ================================================================== */
 
+/** True from the moment the tick request is sent until it has been
+ *  taken back off the port. While it is true the request belongs to
+ *  timer.device and must not be touched. */
+let tickIsOut = false;
+
 /**
  * Ask for the next tick. SendIO returns at once; the request comes
  * back to timerPort when the time is up, or when it is aborted.
@@ -152,35 +176,50 @@ const eitherSignal = windowSignal | timerSignal;
  * @returns {undefined}
  */
 function scheduleTick() {
-  timerRequest.command = TR_ADDREQUEST;
-  timerRequest.setTimeval(TICK_SECONDS, 0);
-  Exec.SendIO(timerRequest);
+  if (tickIsOut) return;
+
+  tickRequest.command = TR_ADDREQUEST;
+  tickRequest.setTimeval(TICK_SECONDS, 0);
+  Exec.SendIO(tickRequest);
+  tickIsOut = true;
 }
 
 /**
- * Read the system time. DoIO waits for the answer.
+ * Read the system time. DoIO waits for the answer, which for this
+ * command comes straight away.
  *
  * @returns {{secs: number, micro: number}} seconds and microseconds
  */
 function readSystemTime() {
-  timerRequest.command = TR_GETSYSTIME;
-  timerRequest.setTimeval(0, 0);
-  Exec.DoIO(timerRequest);
+  clockRequest.command = TR_GETSYSTIME;
+  clockRequest.setTimeval(0, 0);
+  Exec.DoIO(clockRequest);
 
-  return { secs: timerRequest.tvSecs, micro: timerRequest.tvMicro };
+  return { secs: clockRequest.tvSecs, micro: clockRequest.tvMicro };
 }
 
 /**
- * Take every returned request off the timer port. timer.device hands
- * back the same request that was sent, so there is nothing to reply
- * to; the request is simply ready to be sent again.
+ * Take whatever has come back off the timer port, and say whether the
+ * tick was among it.
  *
- * @returns {undefined}
+ * The answer matters. A signal only says "look at the port"; it can
+ * be left over from earlier, with nothing new behind it. Sending the
+ * tick again on the strength of the signal alone would send a request
+ * that is still out.
+ *
+ * timer.device hands back the same request that was sent, so there is
+ * nothing to reply to.
+ *
+ * @returns {boolean} true if the tick request has come back
  */
-function drainTimerPort() {
-  while (Exec.GetMsg(timerPort) !== 0) {
-    /* nothing to do with it */
+function collectTick() {
+  let messagePtr;
+
+  while ((messagePtr = Exec.GetMsg(timerPort)) !== 0) {
+    if ((messagePtr >>> 0) === (tickRequest.ptr >>> 0)) tickIsOut = false;
   }
+
+  return !tickIsOut;
 }
 
 
@@ -288,8 +327,7 @@ try {
   while (running) {
     let signals = Exec.Wait(eitherSignal);
 
-    if (signals & timerSignal) {
-      drainTimerPort();
+    if ((signals & timerSignal) && collectTick()) {
       redraw();
       scheduleTick();
     }
@@ -300,14 +338,20 @@ try {
   }
 }
 finally {
-  /* A tick is always outstanding here. Abort it and wait for it to
-   * come back before closing the device; otherwise timer.device could
-   * later return it to a port that no longer exists. */
-  Exec.AbortIO(timerRequest);
-  Exec.WaitIO(timerRequest);
-  Exec.CloseDevice(timerRequest);
+  /* If the tick is still out, abort it and wait for it to come back
+   * before closing the device; otherwise timer.device could later
+   * return it to a port that no longer exists. If it is not out,
+   * leave it alone: WaitIO on a request already taken off the port
+   * would unlink it a second time. */
+  if (tickIsOut) {
+    Exec.AbortIO(tickRequest);
+    Exec.WaitIO(tickRequest);
+  }
+
+  Exec.CloseDevice(tickRequest);
   Exec.DeleteMsgPort(timerPort);
-  timerRequest.free();
+  clockRequest.free();
+  tickRequest.free();
   window.close();
 }
 

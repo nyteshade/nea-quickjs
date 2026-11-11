@@ -215,6 +215,17 @@ export class Graphics extends LibraryBase {
   }
 
   /**
+   * Initialise a caller-allocated struct RastPort (100 bytes) to its
+   * defaults. A RastPort with no bitmap is enough for TextLength.
+   *
+   * @param {RastPort|number} rport
+   * @returns {undefined}
+   */
+  static InitRastPort(rport) {
+    this.call(this.lvo.InitRastPort, { a1: ptrOf(rport) });
+  }
+
+  /**
    * Install a font (TextFont ptr) on the RastPort.
    *
    * @param {RastPort|number} rport

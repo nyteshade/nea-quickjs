@@ -269,6 +269,31 @@ export class Intuition extends LibraryBase {
     });
   }
 
+  /**
+   * Get a screen's DrawInfo: its pens, its font and the shape of its
+   * pixels. Release it with FreeScreenDrawInfo.
+   *
+   * @param {Screen|number} screen
+   * @returns {number} struct DrawInfo pointer (0 on failure); wrap it
+   *   with `new DrawInfo(ptr)`
+   */
+  static GetScreenDrawInfo(screen) {
+    return this.call(this.lvo.GetScreenDrawInfo, { a0: ptrOf(screen) });
+  }
+
+  /**
+   * Release a DrawInfo obtained from GetScreenDrawInfo.
+   *
+   * @param {Screen|number}   screen
+   * @param {DrawInfo|number} drawInfo
+   * @returns {undefined}
+   */
+  static FreeScreenDrawInfo(screen, drawInfo) {
+    this.call(this.lvo.FreeScreenDrawInfo, {
+      a0: ptrOf(screen), a1: ptrOf(drawInfo),
+    });
+  }
+
   /* ============================================================
    * BOOPSI
    * ============================================================ */

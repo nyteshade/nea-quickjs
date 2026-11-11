@@ -58,6 +58,7 @@ const LAYOUT = Object.freeze({
   ChildMaxHeight:      0x85007104,
   ChildWeightedWidth:  0x85007105,
   ChildWeightedHeight: 0x85007106,
+  ChildNominalSize:    0x8500710B,  /* CHILD_Dummy + 11 */
   ChildLabel:          0x8500710C,
   ChildNoDispose:      0x8500710D,
   /* LAYOUT_ModifyChild — OM_SET-time tag that tells layout.gadget the
@@ -258,6 +259,8 @@ export class Layout extends GadgetBase {
          *   - minWidth / minHeight / maxWidth / maxHeight: ULONG
          *   - weightedWidth / weightedHeight: ULONG (default 100; 0
          *     locks at min)
+         *   - nominalSize: bool - size the child at its comfortable
+         *     (GDOMAIN_NOMINAL) size, not its smallest possible one
          *   - noDispose: bool
          * The pairs land in the same OM_NEW tag list and stick to
          * the most-recent child.
@@ -287,6 +290,7 @@ export class Layout extends GadgetBase {
           if (opts.maxHeight  !== undefined) pairs.push([LAYOUT.ChildMaxHeight,      opts.maxHeight  | 0]);
           if (opts.weightedWidth  !== undefined) pairs.push([LAYOUT.ChildWeightedWidth,  opts.weightedWidth  | 0]);
           if (opts.weightedHeight !== undefined) pairs.push([LAYOUT.ChildWeightedHeight, opts.weightedHeight | 0]);
+          if (opts.nominalSize) pairs.push([LAYOUT.ChildNominalSize, 1]);
           if (opts.noDispose) pairs.push([LAYOUT.ChildNoDispose, 1]);
         }
       }
