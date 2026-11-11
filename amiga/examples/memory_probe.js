@@ -1,19 +1,22 @@
 /*
- * memory_probe.js — Print available / largest-chunk / total memory
- * for every MEMF_* category the system reports. Prints a live total
- * on an interval (every 500ms via TimerRequest in VBLANK mode) until
- * user hits Ctrl-C.
+ * memory_probe.js - print how much memory of each kind is free.
  *
- * Demonstrates:
- *   - Exec.AvailMem with different MEMF_* flags on Exec.consts:
- *     MEMF_ANY, MEMF_PUBLIC, MEMF_CHIP, MEMF_FAST — plus MEMF_LARGEST
- *     and MEMF_TOTAL ORed in to get the right number for each row
- *   - Short-running example with clean single-task loop (no window —
- *     purely console)
- *   - Number formatting: bytes → KiB / MiB string
+ * Nothing opens: the script prints a small table on the Shell with one
+ * row per kind of memory (public, chip, fast, any) and three columns:
+ * free now, the largest single free block, and the total installed. Give
+ * it a number to get that many tables, half a second apart, and watch
+ * the figures move while something else is running.
  *
- * Run:        qjs examples/memory_probe.js [iterations=1]
- * Requires:   quickjs.library 0.134+
+ * Assumptions:
+ *   - asking for more than one table needs timer.device, which is in
+ *     every Kickstart ROM; one table needs nothing but exec.library
+ *   - the pause between tables comes from the vertical-blank timer
+ *     unit, so it is accurate to about a fiftieth of a second
+ *   - there is no way to stop early: the script runs until it has
+ *     printed the number of tables asked for
+ *
+ * Requires quickjs.library 0.134+.
+ * Run: qjs examples/memory_probe.js [iterations=1]
  */
 
 import * as std from 'qjs:std';
@@ -25,102 +28,129 @@ if (typeof Exec !== 'function') {
 
 const E = Exec.consts;
 
+/** How many tables to print. */
 const iterations = scriptArgs && scriptArgs[1]
                  ? parseInt(scriptArgs[1], 10)
                  : 1;
 
+/** The kinds of memory reported, one row each. The names are padded
+ *  to the same length so the columns line up. */
+const MEMORY_KINDS = [
+  { name: 'PUBLIC', flag: E.MEMF_PUBLIC },
+  { name: 'CHIP  ', flag: E.MEMF_CHIP   },
+  { name: 'FAST  ', flag: E.MEMF_FAST   },
+  { name: 'ANY   ', flag: E.MEMF_ANY    },
+];
+
+const BYTES_PER_KB = 1024;
+const BYTES_PER_MB = 1024 * 1024;
+
+/** Width of one column of the table, in characters. */
+const COLUMN_WIDTH = 12;
+
+/** Which timer.device unit to open (devices/timer.h). */
+const UNIT_VBLANK = 1;
+
+/** timer.device command: "reply to me after this long"
+ *  (devices/timer.h, TR_ADDREQUEST = CMD_NONSTD = 9). */
+const TR_ADDREQUEST = 9;
+
+/** The pause between tables, in microseconds: half a second. */
+const PAUSE_MICROSECONDS = 500000;
+
 /**
- * Format a byte count as a KB/MB/GB string aligned on 8-char width.
+ * Format a byte count as B, KB or MB, right-aligned in a column.
  *
- * @param   {number} bytes
- * @returns {string}
+ * @param {number} bytes
+ * @returns {string} COLUMN_WIDTH characters, or more if it will not fit
  */
-function fmt(bytes) {
+function formatBytes(bytes) {
   let units, value;
 
-  if (bytes >= 1024 * 1024) {
+  if (bytes >= BYTES_PER_MB) {
     units = 'MB';
-    value = (bytes / (1024 * 1024)).toFixed(2);
+    value = (bytes / BYTES_PER_MB).toFixed(2);
   }
-
-  else if (bytes >= 1024) {
+  else if (bytes >= BYTES_PER_KB) {
     units = 'KB';
-    value = (bytes / 1024).toFixed(2);
+    value = (bytes / BYTES_PER_KB).toFixed(2);
   }
-
   else {
     units = 'B';
     value = bytes.toString();
   }
 
-  return (value + ' ' + units).padStart(12);
+  return (value + ' ' + units).padStart(COLUMN_WIDTH);
 }
 
 /**
- * Print one line per memory class for a single snapshot.
+ * Print one table: a heading, then a row for each kind of memory.
  *
  * @returns {undefined}
  */
 function reportSnapshot() {
-  const classes = [
-    { name: 'PUBLIC', flag: E.MEMF_PUBLIC },
-    { name: 'CHIP  ', flag: E.MEMF_CHIP   },
-    { name: 'FAST  ', flag: E.MEMF_FAST   },
-    { name: 'ANY   ', flag: E.MEMF_ANY    },
-  ];
-
   print('                Available        Largest          Total');
 
-  for (let { name, flag } of classes) {
-    let avail   = Exec.AvailMem(flag);
-    let largest = Exec.AvailMem(flag | E.MEMF_LARGEST);
-    let total   = Exec.AvailMem(flag | E.MEMF_TOTAL);
+  for (let { name, flag } of MEMORY_KINDS) {
+    /* AvailMem answers a different question depending on which extra
+     * flag is ORed in: none for free bytes, MEMF_LARGEST for the
+     * biggest free block, MEMF_TOTAL for the amount installed. */
+    let available = Exec.AvailMem(flag);
+    let largest   = Exec.AvailMem(flag | E.MEMF_LARGEST);
+    let total     = Exec.AvailMem(flag | E.MEMF_TOTAL);
 
-    print('  ' + name + '  ' + fmt(avail) + '  ' +
-          fmt(largest) + '  ' + fmt(total));
+    print('  ' + name + '  ' + formatBytes(available) + '  ' +
+          formatBytes(largest) + '  ' + formatBytes(total));
+  }
+}
+
+/**
+ * Print the remaining tables, numbered from 2, with a pause before
+ * each. The pause is a timer.device request sent with DoIO, which
+ * sleeps until the time is up.
+ *
+ * @param {number} lastTick - the number of the last table to print
+ * @returns {undefined}
+ */
+function reportFurtherSnapshots(lastTick) {
+  const TimerRequest = amiga.devices.TimerRequest;
+
+  let port    = new MsgPort(Exec.CreateMsgPort());
+  let request = new TimerRequest();
+  request.replyPort  = port.ptr;
+  request.messageLen = TimerRequest.SIZE;
+
+  let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK, request, 0);
+
+  if (openError !== 0) {
+    print('OpenDevice failed rc=' + openError);
+    Exec.DeleteMsgPort(port);
+    request.free();
+    std.exit(1);
+  }
+
+  try {
+    for (let tick = 2; tick <= lastTick; tick++) {
+      request.command = TR_ADDREQUEST;
+      request.setTimeval(0, PAUSE_MICROSECONDS);
+      Exec.DoIO(request);
+
+      print('');
+      print('--- Tick ' + tick + ' ---');
+      reportSnapshot();
+    }
+  }
+  finally {
+    Exec.CloseDevice(request);
+    Exec.DeleteMsgPort(port);
+    request.free();
   }
 }
 
 print('--- Memory report ---');
 reportSnapshot();
 
-if (iterations > 1) {
-  const TimerRequest = amiga.devices.TimerRequest;
-  const UNIT_VBLANK  = 1;
-  const TR_ADDREQUEST = 9;
-
-  let port = new MsgPort(Exec.CreateMsgPort());
-  let tr   = new TimerRequest();
-  tr.replyPort  = port.ptr;
-  tr.messageLen = TimerRequest.SIZE;
-
-  let rc = Exec.OpenDevice('timer.device', UNIT_VBLANK, tr, 0);
-
-  if (rc !== 0) {
-    print('OpenDevice failed rc=' + rc);
-    Exec.DeleteMsgPort(port);
-    tr.free();
-    std.exit(1);
-  }
-
-  try {
-    for (let i = 1; i < iterations; i++) {
-      tr.command = TR_ADDREQUEST;
-      tr.setTimeval(0, 500000);   /* 0.5 sec */
-      Exec.DoIO(tr);
-
-      print('');
-      print('--- Tick ' + (i + 1) + ' ---');
-      reportSnapshot();
-    }
-  }
-
-  finally {
-    Exec.CloseDevice(tr);
-    Exec.DeleteMsgPort(port);
-    tr.free();
-  }
-}
+if (iterations > 1) reportFurtherSnapshots(iterations);
 
 print('');
 print('Done.');

@@ -1,11 +1,19 @@
 # qjs Amiga examples
 
-Scripts that drive AmigaOS libraries from JavaScript via the **Q2
-wrapper-class API** — `Intuition`, `Exec`, `Graphics`, `GadTools`,
-plus struct wrappers (`Window`, `NewWindow`, `Screen`, `RastPort`,
-`IntuiMessage`). No `amiga.call(...)` or `peek32(win + 86)` in user
-code; that plumbing is hidden behind classes and named field
-getters.
+Scripts that drive AmigaOS from JavaScript. They come in three groups:
+
+- **Reaction** examples build windows from gadget objects with the
+  `amiga.boopsi` classes: `Window`, `Layout`, `Button`, `Slider` and so
+  on.
+- **Classic Intuition** examples use the library wrappers (`Intuition`,
+  `Exec`, `Graphics`, `Dos`) and struct wrappers (`Window`, `Screen`,
+  `RastPort`, `IntuiMessage`) directly.
+- **Probes** are diagnostic scripts kept from debugging sessions. They
+  are not meant as models to copy.
+
+Every script is written to the same rules, set out in
+[STYLE.md](STYLE.md). Start with `tapedeck_demo.js`: it is the
+reference the others follow.
 
 ## Running
 
@@ -13,30 +21,107 @@ On the Amiga, from `<root>/amiga/`:
 
 ```
 stack 65536
-qjs examples/window_hello.js
+qjs examples/react_hello.js
 ```
 
-Requires `quickjs.library` **0.137 or later** in `LIBS:`.
+Every example runs with no arguments and says on the Shell what to do
+and how to quit. The header of each file gives the `quickjs.library`
+version it needs and lists what it assumes about the machine; the
+newest any of them needs is **0.213**.
 
-## Examples
+## How much there is to hold in your head
 
-| File | What it shows |
-|---|---|
-| `window_hello.js` | Minimal `Intuition.OpenWindowTags([...])` → `for (let msg of win.messages())` → `win.close()`. The shortest possible GUI script. |
-| `drawing_demo.js` | Draws lines, rects, outlines, cross-hatch, and text into a `Window.rastPort` via its instance methods (`setColor/move/draw/rectFill/text`). Repaints on `IDCMP_REFRESHWINDOW`. |
-| `frameidemo.js` | Port of NDK 3.1 `Examples1/intuition/frameidemo.c`. `new NewWindow({...})` constructor, `Intuition.OpenWindow(nw)`, `Intuition.NewObjectTags('frameiclass', pairs)` for four BOOPSI image classes × two states, `win.screen.font.ySize` chain for dynamic layout. |
-| `screen_info.js` | `Intuition.LockPubScreen(null)` → read `screen.title/width/height/barHeight/font.name/font.ySize` via struct getters → `UnlockPubScreen`. Pure introspection — no window, no event loop. |
-| `screen_custom.js` | Opens a 320×200 depth-2 custom screen with `Intuition.OpenScreenTags([...])`, pins a window to it via `WA_CustomScreen`, paints a few primitives, tears down Window then Screen. |
-| `mouse_tracker.js` | Left-button drag-to-draw. Combines `IDCMP_MOUSEBUTTONS` (checking `msg.code` for SELECTDOWN/SELECTUP) with `IDCMP_MOUSEMOVE` (`msg.mouseX/mouseY`). Needs `WFLG_REPORTMOUSE` for continuous move events. Cycles pen colors per stroke. |
-| `keyboard_echo.js` | `IDCMP_VANILLAKEY` handling: `String.fromCharCode(msg.code)`, backspace/CR/ESC handling, wraps lines at ~55 chars and scrolls at window bottom. Repaints on damage. |
-| `sysi_gallery.js` | BOOPSI `sysiclass` gallery — 15 system glyphs (close, depth, zoom, arrows, amiga-key, lock, etc.) via `Intuition.NewObjectTags('sysiclass', [[SYSIA_Which, code], [SYSIA_Size, SYSISIZE_MEDRES]])` → `Intuition.DrawImage`. Shows using raw hex tag values when a constant isn't in `Intuition.consts` yet. |
-| `asl_filereq.js`  | Pop up a standard ASL file requester. Uses the new `amiga.Asl.openFileRequest([[ASLFR_TitleText, ...], [ASLFR_InitialDrawer, ...]])` one-call helper returning `{ok, drawer, file, path, requester}`. |
-| `dir_listing.js`  | List a directory via `Dos.Lock('SYS:', SHARED_LOCK)` + raw-FFI `Examine`/`ExNext` on a `FileInfoBlock` wrapper. Shows BCPL-string decoding for `fileName`/`comment`, plus the "raw LVO when it's not wrapped yet" escape-hatch pattern. Pass a path: `qjs examples/dir_listing.js DEVS:` |
-| `timer_demo.js`   | Open `timer.device`, call `TR_GETSYSTIME` for a start stamp, `TR_ADDREQUEST` for a 2-second delay, then `TR_GETSYSTIME` again and print elapsed. Uses the new `TimerRequest` (extends `IORequest`) wrapper with `Exec.CreateMsgPort/OpenDevice/DoIO/CloseDevice/DeleteMsgPort`. |
-| `font_loader.js`  | Load a disk font by name, install it on a window's `RastPort`, draw a pangram. Hand-built `TextAttr` (ta_Name owned allocation, ta_YSize) → `Diskfont.OpenDiskFont` → `Graphics.SetFont` → paint → `CloseFont` via raw-FFI. Pass a font name: `qjs examples/font_loader.js courier.font 13` |
-| `menu_demo.js`    | Classic Intuition menu bar — `Project` (Open / Save / Quit with Amiga-key shortcuts) and `Options` (two checkable items). Uses the `Menu`, `MenuItem`, and `IntuiText` struct wrappers (with `IntuiText`'s owning-string constructor), `Intuition.SetMenuStrip` / `ClearMenuStrip` / `ItemAddress` via raw-FFI, and the `MENUNUM` unpack + `nextSelect` chain walk. |
-| `clock_demo.js`   | Live digital clock in a window, ticks every second. Uses `timer.device` asynchronously (`Exec.SendIO`) so a single `Exec.Wait` blocks on both the window's IDCMP signal and the timer port's signal. Demonstrates `AbortIO`/`WaitIO` cleanup when the window closes mid-tick. |
-| `memory_probe.js` | Print `Exec.AvailMem` for PUBLIC / CHIP / FAST / ANY × (avail / largest / total). Optional `iterations` arg ticks every 0.5s via `timer.device`. Good Exec-wrapper showcase. |
+The **Load** column is a mechanical estimate of how much a reader must
+keep in mind at once: decisions, nesting depth, the longest function
+and the amount of raw plumbing (hex constants, peek and poke). Under 25
+is *low*: readable in one sitting, top to bottom. Under 50 is *medium*:
+needs a second pass. Anything above is *high*. **Was** is the same
+figure before the examples were rewritten to STYLE.md.
+
+It is an estimate for comparing files, not a grade. A file can score
+higher after being improved if a long script was split into functions
+that each make a decision. The formula is at the top of
+`scripts/example_load.py`; regenerate these tables with
+`python3 scripts/example_load.py --index`.
+
+Now: 50 low, 10 medium, 1 high.
+Before: 45 low, 15 medium, 1 high.
+
+## Reaction examples
+
+| Example | What it is | Load | Was |
+|---|---|---|---|
+| `bevels_demo.js` | Every Reaction bevel style, labelled with its name. | 8 low | 8 low |
+| `buttons_demo.js` | A row of four buttons that say which one you clicked. | 12 low | 13 low |
+| `calculator_demo.js` | A working four-function calculator. | 31 medium | 43 medium |
+| `checkbox_demo.js` | Two checkboxes that report each time they change. | 12 low | 11 low |
+| `chooser_demo.js` | A drop-down list of colours with a live readout. | 19 low | 18 low |
+| `clicktab_demo.js` | Three tabbed pages that switch with no code at all. | 16 low | 14 low |
+| `color_mixer_demo.js` | Mix a colour with three sliders, shown as hex. | 25 low | 29 medium |
+| `datebrowser_demo.js` | A month calendar that reports the day you click. | 10 low | 8 low |
+| `fuelgauge_demo.js` | A progress bar you fill up five percent at a time. | 15 low | 13 low |
+| `getcolor_demo.js` | A colour-chooser gadget that reports the colour. | 10 low | 8 low |
+| `getfile_demo.js` | A file-chooser gadget that reports the file picked. | 10 low | 8 low |
+| `getfont_demo.js` | A font-chooser gadget, opened from a button. | 18 low | 17 low |
+| `getscreenmode_demo.js` | A screen-mode chooser, opened from a button. | 16 low | 15 low |
+| `glyph_demo.js` | Every standard Reaction glyph, next to its name. | 7 low | 8 low |
+| `integer_demo.js` | A number field from 0 to 999 with spin arrows. | 10 low | 8 low |
+| `led_demo.js` | A six-digit LED readout with a Reset button. | 12 low | 17 low |
+| `listbrowser_demo.js` | A scrolling list of planets to pick from. | 18 low | 17 low |
+| `login_demo.js` | A sign-in form that locks after three wrong tries. | 26 medium | 27 medium |
+| `notes_demo.js` | A scratchpad built on the system text editor gadget. | 29 medium | 34 medium |
+| `palette_demo.js` | A strip of the screen's colours to click on. | 10 low | 9 low |
+| `progress_demo.js` | A progress bar you can start, pause and reset. | 21 low | 24 low |
+| `quiz_demo.js` | A five-question multiple-choice quiz about the Amiga. | 31 medium | 34 medium |
+| `radiobutton_demo.js` | Pick one of three fruits with radio buttons. | 9 low | 9 low |
+| `react_hello.js` | The smallest Reaction window: a label and two buttons. | 14 low | 14 low |
+| `reaction_clock_demo.js` | A seconds counter driven by timer.device. | 16 low | 16 low |
+| `requester_demo.js` | Ask a question with a Reaction requester. | 2 low | 1 low |
+| `scroller_demo.js` | Two scrollbars that report their position. | 13 low | 11 low |
+| `settings_panel_demo.js` | A preferences dialog that reports your choices. | 21 low | 23 low |
+| `slider_demo.js` | A slider from 0 to 100 that reports where it is. | 10 low | 9 low |
+| `speedbar_demo.js` | A toolbar of five text buttons that reports clicks. | 18 low | 18 low |
+| `stopwatch_demo.js` | A start / stop / reset stopwatch with LED digits. | 20 low | 30 medium |
+| `string_demo.js` | Two text fields, one of them hiding what you type. | 16 low | 15 low |
+| `tabs_demo.js` | Three pages in one window, switched by a row of buttons. | 16 low | 19 low |
+| `tapedeck_demo.js` | A tape deck front panel in Reaction, from JavaScript. | 47 medium | 46 medium |
+| `tapedeck_gadget_demo.js` | Both forms of the system's tape deck gadget. | 29 medium | 29 medium |
+| `todo_demo.js` | A to-do list of up to eight tasks, saved to RAM:. | 31 medium | 32 medium |
+| `wizard_demo.js` | A three-step setup wizard with Back, Next and Finish. | 21 low | 29 medium |
+
+## Classic Intuition examples
+
+| Example | What it is | Load | Was |
+|---|---|---|---|
+| `asl_filereq.js` | Ask for a file with the standard file requester. | 4 low | 4 low |
+| `clock_demo.js` | A window that counts the seconds since it opened. | 24 low | 29 medium |
+| `dir_listing.js` | List a directory, the way the Dir command does. Optional arguments: `[directory=SYS:]`. | 17 low | 16 low |
+| `drawing_demo.js` | Lines, boxes and text drawn straight into a window. | 12 low | 11 low |
+| `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 22 low | 19 low |
+| `frameidemo.js` | The four standard frame styles, raised and recessed. | 24 low | 28 medium |
+| `keyboard_echo.js` | Type into a window and see the text appear. | 26 medium | 28 medium |
+| `memory_probe.js` | Print how much memory of each kind is free. Optional arguments: `[iterations=1]`. | 12 low | 14 low |
+| `menu_demo.js` | A classic Intuition menu bar, built struct by struct. | 42 medium | 48 medium |
+| `mouse_tracker.js` | Draw in a window by dragging the mouse. | 18 low | 18 low |
+| `screen_custom.js` | A screen of our own, with one window drawn into. | 10 low | 10 low |
+| `screen_info.js` | Print the size, title and font of the Workbench screen. | 8 low | 8 low |
+| `sysi_gallery.js` | A labelled gallery of the system's own gadget images. | 20 low | 19 low |
+| `timer_demo.js` | Wait two seconds with timer.device and time the wait. | 11 low | 11 low |
+| `window_hello.js` | The smallest useful Intuition window, from JavaScript. | 9 low | 9 low |
+
+## Probes
+
+| Example | What it is | Load | Was |
+|---|---|---|---|
+| `boopsi_probe.js` | Which step of making a label.image by hand crashes? | 20 low | 20 low |
+| `boopsi_probe2.js` | Which wrapper class makes react_hello.js crash? | 10 low | 10 low |
+| `boopsi_probe3.js` | What does each layer hold while the buttons stay silent? | 30 medium | 30 medium |
+| `boopsi_probe4.js` | Which raw IDCMP messages does a button click send? | 68 high | 68 high |
+| `boopsi_probe5.js` | Does a narrower IDCMP mask let button clicks through? | 16 low | 16 low |
+| `boopsi_probe6.js` | What does Intuition see in our buttons' struct Gadget? | 22 low | 22 low |
+| `boopsi_probe7.js` | Do the tag list bytes we build reach button.gadget? | 20 low | 20 low |
+| `boopsi_probe8.js` | Is the button class intact, and does SetAttrsA work? | 19 low | 20 low |
+| `boopsi_refresh_probe.js` | Does setting a gadget's text redraw it cleanly? | 18 low | 18 low |
 
 ## The wrapper-class API at a glance
 

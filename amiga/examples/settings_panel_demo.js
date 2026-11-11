@@ -1,167 +1,265 @@
 /*
- * settings_panel_demo.js — a typical preferences-style dialog.
+ * settings_panel_demo.js - a preferences dialog that reports your choices.
  *
- * Demonstrates a richer multi-control layout: BevelStyle.GROUP boxes
- * group related controls visually, RadioButtons offer a single-pick
- * choice, CheckBoxes carry boolean toggles, StringGadgets accept text
- * input, and OK / Apply / Cancel buttons commit or discard the form.
+ *   +- Identity ------------------+
+ *   | Name:   [Brielle__________] |
+ *   | Email:  [me@example.com___] |
+ *   +- Notifications -------------+
+ *   | (o) All                     |
+ *   | ( ) Mentions only           |
+ *   | ( ) None                    |
+ *   +- Behaviour -----------------+
+ *   | [ ] Auto-save               |
+ *   | [x] Confirm on quit         |
+ *   | [ ] Dark mode               |
+ *   +-----------------------------+
+ *   | [ OK ] [ Apply ] [ Cancel ] |
+ *   +-----------------------------+
  *
- * Layout:
+ * Change anything you like, then click Apply: the current settings are
+ * printed on the Shell and the dialog stays. OK prints them and
+ * closes. Cancel and the close gadget close without printing them.
+ * Nothing is saved anywhere.
  *
- *   ┌─ Identity ──────────────┐
- *   │ Name:     [________]    │
- *   │ Email:    [________]    │
- *   └─────────────────────────┘
- *   ┌─ Notifications ─────────┐
- *   │ ◉ All                   │
- *   │ ○ Mentions only         │
- *   │ ○ None                  │
- *   └─────────────────────────┘
- *   ┌─ Behaviour ─────────────┐
- *   │ ☐ Auto-save             │
- *   │ ☑ Confirm on quit       │
- *   │ ☐ Use dark mode         │
- *   └─────────────────────────┘
+ * The file has three parts, read top to bottom:
  *
- *   [ OK ] [ Apply ] [ Cancel ]
+ *   1. THE REPORT - settings as lines of text. Plain JavaScript.
+ *   2. THE DIALOG - the window, written as a tree that looks like it.
+ *   3. THE LOOP   - clicks in, settings read and printed.
  *
- * On OK or Apply, prints all current values to stdout. Cancel exits
- * without committing.
+ * Assumptions:
+ *   - opens on the default public screen (normally Workbench), which
+ *     must have room for a window about 340 x 260 pixels inside
+ *   - window.class, layout.gadget, button.gadget, string.gadget,
+ *     checkbox.gadget, radiobutton.gadget and label.image are
+ *     installed in SYS:Classes, as they are on AmigaOS 3.2
+ *   - the settings live in the gadgets and nowhere else; they are read
+ *     back from the gadgets when OK or Apply is clicked
+ *   - a radio group's choice is its `selectedIx` attribute (the index
+ *     of the chosen button); `selected` on a radio group is the plain
+ *     gadget "is pressed" flag and says nothing about which button
  *
  * Requires quickjs.library 0.156+.
- * Run:  qjs examples/settings_panel_demo.js
+ * Run: qjs examples/settings_panel_demo.js
  */
-
-import * as std from 'qjs:std';
 
 const { Window, Layout, Button, CheckBox, RadioButton, StringGadget,
         Label, EventKind, WindowPosition, BevelStyle } = amiga.boopsi;
 
-const GID = {
-  NAME:    1,
-  EMAIL:   2,
-  NOTIFY:  3,
+
+/* ==================================================================
+ * 1. THE REPORT
+ *
+ * What gets printed when the settings are committed. Nothing here
+ * knows about gadgets.
+ * ================================================================== */
+
+/** The notification choices as they are printed, in the order of the
+ *  radio buttons. */
+const NOTIFY_NAMES = ['All', 'Mentions only', 'None'];
+
+/**
+ * The settings as lines for the Shell.
+ *
+ * @param {string} heading - what was done, e.g. 'Apply (saving)'
+ * @param {{name: string, email: string, notify: string,
+ *          autoSave: boolean, confirm: boolean,
+ *          darkMode: boolean}} settings
+ * @returns {Array<string>}
+ */
+function reportLines(heading, settings) {
+  return [
+    '--- ' + heading + ' ---',
+    '  name:     ' + settings.name,
+    '  email:    ' + settings.email,
+    '  notify:   ' + settings.notify,
+    '  autosave: ' + settings.autoSave,
+    '  confirm:  ' + settings.confirm,
+    '  darkmode: ' + settings.darkMode,
+  ];
+}
+
+
+/* ==================================================================
+ * 2. THE DIALOG
+ *
+ * First the gadgets that hold a setting, each given a name. Then the
+ * window, which arranges them in three titled boxes. Read the
+ * `layout:` tree next to the picture at the top of the file.
+ * ================================================================== */
+
+/** Gadget IDs: how an event says which gadget it came from. */
+const ID = {
+  NAME:     1,
+  EMAIL:    2,
+  NOTIFY:   3,
   AUTOSAVE: 10,
   CONFIRM:  11,
   DARKMODE: 12,
-  OK:      100,
-  APPLY:   101,
-  CANCEL:  102,
+  OK:       100,
+  APPLY:    101,
+  CANCEL:   102,
 };
 
-let nameInput  = new StringGadget({ id: GID.NAME,  text: 'Brielle', maxChars: 64 });
-let emailInput = new StringGadget({ id: GID.EMAIL, text: 'me@example.com', maxChars: 128 });
+/**
+ * A titled box with its children stacked inside.
+ *
+ * @param {string} title
+ * @param {...object} children
+ * @returns {Layout}
+ */
+function group(title, ...children) {
+  return new Layout({
+    orientation:  'vertical',
+    innerSpacing: 4,
+    bevelStyle:   BevelStyle.GROUP,
+    label:        title,
+    children,
+  });
+}
 
-let identityGroup = new Layout({
-  orientation: 'vertical',
-  innerSpacing: 4,
-  bevelStyle:  BevelStyle.GROUP,
-  label:       'Identity',
-  children: [
-    new Layout({
-      orientation: 'horizontal', innerSpacing: 4,
-      children: [ new Label({ text: 'Name:'  }), nameInput  ],
-    }),
-    new Layout({
-      orientation: 'horizontal', innerSpacing: 4,
-      children: [ new Label({ text: 'Email:' }), emailInput ],
-    }),
-  ],
+/**
+ * A caption with an entry field to its right.
+ *
+ * @param {string} caption
+ * @param {StringGadget} field
+ * @returns {Layout}
+ */
+function captioned(caption, field) {
+  return new Layout({
+    orientation: 'horizontal', innerSpacing: 4,
+    children: [ new Label({ text: caption }), field ],
+  });
+}
+
+let nameField = new StringGadget({
+  id: ID.NAME, text: 'Brielle', maxChars: 64,
+});
+let emailField = new StringGadget({
+  id: ID.EMAIL, text: 'me@example.com', maxChars: 128,
 });
 
-let notify = new RadioButton({
-  id: GID.NOTIFY,
+let notifyRadio = new RadioButton({
+  id: ID.NOTIFY,
   labels: ['_All', '_Mentions only', 'No_ne'],
-  selected: 0,
+  selectedIx: 0,
 });
 
-let notifyGroup = new Layout({
-  orientation: 'vertical',
-  innerSpacing: 4,
-  bevelStyle:  BevelStyle.GROUP,
-  label:       'Notifications',
-  children: [ notify ],
+let autoSaveBox = new CheckBox({
+  id: ID.AUTOSAVE, text: '_Auto-save', selected: false,
+});
+let confirmBox = new CheckBox({
+  id: ID.CONFIRM, text: '_Confirm on quit', selected: true,
+});
+let darkModeBox = new CheckBox({
+  id: ID.DARKMODE, text: '_Dark mode', selected: false,
 });
 
-let autoSave = new CheckBox({ id: GID.AUTOSAVE, text: '_Auto-save',     selected: false });
-let confirm  = new CheckBox({ id: GID.CONFIRM,  text: '_Confirm on quit', selected: true });
-let darkMode = new CheckBox({ id: GID.DARKMODE, text: '_Dark mode',     selected: false });
-
-let behaviourGroup = new Layout({
-  orientation: 'vertical',
-  innerSpacing: 4,
-  bevelStyle:  BevelStyle.GROUP,
-  label:       'Behaviour',
-  children: [ autoSave, confirm, darkMode ],
-});
-
-let okBtn     = new Button({ id: GID.OK,     text: '_OK' });
-let applyBtn  = new Button({ id: GID.APPLY,  text: 'Appl_y' });
-let cancelBtn = new Button({ id: GID.CANCEL, text: 'Cance_l' });
-
-let buttonRow = new Layout({
-  orientation: 'horizontal', innerSpacing: 6, evenSize: true,
-  children: [ okBtn, applyBtn, cancelBtn ],
-});
-
-let win = new Window({
+let window = new Window({
   title:       'Preferences',
   innerWidth:  340,
   innerHeight: 260,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
+
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 6,
     children: [
-      identityGroup,
-      notifyGroup,
-      behaviourGroup,
-      buttonRow,
+
+      group('Identity',
+        captioned('Name:',  nameField),
+        captioned('Email:', emailField)),
+
+      group('Notifications', notifyRadio),
+
+      group('Behaviour', autoSaveBox, confirmBox, darkModeBox),
+
+      new Layout({
+        orientation: 'horizontal', innerSpacing: 6, evenSize: true,
+        children: [
+          new Button({ id: ID.OK,     text: '_OK' }),
+          new Button({ id: ID.APPLY,  text: 'Appl_y' }),
+          new Button({ id: ID.CANCEL, text: 'Cance_l' }),
+        ],
+      }),
+
     ],
   }),
 });
 
-function readForm() {
-  let labels = ['All', 'Mentions only', 'None'];
+
+/* ==================================================================
+ * 3. THE LOOP
+ *
+ * Nothing on screen needs redrawing here: the gadgets look after
+ * themselves. The loop only waits for one of the three buttons.
+ * ================================================================== */
+
+/**
+ * Read every setting back from its gadget.
+ *
+ * @returns {{name: string, email: string, notify: string,
+ *            autoSave: boolean, confirm: boolean, darkMode: boolean}}
+ */
+function readSettings() {
   return {
-    name:     nameInput.get('text')   || '',
-    email:    emailInput.get('text')  || '',
-    notify:   labels[notify.get('selected') | 0] || '?',
-    autoSave: !!autoSave.get('selected'),
-    confirm:  !!confirm.get('selected'),
-    darkMode: !!darkMode.get('selected'),
+    name:     nameField.get('text')  || '',
+    email:    emailField.get('text') || '',
+    notify:   NOTIFY_NAMES[notifyRadio.get('selectedIx') | 0] || '?',
+    autoSave: !!autoSaveBox.get('selected'),
+    confirm:  !!confirmBox.get('selected'),
+    darkMode: !!darkModeBox.get('selected'),
   };
 }
 
-function dumpForm(label) {
-  let v = readForm();
-  print('--- ' + label + ' ---');
-  print('  name:     ' + v.name);
-  print('  email:    ' + v.email);
-  print('  notify:   ' + v.notify);
-  print('  autosave: ' + v.autoSave);
-  print('  confirm:  ' + v.confirm);
-  print('  darkmode: ' + v.darkMode);
+/**
+ * Print the current settings on the Shell.
+ *
+ * @param {string} heading - what was done
+ * @returns {undefined}
+ */
+function printSettings(heading) {
+  for (let line of reportLines(heading, readSettings())) print(line);
 }
 
-win.open();
+/** What each button does. A handler returns true when the dialog
+ *  should close. */
+const onClick = {
+  [ID.OK]: () => {
+    printSettings('OK (saving + closing)');
+    return true;
+  },
+
+  [ID.APPLY]: () => {
+    printSettings('Apply (saving)');
+    return false;
+  },
+
+  [ID.CANCEL]: () => {
+    print('Cancelled.');
+    return true;
+  },
+};
+
+window.open();
 print('Settings dialog open. Try the controls, then OK / Apply / Cancel.');
 
-let done = false;
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) { print('(closed via gadget)'); break; }
-    if (e.kind === EventKind.BUTTON_CLICK) {
-      switch (e.sourceId) {
-        case GID.OK:     dumpForm('OK (saving + closing)'); done = true; break;
-        case GID.APPLY:  dumpForm('Apply (saving)');                     break;
-        case GID.CANCEL: print('Cancelled.');               done = true; break;
-      }
-      if (done) break;
+  for (let event of window.events()) {
+
+    if (event.kind === EventKind.CLOSE_WINDOW) {
+      print('(closed via gadget)');
+      break;
+    }
+
+    if (event.kind === EventKind.BUTTON_CLICK) {
+      let handler = onClick[event.sourceId];
+      if (handler && handler()) break;
     }
   }
 }
 finally {
-  win.dispose();
+  window.dispose();
 }
+
 print('Bye.');

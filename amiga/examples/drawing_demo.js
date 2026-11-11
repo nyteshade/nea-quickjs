@@ -1,20 +1,31 @@
 /*
- * drawing_demo.js — graphics.library primitives via the Q2 wrapper API.
+ * drawing_demo.js - lines, boxes and text drawn straight into a window.
  *
- * Opens a 400×240 window and draws a grid of shapes using the
- * RastPort instance methods (.setColor/.move/.draw/.rectFill/.text):
- *   - horizontal line
- *   - filled rectangle
- *   - open rectangle outline (4 draw calls)
- *   - cross-hatch (repeated move+draw)
- *   - labeled text
+ * A 400 x 240 window opens and shows one labelled sample of each basic
+ * drawing operation:
  *
- * Each block uses a different pen color. Repaints on
- * IDCMP_REFRESHWINDOW so resizing works cleanly. Exits on close
- * gadget or mouse click.
+ *   Line:      -----------------------------
+ *   Rect:      ############
+ *   Outline:   +---------------------------+
+ *              +---------------------------+
+ *   Hatch:     \\\\\\\\\\
+ *   Click or close to exit.
  *
- * Run:        qjs examples/drawing_demo.js
- * Requires:   quickjs.library 0.127+
+ * All of it is done with five RastPort methods: setColor, move, draw,
+ * rectFill and text. Click in the window or on its close gadget to
+ * quit.
+ *
+ * Assumptions:
+ *   - the default public screen (normally Workbench) is open and big
+ *     enough for a 400 x 240 window placed at 80, 40
+ *   - pens 1, 2 and 3 are visible against the window background. On a
+ *     standard four-colour Workbench they are black, white and blue.
+ *   - the screen's title bar is no taller than about 25 pixels: the
+ *     window is not GimmeZeroZero, so coordinates start at the very
+ *     top left of the frame and the first row is drawn at y = 40
+ *
+ * Requires quickjs.library 0.127+.
+ * Run: qjs examples/drawing_demo.js
  */
 
 import * as std from 'qjs:std';
@@ -24,9 +35,86 @@ if (typeof Intuition !== 'function') {
   std.exit(1);
 }
 
+/** Intuition's constants: WA_ tags, WFLG_ flags and IDCMP_ classes. */
 const C = Intuition.consts;
 
-let win = Intuition.OpenWindowTags([
+/** Pen numbers. The names are what a standard Workbench palette shows;
+ *  another palette draws the same shapes in other colours. */
+const PEN = { BLACK: 1, WHITE: 2, BLUE: 3 };
+
+/** Where things sit across the window, in pixels from its left edge. */
+const LABEL_X     = 10;    /* every label starts here */
+const SHAPE_LEFT  = 80;    /* every shape starts here */
+const SHAPE_RIGHT = 360;   /* the line and the outline end here */
+const RECT_RIGHT  = 200;   /* the filled rectangle is shorter */
+
+/** The text baseline of each row, in pixels from the window's top. */
+const ROW = { LINE: 40, RECT: 80, OUTLINE: 130, HATCH: 180, HINT: 220 };
+
+/** A shape reaches this far above and below its row's baseline. */
+const SHAPE_HALF_HEIGHT = 15;
+
+/** The hatch: this many strokes, this far apart, each leaning this far
+ *  to the right, in pixels. */
+const HATCH_STROKES = 10;
+const HATCH_STEP    = 20;
+const HATCH_LEAN    = 30;
+
+/**
+ * Draw the whole picture. Called once when the window opens and again
+ * whenever Intuition says part of it needs redrawing.
+ *
+ * @param {RastPort} rastPort - the window's RastPort
+ * @returns {undefined}
+ */
+function paint(rastPort) {
+  let top, bottom;
+
+  /* A line: move the pen, then draw to where it should end. */
+  rastPort.setColor(PEN.BLACK);
+  rastPort.text(LABEL_X, ROW.LINE, 'Line:');
+  rastPort.move(SHAPE_LEFT, ROW.LINE);
+  rastPort.draw(SHAPE_RIGHT, ROW.LINE);
+
+  /* A filled rectangle is one call. */
+  top    = ROW.RECT - SHAPE_HALF_HEIGHT;
+  bottom = ROW.RECT + SHAPE_HALF_HEIGHT;
+
+  rastPort.setColor(PEN.WHITE);
+  rastPort.text(LABEL_X, ROW.RECT, 'Rect:');
+  rastPort.rectFill(SHAPE_LEFT, top, RECT_RIGHT, bottom);
+
+  /* An outline is four lines, each starting where the last ended. */
+  top    = ROW.OUTLINE - SHAPE_HALF_HEIGHT;
+  bottom = ROW.OUTLINE + SHAPE_HALF_HEIGHT;
+
+  rastPort.setColor(PEN.BLUE);
+  rastPort.text(LABEL_X, ROW.OUTLINE, 'Outline:');
+  rastPort.move(SHAPE_LEFT,  top);
+  rastPort.draw(SHAPE_RIGHT, top);
+  rastPort.draw(SHAPE_RIGHT, bottom);
+  rastPort.draw(SHAPE_LEFT,  bottom);
+  rastPort.draw(SHAPE_LEFT,  top);
+
+  /* A hatch is the same slanted stroke repeated along the row. */
+  top    = ROW.HATCH - SHAPE_HALF_HEIGHT;
+  bottom = ROW.HATCH + SHAPE_HALF_HEIGHT;
+
+  rastPort.setColor(PEN.BLACK);
+  rastPort.text(LABEL_X, ROW.HATCH, 'Hatch:');
+
+  for (let stroke = 0; stroke < HATCH_STROKES; stroke++) {
+    let x = SHAPE_LEFT + stroke * HATCH_STEP;
+
+    rastPort.move(x, top);
+    rastPort.draw(x + HATCH_LEAN, bottom);
+  }
+
+  rastPort.setColor(PEN.WHITE);
+  rastPort.text(LABEL_X, ROW.HINT, 'Click or close to exit.');
+}
+
+let window = Intuition.OpenWindowTags([
   [C.WA_Left,   80],
   [C.WA_Top,    40],
   [C.WA_Width,  400],
@@ -37,74 +125,36 @@ let win = Intuition.OpenWindowTags([
               | C.IDCMP_REFRESHWINDOW],
 ]);
 
-if (!win) {
+if (!window) {
   print('OpenWindowTags failed');
   std.exit(1);
 }
 
 print('Window open. Click or close to exit.');
 
-let rp = win.rastPort;
+let rastPort = window.rastPort;
 
-/**
- * Redraws the entire content area. Called once at startup and
- * again on every IDCMP_REFRESHWINDOW (window damaged).
- */
-function repaint() {
-  /* Title bar consumes ~16px at top; we start at y=30 to keep
-   * clear. Window is not WFLG_GIMMEZEROZERO so coordinates are
-   * raw window-relative. */
-
-  rp.setColor(1);
-  rp.text(10, 40, 'Line:');
-  rp.move(80, 40);
-  rp.draw(360, 40);
-
-  rp.setColor(2);
-  rp.text(10, 80, 'Rect:');
-  rp.rectFill(80, 65, 200, 95);
-
-  rp.setColor(3);
-  rp.text(10, 130, 'Outline:');
-  rp.move(80, 115);
-  rp.draw(360, 115);
-  rp.draw(360, 145);
-  rp.draw(80, 145);
-  rp.draw(80, 115);
-
-  rp.setColor(1);
-  rp.text(10, 180, 'Hatch:');
-
-  for (let i = 0; i < 10; i++) {
-    let x = 80 + i * 20;
-
-    rp.move(x, 165);
-    rp.draw(x + 30, 195);
-  }
-
-  rp.setColor(2);
-  rp.text(10, 220, 'Click or close to exit.');
-}
-
-repaint();
+paint(rastPort);
 
 try {
-  for (let msg of win.messages()) {
-    if (msg.class === C.IDCMP_CLOSEWINDOW ||
-        msg.class === C.IDCMP_MOUSEBUTTONS) {
+  for (let message of window.messages()) {
+
+    if (message.class === C.IDCMP_CLOSEWINDOW ||
+        message.class === C.IDCMP_MOUSEBUTTONS) {
       break;
     }
 
-    if (msg.class === C.IDCMP_REFRESHWINDOW) {
-      Intuition.BeginRefresh(win);
-      repaint();
-      Intuition.EndRefresh(win, true);
+    if (message.class === C.IDCMP_REFRESHWINDOW) {
+      /* Between BeginRefresh and EndRefresh, drawing is clipped to the
+       * damaged part of the window, so painting everything is cheap. */
+      Intuition.BeginRefresh(window);
+      paint(rastPort);
+      Intuition.EndRefresh(window, true);
     }
   }
 }
-
 finally {
-  win.close();
+  window.close();
 }
 
 print('Clean exit.');

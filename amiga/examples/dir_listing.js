@@ -1,21 +1,33 @@
 /*
- * dir_listing.js — List the contents of a directory using dos.library
- * Lock / Examine / ExNext, printing each entry's name, size, and
- * type (F/D) using the new FileInfoBlock struct wrapper.
+ * dir_listing.js - list a directory, the way the Dir command does.
  *
- * Demonstrates:
- *   - FileInfoBlock struct with BCPL-string decoding for fileName
- *     and comment
- *   - Raw-FFI escape hatch for dos.library LVOs that aren't in the
- *     Dos wrapper yet: Examine (-102) and ExNext (-108) via
- *     amiga.call(DOSBase, amiga.dos.lvo.Examine, {d1: lock, d2: fib.ptr})
- *   - The classic Lock('SYS:', SHARED_LOCK=-2) → Examine → loop of
- *     ExNext until it returns 0 → UnLock flow
+ * Prints one line for each entry in a directory: F or D for file or
+ * drawer, the size in bytes, and the name. With no argument it lists
+ * SYS:.
  *
- * Pass a directory name on the command line, or defaults to SYS:.
+ *   -- Directory "SYS:" (Workbench) --
+ *     D      -  Devs
+ *     F       1234  Disk.info
+ *     ...
+ *   -- 20 entries --
  *
- * Run:        qjs examples/dir_listing.js [path]
- * Requires:   quickjs.library 0.134+
+ * This is the classic dos.library walk: Lock the directory, Examine
+ * it, then call ExNext until it says there is nothing more, and
+ * UnLock. Each call fills in a FileInfoBlock, read here through a
+ * struct wrapper.
+ *
+ * Assumptions:
+ *   - SYS: exists, when no directory is named
+ *   - Examine and ExNext are not in the Dos wrapper, so they are
+ *     called by library offset through amiga.call(); the offsets come
+ *     from the amiga.dos.lvo table, not from numbers typed here
+ *   - the directory holds only files and drawers; a link is listed as
+ *     whichever of the two the sign of its entry type suggests
+ *   - ExNext returning zero is taken to mean "no more entries",
+ *     without asking IoErr() whether it was really an error
+ *
+ * Requires quickjs.library 0.134+.
+ * Run: qjs examples/dir_listing.js [directory=SYS:]
  */
 
 import * as std from 'qjs:std';
@@ -25,93 +37,116 @@ if (typeof FileInfoBlock !== 'function' || typeof Dos !== 'function') {
   std.exit(1);
 }
 
-const path = scriptArgs && scriptArgs[1] ? scriptArgs[1] : 'SYS:';
+/** The directory to list: the first argument, or SYS:. */
+const directory = scriptArgs && scriptArgs[1] ? scriptArgs[1] : 'SYS:';
+
+/** Lock mode that lets others read the directory too. SHARED_LOCK,
+ *  also called ACCESS_READ, from dos/dos.h. */
 const SHARED_LOCK = -2;
 
+/** How wide the size column is for a file, in characters. */
+const SIZE_COLUMN_WIDTH = 10;
+
+/** What a drawer shows in place of a size. */
+const NO_SIZE = '     -';
+
 /**
- * Open a shared lock on `path`.
+ * Get a shared lock on a directory.
  *
- * @param   {string} path
- * @returns {number} BPTR lock, or 0 on failure
+ * @param {string} path - an AmigaDOS path
+ * @returns {number} the lock (a BPTR), or 0 if it could not be had
  */
 function lockSharedFor(path) {
   return Dos.Lock(path, SHARED_LOCK);
 }
 
 /**
- * Call dos.Examine(lock, fib). Wrapper not yet present — use raw
- * call through amiga.call with the FD-derived LVO.
+ * dos.library Examine(): fill `fileInfo` with details of the object
+ * the lock is on.
  *
- * @param   {number}        lock — BPTR
- * @param   {FileInfoBlock} fib
- * @returns {number} non-zero on success
+ * @param {number} lock - a lock (BPTR) from lockSharedFor()
+ * @param {FileInfoBlock} fileInfo - filled in by the call
+ * @returns {number} non-zero if it worked
  */
-function examine(lock, fib) {
+function examine(lock, fileInfo) {
   return amiga.call(
     Dos.ensureLibrary(),
     amiga.dos.lvo.Examine,
-    { d1: lock | 0, d2: fib.ptr | 0 }
+    { d1: lock | 0, d2: fileInfo.ptr | 0 }
   );
 }
 
 /**
- * Call dos.ExNext(lock, fib) to advance to the next entry.
+ * dos.library ExNext(): fill `fileInfo` with details of the next
+ * entry in the directory. It must be the same block that Examine, or
+ * the previous ExNext, filled in.
  *
- * @param   {number}        lock — BPTR
- * @param   {FileInfoBlock} fib
- * @returns {number} 1 if another entry, 0 at end of directory
+ * @param {number} lock - the directory's lock (BPTR)
+ * @param {FileInfoBlock} fileInfo - read, then filled in again
+ * @returns {number} non-zero for an entry, 0 after the last one
  */
-function exNext(lock, fib) {
+function exNext(lock, fileInfo) {
   return amiga.call(
     Dos.ensureLibrary(),
     amiga.dos.lvo.ExNext,
-    { d1: lock | 0, d2: fib.ptr | 0 }
+    { d1: lock | 0, d2: fileInfo.ptr | 0 }
   );
 }
 
-let lock = lockSharedFor(path);
+/**
+ * Whether the entry a FileInfoBlock describes is a drawer. Entry
+ * types above zero are directories; below zero, files.
+ *
+ * @param {FileInfoBlock} fileInfo
+ * @returns {boolean}
+ */
+function isDrawer(fileInfo) {
+  return fileInfo.dirEntryType > 0;
+}
+
+let lock = lockSharedFor(directory);
 
 if (!lock) {
-  print('Cannot lock ' + path + ' (check it exists and is readable)');
+  print('Cannot lock ' + directory + ' (check it exists and is readable)');
   std.exit(1);
 }
 
-let fib = new FileInfoBlock();
+let fileInfo = new FileInfoBlock();
 
 try {
-  if (!examine(lock, fib)) {
-    print('Examine failed on ' + path);
+  if (!examine(lock, fileInfo)) {
+    print('Examine failed on ' + directory);
     std.exit(1);
   }
 
-  /* The first Examine describes the directory itself — print a header. */
-  let kind = fib.dirEntryType > 0 ? 'Directory' : 'File';
+  /* The first Examine describes the directory itself, so it makes the
+   * heading. */
+  let kind = isDrawer(fileInfo) ? 'Directory' : 'File';
 
-  print('-- ' + kind + ' "' + path + '" (' + fib.fileName + ') --');
+  print('-- ' + kind + ' "' + directory + '" (' + fileInfo.fileName +
+        ') --');
 
-  if (fib.dirEntryType <= 0) {
-    print('(Path points at a file; size=' + fib.size + ')');
+  if (fileInfo.dirEntryType <= 0) {
+    print('(Path points at a file; size=' + fileInfo.size + ')');
     std.exit(0);
   }
-  
-  print(fib)
 
   let count = 0;
 
-  while (exNext(lock, fib)) {
-    let tag = fib.dirEntryType > 0 ? 'D' : 'F';
-    let size = fib.dirEntryType > 0 ? '     -' :
-               String(fib.size).padStart(10);
+  while (exNext(lock, fileInfo)) {
+    let tag  = isDrawer(fileInfo) ? 'D' : 'F';
+    let size = isDrawer(fileInfo)
+      ? NO_SIZE
+      : String(fileInfo.size).padStart(SIZE_COLUMN_WIDTH);
 
-    print('  ' + tag + ' ' + size + '  ' + fib.fileName);
+    print('  ' + tag + ' ' + size + '  ' + fileInfo.fileName);
 
     count++;
   }
 
   print('-- ' + count + ' entries --');
 }
-
 finally {
-  fib.free();
+  fileInfo.free();
   Dos.UnLock(lock);
 }

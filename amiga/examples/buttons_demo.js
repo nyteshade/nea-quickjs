@@ -1,57 +1,106 @@
 /*
- * buttons_demo.js — port of Buttons.c.
+ * buttons_demo.js - a row of four buttons that say which one you clicked.
  *
- * A row of four buttons (OK, Cancel, Help, About) over a Bevel-
- * framed message box. Each button prints its ID when clicked.
+ *   +--------------------------------------------+
+ *   | This is a message framed by a BEVEL.       |
+ *   | [  OK  ] [ Cancel ] [  Help  ] [ About ]   |
+ *   +--------------------------------------------+
+ *
+ * Click a button and its name is printed on the Shell. OK and Cancel
+ * also close the window; Help and About only report. A port of the
+ * NDK example Buttons.c.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (normally Workbench), which
+ *     has room for a window 420 pixels wide and 100 high inside
+ *   - window.class, layout.gadget, button.gadget and bevel.image are
+ *     installed in SYS:Classes (Reaction: AmigaOS 3.5 and later)
+ *   - a bevel.image with a label and nothing inside it shows as a
+ *     framed line of text when added to a layout
+ *
+ * Requires quickjs.library 0.156+.
+ * Run: qjs examples/buttons_demo.js
  */
 
-import * as std from 'qjs:std';
-
-const { Window, Layout, Button, Label, Bevel, EventKind, IDCMP,
+const { Window, Layout, Button, Bevel, EventKind, IDCMP,
         WindowPosition, BevelStyle } = amiga.boopsi;
 
-const GID = { OK: 1, CANCEL: 2, HELP: 3, ABOUT: 4 };
+/** Gadget IDs: how an event says which gadget it came from. */
+const ID = { OK: 1, CANCEL: 2, HELP: 3, ABOUT: 4 };
 
-function btn(id, text) { return new Button({ id, text }); }
+/** What the Shell calls each button. */
+const NAMES = {
+  [ID.OK]:     'OK',
+  [ID.CANCEL]: 'Cancel',
+  [ID.HELP]:   'Help',
+  [ID.ABOUT]:  'About',
+};
 
-let msg = new Bevel({
+/**
+ * A plain text button.
+ *
+ * @param {number} id - one of ID
+ * @param {string} text - the label; `_` marks the keyboard shortcut
+ * @returns {Button}
+ */
+function button(id, text) {
+  return new Button({ id, text });
+}
+
+let message = new Bevel({
   style: BevelStyle.FIELD,
   label: 'This is a message framed by a BEVEL.',
 });
-let row = new Layout({
-  orientation: 'horizontal', innerSpacing: 4,
-  children: [
-    btn(GID.OK,     '_OK'),
-    btn(GID.CANCEL, '_Cancel'),
-    btn(GID.HELP,   '_Help'),
-    btn(GID.ABOUT,  '_About'),
-  ],
-});
 
-let win = new Window({
-  title: 'Reaction Buttons',
-  innerWidth: 420, innerHeight: 100,
-  position: WindowPosition.CENTERSCREEN,
-  closeGadget: true, dragBar: true, depthGadget: true, activate: true,
+let window = new Window({
+  title:       'Reaction Buttons',
+  innerWidth:  420,
+  innerHeight: 100,
+  position:    WindowPosition.CENTERSCREEN,
+  closeGadget: true,
+  dragBar:     true,
+  depthGadget: true,
+  activate:    true,
   idcmp: IDCMP.CLOSE_WINDOW | IDCMP.REFRESH_WINDOW | IDCMP.IDCMPUPDATE,
+
   layout: new Layout({
-    orientation: 'vertical', innerSpacing: 4,
-    children: [ msg, row ],
+    orientation: 'vertical',
+    innerSpacing: 4,
+    children: [
+
+      message,
+
+      new Layout({
+        orientation: 'horizontal',
+        innerSpacing: 4,
+        children: [
+          button(ID.OK,     '_OK'),
+          button(ID.CANCEL, '_Cancel'),
+          button(ID.HELP,   '_Help'),
+          button(ID.ABOUT,  '_About'),
+        ],
+      }),
+
+    ],
   }),
 });
 
-win.open();
-print('Click any button.');
+window.open();
+print('Click any button. OK, Cancel or the close gadget quits.');
 
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) break;
-    if (e.kind === EventKind.BUTTON_CLICK) {
-      const names = { 1: 'OK', 2: 'Cancel', 3: 'Help', 4: 'About' };
-      print('Clicked ' + (names[e.sourceId] || '?'));
-      if (e.sourceId === GID.OK || e.sourceId === GID.CANCEL) break;
+  for (let event of window.events()) {
+    if (event.kind === EventKind.CLOSE_WINDOW) break;
+
+    if (event.kind === EventKind.BUTTON_CLICK) {
+      print('Clicked ' + (NAMES[event.sourceId] || '?'));
+
+      if (event.sourceId === ID.OK || event.sourceId === ID.CANCEL) break;
     }
   }
 }
-finally { win.dispose(); }
+finally {
+  window.dispose();
+}
+
 print('Bye.');

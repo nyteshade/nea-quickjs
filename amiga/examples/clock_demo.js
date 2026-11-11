@@ -1,22 +1,38 @@
 /*
- * clock_demo.js — Live digital clock in a window, updated every
- * second via timer.device. Press the close gadget to exit.
+ * clock_demo.js - a window that counts the seconds since it opened.
  *
- * Demonstrates:
- *   - timer.device with TR_ADDREQUEST in ASYNCHRONOUS mode (SendIO
- *     instead of DoIO), so we can Wait on both the window's IDCMP
- *     signal AND the timer's signal at the same time
- *   - Exec.Wait on a combined signal mask and using the return value
- *     to distinguish which signal fired
- *   - MsgPort wrapper's sigMask / sigBit getters alongside a raw
- *     timer port built from AllocSignal
- *   - Clean abort-on-close: AbortIO any pending timer request, then
- *     WaitIO to reclaim the message before closing the device
- *   - Redrawing text on every tick without flicker: clear the old
- *     text rect with rp.rectFill(pen=0), then draw the new digits
+ *   +--------------------------------------+
+ *   | Clock - close to exit                |
+ *   +--------------------------------------+
+ *   | Elapsed since start: 00:01:07        |
+ *   | Close to exit.                       |
+ *   +--------------------------------------+
  *
- * Run:        qjs examples/clock_demo.js
- * Requires:   quickjs.library 0.134+ (TimerRequest wrapper)
+ * The time ticks over once a second for as long as the window is open.
+ * The point of the example is how: the script sleeps on two things at
+ * once, the window's messages and a timer.device request, and wakes
+ * for whichever arrives first. Close the window to quit.
+ *
+ * The file has four parts:
+ *
+ *   1. SETTING UP  - the window, the message port, the timer.
+ *   2. THE TIMER   - asking for a tick, and reading the time.
+ *   3. THE FACE    - drawing the elapsed time.
+ *   4. THE LOOP    - wait for either signal, deal with it, repeat.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (Workbench), which is at
+ *     least 360 x 140 pixels
+ *   - timer.device is present (it is in every Kickstart ROM)
+ *   - ticks come from the vertical-blank unit, so each is accurate to
+ *     about a fiftieth (PAL) or sixtieth (NTSC) of a second
+ *   - the screen font is about 8 pixels high: the two lines of text
+ *     are drawn at fixed positions
+ *   - pen 0 is the window background and pen 1 is visible against it
+ *   - a timer request that has come back does not need ReplyMsg
+ *
+ * Requires quickjs.library 0.213+.
+ * Run: qjs examples/clock_demo.js
  */
 
 import * as std from 'qjs:std';
@@ -28,13 +44,56 @@ if (typeof TimerRequest !== 'function' || typeof Exec !== 'function') {
 
 const C = Intuition.consts;
 
-/* timer.device constants. */
-const UNIT_VBLANK    = 1;   /* 50Hz (PAL) / 60Hz (NTSC) — fine for 1s ticks */
-const TR_ADDREQUEST  = 9;
-const TR_GETSYSTIME  = 11;
-const IOERR_ABORTED  = -2;
+/** Which timer.device unit to open: the one driven by the display's
+ *  vertical blank, 50 Hz (PAL) or 60 Hz (NTSC), which is plenty for
+ *  one-second ticks (devices/timer.h). */
+const UNIT_VBLANK = 1;
 
-let win = Intuition.OpenWindowTags([
+/** timer.device command: "reply to me after this long"
+ *  (devices/timer.h, TR_ADDREQUEST = CMD_NONSTD = 9). */
+const TR_ADDREQUEST = 9;
+
+/** timer.device command that reads the system time into the request
+ *  (devices/timer.h, TR_GETSYSTIME = CMD_NONSTD + 1 = 10). Take care
+ *  with this number: 11 is TR_SETSYSTIME, which sets the clock. */
+const TR_GETSYSTIME = 10;
+
+/* IDCMP class bits, as plain numbers (intuition/intuition.h). The
+ * loop reads a message's class as a raw number, and the entries of
+ * Intuition.consts are enumeration objects that are only equal to
+ * themselves, so the raw number has to be compared with a number. */
+const IDCMP_REFRESHWINDOW_BITS = 0x00000004;
+const IDCMP_CLOSEWINDOW_BITS   = 0x00000200;
+
+/** How often the clock ticks, in seconds. */
+const TICK_SECONDS = 1;
+
+/** Pens: the window background, and the text. */
+const BACKGROUND_PEN = 0;
+const TEXT_PEN       = 1;
+
+/** The area wiped before each redraw: this far in from the window's
+ *  left, right and bottom edges, and starting this far down, below the
+ *  title bar. In pixels. */
+const FACE_MARGIN = 4;
+const FACE_TOP    = 20;
+
+/** Where the two lines of text go, in pixels from the window's top
+ *  left corner. */
+const TEXT_LEFT     = 12;
+const TIME_BASELINE = 40;
+const HINT_BASELINE = 60;
+
+
+/* ==================================================================
+ * 1. SETTING UP
+ *
+ * The window first, then a message port for the timer to reply to,
+ * then the timer request itself. Each step undoes the ones before it
+ * if it fails.
+ * ================================================================== */
+
+let window = Intuition.OpenWindowTags([
   [C.WA_Left,   60],
   [C.WA_Top,    60],
   [C.WA_Width,  300],
@@ -45,108 +104,179 @@ let win = Intuition.OpenWindowTags([
   [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
 ]);
 
-if (!win) {
+if (!window) {
   print('OpenWindowTags failed');
   std.exit(1);
 }
 
-let rp = win.rastPort;
+let rastPort = window.rastPort;
 
-let port = new MsgPort(Exec.CreateMsgPort());
+let timerPort = new MsgPort(Exec.CreateMsgPort());
 
-if (!port.ptr) {
+if (!timerPort.ptr) {
   print('CreateMsgPort failed');
-  win.close();
+  window.close();
   std.exit(1);
 }
 
-let tr = new TimerRequest();
-tr.replyPort  = port.ptr;
-tr.messageLen = TimerRequest.SIZE;
+let timerRequest = new TimerRequest();
+timerRequest.replyPort  = timerPort.ptr;
+timerRequest.messageLen = TimerRequest.SIZE;
 
-let rc = Exec.OpenDevice('timer.device', UNIT_VBLANK, tr, 0);
+let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK, timerRequest, 0);
 
-if (rc !== 0) {
-  print('OpenDevice(timer.device, UNIT_VBLANK) failed rc=' + rc);
-  Exec.DeleteMsgPort(port);
-  tr.free();
-  win.close();
+if (openError !== 0) {
+  print('OpenDevice(timer.device, UNIT_VBLANK) failed rc=' + openError);
+  Exec.DeleteMsgPort(timerPort);
+  timerRequest.free();
+  window.close();
   std.exit(1);
 }
 
-const winSig   = win.userPort.sigMask;
-const timerSig = port.sigMask;
-const sigMask  = winSig | timerSig;
+/* Each port wakes the script with its own signal bit. Waiting on both
+ * bits together is what lets one loop serve the window and the
+ * timer. */
+const windowSignal = window.userPort.sigMask;
+const timerSignal  = timerPort.sigMask;
+const eitherSignal = windowSignal | timerSignal;
+
+
+/* ==================================================================
+ * 2. THE TIMER
+ * ================================================================== */
 
 /**
- * Format a running clock offset in seconds back to HH:MM:SS using
- * the initial system-time sample as the baseline. We use
- * TR_GETSYSTIME so we don't need dos.library DateStamp.
- *
- * @param {number} secs
- * @returns {string}
- */
-function formatHMS(secs) {
-  let s = secs % 60;
-  let m = Math.floor(secs / 60) % 60;
-  let h = Math.floor(secs / 3600) % 24;
-
-  return String(h).padStart(2, '0') + ':' +
-         String(m).padStart(2, '0') + ':' +
-         String(s).padStart(2, '0');
-}
-
-/**
- * Issue a one-shot TR_ADDREQUEST for one second in the future,
- * asynchronously (SendIO, not DoIO). The message returns to our
- * port when time elapses or when we AbortIO it.
+ * Ask for the next tick. SendIO returns at once; the request comes
+ * back to timerPort when the time is up, or when it is aborted.
  *
  * @returns {undefined}
  */
 function scheduleTick() {
-  tr.command = TR_ADDREQUEST;
-  tr.setTimeval(1, 0);
-  Exec.SendIO(tr);
+  timerRequest.command = TR_ADDREQUEST;
+  timerRequest.setTimeval(TICK_SECONDS, 0);
+  Exec.SendIO(timerRequest);
 }
 
 /**
- * Fill a TR_GETSYSTIME to read current system time, blocking.
+ * Read the system time. DoIO waits for the answer.
  *
- * @returns {{secs: number, micro: number}}
+ * @returns {{secs: number, micro: number}} seconds and microseconds
  */
-function readSysTime() {
-  tr.command = TR_GETSYSTIME;
-  tr.setTimeval(0, 0);
-  Exec.DoIO(tr);
-  return { secs: tr.tvSecs, micro: tr.tvMicro };
+function readSystemTime() {
+  timerRequest.command = TR_GETSYSTIME;
+  timerRequest.setTimeval(0, 0);
+  Exec.DoIO(timerRequest);
+
+  return { secs: timerRequest.tvSecs, micro: timerRequest.tvMicro };
 }
 
-/* Read a baseline so subsequent reads yield relative elapsed seconds. */
-const baseline = readSysTime();
+/**
+ * Take every returned request off the timer port. timer.device hands
+ * back the same request that was sent, so there is nothing to reply
+ * to; the request is simply ready to be sent again.
+ *
+ * @returns {undefined}
+ */
+function drainTimerPort() {
+  while (Exec.GetMsg(timerPort) !== 0) {
+    /* nothing to do with it */
+  }
+}
 
-let lastRendered = null;
+
+/* ==================================================================
+ * 3. THE FACE
+ * ================================================================== */
+
+/** The time when the script started. Everything shown is measured
+ *  from here. */
+const startTime = readSystemTime();
+
+/** The text last drawn, so that redraw() can skip a tick that changes
+ *  nothing. null forces the next redraw. */
+let lastDrawn = null;
 
 /**
- * Redraw the clock face. Cheap: fill the whole inside with pen 0
- * then draw a single text line with the current time.
+ * Format a number of seconds as HH:MM:SS. Hours wrap at 24.
+ *
+ * @param {number} totalSeconds
+ * @returns {string}
+ */
+function formatHMS(totalSeconds) {
+  let seconds = totalSeconds % 60;
+  let minutes = Math.floor(totalSeconds / 60) % 60;
+  let hours   = Math.floor(totalSeconds / 3600) % 24;
+
+  return String(hours).padStart(2, '0') + ':' +
+         String(minutes).padStart(2, '0') + ':' +
+         String(seconds).padStart(2, '0');
+}
+
+/**
+ * Draw the elapsed time, if it differs from what is already showing.
+ * Wiping the old text with the background pen first is what stops the
+ * new digits from piling up on top of the old ones.
  *
  * @returns {undefined}
  */
 function redraw() {
-  let now = readSysTime();
-  let elapsed = now.secs - baseline.secs;
-  let hms = formatHMS(elapsed);
+  let now     = readSystemTime();
+  let elapsed = formatHMS(now.secs - startTime.secs);
 
-  if (hms === lastRendered) return;
+  if (elapsed === lastDrawn) return;
+  lastDrawn = elapsed;
 
-  lastRendered = hms;
+  rastPort.setColor(BACKGROUND_PEN);
+  rastPort.rectFill(FACE_MARGIN, FACE_TOP,
+                    window.width - FACE_MARGIN, window.height - FACE_MARGIN);
 
-  rp.setColor(0);
-  rp.rectFill(4, 20, win.width - 4, win.height - 4);
+  rastPort.setColor(TEXT_PEN);
+  rastPort.text(TEXT_LEFT, TIME_BASELINE, 'Elapsed since start: ' + elapsed);
+  rastPort.text(TEXT_LEFT, HINT_BASELINE, 'Close to exit.');
+}
 
-  rp.setColor(1);
-  rp.text(12, 40, 'Elapsed since start: ' + hms);
-  rp.text(12, 60, 'Close to exit.');
+
+/* ==================================================================
+ * 4. THE LOOP
+ *
+ * window.messages() cannot be used here, because it does its own Wait
+ * on the window's signal alone and would sleep through the timer. So
+ * the loop calls Exec.Wait itself, on both signals, and then empties
+ * whichever port woke it.
+ * ================================================================== */
+
+/**
+ * Take every message off the window's port and act on each.
+ *
+ * @returns {boolean} true if the close gadget was among them
+ */
+function drainWindowPort() {
+  let closing = false;
+  let messagePtr;
+
+  while ((messagePtr = Exec.GetMsg(window.userPort)) !== 0) {
+    let message      = new IntuiMessage(messagePtr);
+    let messageClass = message.classRaw;
+
+    /* Reply first: after ReplyMsg the message belongs to Intuition
+     * again, which is why its class was copied out above. */
+    Exec.ReplyMsg(message);
+
+    switch (messageClass) {
+      case IDCMP_CLOSEWINDOW_BITS:
+        closing = true;
+        break;
+
+      case IDCMP_REFRESHWINDOW_BITS:
+        Intuition.BeginRefresh(window);
+        lastDrawn = null;
+        redraw();
+        Intuition.EndRefresh(window, true);
+        break;
+    }
+  }
+
+  return closing;
 }
 
 redraw();
@@ -156,59 +286,29 @@ let running = true;
 
 try {
   while (running) {
-    let got = Exec.Wait(sigMask);
+    let signals = Exec.Wait(eitherSignal);
 
-    if (got & timerSig) {
-      /* Drain the timer port. */
-      let msg;
-
-      while ((msg = Exec.GetMsg(port)) !== 0) {
-        /* timer.device doesn't require ReplyMsg on its returns — it
-         * reuses the IORequest we sent. Just reissue for next tick. */
-      }
-
+    if (signals & timerSignal) {
+      drainTimerPort();
       redraw();
       scheduleTick();
     }
 
-    if (got & winSig) {
-      /* Drain window IDCMP events. Use a raw GetMsg loop rather than
-       * the `for (msg of win.messages())` iterator because that
-       * iterator does its own Wait — we're sharing Wait with the
-       * timer port. */
-      let raw;
-
-      while ((raw = Exec.GetMsg(win.userPort)) !== 0) {
-        let m = new IntuiMessage(raw);
-        let cls = m.classRaw;
-
-        Exec.ReplyMsg(m);
-
-        if (cls === 0x00000200 /* IDCMP_CLOSEWINDOW */) {
-          running = false;
-        }
-
-        else if (cls === 0x00000004 /* IDCMP_REFRESHWINDOW */) {
-          Intuition.BeginRefresh(win);
-          lastRendered = null;  /* force full redraw */
-          redraw();
-          Intuition.EndRefresh(win, true);
-        }
-      }
+    if (signals & windowSignal) {
+      if (drainWindowPort()) running = false;
     }
   }
 }
-
 finally {
-  /* Abort any still-pending timer request, then wait for it to
-   * return, THEN close the device. Otherwise timer.device could
-   * complete the request into a freed reply port. */
-  Exec.AbortIO(tr);
-  Exec.WaitIO(tr);
-  Exec.CloseDevice(tr);
-  Exec.DeleteMsgPort(port);
-  tr.free();
-  win.close();
+  /* A tick is always outstanding here. Abort it and wait for it to
+   * come back before closing the device; otherwise timer.device could
+   * later return it to a port that no longer exists. */
+  Exec.AbortIO(timerRequest);
+  Exec.WaitIO(timerRequest);
+  Exec.CloseDevice(timerRequest);
+  Exec.DeleteMsgPort(timerPort);
+  timerRequest.free();
+  window.close();
 }
 
 print('Clean exit.');

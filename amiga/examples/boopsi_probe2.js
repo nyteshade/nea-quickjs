@@ -1,15 +1,47 @@
 /*
- * boopsi_probe2.js — drives the BOOPSI JS wrappers one class at a
- * time to localize where react_hello Gurus.
+ * boopsi_probe2.js - which wrapper class makes react_hello.js crash?
  *
- * Run:  qjs examples/boopsi_probe2.js
+ * Builds the pieces of react_hello.js one at a time through the BOOPSI
+ * wrapper classes, in steps A to G: a Label, a Button, an empty Layout,
+ * a Layout with one child, one with three, an unopened Window, and
+ * finally a Window that is opened and closed again at once. Each step
+ * is announced before it runs and prints the object pointers it got.
+ * Nothing to click: the window in step G flashes up and goes. If the
+ * machine stops with a Guru, the last "=== X:" line names the step. A
+ * clean run ends with "=== ALL STEPS PASSED ===".
+ *
+ * Assumptions:
+ *   - label.image, button.gadget, layout.gadget and window.class are
+ *     installed
+ *   - the window opens on the default public screen, which has room
+ *     for a 200 x 80 window
+ *   - disposing a Layout or Window disposes the children it was given
+ *   - the Label and Button of steps A and B are never attached to
+ *     anything and are not disposed
+ *
+ * Background: follows boopsi_probe.js, which makes a label.image with
+ * raw library calls only. This one goes through the wrappers instead,
+ * to find which class, or which combination, brings the machine down.
+ *
+ * Requires quickjs.library 0.153+.
+ * Run: qjs examples/boopsi_probe2.js
  */
 
-import * as std from 'qjs:std';
-
+/**
+ * Format a number as eight hex digits with a 0x prefix.
+ * @param {number} n  value; treated as an unsigned 32-bit integer
+ * @returns {string} for example "0x00c0ffee"
+ */
 function hex(n) { return '0x' + ((n >>> 0).toString(16).padStart(8, '0')); }
 
 const { Window, Layout, Button, Label } = amiga.boopsi;
+
+/* IDCMP flags asked for in step G. The first two are from
+ * intuition/intuition.h. The third is kept exactly as it was typed:
+ * that header defines no IDCMP flag with the value 0x40000000. */
+const IDCMP_CLOSEWINDOW   = 0x00000200;
+const IDCMP_REFRESHWINDOW = 0x00000004;
+const IDCMP_BIT_30        = 0x40000000;
 
 print('=== A: new Label({text:"Hello"}) via BOOPSI wrapper ===');
 let lbl = new Label({ text: 'Hello' });
@@ -24,7 +56,8 @@ let lay = new Layout({ orientation: 'vertical' });
 print('    layout.ptr = ' + hex(lay.ptr));
 lay.dispose();
 
-print('=== D: new Layout({children:[label]}) - one child via _extraPairs ===');
+print('=== D: new Layout({children:[label]}) - ' +
+      'one child via _extraPairs ===');
 let lbl2 = new Label({ text: 'child' });
 print('    child.ptr = ' + hex(lbl2.ptr));
 let lay2 = new Layout({
@@ -34,7 +67,8 @@ let lay2 = new Layout({
 print('    layout.ptr = ' + hex(lay2.ptr));
 lay2.dispose();
 
-print('=== E: new Layout({children:[label, button, button]}) - three children ===');
+print('=== E: new Layout({children:[label, button, button]}) - ' +
+      'three children ===');
 let lbl3 = new Label({ text: 'x' });
 let btn3 = new Button({ id: 1, text: 'a' });
 let btn4 = new Button({ id: 2, text: 'b' });
@@ -49,7 +83,8 @@ let lay3 = new Layout({
 print('    layout.ptr = ' + hex(lay3.ptr));
 lay3.dispose();
 
-print('=== F: new Window({title, innerWidth, innerHeight, layout}) - no open ===');
+print('=== F: new Window({title, innerWidth, innerHeight, layout}) - ' +
+      'no open ===');
 let lbl4 = new Label({ text: 'hi' });
 let lay4 = new Layout({ orientation: 'vertical', children: [lbl4] });
 let w = new Window({
@@ -74,7 +109,7 @@ let w2 = new Window({
   dragBar:      true,
   depthGadget:  true,
   activate:     true,
-  idcmp:        0x00000200 | 0x00000004 | 0x40000000,
+  idcmp:        IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_BIT_30,
   layout:       lay5,
 });
 print('    window.ptr (unopened) = ' + hex(w2.ptr));

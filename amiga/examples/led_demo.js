@@ -1,80 +1,140 @@
 /*
- * led_demo.js — port of LED.c.
+ * led_demo.js - a six-digit LED readout with a Reset button.
  *
- * Uses led.image as a live numeric readout. The LED digits count up
- * once per second via setTimeout, and a button resets to zero.
+ *   +---------------------------+
+ *   | Reaction LED              |
+ *   +---------------------------+
+ *   |         00 00 00          |
+ *   | [   Reset   ] [   Quit  ] |
+ *   +---------------------------+
+ *
+ * A window opens showing six seven-segment digits drawn by led.image,
+ * all zero. Reset writes zeros to the display again; Quit or the close
+ * gadget ends the demo. The counter does not advance in this version:
+ * the loop sleeps until the window has an event and nothing wakes it
+ * to count, so the digits stay at zero. A port of the NDK's LED.c.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (Workbench), centred
+ *   - window.class, layout.gadget, button.gadget and led.image are
+ *     installed (standard from OS 3.2; earlier with ClassAct/Reaction)
+ *   - an inside of 260 x 80 pixels is enough for the digits and both
+ *     buttons
+ *   - a led.image can be given to a layout directly as a child
+ *   - led.image keeps the pointer it is given rather than copying the
+ *     digits, so the buffer has to stay allocated until the window is
+ *     disposed
+ *   - setting the image's `values` again is enough to make it redraw
+ *   - amiga.allocMem returns zeroed memory, and does not fail
  *
  * Requires quickjs.library 0.148+.
+ * Run: qjs examples/led_demo.js
  */
 
-import * as std from 'qjs:std';
-
-const { Window, Layout, Button, Led, Label, EventKind, IDCMP,
+const { Window, Layout, Button, Led, EventKind, IDCMP,
         WindowPosition } = amiga.boopsi;
 
-const GID = { RESET: 1, QUIT: 2 };
+/** Gadget IDs: how an event says which gadget it came from. */
+const ID = { RESET: 1, QUIT: 2 };
 
-let counter = 0;
+/** The display has this many pairs of digits. */
+const PAIR_COUNT  = 3;
+const DIGIT_COUNT = 6;
 
-/* Build a 6-byte values buffer for 3-pair (= 6-digit) display.
- * amiga.allocMem returns zeroed memory by default. */
-let valuesBuf = amiga.allocMem(8);
+/** Size of the buffer the digits live in, in bytes. */
+const DIGIT_BUFFER_BYTES = 8;
 
-function writeDigits(buf, n) {
-  /* 3 pairs, 6 digits total, most-significant first. */
-  for (let i = 5; i >= 0; i--) {
-    amiga.poke8(buf + i, n % 10);
-    n = Math.floor(n / 10);
+/**
+ * Write a number into the digit buffer, one byte per decimal digit,
+ * most significant first.
+ *
+ * FIXME: images/led.h describes LED_Values as an array of WORDs, one
+ * per pair, not a byte per digit. It makes no difference while every
+ * digit is zero. Kept as it has always been in this example and
+ * reported, not changed.
+ *
+ * @param {number} buffer - address of at least DIGIT_COUNT bytes
+ * @param {number} value - a whole number, 0 to 999999
+ * @returns {undefined}
+ */
+function writeDigits(buffer, value) {
+  let rest = value;
+
+  for (let index = DIGIT_COUNT - 1; index >= 0; index--) {
+    amiga.poke8(buffer + index, rest % 10);
+    rest = Math.floor(rest / 10);
   }
 }
-writeDigits(valuesBuf, 0);
 
-let led = new Led({ pairs: 3, values: valuesBuf });
+/** The number on the display. */
+let counter = 0;
 
-let reset = new Button({ id: GID.RESET, text: '_Reset' });
-let quit  = new Button({ id: GID.QUIT,  text: '_Quit'  });
+let digitBuffer = amiga.allocMem(DIGIT_BUFFER_BYTES);
+writeDigits(digitBuffer, 0);
 
-let win = new Window({
+let display = new Led({ pairs: PAIR_COUNT, values: digitBuffer });
+
+let resetButton = new Button({ id: ID.RESET, text: '_Reset' });
+let quitButton  = new Button({ id: ID.QUIT,  text: '_Quit'  });
+
+let window = new Window({
   title:       'Reaction LED',
   innerWidth:  260,
   innerHeight: 80,
   position:    WindowPosition.CENTERSCREEN,
-  closeGadget: true, dragBar: true, depthGadget: true, activate: true,
+  closeGadget: true,
+  dragBar:     true,
+  depthGadget: true,
+  activate:    true,
   idcmp: IDCMP.CLOSE_WINDOW | IDCMP.REFRESH_WINDOW | IDCMP.IDCMPUPDATE,
+
   layout: new Layout({
-    orientation: 'vertical', innerSpacing: 4,
+    orientation: 'vertical',
+    innerSpacing: 4,
     children: [
-      led,
+
+      display,
+
       new Layout({
-        orientation: 'horizontal', innerSpacing: 4,
-        children: [ reset, quit ],
+        orientation: 'horizontal',
+        innerSpacing: 4,
+        children: [resetButton, quitButton],
       }),
+
     ],
   }),
 });
 
-win.open();
+/**
+ * Put the counter back to zero and show it.
+ *
+ * @returns {undefined}
+ */
+function resetCounter() {
+  counter = 0;
+  writeDigits(digitBuffer, counter);
+
+  /* The image does not notice the buffer changing under it. Handing
+   * it the same pointer again makes it draw the new digits. */
+  display.set({ values: digitBuffer });
+}
+
+window.open();
 print('Counter starts; click Reset to zero it, Quit to exit.');
 
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) break;
-    if (e.kind === EventKind.BUTTON_CLICK) {
-      if (e.sourceId === GID.QUIT)  break;
-      if (e.sourceId === GID.RESET) {
-        counter = 0;
-        writeDigits(valuesBuf, counter);
-        /* Force re-render — easiest way is to re-set LED_Values. */
-        led.set({ values: valuesBuf });
-      }
+  for (let event of window.events()) {
+    if (event.kind === EventKind.CLOSE_WINDOW) break;
+
+    if (event.kind === EventKind.BUTTON_CLICK) {
+      if (event.sourceId === ID.QUIT)  break;
+      if (event.sourceId === ID.RESET) resetCounter();
     }
-    /* This loop blocks on Wait(), so auto-incrementing without a
-     * timer.device signal requires setTimeout hookup (library
-     * 0.097+ exposes it via the VBlank task). */
   }
 }
 finally {
-  win.dispose();
-  amiga.freeMem(valuesBuf, 8);
+  window.dispose();
+  amiga.freeMem(digitBuffer, DIGIT_BUFFER_BYTES);
 }
+
 print('Bye.');

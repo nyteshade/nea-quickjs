@@ -1,22 +1,24 @@
 /*
- * font_loader.js — Open a disk font by name, install it on a
- * window's RastPort, and draw a pangram line in that font.
+ * font_loader.js - load a disk font by name and draw sample text in it.
  *
- * Demonstrates:
- *   - TextAttr constructor (constructable struct): allocate a fresh
- *     8-byte TextAttr, point its ta_Name at an owned C-string, set
- *     ta_YSize, hand to Diskfont
- *   - amiga.Diskfont.OpenDiskFont wrapper
- *   - Graphics.SetFont to install a loaded TextFont* on the RastPort
- *   - Raw-FFI escape hatch for graphics.library CloseFont (not yet
- *     in the Graphics wrapper)
- *   - Ownership discipline: pokeString-allocated name gets freed at
- *     shutdown, CloseFont matches OpenDiskFont
+ * A window opens showing two pangrams, the digits and some punctuation
+ * in the chosen font, with the font's name and size underneath. Try it
+ * with other fonts from FONTS: to compare them. Close the window to
+ * quit.
  *
- * Run:        qjs examples/font_loader.js [fontname.font] [size]
- * Example:    qjs examples/font_loader.js topaz.font 11
- *             qjs examples/font_loader.js courier.font 13
- * Requires:   quickjs.library 0.135+ (adds Diskfont wrapper)
+ * Assumptions:
+ *   - opens on the default public screen (Workbench), which is at
+ *     least 560 x 220 pixels
+ *   - diskfont.library is installed (standard Workbench)
+ *   - the named font exists in FONTS: at the size asked for; the
+ *     default, topaz.font 11, ships with Workbench. If it cannot be
+ *     opened the script says so and stops.
+ *   - pen 1 is visible against the window background
+ *   - the font is small enough for the lines to fit: they are drawn
+ *     at fixed positions, 20 pixels apart
+ *
+ * Requires quickjs.library 0.135+.
+ * Run: qjs examples/font_loader.js [fontname.font=topaz.font] [size=11]
  */
 
 import * as std from 'qjs:std';
@@ -28,122 +30,164 @@ if (typeof Diskfont !== 'function' || typeof TextAttr !== 'function') {
 
 const C = Intuition.consts;
 
-const fontName = (scriptArgs && scriptArgs[1]) || 'topaz.font';
-const fontSize = parseInt((scriptArgs && scriptArgs[2]) || '11', 10);
+const DEFAULT_FONT_NAME = 'topaz.font';
+const DEFAULT_FONT_SIZE = '11';
 
-print('Loading "' + fontName + '" at ' + fontSize + 'pt...');
+const fontName = (scriptArgs && scriptArgs[1]) || DEFAULT_FONT_NAME;
+const fontSize = parseInt((scriptArgs && scriptArgs[2]) || DEFAULT_FONT_SIZE,
+                          10);
+
+/** What the window title and the last-but-one line both say. */
+const fontCaption = 'Font: ' + fontName + ' @ ' + fontSize + 'pt';
+
+/** Byte offsets of the fields of struct TextAttr (graphics/text.h). */
+const TA_NAME  = 0;   /* STRPTR ta_Name  */
+const TA_YSIZE = 4;   /* UWORD  ta_YSize */
+const TA_STYLE = 6;   /* UBYTE  ta_Style */
+const TA_FLAGS = 7;   /* UBYTE  ta_Flags */
+
+/** ta_Style: plain text (FS_NORMAL, graphics/text.h). */
+const FS_NORMAL = 0;
+
+/** ta_Flags: no preference about where the font comes from. */
+const ANY_FONT_FLAGS = 0;
+
+/** The pen the text is drawn with. */
+const TEXT_PEN = 1;
+
+/** Left edge of every line of text, in pixels from the window edge. */
+const TEXT_LEFT = 10;
+
+/** What is drawn, and the baseline of each line in pixels from the top
+ *  of the window. */
+const LINES = [
+  { y: 40,  text: 'The quick brown fox jumps over the lazy dog.' },
+  { y: 60,  text: 'Pack my box with five dozen liquor jugs.' },
+  { y: 80,  text: '0 1 2 3 4 5 6 7 8 9   ! @ # $ % ^ & * ( ) - _ = +' },
+  { y: 120, text: fontCaption },
+  { y: 140, text: 'Close window to exit.' },
+];
 
 /**
- * Build a fresh TextAttr describing the desired font. The string
- * passed to ta_Name is allocated here; free it when done via the
- * returned {ta, nameAlloc} handle.
+ * Build a TextAttr describing the wanted font. The name is copied into
+ * memory allocated here, which the caller frees once the TextAttr is
+ * no longer needed.
  *
- * @param   {string} name — e.g. "topaz.font"
- * @param   {number} size — point size
- * @returns {{ta: TextAttr, nameAlloc: {ptr: number, size: number}}}
+ * @param {string} name - e.g. "topaz.font"
+ * @param {number} size - height in pixels
+ * @returns {{textAttr: TextAttr, nameAlloc: {ptr: number, size: number}}}
  */
 function makeTextAttr(name, size) {
-  let ta = new TextAttr();
+  let textAttr = new TextAttr();
 
-  let bytes = name.length + 1;
-  let ptr = amiga.allocMem(bytes);
+  let bytes = name.length + 1;        /* the name and its NUL */
+  let ptr   = amiga.allocMem(bytes);
 
   if (!ptr) {
-    ta.free();
+    textAttr.free();
     throw new Error('allocMem failed for font name');
   }
 
   amiga.pokeString(ptr, name);
-  ta.write32(0, ptr);       /* ta_Name */
-  ta.write16(4, size);      /* ta_YSize */
-  ta.write8(6, 0);          /* ta_Style — FS_NORMAL */
-  ta.write8(7, 0);          /* ta_Flags — FPF_ROMFONT=1 etc., 0=don't care */
 
-  return { ta, nameAlloc: { ptr, size: bytes } };
+  textAttr.write32(TA_NAME,  ptr);
+  textAttr.write16(TA_YSIZE, size);
+  textAttr.write8(TA_STYLE,  FS_NORMAL);
+  textAttr.write8(TA_FLAGS,  ANY_FONT_FLAGS);
+
+  return { textAttr, nameAlloc: { ptr, size: bytes } };
 }
 
 /**
- * graphics.library CloseFont — not wrapped yet. LVO -78.
+ * Close a font opened with OpenDiskFont. graphics.library CloseFont
+ * has no method on the Graphics wrapper yet, so it is called directly.
  *
- * @param {number} font — TextFont* pointer
+ * @param {number} fontPtr - struct TextFont pointer; 0 does nothing
  * @returns {undefined}
  */
-function closeFont(font) {
-  if (!font) return;
+function closeFont(fontPtr) {
+  if (!fontPtr) return;
+
   amiga.call(Graphics.ensureLibrary(), amiga.graphics.lvo.CloseFont,
-    { a1: font });
+    { a1: fontPtr });
 }
 
-let { ta, nameAlloc } = makeTextAttr(fontName, fontSize);
+/**
+ * Release the TextAttr and the name it points at.
+ *
+ * @returns {undefined}
+ */
+function freeTextAttr() {
+  amiga.freeMem(nameAlloc.ptr, nameAlloc.size);
+  textAttr.free();
+}
 
-let font = Diskfont.OpenDiskFont(ta);
+/**
+ * Draw every line in the loaded font.
+ *
+ * @returns {undefined}
+ */
+function repaint() {
+  Graphics.SetFont(rastPort, font);
+
+  rastPort.setColor(TEXT_PEN);
+  for (let line of LINES) rastPort.text(TEXT_LEFT, line.y, line.text);
+}
+
+print('Loading "' + fontName + '" at ' + fontSize + 'pt...');
+
+let { textAttr, nameAlloc } = makeTextAttr(fontName, fontSize);
+
+let font = Diskfont.OpenDiskFont(textAttr);
 
 if (!font) {
   print('OpenDiskFont failed - is "' + fontName +
         '" in FONTS:? Does size ' + fontSize + ' exist?');
-  amiga.freeMem(nameAlloc.ptr, nameAlloc.size);
-  ta.free();
+  freeTextAttr();
   std.exit(1);
 }
 
 print('Loaded. Opening demo window...');
 
-let win = Intuition.OpenWindowTags([
+let window = Intuition.OpenWindowTags([
   [C.WA_Left,   40],
   [C.WA_Top,    40],
   [C.WA_Width,  520],
   [C.WA_Height, 180],
-  [C.WA_Title,  'Font: ' + fontName + ' @ ' + fontSize + 'pt'],
+  [C.WA_Title,  fontCaption],
   [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
               | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
   [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
 ]);
 
-if (!win) {
+if (!window) {
   print('OpenWindowTags failed');
   closeFont(font);
-  amiga.freeMem(nameAlloc.ptr, nameAlloc.size);
-  ta.free();
+  freeTextAttr();
   std.exit(1);
 }
 
-let rp = win.rastPort;
-
-/**
- * Repaint the window using the loaded font.
- *
- * @returns {undefined}
- */
-function repaint() {
-  Graphics.SetFont(rp, font);
-
-  rp.setColor(1);
-  rp.text(10, 40, 'The quick brown fox jumps over the lazy dog.');
-  rp.text(10, 60, 'Pack my box with five dozen liquor jugs.');
-  rp.text(10, 80, '0 1 2 3 4 5 6 7 8 9   ! @ # $ % ^ & * ( ) - _ = +');
-  rp.text(10, 120, 'Font: ' + fontName + ' @ ' + fontSize + 'pt');
-  rp.text(10, 140, 'Close window to exit.');
-}
+let rastPort = window.rastPort;
 
 try {
   repaint();
 
-  for (let msg of win.messages()) {
-    if (msg.class === C.IDCMP_CLOSEWINDOW) break;
+  for (let message of window.messages()) {
+    if (message.class === C.IDCMP_CLOSEWINDOW) break;
 
-    if (msg.class === C.IDCMP_REFRESHWINDOW) {
-      Intuition.BeginRefresh(win);
+    if (message.class === C.IDCMP_REFRESHWINDOW) {
+      Intuition.BeginRefresh(window);
       repaint();
-      Intuition.EndRefresh(win, true);
+      Intuition.EndRefresh(window, true);
     }
   }
 }
-
 finally {
-  win.close();
+  /* The window goes first, so nothing is still drawing with the font
+   * when it is closed. */
+  window.close();
   closeFont(font);
-  amiga.freeMem(nameAlloc.ptr, nameAlloc.size);
-  ta.free();
+  freeTextAttr();
 }
 
 print('Clean exit.');

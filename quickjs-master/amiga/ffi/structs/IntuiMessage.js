@@ -82,6 +82,18 @@ Typical use:
     return raw;
   }
 
+  /**
+   * Reinterpret an unsigned 16-bit read as a signed WORD. MouseX and
+   * MouseY are WORDs: left of or above the window they are negative,
+   * and read unsigned they came out near 65535 (until 0.213).
+   *
+   * @param {number} value - 0..65535
+   * @returns {number} -32768..32767
+   */
+  static _signed16(value) {
+    return value > 32767 ? value - 65536 : value;
+  }
+
   /** @returns {number} same as `class` but always the raw flag */
   get classRaw() { return this.read32(20); }
 
@@ -95,10 +107,10 @@ Typical use:
   get iAddress()  { return this.read32(28); }
 
   /** @returns {number} */
-  get mouseX()    { return this.read16(32); }
+  get mouseX()    { return IntuiMessage._signed16(this.read16(32)); }
 
   /** @returns {number} */
-  get mouseY()    { return this.read16(34); }
+  get mouseY()    { return IntuiMessage._signed16(this.read16(34)); }
 
   /** @returns {number} */
   get seconds()   { return this.read32(36); }

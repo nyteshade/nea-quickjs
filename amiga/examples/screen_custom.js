@@ -1,21 +1,31 @@
 /*
- * screen_custom.js — Open a custom 4-color screen, park a window on
- * it, paint a few primitives into the window's RastPort, wait for a
- * close click, tear down cleanly.
+ * screen_custom.js - a screen of our own, with one window drawn into.
  *
- * Demonstrates:
- *   - Intuition.OpenScreenTags([...]) → returns a Screen wrapper
- *   - Intuition.OpenWindowTags with WA_CustomScreen pinning a window
- *     to our screen rather than the Workbench public screen
- *   - Orderly shutdown: Window first, Screen second, and an `avail
- *     FLUSH`-safe cleanup if OpenWindow fails after OpenScreen
- *     succeeded
- *   - RastPort drawing via instance methods (rp.setColor/rectFill/
- *     text/move/draw) — same API as drawing_demo but targeting a
- *     custom screen instead of Workbench
+ * A new 320 x 200, four-colour screen opens in front of Workbench. On
+ * it sits a window with a line of text, a filled box and an outlined
+ * box:
  *
- * Run:        qjs examples/screen_custom.js
- * Requires:   quickjs.library 0.130+
+ *   +-- Hello, Custom Screen -------------+
+ *   | Hello from a custom screen!         |
+ *   | ##########                          |
+ *   | +-------------------------------+   |
+ *   | +-------------------------------+   |
+ *   | Close to exit.                      |
+ *   +-------------------------------------+
+ *
+ * Close the window and both it and the screen go away. The order
+ * matters: the window is closed first, then the screen it lives on.
+ *
+ * Assumptions:
+ *   - the machine can show a 320 x 200 screen in its default display
+ *     mode; no mode is asked for
+ *   - pens 1, 2 and 3 of the new screen's default palette are visible
+ *     against pen 0, the background
+ *   - the screen's font is small enough that the window's title bar
+ *     ends above y = 20, where the first line of text is drawn
+ *
+ * Requires quickjs.library 0.130+.
+ * Run: qjs examples/screen_custom.js
  */
 
 import * as std from 'qjs:std';
@@ -25,14 +35,20 @@ if (typeof Intuition !== 'function') {
   std.exit(1);
 }
 
+/** Intuition's constants: SA_ and WA_ tags, WFLG_ flags, IDCMP_
+ *  classes. */
 const C = Intuition.consts;
 
+/** Bitplanes in the screen: 2 planes give 4 colours. */
+const SCREEN_DEPTH = 2;
+
+/** The pens used, by what each is used for. */
+const PEN = { TEXT: 1, FILL: 2, OUTLINE: 3 };
+
 /**
- * Open our custom screen with conservative settings (320x200, depth 2
- * = 4 colors, WBENCHSCREEN type so Intuition auto-attaches a menu bar
- * if we asked for one — we don't).
+ * Open the custom screen.
  *
- * @returns {Screen|null} the opened Screen wrapper, or null on failure
+ * @returns {Screen|null} the screen, or null if it could not be opened
  */
 function openCustomScreen() {
   return Intuition.OpenScreenTags([
@@ -40,17 +56,17 @@ function openCustomScreen() {
     [C.SA_Top,    0],
     [C.SA_Width,  320],
     [C.SA_Height, 200],
-    [C.SA_Depth,  2],
+    [C.SA_Depth,  SCREEN_DEPTH],
     [C.SA_Title,  'QJS Custom Screen'],
     [C.SA_Type,   C.CUSTOMSCREEN],
   ]);
 }
 
 /**
- * Open a window pinned to the given custom screen.
+ * Open a window on the given screen instead of on Workbench.
  *
- * @param   {Screen} screen — screen wrapper returned by OpenScreenTags
- * @returns {Window|null}
+ * @param {Screen} screen - the screen from openCustomScreen()
+ * @returns {Window|null} the window, or null if it could not be opened
  */
 function openWindowOnScreen(screen) {
   return Intuition.OpenWindowTags([
@@ -59,7 +75,10 @@ function openWindowOnScreen(screen) {
     [C.WA_Width,        280],
     [C.WA_Height,       160],
     [C.WA_Title,        'Hello, Custom Screen'],
+
+    /* This tag is what puts the window on our screen. */
     [C.WA_CustomScreen, screen.ptr],
+
     [C.WA_Flags,        C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
                       | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
     [C.WA_IDCMP,        C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
@@ -67,30 +86,33 @@ function openWindowOnScreen(screen) {
 }
 
 /**
- * Paint the demo content into the window. Called at startup and on
- * every IDCMP_REFRESHWINDOW so a drag/resize redraws cleanly.
+ * Draw the window's contents. Called once when the window opens and
+ * again whenever Intuition says part of it needs redrawing. The
+ * coordinates are pixels from the window's top left corner.
  *
- * @param {Window} win
+ * @param {Window} window
  * @returns {undefined}
  */
-function repaint(win) {
-  let rp = win.rastPort;
+function paint(window) {
+  let rastPort = window.rastPort;
 
-  rp.setColor(1);
-  rp.text(10, 20, 'Hello from a custom screen!');
+  rastPort.setColor(PEN.TEXT);
+  rastPort.text(10, 20, 'Hello from a custom screen!');
 
-  rp.setColor(2);
-  rp.rectFill(10, 40, 120, 80);
+  rastPort.setColor(PEN.FILL);
+  rastPort.rectFill(10, 40, 120, 80);
 
-  rp.setColor(3);
-  rp.move(10, 100);
-  rp.draw(260, 100);
-  rp.draw(260, 140);
-  rp.draw(10, 140);
-  rp.draw(10, 100);
+  /* The outlined box: four lines, each starting where the last
+   * ended. */
+  rastPort.setColor(PEN.OUTLINE);
+  rastPort.move(10, 100);
+  rastPort.draw(260, 100);
+  rastPort.draw(260, 140);
+  rastPort.draw(10, 140);
+  rastPort.draw(10, 100);
 
-  rp.setColor(1);
-  rp.text(10, 155, 'Close to exit.');
+  rastPort.setColor(PEN.TEXT);
+  rastPort.text(10, 155, 'Close to exit.');
 }
 
 let screen = openCustomScreen();
@@ -101,11 +123,12 @@ if (!screen) {
 }
 
 print('Custom screen open: ' + screen.width + 'x' + screen.height +
-      ' depth=2 ("' + screen.title + '")');
+      ' depth=' + SCREEN_DEPTH + ' ("' + screen.title + '")');
 
-let win = openWindowOnScreen(screen);
+let window = openWindowOnScreen(screen);
 
-if (!win) {
+if (!window) {
+  /* The screen did open, so it must not be left behind. */
   print('OpenWindowTags failed - closing screen and exiting');
   Intuition.CloseScreen(screen);
   std.exit(1);
@@ -114,23 +137,23 @@ if (!win) {
 print('Window open. Close the window to exit.');
 
 try {
-  repaint(win);
+  paint(window);
 
-  for (let msg of win.messages()) {
-    if (msg.class === C.IDCMP_CLOSEWINDOW) {
-      break;
-    }
+  for (let message of window.messages()) {
 
-    if (msg.class === C.IDCMP_REFRESHWINDOW) {
-      Intuition.BeginRefresh(win);
-      repaint(win);
-      Intuition.EndRefresh(win, true);
+    if (message.class === C.IDCMP_CLOSEWINDOW) break;
+
+    if (message.class === C.IDCMP_REFRESHWINDOW) {
+      Intuition.BeginRefresh(window);
+      paint(window);
+      Intuition.EndRefresh(window, true);
     }
   }
 }
-
 finally {
-  win.close();
+  /* Window first, then the screen: a screen will not close while a
+   * window is still open on it. */
+  window.close();
   Intuition.CloseScreen(screen);
 }
 

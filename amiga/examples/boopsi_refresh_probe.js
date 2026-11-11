@@ -1,29 +1,44 @@
 /*
- * boopsi_refresh_probe.js — minimal happy-path for runtime text
- * updates. Opens a tiny window with one read-only StringGadget
- * (canonical OS3.2 widget for mutable text), a "Next" button, and a
- * "Quit" button. Each Next click cycles the StringGadget through a
- * short list of sample strings.
+ * boopsi_refresh_probe.js - does setting a gadget's text redraw it cleanly?
  *
- * Clean replace on every click confirms the gadget-path of
- * BOOPSIBase.set() (SetGadgetAttrsA) is doing its refresh job
- * correctly. Use this as a regression probe when touching
- * BOOPSIBase, Layout, or StringGadget.
+ * Opens a small window with one read-only StringGadget, a "Next" button
+ * and a "Quit" button. Each click on Next puts the next of four sample
+ * strings into the StringGadget, prints which one, and prints the text
+ * the gadget reports when read back.
  *
- * NOTE: this used to test Label (label.image) dispose-and-replace.
- * That path proved unsafe on OS3.2 and was removed — Label is now
- * documented for static text only; reach for a read-only
- * StringGadget for dynamic text, exactly as done here. See
- * Label.js JSDoc.
+ * Click Next a few times and watch the text: each string should replace
+ * the last with nothing of the old one left behind. Quit, or the close
+ * gadget, ends the probe.
+ *
+ * Assumptions:
+ *   - string.gadget, button.gadget, layout.gadget and window.class are
+ *     installed
+ *   - the window opens on the default public screen, which has room
+ *     for a 420 x 140 window
+ *   - every sample string is shorter than the gadget's 80 characters
+ *
+ * Background: a clean replace on every click confirms that the gadget
+ * path of BOOPSIBase.set() (SetGadgetAttrsA) is doing its refresh job
+ * correctly. Use this as a regression probe when touching BOOPSIBase,
+ * Layout or StringGadget. It used to test Label (label.image)
+ * dispose-and-replace. That path proved unsafe on OS3.2 and was
+ * removed: Label is now documented for static text only, and a
+ * read-only StringGadget, the canonical OS3.2 widget for mutable text,
+ * is what to reach for when the text changes, exactly as done here.
+ * See the JSDoc in Label.js. Some names and comments below still say
+ * "label" for that reason.
+ *
+ * Requires quickjs.library 0.153+.
+ * Run: qjs examples/boopsi_refresh_probe.js
  */
-
-import * as std from 'qjs:std';
 
 const { Window, Layout, StringGadget, Button, EventKind,
         WindowPosition } = amiga.boopsi;
 
+/** Gadget IDs of the two buttons. */
 const GID = { NEXT: 1, QUIT: 2 };
 
+/** The strings Next cycles through, of deliberately different lengths. */
 const SAMPLES = [
   'Initial text, fairly short.',
   'Second text - a bit longer than the first.',
@@ -31,9 +46,10 @@ const SAMPLES = [
   'Fourth, longer still, growing the label area.',
 ];
 
-let idx = 0;
+/* Index into SAMPLES of the string now showing. */
+let sampleIndex = 0;
 let lbl = new StringGadget({
-  text: SAMPLES[idx],
+  text: SAMPLES[sampleIndex],
   readOnly: true,
   maxChars: 80,
 });
@@ -63,15 +79,16 @@ win.open();
 print('--- probe opened; click Next to cycle label text ---');
 
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) break;
-    if (e.kind === EventKind.BUTTON_CLICK) {
-      if (e.sourceId === GID.QUIT) break;
-      if (e.sourceId === GID.NEXT) {
-        idx = (idx + 1) % SAMPLES.length;
-        print('\n=== Next click #' + idx + ' -> ' + SAMPLES[idx]);
-        lbl.text = SAMPLES[idx];
-        /* Read back — if get() reports the new text, OM_SET did
+  for (let event of win.events()) {
+    if (event.kind === EventKind.CLOSE_WINDOW) break;
+    if (event.kind === EventKind.BUTTON_CLICK) {
+      if (event.sourceId === GID.QUIT) break;
+      if (event.sourceId === GID.NEXT) {
+        sampleIndex = (sampleIndex + 1) % SAMPLES.length;
+        print('\n=== Next click #' + sampleIndex + ' -> ' +
+              SAMPLES[sampleIndex]);
+        lbl.text = SAMPLES[sampleIndex];
+        /* Read back - if get() reports the new text, OM_SET did
          * update the label's internal state and this is purely a
          * repaint problem. If get() still reports the old text,
          * OM_SET isn't accepted and we need a different approach

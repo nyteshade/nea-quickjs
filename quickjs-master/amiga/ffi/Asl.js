@@ -38,18 +38,12 @@ export class Asl extends LibraryBase {
    *   ASL_ScreenModeRequest = 2
    *   ASL_ArexxRequest      = 3
    *
-   * Tag IDs (ASLTAG_BASE = TAG_USER + 0x80000) common to all types:
-   *   ASLFR_Window          = 0x80080018
-   *   ASLFR_TitleText       = 0x80080001
-   *   ASLFR_InitialDrawer   = 0x80080008
-   *   ASLFR_InitialFile     = 0x8008000A
-   *   ASLFR_InitialPattern  = 0x8008000B
-   *   ASLFR_DoMultiSelect   = 0x80080020
-   *   ASLFR_DoPatterns      = 0x80080021
-   *   ASLFR_DoSaveMode      = 0x80080024
-   *
-   * ASLFO_* (font) and ASLSM_* (screenmode) follow the same scheme
-   * with +0x10000 and +0x20000 bases respectively.
+   * Tag IDs. Every ASL tag, whichever requester it belongs to, is
+   * ASL_TB + n with ASL_TB = TAG_USER + 0x80000 = 0x80080000; the
+   * file, font and screen-mode requesters share one numbering. Values
+   * below are from NDK3.2R4 Include_H/libraries/asl.h. (Until 0.213
+   * they were hand-typed and seven of the file-requester tags were
+   * wrong: InitialDrawer was really InitialFile's value, for one.)
    */
   static consts = class AslConsts extends CEnumeration {
     static {
@@ -59,24 +53,24 @@ export class Asl extends LibraryBase {
       AslConsts.define('ASL_ArexxRequest',      3);
 
       /* File-request tags (the most-used subset). */
-      AslConsts.define('ASLFR_Window',         0x80080018);
-      AslConsts.define('ASLFR_TitleText',      0x80080001);
-      AslConsts.define('ASLFR_InitialDrawer',  0x80080008);
-      AslConsts.define('ASLFR_InitialFile',    0x8008000A);
-      AslConsts.define('ASLFR_InitialPattern', 0x8008000B);
-      AslConsts.define('ASLFR_DoMultiSelect',  0x80080020);
-      AslConsts.define('ASLFR_DoPatterns',     0x80080021);
-      AslConsts.define('ASLFR_DoSaveMode',     0x80080024);
+      AslConsts.define('ASLFR_TitleText',      0x80080001);  /* ASL_TB+1  */
+      AslConsts.define('ASLFR_Window',         0x80080002);  /* ASL_TB+2  */
+      AslConsts.define('ASLFR_InitialFile',    0x80080008);  /* ASL_TB+8  */
+      AslConsts.define('ASLFR_InitialDrawer',  0x80080009);  /* ASL_TB+9  */
+      AslConsts.define('ASLFR_InitialPattern', 0x8008000A);  /* ASL_TB+10 */
+      AslConsts.define('ASLFR_DoSaveMode',     0x8008002C);  /* ASL_TB+44 */
+      AslConsts.define('ASLFR_DoMultiSelect',  0x8008002D);  /* ASL_TB+45 */
+      AslConsts.define('ASLFR_DoPatterns',     0x8008002E);  /* ASL_TB+46 */
 
       /* Font-request tags. */
-      AslConsts.define('ASLFO_Window',         0x80090018);
-      AslConsts.define('ASLFO_TitleText',      0x80090001);
-      AslConsts.define('ASLFO_InitialName',    0x80090008);
-      AslConsts.define('ASLFO_InitialSize',    0x80090009);
+      AslConsts.define('ASLFO_TitleText',      0x80080001);  /* ASL_TB+1  */
+      AslConsts.define('ASLFO_Window',         0x80080002);  /* ASL_TB+2  */
+      AslConsts.define('ASLFO_InitialName',    0x8008000A);  /* ASL_TB+10 */
+      AslConsts.define('ASLFO_InitialSize',    0x8008000B);  /* ASL_TB+11 */
 
       /* Screenmode-request tags. */
-      AslConsts.define('ASLSM_Window',         0x800A0018);
-      AslConsts.define('ASLSM_TitleText',      0x800A0001);
+      AslConsts.define('ASLSM_TitleText',      0x80080001);  /* ASL_TB+1  */
+      AslConsts.define('ASLSM_Window',         0x80080002);  /* ASL_TB+2  */
     }
   };
 

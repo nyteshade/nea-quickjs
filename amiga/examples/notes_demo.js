@@ -1,24 +1,53 @@
 /*
- * notes_demo.js — minimalist scratchpad using texteditor.gadget.
+ * notes_demo.js - a scratchpad built on the system text editor gadget.
  *
- * A single multi-line TextEditor fills most of the window; a small
- * status row at the bottom shows character count + a Save / Load /
- * Clear / Quit toolbar. Save writes the current contents to RAM:notes.txt
- * (rewriteable). Load reads it back if present.
+ *   +------------------------------------------------------+
+ *   |                                                      |
+ *   |  (type here)                                         |   editor
+ *   |                                                      |
+ *   +------------------------------------------------------+
+ *   | Status: saved 42 chars to RAM:notes.txt              |   status
+ *   | [Undo] [Redo] [Top] [Block] [___________] [Find]     |
+ *   | [   Save   ] [   Load   ] [   Clear   ] [   Quit   ] |
+ *   +------------------------------------------------------+
  *
- * Demonstrates:
- *   - texteditor.gadget as the central control (attribute round-trip
- *     via TEXTEDITOR_Contents)
- *   - File I/O via std.open from "qjs:std" — no special FFI needed
- *   - Status line updated reactively from button events (cheap stand-in
- *     for an async character-count refresh; an interactive "as-you-type"
- *     update would need a TEXTEDITOR_HasChanged notification hook,
- *     which is a Phase D refinement)
- *   - TextEditor method wrappers (library 0.200+): undo(), redo(),
- *     gotoLine(), search() and blockInfo() on the second toolbar row
+ * Type something, then try the buttons. Save writes the text to
+ * RAM:notes.txt and Load reads it back. Undo and Redo step through
+ * your edits, Top moves the cursor to the first line, and Block says
+ * where the marked block is. To search, type a word in the small field
+ * and click Find; click Find again for the next match.
  *
- * Requires quickjs.library 0.200+.
- * Run:  qjs examples/notes_demo.js
+ * The file has four parts, read top to bottom:
+ *
+ *   1. THE FILE     - reading and writing the notes. No GUI.
+ *   2. THE WINDOW   - written as a tree that looks like the picture.
+ *   3. THE COMMANDS - what each button does to the editor.
+ *   4. THE LOOP     - clicks in, command run, status line updated.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (normally Workbench), which
+ *     must have room for a window about 480 x 320 pixels inside
+ *   - window.class, layout.gadget, button.gadget, string.gadget and
+ *     texteditor.gadget are installed in SYS:Classes, as they are on
+ *     AmigaOS 3.2
+ *   - RAM: is writable; nothing has to exist there beforehand
+ *   - on OS 3.2 the editor's text cannot be read or replaced through
+ *     its contents attribute once the gadget exists: reading gives
+ *     back the text it was created with, and writing is silently
+ *     ignored. The script uses the gadget's export, clear and insert
+ *     methods instead (see part 3)
+ *   - a search carries on from the cursor, which sits at the end of
+ *     the text just after typing, so a new search has to start from
+ *     the top
+ *   - the status line is a read-only string gadget because label.image
+ *     takes its text only when it is created
+ *   - the status line changes when a button is clicked, not as you
+ *     type; following the typing would need the editor's "has changed"
+ *     notification, which this demo does not listen for
+ *
+ * Requires quickjs.library 0.200+ (undo, redo, gotoLine, search and
+ * blockInfo; exportText needs 0.181+, setContents 0.175+).
+ * Run: qjs examples/notes_demo.js
  */
 
 import * as std from 'qjs:std';
@@ -26,191 +55,312 @@ import * as std from 'qjs:std';
 const { Window, Layout, Button, StringGadget, TextEditor,
         EventKind, WindowPosition, BevelStyle } = amiga.boopsi;
 
-const GID = { EDITOR: 1, SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5,
-              UNDO: 6, REDO: 7, TOP: 8, FIND: 9, NEEDLE: 10, BLOCK: 11 };
 
+/* ==================================================================
+ * 1. THE FILE
+ *
+ * Where the notes are kept, and how they get there and back.
+ * ================================================================== */
+
+/** The file Save writes and Load reads. */
 const NOTES_PATH = 'RAM:notes.txt';
 
-/** @type {string} — needle of the last successful Find, '' when none */
-let lastNeedle = '';
+/** How much of the file is read at a time, in characters. */
+const READ_CHUNK = 4096;
 
-/* Start with an EMPTY editor. Earlier versions of this demo opened
- * with a placeholder string in `contents` — but if the user clicked
- * Save before typing anything, the placeholder got persisted to
- * RAM:notes.txt, and every Load thereafter showed the placeholder
- * back. Made the round-trip ambiguous. Empty start means the first
- * Save records actual user input; status line + Quit shortcut
- * carry the usage hints. */
+/**
+ * Write the notes file, replacing whatever was there.
+ *
+ * @param {string} text
+ * @returns {boolean} false if the file could not be opened
+ */
+function writeNotes(text) {
+  let file = std.open(NOTES_PATH, 'w');
+  if (!file) return false;
+
+  file.puts(text);
+  file.close();
+  return true;
+}
+
+/**
+ * Read the whole notes file.
+ *
+ * @returns {?string} the text, or null if there is no file to open
+ */
+function readNotes() {
+  let file = std.open(NOTES_PATH, 'r');
+  if (!file) return null;
+
+  let text = '';
+  let chunk;
+  while ((chunk = file.readAsString(READ_CHUNK)).length > 0) {
+    text += chunk;
+  }
+
+  file.close();
+  return text;
+}
+
+
+/* ==================================================================
+ * 2. THE WINDOW
+ *
+ * First the gadgets the commands need to talk to, each given a name.
+ * Then the window, which arranges them. Read the `layout:` tree next
+ * to the picture at the top of the file.
+ * ================================================================== */
+
+/** Gadget IDs: how an event says which gadget it came from. */
+const ID = {
+  EDITOR: 1,
+  SAVE: 2, LOAD: 3, CLEAR: 4, QUIT: 5,
+  UNDO: 6, REDO: 7, TOP: 8, FIND: 9, NEEDLE: 10, BLOCK: 11,
+};
+
+/* The editor starts EMPTY on purpose. With a placeholder text in it, a
+ * Save before any typing would write the placeholder to the file, and
+ * every Load after that would bring it back, so nobody could tell
+ * whether the round trip had worked. The status line and the Shell
+ * carry the instructions instead. */
 let editor = new TextEditor({
-  id:       GID.EDITOR,
+  id:       ID.EDITOR,
   contents: '',
 });
 
-/* Dynamic text → readonly StringGadget (canonical OS3.2 Reaction pattern
- * for mutable text; label.image is OM_NEW-only per Label.js JSDoc). */
-let status = new StringGadget({
-  text: 'Type, then Save / Load / Clear / Quit.', readOnly: true, maxChars: 80,
+/* Text that changes goes in a read-only string gadget. That is the
+ * usual way on OS 3.2: label.image takes its text only when it is
+ * created. */
+let statusLine = new StringGadget({
+  text: 'Type, then Save / Load / Clear / Quit.', readOnly: true,
+  maxChars: 80,
 });
 
-let saveBtn  = new Button({ id: GID.SAVE,  text: '_Save'  });
-let loadBtn  = new Button({ id: GID.LOAD,  text: '_Load'  });
-let clearBtn = new Button({ id: GID.CLEAR, text: '_Clear' });
-let quitBtn  = new Button({ id: GID.QUIT,  text: '_Quit'  });
-
-let toolbar = new Layout({
-  orientation: 'horizontal', innerSpacing: 4, evenSize: true,
-  children: [ saveBtn, loadBtn, clearBtn, quitBtn ],
+/** The field the word to search for is typed into. */
+let needleField = new StringGadget({
+  id: ID.NEEDLE, text: '', maxChars: 40,
 });
 
-/* Second row — exercises the TextEditor method wrappers. */
-let undoBtn  = new Button({ id: GID.UNDO,  text: '_Undo'  });
-let redoBtn  = new Button({ id: GID.REDO,  text: '_Redo'  });
-let topBtn   = new Button({ id: GID.TOP,   text: '_Top'   });
-let blockBtn = new Button({ id: GID.BLOCK, text: '_Block' });
-let needle   = new StringGadget({ id: GID.NEEDLE, text: '', maxChars: 40 });
-let findBtn  = new Button({ id: GID.FIND,  text: '_Find'  });
-
-let editbar = new Layout({
-  orientation: 'horizontal', innerSpacing: 4,
-  children: [ undoBtn, redoBtn, topBtn, blockBtn, needle, findBtn ],
-});
-
-let statusBox = new Layout({
-  orientation: 'horizontal', innerSpacing: 4,
-  bevelStyle: BevelStyle.FIELD,
-  children: [ status ],
-});
-
-let win = new Window({
+let window = new Window({
   title:       'Notes',
   innerWidth:  480,
   innerHeight: 320,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true,
   sizeGadget:  true, activate: true,
+
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 6,
     children: [
+
       editor,
-      statusBox,
-      editbar,
-      toolbar,
+
+      new Layout({
+        orientation: 'horizontal', innerSpacing: 4,
+        bevelStyle: BevelStyle.FIELD,
+        children: [ statusLine ],
+      }),
+
+      /* The editing row: the editor's own methods. */
+      new Layout({
+        orientation: 'horizontal', innerSpacing: 4,
+        children: [
+          new Button({ id: ID.UNDO,  text: '_Undo'  }),
+          new Button({ id: ID.REDO,  text: '_Redo'  }),
+          new Button({ id: ID.TOP,   text: '_Top'   }),
+          new Button({ id: ID.BLOCK, text: '_Block' }),
+          needleField,
+          new Button({ id: ID.FIND,  text: '_Find'  }),
+        ],
+      }),
+
+      /* The file row. */
+      new Layout({
+        orientation: 'horizontal', innerSpacing: 4, evenSize: true,
+        children: [
+          new Button({ id: ID.SAVE,  text: '_Save'  }),
+          new Button({ id: ID.LOAD,  text: '_Load'  }),
+          new Button({ id: ID.CLEAR, text: '_Clear' }),
+          new Button({ id: ID.QUIT,  text: '_Quit'  }),
+        ],
+      }),
+
     ],
   }),
 });
 
-function setStatus(msg) {
-  status.text = 'Status: ' + msg;
-}
 
-function getEditorContents() {
-  /* GA_TEXTEDITOR_Contents is OM_NEW-only — OM_GET returns the
-   * construction-time string, not what the user has typed. Use the
-   * GM_TEXTEDITOR_ExportText gadget-method instead. Wrapper takes
-   * care of the GadgetInfo + FreeVec cleanup. Library 0.181+. */
-  return editor.exportText();
-}
+/* ==================================================================
+ * 3. THE COMMANDS
+ *
+ * One function per button. Each does its work on the editor and
+ * returns a few words for the status line saying how it went.
+ * ================================================================== */
 
-function setEditorContents(s) {
-  /* GA_TEXTEDITOR_Contents is OM_NEW-only on OS3.2 — runtime SetAttrs
-   * is silently dropped. Use the gadget-method path: ClearText then
-   * InsertText(BOTTOM). The TextEditor wrapper bundles both in
-   * setContents(). Library 0.175+. */
-  editor.setContents(s);
-}
-
+/**
+ * Save: write the editor's text to the notes file.
+ *
+ * @returns {string} what to show in the status line
+ */
 function saveNotes() {
-  let contents = getEditorContents();
-  let f = std.open(NOTES_PATH, 'w');
-  if (!f) {
-    setStatus('save FAILED - could not open ' + NOTES_PATH);
-    return;
-  }
-  f.puts(contents);
-  f.close();
-  setStatus('saved ' + contents.length + ' chars to ' + NOTES_PATH);
+  /* The editor's contents attribute can only be given when the gadget
+   * is created; reading it later returns that first text, not what
+   * has been typed since. exportText() asks the gadget for its real
+   * text through the export method, and frees the copy it is given.
+   * (quickjs.library 0.181+) */
+  let text = editor.exportText();
+
+  if (!writeNotes(text)) return 'save FAILED - could not open ' + NOTES_PATH;
+
+  return 'saved ' + text.length + ' chars to ' + NOTES_PATH;
 }
 
+/**
+ * Load: replace the editor's text with the notes file.
+ *
+ * @returns {string} what to show in the status line
+ */
 function loadNotes() {
-  let f = std.open(NOTES_PATH, 'r');
-  if (!f) {
-    setStatus('no saved file at ' + NOTES_PATH);
-    return;
-  }
-  let buf = '';
-  let chunk;
-  while ((chunk = f.readAsString(4096)).length > 0) {
-    buf += chunk;
-  }
-  f.close();
-  setEditorContents(buf);
-  setStatus('loaded ' + buf.length + ' chars from ' + NOTES_PATH);
+  let text = readNotes();
+  if (text === null) return 'no saved file at ' + NOTES_PATH;
+
+  /* For the same reason, setting the contents attribute on a live
+   * editor is silently ignored on OS 3.2. setContents() clears the
+   * gadget and then inserts the text at the bottom, using the
+   * gadget's methods. (quickjs.library 0.175+) */
+  editor.setContents(text);
+
+  return 'loaded ' + text.length + ' chars from ' + NOTES_PATH;
 }
 
+/**
+ * Clear: empty the editor. The file is left alone.
+ *
+ * @returns {string} what to show in the status line
+ */
 function clearNotes() {
   editor.clearText();
-  setStatus('cleared.');
+  return 'cleared.';
 }
 
+/** The word the last successful Find was looking for, or '' when the
+ *  last Find failed or there has not been one. */
+let lastNeedle = '';
+
 /**
- * Search for the text in the needle field. A new needle searches from
- * the top of the text; pressing Find again with the same needle moves
- * on to the next match. (A forward search from the cursor finds
- * nothing right after typing, because the cursor is at the end.)
- * A hit moves the cursor to the match and marks it.
+ * Find: search the editor for the word in the small field. A hit moves
+ * the cursor to the match and marks it.
  *
- * @returns {undefined}
+ * A new word is searched for from the top of the text. Clicking Find
+ * again with the same word moves on to the next match. (Searching on
+ * from the cursor would find nothing right after typing, because the
+ * cursor is then at the end of the text.)
+ *
+ * @returns {string} what to show in the status line
  */
 function findNeedle() {
-  let s = needle.text;
-  if (!s) {
-    setStatus('type something to find first.');
-    return;
-  }
-  let again = (s === lastNeedle);
-  let found = editor.search(s, again ? TextEditor.SearchFlags.NEXT
-                                     : TextEditor.SearchFlags.FROM_TOP);
-  lastNeedle = found ? s : '';
-  setStatus(found ? ('found "' + s + '"')
-                  : ('"' + s + '" not found' + (again ? ' again' : '')));
+  let needle = needleField.text;
+  if (!needle) return 'type something to find first.';
+
+  let again = (needle === lastNeedle);
+  let found = editor.search(needle, again ? TextEditor.SearchFlags.NEXT
+                                          : TextEditor.SearchFlags.FROM_TOP);
+
+  lastNeedle = found ? needle : '';
+
+  if (found) return 'found "' + needle + '"';
+  return '"' + needle + '" not found' + (again ? ' again' : '');
 }
 
 /**
- * Report the marked block's bounds in the status line.
+ * Block: say where the marked block starts and stops.
  *
- * @returns {undefined}
+ * @returns {string} what to show in the status line
  */
-function showBlock() {
-  let b = editor.blockInfo();
-  setStatus(b
-    ? ('block ' + b.startX + ',' + b.startY + ' to ' + b.stopX + ',' + b.stopY)
-    : 'no block marked.');
+function describeBlock() {
+  let block = editor.blockInfo();
+  if (!block) return 'no block marked.';
+
+  return 'block ' + block.startX + ',' + block.startY +
+         ' to ' + block.stopX + ',' + block.stopY;
 }
 
-win.open();
+/**
+ * Undo the last edit.
+ *
+ * @returns {string} what to show in the status line
+ */
+function undoEdit() {
+  editor.undo();
+  return 'undo.';
+}
+
+/**
+ * Redo the edit that was last undone.
+ *
+ * @returns {string} what to show in the status line
+ */
+function redoEdit() {
+  editor.redo();
+  return 'redo.';
+}
+
+/**
+ * Top: put the cursor on the first character of the first line.
+ *
+ * @returns {string} what to show in the status line
+ */
+function cursorToTop() {
+  editor.gotoLine(0, 0);
+  return 'cursor at top.';
+}
+
+
+/* ==================================================================
+ * 4. THE LOOP
+ *
+ * Wait for a click, run that button's command, and show what it
+ * reported.
+ * ================================================================== */
+
+/** The command behind each button. */
+const onClick = {
+  [ID.SAVE]:  saveNotes,
+  [ID.LOAD]:  loadNotes,
+  [ID.CLEAR]: clearNotes,
+  [ID.UNDO]:  undoEdit,
+  [ID.REDO]:  redoEdit,
+  [ID.TOP]:   cursorToTop,
+  [ID.FIND]:  findNeedle,
+  [ID.BLOCK]: describeBlock,
+};
+
+/**
+ * Show a command's report in the status line.
+ *
+ * @param {string} report
+ * @returns {undefined}
+ */
+function render(report) {
+  statusLine.text = 'Status: ' + report;
+}
+
+window.open();
 print('Notes open. Type something, then Save / Load / Clear / Quit.');
 
-let done = false;
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) break;
-    if (e.kind === EventKind.BUTTON_CLICK) {
-      switch (e.sourceId) {
-        case GID.SAVE:  saveNotes();  break;
-        case GID.LOAD:  loadNotes();  break;
-        case GID.CLEAR: clearNotes(); break;
-        case GID.QUIT:  done = true;  break;
-        case GID.UNDO:  editor.undo();  setStatus('undo.');  break;
-        case GID.REDO:  editor.redo();  setStatus('redo.');  break;
-        case GID.TOP:   editor.gotoLine(0, 0); setStatus('cursor at top.'); break;
-        case GID.FIND:  findNeedle(); break;
-        case GID.BLOCK: showBlock();  break;
-      }
-      if (done) break;
-    }
+  for (let event of window.events()) {
+
+    if (event.kind === EventKind.CLOSE_WINDOW) break;
+    if (event.kind !== EventKind.BUTTON_CLICK) continue;
+    if (event.sourceId === ID.QUIT) break;
+
+    let command = onClick[event.sourceId];
+    if (command) render(command());
   }
 }
 finally {
-  win.dispose();
+  window.dispose();
 }
+
 print('Bye.');

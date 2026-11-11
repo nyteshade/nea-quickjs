@@ -1,23 +1,32 @@
 /*
- * frameidemo.js — port of NDK 3.1 Examples1/intuition/frameidemo.c
- * using the Q2 wrapper API.
+ * frameidemo.js - the four standard frame styles, raised and recessed.
  *
- * Original: ESCOM AG, 1992-1996. Shows the four frame types provided
- * by `frameiclass` (the BOOPSI imageclass) in both normal and
- * recessed states — 8 frames in a 4×2 grid.
+ * A window titled "FrameIClass Demo" shows eight empty frames in a
+ * grid: one column for each frame type, raised on the top row and
+ * recessed on the bottom row.
  *
- * Demonstrates:
- *   - NewWindow constructor with an init object (including owned
- *     title string)
- *   - Intuition.OpenWindow(nw) returning a Window instance
- *   - Intuition.NewObjectTags('frameiclass', pairs) for BOOPSI
- *   - Window.screen.font.ySize chain for dynamic y-positioning
- *   - Window.rastPort handed to DrawImage
- *   - win.messages() iterator over IDCMP
- *   - Intuition.BeginRefresh / EndRefresh for damage handling
+ *              default   button    ridge     icon drop box
+ *   raised     [      ]  [      ]  [      ]  [      ]
+ *   recessed   [      ]  [      ]  [      ]  [      ]
  *
- * Run:        qjs examples/frameidemo.js
- * Requires:   quickjs.library 0.127+
+ * The window can be resized; the frames are redrawn when Intuition
+ * asks for it. Close the window to quit.
+ *
+ * This is a port of frameidemo.c from the NDK 3.1 examples
+ * (Examples1/intuition, ESCOM AG, 1992-1996). Like the original it
+ * fills in a NewWindow structure and calls OpenWindow, rather than
+ * using a tag list.
+ *
+ * Assumptions:
+ *   - the default public screen (normally Workbench) is open and at
+ *     least 600 x 200, the size the window opens at
+ *   - Kickstart 3.0 (V39) or later: frameiclass is built into
+ *     Intuition, but it only learned the four frame types in V39
+ *   - the screen font's height is a fair guess at the height of the
+ *     window's title bar, which is how the grid is kept clear of it
+ *
+ * Requires quickjs.library 0.127+.
+ * Run: qjs examples/frameidemo.js
  */
 
 import * as std from 'qjs:std';
@@ -27,9 +36,46 @@ if (typeof Intuition !== 'function') {
   std.exit(1);
 }
 
+/** Intuition's constants: IA_ tags, WFLG_ flags and IDCMP_ classes. */
 const C = Intuition.consts;
 
-let nw = new NewWindow({
+/** frameiclass frame types run from 0 to 3: FRAME_DEFAULT,
+ *  FRAME_BUTTON, FRAME_RIDGE and FRAME_ICONDROPBOX, in that order
+ *  (intuition/imageclass.h). */
+const FRAME_TYPE_COUNT = 4;
+
+/** Each type is shown twice: raised (0), then recessed (1). */
+const RECESSED_STATES = 2;
+
+/** The size of every frame, in pixels. */
+const FRAME_WIDTH  = 80;
+const FRAME_HEIGHT = 20;
+
+/** The grid the frames are drawn on, in pixels. The top of the grid is
+ *  the screen font's height plus GRID_TOP_GAP below the window's top
+ *  edge, which clears the title bar. */
+const GRID_LEFT    = 20;
+const GRID_TOP_GAP = 12;
+const COLUMN_STEP  = 100;
+const ROW_STEP     = 30;
+
+/**
+ * Draw one frame in its place on the grid.
+ *
+ * @param {RastPort} rastPort - the window's RastPort
+ * @param {Image} frame - a frameiclass object
+ * @param {number} column - 0 to 3, counted from the left
+ * @param {number} row - 0 for the top row, 1 for the bottom row
+ * @param {number} fontHeight - height of the screen font, in pixels
+ * @returns {undefined}
+ */
+function drawFrame(rastPort, frame, column, row, fontHeight) {
+  Intuition.DrawImage(rastPort, frame,
+    GRID_LEFT + column * COLUMN_STEP,
+    fontHeight + GRID_TOP_GAP + row * ROW_STEP);
+}
+
+let newWindow = new NewWindow({
   width: 600, height: 200,
   idcmp: C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW,
   flags: C.WFLG_DRAGBAR | C.WFLG_SIZEGADGET | C.WFLG_DEPTHGADGET
@@ -39,74 +85,72 @@ let nw = new NewWindow({
   maxWidth: 640, maxHeight: 200,
 });
 
-let win = Intuition.OpenWindow(nw);
+let window = Intuition.OpenWindow(newWindow);
 
-if (!win) {
-  nw.free();
+if (!window) {
+  newWindow.free();
   print('OpenWindow failed');
   std.exit(1);
 }
 
 print('Window open - close-gadget or CTRL-C to exit.');
 
+/** Every frame object made, in the order made, so that each can be
+ *  redrawn on a refresh and disposed of at the end. */
 let frames = [];
-let fontYSize = win.screen.font.ySize;
-let rp = win.rastPort;
+
+let fontHeight = window.screen.font.ySize;
+let rastPort   = window.rastPort;
 
 try {
-  for (let recessed = 0; recessed <= 1; recessed++) {
-    for (let frametype = 0; frametype <= 3; frametype++) {
+  /* Make the eight frames, drawing each one as soon as it exists. */
+  for (let recessed = 0; recessed < RECESSED_STATES; recessed++) {
+    for (let frameType = 0; frameType < FRAME_TYPE_COUNT; frameType++) {
       let frame = Intuition.NewObjectTags('frameiclass', [
-        [C.IA_FrameType, frametype],
+        [C.IA_FrameType, frameType],
         [C.IA_Recessed,  recessed],
-        [C.IA_Width,     80],
-        [C.IA_Height,    20],
+        [C.IA_Width,     FRAME_WIDTH],
+        [C.IA_Height,    FRAME_HEIGHT],
       ]);
 
       if (!frame) continue;
 
       frames.push(frame);
-
-      Intuition.DrawImage(rp, frame,
-        20 + frametype * 100,
-        fontYSize + 12 + recessed * 30);
+      drawFrame(rastPort, frame, frameType, recessed, fontHeight);
     }
   }
 
-  for (let msg of win.messages()) {
-    if (msg.class === C.IDCMP_CLOSEWINDOW) {
-      break;
-    }
+  for (let message of window.messages()) {
 
-    if (msg.class === C.IDCMP_REFRESHWINDOW) {
-      Intuition.BeginRefresh(win);
+    if (message.class === C.IDCMP_CLOSEWINDOW) break;
 
-      let i = 0;
+    if (message.class === C.IDCMP_REFRESHWINDOW) {
+      Intuition.BeginRefresh(window);
 
-      for (let r = 0; r <= 1; r++) {
-        for (let t = 0; t <= 3; t++) {
-          if (frames[i]) {
-            Intuition.DrawImage(rp, frames[i],
-              20 + t * 100,
-              fontYSize + 12 + r * 30);
-          }
+      /* Assumes every frame was made: frames[] is then in grid order,
+       * left to right and top row first. */
+      let cellCount = RECESSED_STATES * FRAME_TYPE_COUNT;
 
-          i++;
+      for (let cell = 0; cell < cellCount; cell++) {
+        let column = cell % FRAME_TYPE_COUNT;
+        let row    = Math.floor(cell / FRAME_TYPE_COUNT);
+
+        if (frames[cell]) {
+          drawFrame(rastPort, frames[cell], column, row, fontHeight);
         }
       }
 
-      Intuition.EndRefresh(win, true);
+      Intuition.EndRefresh(window, true);
     }
   }
 }
-
 finally {
-  for (let f of frames) {
-    Intuition.DisposeObject(f);
+  for (let frame of frames) {
+    Intuition.DisposeObject(frame);
   }
 
-  win.close();
-  nw.free();
+  window.close();
+  newWindow.free();
 }
 
 print('Clean exit.');

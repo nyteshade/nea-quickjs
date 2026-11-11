@@ -1,28 +1,45 @@
 /*
- * requester_demo.js — modal Requester class, variadic makeTags form.
+ * requester_demo.js - ask a question with a Reaction requester.
  *
- * Opens an info requester with OK/Cancel buttons. The click result
- * comes back as REQ_ReturnCode (read via .get('returnCode') after
- * openReq returns).
+ * A requester pops up with a question-mark picture, two lines of text
+ * and two buttons, OK and Cancel. Click either one; the number the
+ * requester hands back is printed on the Shell and the script ends.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (Workbench); the requester
+ *     has no parent window
+ *   - requester.class is installed (standard from OS 3.2; earlier with
+ *     ClassAct/Reaction)
+ *   - the returned number is 0 for the rightmost button and otherwise
+ *     counts the buttons from the left starting at 1, so OK is 1 and
+ *     Cancel is 0. This was observed, and may differ between versions
+ *     of requester.class; see its autodoc.
+ *
+ * Requires quickjs.library 0.156+.
+ * Run: qjs examples/requester_demo.js
  */
-
-import * as std from 'qjs:std';
 
 const { Requester, RequesterType, RequesterImage } = amiga.boopsi;
 
-let r = new Requester({
-  type:        RequesterType.INFO,
-  titleText:   'React JS',
-  bodyText:    'Hello from QuickJS-ng on Amiga!\nChoose wisely.',
-  gadgetText:  '_OK|_Cancel',
-  image:       RequesterImage.QUESTION,
+/* In gadgetText a bar separates the buttons, and an underscore marks
+ * the next letter as that button's keyboard shortcut. */
+let requester = new Requester({
+  type:       RequesterType.INFO,
+  titleText:  'React JS',
+  bodyText:   'Hello from QuickJS-ng on Amiga!\nChoose wisely.',
+  gadgetText: '_OK|_Cancel',
+  image:      RequesterImage.QUESTION,
 });
 
-/* openReq is modal — it blocks until the user clicks a button or the
- * optional timeout fires.  Returns 0 for the rightmost gadget, else
- * N for the Nth gadget left-to-right (1-based for some versions —
- * see requester.class autodoc). */
-let result = r.openReq(null);
-print('Requester returned: ' + result);
+print('Pick a button in the requester.');
 
-r.dispose();
+try {
+  /* openReq does not return until a button has been clicked. The
+   * argument is the parent window; null means none. */
+  let result = requester.openReq(null);
+
+  print('Requester returned: ' + result);
+}
+finally {
+  requester.dispose();
+}

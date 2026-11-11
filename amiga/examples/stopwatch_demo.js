@@ -1,150 +1,304 @@
 /*
- * stopwatch_demo.js — a working start/stop/reset stopwatch using
- * led.image as the display + IDCMP_INTUITICKS for the tick source.
+ * stopwatch_demo.js - a start / stop / reset stopwatch with LED digits.
  *
- * Demonstrates:
- *   - Periodic UI updates driven by IDCMP_INTUITICKS (Intuition's
- *     10-Hz heartbeat, no setTimeout dependency)
- *   - Live attribute mutation (LED values + button GA_Disabled state)
- *   - Multi-state UI (idle / running / stopped) reacting to button clicks
+ *   +------------------------------------------------+
+ *   |              00 : 01 : 27 : 40                 |   LED digits
+ *   | [  Start  ] [  Stop  ] [  Reset  ] [  Quit  ]  |
+ *   +------------------------------------------------+
  *
- * Display: HH:MM:SS.t with colon separators (LED_Time + LED_Colon).
- * Tick resolution is ~100ms (Intuition delivers ~10 INTUITICKS/sec).
+ * Start sets it running, Stop holds it, Start carries on from where it
+ * stopped, Reset goes back to zero (and leaves it running if it was).
+ * The display is hours, minutes, seconds and a last pair whose first
+ * digit is tenths of a second. Whichever of Start and Stop makes no
+ * sense at the moment is ghosted.
+ *
+ * The file has three parts, read top to bottom:
+ *
+ *   1. THE STOPWATCH - elapsed time and whether it is running. No GUI.
+ *   2. THE PANEL     - the window, written as a tree that looks like it.
+ *   3. THE LOOP      - clicks and ticks in, stopwatch told, panel
+ *                      redrawn.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (normally Workbench), which
+ *     must have room for a window about 300 x 120 pixels inside
+ *   - window.class, layout.gadget, button.gadget and led.image are
+ *     installed in SYS:Classes, as they are on AmigaOS 3.2
+ *   - the display is refreshed on Intuition's tick (IDCMP_INTUITICKS):
+ *     about ten a second, so tenths are the finest it can show, and
+ *     only while this window is the active one. Click in another
+ *     window and the display stands still; the time that passed is
+ *     added on at the next tick
+ *   - the time itself comes from Date.now(), read at each tick and
+ *     taken to be in milliseconds
+ *   - led.image reads its digits from a buffer of one byte per digit
+ *     that the script owns, most significant digit first (as the NDK
+ *     example LED.c does), and draws them again when it is handed the
+ *     buffer a second time
  *
  * Requires quickjs.library 0.156+.
- * Run:  qjs examples/stopwatch_demo.js
+ * Run: qjs examples/stopwatch_demo.js
  */
 
-import * as std from 'qjs:std';
-
 const { Window, Layout, Button, Led,
-        EventKind, IDCMP, WindowPosition, IDCMP_REACTION_DEFAULT } = amiga.boopsi;
+        EventKind, IDCMP, WindowPosition,
+        IDCMP_REACTION_DEFAULT } = amiga.boopsi;
 
-const GID = { START: 1, STOP: 2, RESET: 3, QUIT: 4 };
 
-/* 4-pair LED display = 8 digits = HH:MM:SS.t (last is tenths). The
- * values buffer holds 8 byte-digits; LED_Time + LED_Colon arrange
- * them as HH:MM:SS with a tenths digit appended visually. */
-let valuesBuf = amiga.allocMem(8);
+/* ==================================================================
+ * 1. THE STOPWATCH
+ *
+ * Elapsed time in hundredths of a second, and how to split it into
+ * digits. The clock reading is always passed in, so nothing here
+ * depends on the machine it runs on.
+ * ================================================================== */
 
-function writeTime(centiseconds) {
-  let cs    = centiseconds | 0;
-  let tenths  = Math.floor(cs /     10) % 10;
-  let seconds = Math.floor(cs /    100) % 60;
-  let minutes = Math.floor(cs /   6000) % 60;
-  let hours   = Math.floor(cs / 360000) % 24;
-  /* most-significant digit at offset 0 — see LED.c precedent */
-  amiga.poke8(valuesBuf + 0, Math.floor(hours   / 10));
-  amiga.poke8(valuesBuf + 1, hours   % 10);
-  amiga.poke8(valuesBuf + 2, Math.floor(minutes / 10));
-  amiga.poke8(valuesBuf + 3, minutes % 10);
-  amiga.poke8(valuesBuf + 4, Math.floor(seconds / 10));
-  amiga.poke8(valuesBuf + 5, seconds % 10);
-  amiga.poke8(valuesBuf + 6, tenths);
-  amiga.poke8(valuesBuf + 7, 0);
+/** Milliseconds in one hundredth of a second, the unit time is kept
+ *  in. */
+const MS_PER_CENTISECOND = 10;
+
+class Stopwatch {
+  /**
+   * A stopwatch at zero, not running.
+   */
+  constructor() {
+    /** @type {boolean} */
+    this.running = false;
+
+    /** @type {number} elapsed time, in hundredths of a second */
+    this.centiseconds = 0;
+
+    /** @type {?number} clock reading at the last tick or at Start, in
+     *  milliseconds; null while stopped */
+    this.lastClockMs = null;
+  }
+
+  /**
+   * Start, or carry on. Does nothing if already running.
+   *
+   * @param {number} nowMs - the clock, in milliseconds
+   * @returns {undefined}
+   */
+  start(nowMs) {
+    if (this.running) return;
+
+    this.running = true;
+    this.lastClockMs = nowMs;
+  }
+
+  /**
+   * Hold the time where it is. Does nothing if not running.
+   *
+   * @returns {undefined}
+   */
+  stop() {
+    if (!this.running) return;
+
+    this.running = false;
+    this.lastClockMs = null;
+  }
+
+  /**
+   * Back to zero. A running stopwatch keeps running.
+   *
+   * @returns {undefined}
+   */
+  reset() {
+    this.centiseconds = 0;
+  }
+
+  /**
+   * Add on the time that has gone by since the last tick. Does nothing
+   * unless running. Going by the clock rather than counting ticks
+   * means a tick that never arrives does not lose its time.
+   *
+   * @param {number} nowMs - the clock, in milliseconds
+   * @returns {undefined}
+   */
+  tick(nowMs) {
+    if (!this.running) return;
+
+    if (this.lastClockMs) {
+      this.centiseconds +=
+        Math.floor((nowMs - this.lastClockMs) / MS_PER_CENTISECOND);
+    }
+    this.lastClockMs = nowMs;
+  }
 }
 
-writeTime(0);
+/**
+ * Split a time into the eight digits of the display: two each for
+ * hours, minutes and seconds, then tenths of a second and a zero.
+ * Hours wrap round after 23.
+ *
+ * @param {number} centiseconds
+ * @returns {Array<number>} eight digits, most significant first
+ */
+function timeDigits(centiseconds) {
+  let whole   = centiseconds | 0;
+  let tenths  = Math.floor(whole /     10) % 10;
+  let seconds = Math.floor(whole /    100) % 60;
+  let minutes = Math.floor(whole /   6000) % 60;
+  let hours   = Math.floor(whole / 360000) % 24;
 
+  return [
+    Math.floor(hours   / 10), hours   % 10,
+    Math.floor(minutes / 10), minutes % 10,
+    Math.floor(seconds / 10), seconds % 10,
+    tenths,                   0,
+  ];
+}
+
+
+/* ==================================================================
+ * 2. THE PANEL
+ *
+ * First the gadgets the loop needs to talk to, each given a name. Then
+ * the window, which arranges them. Read the `layout:` tree next to the
+ * picture at the top of the file.
+ * ================================================================== */
+
+/** Gadget IDs: how an event says which gadget it came from. */
+const ID = { START: 1, STOP: 2, RESET: 3, QUIT: 4 };
+
+/** An LED display shows digits in pairs. Four pairs is eight digits. */
+const LED_PAIRS = 4;
+
+/** The size of the display's digit buffer: one byte per digit. */
+const LED_BYTES = 8;
+
+/** The digit buffer the LED display reads from. It is ours: the image
+ *  only ever holds its address. */
+let ledDigits = amiga.allocMem(LED_BYTES);
+
+/**
+ * Write a time into the LED display's digit buffer.
+ *
+ * @param {number} centiseconds
+ * @returns {undefined}
+ */
+function writeLedDigits(centiseconds) {
+  timeDigits(centiseconds).forEach((digit, index) => {
+    amiga.poke8(ledDigits + index, digit);
+  });
+}
+
+writeLedDigits(0);
+
+/* `time` and `colon` make the image set the pairs out as a time, with
+ * colons between them. */
 let display = new Led({
-  pairs: 4,
-  values: valuesBuf,
-  colon: true,
-  time:  true,
+  pairs:  LED_PAIRS,
+  values: ledDigits,
+  colon:  true,
+  time:   true,
 });
 
-let startBtn = new Button({ id: GID.START, text: '_Start' });
-let stopBtn  = new Button({ id: GID.STOP,  text: 'S_top', disabled: true });
-let resetBtn = new Button({ id: GID.RESET, text: '_Reset' });
-let quitBtn  = new Button({ id: GID.QUIT,  text: '_Quit' });
+let startButton = new Button({ id: ID.START, text: '_Start' });
+let stopButton  = new Button({ id: ID.STOP,  text: 'S_top',
+                               disabled: true });
+let resetButton = new Button({ id: ID.RESET, text: '_Reset' });
+let quitButton  = new Button({ id: ID.QUIT,  text: '_Quit' });
 
-let win = new Window({
+let window = new Window({
   title:       'Stopwatch',
   innerWidth:  300,
   innerHeight: 120,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
-  /* Need INTUITICKS in the mask for the heartbeat. The default
-   * IDCMP_REACTION_DEFAULT does NOT include it, so we build the
-   * mask ourselves. */
+
+  /* The usual Reaction events do not include the tick, so it is asked
+   * for as well. The ticks are what refresh the display. */
   idcmp: IDCMP_REACTION_DEFAULT | IDCMP.INTUITICKS,
+
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 6,
     children: [
+
       display,
+
       new Layout({
         orientation: 'horizontal', innerSpacing: 4, evenSize: true,
-        children: [ startBtn, stopBtn, resetBtn, quitBtn ],
+        children: [ startButton, stopButton, resetButton, quitButton ],
       }),
+
     ],
   }),
 });
 
-let running    = false;
-let elapsedCs  = 0;
-let lastTickAt = null;
 
-function updateButtons() {
-  startBtn.set({ disabled: running });
-  stopBtn .set({ disabled: !running });
+/* ==================================================================
+ * 3. THE LOOP
+ *
+ * Wait for a click or a tick, tell the stopwatch, then make the panel
+ * show whatever the stopwatch now says.
+ * ================================================================== */
+
+let stopwatch = new Stopwatch();
+
+/** What the panel currently shows, so that render() only touches a
+ *  gadget whose content has really changed. It starts out as the
+ *  gadgets were built: zero on the display, Start available, Stop
+ *  ghosted. */
+let shown = { centiseconds: 0, running: false };
+
+/**
+ * Make the whole panel match the stopwatch.
+ *
+ * @returns {undefined}
+ */
+function render() {
+  if (shown.centiseconds !== stopwatch.centiseconds) {
+    /* New digits in the buffer, then the same buffer handed to the LED
+     * again, which is what makes it draw them. */
+    writeLedDigits(stopwatch.centiseconds);
+    display.set({ values: ledDigits });
+    shown.centiseconds = stopwatch.centiseconds;
+  }
+
+  if (shown.running !== stopwatch.running) {
+    /* Start and Stop are never both available. */
+    startButton.set({ disabled: stopwatch.running });
+    stopButton.set({ disabled: !stopwatch.running });
+    shown.running = stopwatch.running;
+  }
 }
 
-function refreshDisplay() {
-  writeTime(elapsedCs);
-  display.set({ values: valuesBuf });   /* poke triggers redraw */
-}
+/** What each button does. Quit is not here: it ends the loop. */
+const onClick = {
+  [ID.START]: () => stopwatch.start(Date.now()),
+  [ID.STOP]:  () => stopwatch.stop(),
+  [ID.RESET]: () => stopwatch.reset(),
+};
 
-win.open();
+window.open();
 print('Stopwatch open. Start / Stop / Reset / Quit.');
 
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) break;
+  for (let event of window.events()) {
 
-    if (e.kind === EventKind.BUTTON_CLICK) {
-      switch (e.sourceId) {
-        case GID.START:
-          if (!running) {
-            running = true;
-            lastTickAt = Date.now();
-            updateButtons();
-          }
-          break;
+    if (event.kind === EventKind.CLOSE_WINDOW) break;
+    if (event.sourceId === ID.QUIT) break;
 
-        case GID.STOP:
-          if (running) {
-            running = false;
-            lastTickAt = null;
-            updateButtons();
-          }
-          break;
+    switch (event.kind) {
 
-        case GID.RESET:
-          elapsedCs = 0;
-          refreshDisplay();
-          break;
+      case EventKind.BUTTON_CLICK:
+        if (onClick[event.sourceId]) onClick[event.sourceId]();
+        break;
 
-        case GID.QUIT:
-          win.close(); /* will exit the events loop */
-          break;
-      }
+      case EventKind.INTUITICKS:
+        stopwatch.tick(Date.now());
+        break;
     }
 
-    /* INTUITICKS arrive ~10/sec from Intuition's heartbeat. We
-     * cross-check against wall-clock so a missed tick doesn't drift
-     * us — accumulate the actual ms delta. */
-    if (e.kind === EventKind.INTUITICKS && running) {
-      let now = Date.now();
-      if (lastTickAt) {
-        elapsedCs += Math.floor((now - lastTickAt) / 10);
-      }
-      lastTickAt = now;
-      refreshDisplay();
-    }
+    render();
   }
 }
 finally {
-  win.dispose();
-  amiga.freeMem(valuesBuf, 8);
+  window.dispose();
+
+  /* The LED image went with the window; its buffer is ours. */
+  amiga.freeMem(ledDigits, LED_BYTES);
 }
+
 print('Bye.');

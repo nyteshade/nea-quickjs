@@ -1,145 +1,294 @@
 /*
- * color_mixer_demo.js — RGB color mixer with three sliders + LED readouts.
+ * color_mixer_demo.js - mix a colour with three sliders, shown as hex.
  *
- * Three horizontal sliders for Red, Green, Blue (0..255 each). Each
- * slider's current value is shown alongside via led.image as a 3-digit
- * decimal display. A StringGadget at the bottom shows the composite as
- * "#RRGGBB" hex. Quit closes.
+ *   +------------------------------------------------+
+ *   | Drag the sliders. Hex value updates live.      |
+ *   | R:  ==================|===============    128  |
+ *   | G:  ==================|===============    128  |   LED digits
+ *   | B:  ==================|===============    128  |
+ *   | #808080                                        |   hex code
+ *   | [                    Quit                    ] |
+ *   +------------------------------------------------+
  *
- * Demonstrates:
- *   - Multiple Slider event sources distinguished by GA_ID
- *   - Live updates to read-only LEDs and StringGadget on slider drag
- *   - Coordinated multi-gadget UI driven by SLIDER_CHANGE events
+ * Drag any slider: the LED digits beside it follow the knob, and the
+ * line underneath shows the three levels as one #RRGGBB code. No
+ * colour is actually displayed; the demo is about several gadgets
+ * staying in step.
+ *
+ * The file has three parts, read top to bottom:
+ *
+ *   1. THE COLOUR - three levels and how to write them. No GUI.
+ *   2. THE PANEL  - the window, written as a tree that looks like it.
+ *   3. THE LOOP   - slider moves in, colour updated, panel redrawn.
+ *
+ * Assumptions:
+ *   - opens on the default public screen (normally Workbench), which
+ *     must have room for a window about 340 x 180 pixels inside
+ *   - window.class, layout.gadget, button.gadget, slider.gadget,
+ *     string.gadget, label.image and led.image are installed in
+ *     SYS:Classes, as they are on AmigaOS 3.2
+ *   - led.image reads its digits from a buffer of one byte per digit
+ *     that the script owns, most significant digit first, and draws
+ *     them again when it is handed the buffer a second time
+ *   - quickjs.library 0.157+ puts the slider's new level on the event;
+ *     on 0.156 the script asks the slider instead
+ *   - the hex code is a read-only string gadget because a Label keeps
+ *     the text it was created with
  *
  * Requires quickjs.library 0.156+.
- * Run:  qjs examples/color_mixer_demo.js
+ * Run: qjs examples/color_mixer_demo.js
  */
-
-import * as std from 'qjs:std';
 
 const { Window, Layout, Button, Slider, Led, Label, StringGadget,
         EventKind, WindowPosition } = amiga.boopsi;
 
-const GID = { R: 1, G: 2, B: 3, QUIT: 99 };
 
-/* Each LED uses a 4-byte value buffer (3 digits we use + 1 unused). */
-function makeLedBuf(initial) {
-  let p = amiga.allocMem(4);
-  writeLed(p, initial);
-  return p;
+/* ==================================================================
+ * 1. THE COLOUR
+ *
+ * Three levels, and the two ways the panel writes them down. Nothing
+ * here knows about gadgets.
+ * ================================================================== */
+
+/** The highest level a channel can have; the lowest is 0. */
+const LEVEL_MAX = 255;
+
+/** Where every channel starts: mid grey. */
+const START_LEVEL = 128;
+
+/** The colour being mixed. Each level is 0 to LEVEL_MAX. */
+const colour = {
+  red:   START_LEVEL,
+  green: START_LEVEL,
+  blue:  START_LEVEL,
+};
+
+/**
+ * One level as two upper-case hex digits.
+ *
+ * @param {number} level - 0 to 255
+ * @returns {string}
+ */
+function hexPair(level) {
+  let digits = (level & 0xFF).toString(16).toUpperCase();
+  return digits.length < 2 ? '0' + digits : digits;
 }
 
-function writeLed(buf, n) {
-  /* Two pairs = 4 digits — but we only use last 3 for 0-255 range. */
-  amiga.poke8(buf + 0, 0);
-  amiga.poke8(buf + 1, Math.floor(n / 100) % 10);
-  amiga.poke8(buf + 2, Math.floor(n / 10)  % 10);
-  amiga.poke8(buf + 3, n % 10);
+/**
+ * The whole colour as a #RRGGBB code.
+ *
+ * @param {{red: number, green: number, blue: number}} mix
+ * @returns {string}
+ */
+function hexCode(mix) {
+  return '#' + hexPair(mix.red) + hexPair(mix.green) + hexPair(mix.blue);
 }
 
-let rBuf = makeLedBuf(128);
-let gBuf = makeLedBuf(128);
-let bBuf = makeLedBuf(128);
+/**
+ * One level as the four decimal digits an LED display of two pairs
+ * shows. A level never needs more than three, so the first is always
+ * 0.
+ *
+ * @param {number} level - 0 to 255
+ * @returns {Array<number>} four digits, most significant first
+ */
+function ledDigits(level) {
+  return [
+    0,
+    Math.floor(level / 100) % 10,
+    Math.floor(level / 10)  % 10,
+    level % 10,
+  ];
+}
 
-let rLed = new Led({ pairs: 2, values: rBuf });
-let gLed = new Led({ pairs: 2, values: gBuf });
-let bLed = new Led({ pairs: 2, values: bBuf });
 
-function channelRow(label, slider, led) {
+/* ==================================================================
+ * 2. THE PANEL
+ *
+ * Each channel is a slider with an LED display beside it. The window
+ * stacks three of them over the hex code. Read the `layout:` tree next
+ * to the picture at the top of the file.
+ * ================================================================== */
+
+/** Gadget IDs: how an event says which gadget it came from. */
+const ID = { RED: 1, GREEN: 2, BLUE: 3, QUIT: 99, HEX: 200 };
+
+/** An LED display shows digits in pairs. Two pairs is four digits. */
+const LED_PAIRS = 2;
+
+/** The size of an LED display's digit buffer: one byte per digit. */
+const LED_BYTES = 4;
+
+/**
+ * Write a level into an LED display's digit buffer.
+ *
+ * @param {number} buffer - address of LED_BYTES bytes
+ * @param {number} level - 0 to 255
+ * @returns {undefined}
+ */
+function writeLedDigits(buffer, level) {
+  ledDigits(level).forEach((digit, index) => {
+    amiga.poke8(buffer + index, digit);
+  });
+}
+
+/**
+ * Build the gadgets for one channel of the colour.
+ *
+ * @param {number} id - gadget ID for the slider, one of ID
+ * @param {string} name - which level it controls: a key of `colour`
+ * @returns {{name: string, slider: Slider, led: Led, digits: number,
+ *            shownLevel: number}} `digits` is the address of the LED's
+ *   buffer, which is ours to free; `shownLevel` is the level the LED
+ *   currently displays
+ */
+function channel(id, name) {
+  let digits = amiga.allocMem(LED_BYTES);
+  writeLedDigits(digits, colour[name]);
+
+  return {
+    name,
+    digits,
+    shownLevel: colour[name],
+
+    led: new Led({ pairs: LED_PAIRS, values: digits }),
+
+    slider: new Slider({
+      id, min: 0, max: LEVEL_MAX, level: colour[name],
+      orientation: 'horizontal', ticks: 5,
+    }),
+  };
+}
+
+/**
+ * One line of the window: a caption, a slider and its LED display.
+ *
+ * @param {string} caption
+ * @param {{slider: Slider, led: Led}} oneChannel
+ * @returns {Layout}
+ */
+function channelRow(caption, oneChannel) {
   return new Layout({
     orientation: 'horizontal', innerSpacing: 4,
     children: [
-      new Label({ text: label }),
-      slider,
-      led,
+      new Label({ text: caption }),
+      oneChannel.slider,
+      oneChannel.led,
     ],
   });
 }
 
-let rSlider = new Slider({
-  id: GID.R, min: 0, max: 255, level: 128,
-  orientation: 'horizontal', ticks: 5,
-});
-let gSlider = new Slider({
-  id: GID.G, min: 0, max: 255, level: 128,
-  orientation: 'horizontal', ticks: 5,
-});
-let bSlider = new Slider({
-  id: GID.B, min: 0, max: 255, level: 128,
-  orientation: 'horizontal', ticks: 5,
+let red   = channel(ID.RED,   'red');
+let green = channel(ID.GREEN, 'green');
+let blue  = channel(ID.BLUE,  'blue');
+
+/* A read-only string gadget, not a Label: its text can be changed
+ * while the window is open. */
+let hexLine = new StringGadget({
+  id: ID.HEX, readOnly: true, maxChars: 12, text: hexCode(colour),
 });
 
-let hexDisplay = new StringGadget({
-  id: 200, readOnly: true, maxChars: 12, text: '#808080',
-});
-
-let quit = new Button({ id: GID.QUIT, text: '_Quit' });
-
-let win = new Window({
+let window = new Window({
   title:       'RGB Color Mixer',
   innerWidth:  340,
   innerHeight: 180,
   position:    WindowPosition.CENTERSCREEN,
   closeGadget: true, dragBar: true, depthGadget: true, activate: true,
+
   layout: new Layout({
     orientation: 'vertical', innerSpacing: 6,
     children: [
+
       new Label({ text: 'Drag the sliders. Hex value updates live.' }),
-      channelRow('R:', rSlider, rLed),
-      channelRow('G:', gSlider, gLed),
-      channelRow('B:', bSlider, bLed),
-      hexDisplay,
-      quit,
+
+      channelRow('R:', red),
+      channelRow('G:', green),
+      channelRow('B:', blue),
+
+      hexLine,
+
+      new Button({ id: ID.QUIT, text: '_Quit' }),
+
     ],
   }),
 });
 
-/* Keep current channel values in JS so we can recompose the hex when
- * any one changes. We can't currently read SLIDER_CHANGE's new value
- * directly from the event yet (Phase D refinement), so we re-query
- * via OM_GET on the source slider. */
-let values = { 1: 128, 2: 128, 3: 128 };
 
-function hex2(n) {
-  let s = (n & 0xFF).toString(16).toUpperCase();
-  return s.length < 2 ? '0' + s : s;
+/* ==================================================================
+ * 3. THE LOOP
+ *
+ * Wait for a slider to move, record its level in the colour, then make
+ * the panel show whatever the colour now says.
+ * ================================================================== */
+
+/** What each slider does with its new level. */
+const onSlide = {
+  [ID.RED]:   (level) => { colour.red   = level; },
+  [ID.GREEN]: (level) => { colour.green = level; },
+  [ID.BLUE]:  (level) => { colour.blue  = level; },
+};
+
+/** The hex code the string gadget currently holds. */
+let shownHex = hexCode(colour);
+
+/**
+ * Make the panel match the colour. Only an LED display whose level has
+ * changed is rewritten, so dragging one slider leaves the other two
+ * alone.
+ *
+ * @returns {undefined}
+ */
+function render() {
+  for (let oneChannel of [red, green, blue]) {
+    let level = colour[oneChannel.name];
+    if (level === oneChannel.shownLevel) continue;
+
+    /* New digits in the buffer, then the same buffer handed to the LED
+     * again, which is what makes it draw them. */
+    writeLedDigits(oneChannel.digits, level);
+    oneChannel.led.set({ values: oneChannel.digits });
+    oneChannel.shownLevel = level;
+  }
+
+  let hex = hexCode(colour);
+  if (hex !== shownHex) {
+    hexLine.text = hex;
+    shownHex = hex;
+  }
 }
 
-function refreshHex() {
-  hexDisplay.text =
-    '#' + hex2(values[GID.R]) + hex2(values[GID.G]) + hex2(values[GID.B]);
-}
-
-win.open();
+window.open();
 print('RGB mixer open. Drag sliders, watch the hex display. Quit closes.');
 
 try {
-  for (let e of win.events()) {
-    if (e.kind === EventKind.CLOSE_WINDOW) break;
-    if (e.kind === EventKind.BUTTON_CLICK && e.sourceId === GID.QUIT) break;
-    if (e.kind === EventKind.SLIDER_CHANGE && e.source) {
-      /* event.attrs.level is auto-populated by Window._fillAttrsForClass
-       * at quickjs.library 0.157+. Fallback to e.source.get for older. */
-      let v = (typeof e.attrs.level === 'number')
-                ? e.attrs.level : e.source.get('level');
-      if (typeof v === 'number') {
-        values[e.sourceId] = v;
-        let buf = (e.sourceId === GID.R ? rBuf :
-                   e.sourceId === GID.G ? gBuf : bBuf);
-        let led = (e.sourceId === GID.R ? rLed :
-                   e.sourceId === GID.G ? gLed : bLed);
-        writeLed(buf, v);
-        /* Re-set the values pointer to force a redraw. */
-        led.set({ values: buf });
-        refreshHex();
+  for (let event of window.events()) {
+
+    if (event.kind === EventKind.CLOSE_WINDOW) break;
+
+    if (event.kind === EventKind.BUTTON_CLICK &&
+        event.sourceId === ID.QUIT) break;
+
+    if (event.kind === EventKind.SLIDER_CHANGE && event.source) {
+      /* The level is on the event from quickjs.library 0.157; before
+       * that the slider has to be asked. */
+      let level = (typeof event.attrs.level === 'number')
+                    ? event.attrs.level : event.source.get('level');
+
+      if (typeof level === 'number' && onSlide[event.sourceId]) {
+        onSlide[event.sourceId](level);
       }
     }
+
+    render();
   }
 }
 finally {
-  win.dispose();
-  amiga.freeMem(rBuf, 4);
-  amiga.freeMem(gBuf, 4);
-  amiga.freeMem(bBuf, 4);
+  window.dispose();
+
+  /* The LED displays went with the window; their buffers are ours. */
+  for (let oneChannel of [red, green, blue]) {
+    amiga.freeMem(oneChannel.digits, LED_BYTES);
+  }
 }
+
 print('Bye.');

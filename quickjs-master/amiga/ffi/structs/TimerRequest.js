@@ -11,7 +11,9 @@
  *
  * Units: UNIT_MICROHZ (0) = µs precision; UNIT_VBLANK (1) = VBL ticks.
  * Commands: TR_ADDREQUEST (9) = "signal me after tv_secs.tv_micro",
- *           TR_GETSYSTIME (11) = "fill tv with current uptime".
+ *           TR_GETSYSTIME (10) = "fill tv with the system time".
+ *           (11 is TR_SETSYSTIME, which SETS the clock. This file said
+ *           11 for GETSYSTIME until 0.213.)
  */
 
 import { IORequest } from './IORequest.js';
@@ -47,7 +49,8 @@ Typical use:
 
 Commands:
   TR_ADDREQUEST = 9
-  TR_GETSYSTIME = 11
+  TR_GETSYSTIME = 10
+  TR_SETSYSTIME = 11   (sets the clock; not a read)
   CMD_ABORTIO   = 4`;
   }
 
