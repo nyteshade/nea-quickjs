@@ -45,7 +45,7 @@ export class DateBrowser extends GadgetBase {
     day:          { tagID: DATEBROWSER.Day,          type: 'uint32' },
     month:        { tagID: DATEBROWSER.Month,        type: 'uint32' },
     year:         { tagID: DATEBROWSER.Year,         type: 'uint32' },
-    selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'ptr' },
+    selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'uint32' },   /* (ULONG) one bit per day of the month */
     weekDay:      { tagID: DATEBROWSER.WeekDay,      type: 'uint32' },
     firstWeekDay: { tagID: DATEBROWSER.FirstWDay,    type: 'uint32' },
     numDays:      { tagID: DATEBROWSER.NumDays,      type: 'uint32' },

@@ -169,13 +169,13 @@ export class ListBrowser extends GadgetBase {
     top:              { tagID: LISTBROWSER.Top,              type: 'int32' },
     selected:         { tagID: LISTBROWSER.Selected,         type: 'int32' },
     selectedNode:     { tagID: LISTBROWSER.SelectedNode,     type: 'ptr' },
-    multiSelect:      { tagID: LISTBROWSER.MultiSelect,      type: 'uint32' },
+    multiSelect:      { tagID: LISTBROWSER.MultiSelect,      type: 'bool' },   /* (BOOL) */
     columnInfo:       { tagID: LISTBROWSER.ColumnInfo,       type: 'ptr' },
     makeVisible:      { tagID: LISTBROWSER.MakeVisible,      type: 'int32' },
     borderless:       { tagID: LISTBROWSER.Borderless,       type: 'bool' },
     autoFit:          { tagID: LISTBROWSER.AutoFit,          type: 'bool' },
     columnTitles:     { tagID: LISTBROWSER.ColumnTitles,     type: 'bool' },
-    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'ptr' },
+    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'bool' },   /* (BOOL); was ptr until 0.224 */
     hierarchical:     { tagID: LISTBROWSER.Hierarchical,     type: 'bool' },
     spacing:          { tagID: LISTBROWSER.Spacing,          type: 'int32' },
     editable:         { tagID: LISTBROWSER.Editable,         type: 'bool' },

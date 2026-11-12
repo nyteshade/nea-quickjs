@@ -126,12 +126,12 @@ export class SpeedBar extends GadgetBase {
     ...GADGET_ATTRS,
     buttonsPtr:   { tagID: SPEEDBAR.Buttons,      type: 'ptr' },
     orientation:  { tagID: SPEEDBAR.Orientation,  type: 'uint32' },
-    background:   { tagID: SPEEDBAR.Background,   type: 'ptr' },
+    background:   { tagID: SPEEDBAR.Background,   type: 'uint32' },   /* (UWORD) a pen number */
     strumBar:     { tagID: SPEEDBAR.StrumBar,     type: 'bool' },
     top:          { tagID: SPEEDBAR.Top,          type: 'int32' },
     visible:      { tagID: SPEEDBAR.Visible,      type: 'int32' },
     total:        { tagID: SPEEDBAR.Total,        type: 'int32' },
-    help:         { tagID: SPEEDBAR.Help,         type: 'bool' },
+    help:         { tagID: SPEEDBAR.Help,         type: 'string-owned' },   /* (STRPTR) help text; was bool until 0.224 */
     bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'uint32' },
     selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },
     selectedNode: { tagID: SPEEDBAR.SelectedNode, type: 'ptr' },

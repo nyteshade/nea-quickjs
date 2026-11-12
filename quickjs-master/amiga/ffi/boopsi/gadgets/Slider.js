@@ -77,7 +77,7 @@ export class Slider extends GadgetBase {
     level:       { tagID: SLIDER.Level,       type: 'int32' },
     orientation: { tagID: SLIDER.Orientation, type: 'uint32' },
     ticks:       { tagID: SLIDER.Ticks,       type: 'int32' },
-    shortTicks:  { tagID: SLIDER.ShortTicks,  type: 'int32' },
+    shortTicks:  { tagID: SLIDER.ShortTicks,  type: 'bool' },   /* (BOOL) in gadgets/slider.h */
     tickSize:    { tagID: SLIDER.TickSize,    type: 'int32' },
     knobImage:   { tagID: SLIDER.KnobImage,   type: 'ptr' },
     gradient:    { tagID: SLIDER.Gradient,    type: 'bool' },

@@ -8492,7 +8492,7 @@ const LED = Object.freeze({
   Signed:      0x84000005,  /* (BOOL) signed display */
   Time:        0x84000006,  /* (BOOL) time-style formatting */
   Hexadecimal: 0x84000007,  /* (BOOL) hex digits */
-  Raw:         0x84000008,  /* (STRPTR) raw display string */
+  Raw:         0x84000008,  /* (BOOL) raw mode (V47.3) */
 });
 
 /**
@@ -8514,7 +8514,7 @@ class Led extends ImageBase {
     signed:      { tagID: LED.Signed,      type: 'bool'  },
     time:        { tagID: LED.Time,        type: 'bool'  },
     hexadecimal: { tagID: LED.Hexadecimal, type: 'bool'  },
-    raw:         { tagID: LED.Raw,         type: 'string-owned' },
+    raw:         { tagID: LED.Raw,         type: 'bool' },   /* (BOOL) raw mode; was string-owned until 0.224 */
   };
 }
 
@@ -8947,7 +8947,7 @@ class Button extends GadgetBase {
     fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
     fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'uint32' },
     bgPen:          { tagID: BUTTON.BgPen,        type: 'uint32' },
-    current:        { tagID: BUTTON.Current,      type: 'bool' },
+    current:        { tagID: BUTTON.Current,      type: 'int32' },   /* (LONG) which item of BUTTON_Array is current */
     bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'uint32' },
     transparent:    { tagID: BUTTON.Transparent,  type: 'bool' },
     justification:  { tagID: BUTTON.Justification,type: 'uint32' },
@@ -9324,7 +9324,7 @@ class Slider extends GadgetBase {
     level:       { tagID: SLIDER.Level,       type: 'int32' },
     orientation: { tagID: SLIDER.Orientation, type: 'uint32' },
     ticks:       { tagID: SLIDER.Ticks,       type: 'int32' },
-    shortTicks:  { tagID: SLIDER.ShortTicks,  type: 'int32' },
+    shortTicks:  { tagID: SLIDER.ShortTicks,  type: 'bool' },   /* (BOOL) in gadgets/slider.h */
     tickSize:    { tagID: SLIDER.TickSize,    type: 'int32' },
     knobImage:   { tagID: SLIDER.KnobImage,   type: 'ptr' },
     gradient:    { tagID: SLIDER.Gradient,    type: 'bool' },
@@ -9409,7 +9409,7 @@ class Scroller extends GadgetBase {
     visible:     { tagID: SCROLLER.Visible,     type: 'int32' },
     total:       { tagID: SCROLLER.Total,       type: 'int32' },
     orientation: { tagID: SCROLLER.Orientation, type: 'uint32' },
-    arrows:      { tagID: SCROLLER.Arrows,      type: 'int32' },
+    arrows:      { tagID: SCROLLER.Arrows,      type: 'bool' },   /* (BOOL) in gadgets/scroller.h */
     stretch:     { tagID: SCROLLER.Stretch,     type: 'bool' },
     arrowDelta:  { tagID: SCROLLER.ArrowDelta,  type: 'int32' },
   };
@@ -10255,13 +10255,13 @@ class ListBrowser extends GadgetBase {
     top:              { tagID: LISTBROWSER.Top,              type: 'int32' },
     selected:         { tagID: LISTBROWSER.Selected,         type: 'int32' },
     selectedNode:     { tagID: LISTBROWSER.SelectedNode,     type: 'ptr' },
-    multiSelect:      { tagID: LISTBROWSER.MultiSelect,      type: 'uint32' },
+    multiSelect:      { tagID: LISTBROWSER.MultiSelect,      type: 'bool' },   /* (BOOL) */
     columnInfo:       { tagID: LISTBROWSER.ColumnInfo,       type: 'ptr' },
     makeVisible:      { tagID: LISTBROWSER.MakeVisible,      type: 'int32' },
     borderless:       { tagID: LISTBROWSER.Borderless,       type: 'bool' },
     autoFit:          { tagID: LISTBROWSER.AutoFit,          type: 'bool' },
     columnTitles:     { tagID: LISTBROWSER.ColumnTitles,     type: 'bool' },
-    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'ptr' },
+    showSelected:     { tagID: LISTBROWSER.ShowSelected,     type: 'bool' },   /* (BOOL); was ptr until 0.224 */
     hierarchical:     { tagID: LISTBROWSER.Hierarchical,     type: 'bool' },
     spacing:          { tagID: LISTBROWSER.Spacing,          type: 'int32' },
     editable:         { tagID: LISTBROWSER.Editable,         type: 'bool' },
@@ -10733,12 +10733,12 @@ class SpeedBar extends GadgetBase {
     ...GADGET_ATTRS,
     buttonsPtr:   { tagID: SPEEDBAR.Buttons,      type: 'ptr' },
     orientation:  { tagID: SPEEDBAR.Orientation,  type: 'uint32' },
-    background:   { tagID: SPEEDBAR.Background,   type: 'ptr' },
+    background:   { tagID: SPEEDBAR.Background,   type: 'uint32' },   /* (UWORD) a pen number */
     strumBar:     { tagID: SPEEDBAR.StrumBar,     type: 'bool' },
     top:          { tagID: SPEEDBAR.Top,          type: 'int32' },
     visible:      { tagID: SPEEDBAR.Visible,      type: 'int32' },
     total:        { tagID: SPEEDBAR.Total,        type: 'int32' },
-    help:         { tagID: SPEEDBAR.Help,         type: 'bool' },
+    help:         { tagID: SPEEDBAR.Help,         type: 'string-owned' },   /* (STRPTR) help text; was bool until 0.224 */
     bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'uint32' },
     selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },
     selectedNode: { tagID: SPEEDBAR.SelectedNode, type: 'ptr' },
@@ -11415,7 +11415,7 @@ class DateBrowser extends GadgetBase {
     day:          { tagID: DATEBROWSER.Day,          type: 'uint32' },
     month:        { tagID: DATEBROWSER.Month,        type: 'uint32' },
     year:         { tagID: DATEBROWSER.Year,         type: 'uint32' },
-    selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'ptr' },
+    selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'uint32' },   /* (ULONG) one bit per day of the month */
     weekDay:      { tagID: DATEBROWSER.WeekDay,      type: 'uint32' },
     firstWeekDay: { tagID: DATEBROWSER.FirstWDay,    type: 'uint32' },
     numDays:      { tagID: DATEBROWSER.NumDays,      type: 'uint32' },
@@ -12919,6 +12919,7 @@ const WA = Object.freeze({
   MaxHeight:     0x80000075,
   InnerWidth:    0x80000076,
   InnerHeight:   0x80000077,
+  PubScreenName: 0x80000078,
   PubScreen:     0x80000079,
   /* Individual gadget-flag tags (WA_Dummy + 0x1E..0x21). These are
    * the CORRECT tags to enable sizing/drag/depth/close gadgets at
@@ -13017,7 +13018,11 @@ class ReactionWindow extends BOOPSIBase {
      * alternative to flag-bitmask WA_Flags. */
     title:         { tagID: WA.Title,       type: 'string-owned' },
     screenTitle:   { tagID: WA.ScreenTitle, type: 'string-owned' },
-    pubScreenName: { tagID: WA.PubScreen,   type: 'string-owned' },
+    /* A screen by NAME is WA_PubScreenName; WA_PubScreen takes a
+     * struct Screen pointer. Until 0.224 pubScreenName sent its string
+     * as WA_PubScreen, so Intuition read the text as a Screen. */
+    pubScreenName: { tagID: WA.PubScreenName, type: 'string-owned' },
+    pubScreen:     { tagID: WA.PubScreen,     type: 'ptr' },
     customScreen:  { tagID: WA.CustomScreen,type: 'ptr'  },
     innerWidth:    { tagID: WA.InnerWidth,  type: 'int32' },
     innerHeight:   { tagID: WA.InnerHeight, type: 'int32' },

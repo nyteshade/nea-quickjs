@@ -20,7 +20,7 @@ const LED = Object.freeze({
   Signed:      0x84000005,  /* (BOOL) signed display */
   Time:        0x84000006,  /* (BOOL) time-style formatting */
   Hexadecimal: 0x84000007,  /* (BOOL) hex digits */
-  Raw:         0x84000008,  /* (STRPTR) raw display string */
+  Raw:         0x84000008,  /* (BOOL) raw mode (V47.3) */
 });
 
 /**
@@ -42,6 +42,6 @@ export class Led extends ImageBase {
     signed:      { tagID: LED.Signed,      type: 'bool'  },
     time:        { tagID: LED.Time,        type: 'bool'  },
     hexadecimal: { tagID: LED.Hexadecimal, type: 'bool'  },
-    raw:         { tagID: LED.Raw,         type: 'string-owned' },
+    raw:         { tagID: LED.Raw,         type: 'bool' },   /* (BOOL) raw mode; was string-owned until 0.224 */
   };
 }

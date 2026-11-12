@@ -47,6 +47,7 @@ const WA = Object.freeze({
   MaxHeight:     0x80000075,
   InnerWidth:    0x80000076,
   InnerHeight:   0x80000077,
+  PubScreenName: 0x80000078,
   PubScreen:     0x80000079,
   /* Individual gadget-flag tags (WA_Dummy + 0x1E..0x21). These are
    * the CORRECT tags to enable sizing/drag/depth/close gadgets at
@@ -145,7 +146,11 @@ export class ReactionWindow extends BOOPSIBase {
      * alternative to flag-bitmask WA_Flags. */
     title:         { tagID: WA.Title,       type: 'string-owned' },
     screenTitle:   { tagID: WA.ScreenTitle, type: 'string-owned' },
-    pubScreenName: { tagID: WA.PubScreen,   type: 'string-owned' },
+    /* A screen by NAME is WA_PubScreenName; WA_PubScreen takes a
+     * struct Screen pointer. Until 0.224 pubScreenName sent its string
+     * as WA_PubScreen, so Intuition read the text as a Screen. */
+    pubScreenName: { tagID: WA.PubScreenName, type: 'string-owned' },
+    pubScreen:     { tagID: WA.PubScreen,     type: 'ptr' },
     customScreen:  { tagID: WA.CustomScreen,type: 'ptr'  },
     innerWidth:    { tagID: WA.InnerWidth,  type: 'int32' },
     innerHeight:   { tagID: WA.InnerHeight, type: 'int32' },

@@ -33,11 +33,6 @@ const { Window, Layout, Button, Scroller, Label, EventKind, IDCMP,
 /** Gadget IDs: how an event says which gadget it came from. */
 const ID = { VERTICAL: 1, HORIZONTAL: 2, QUIT: 3 };
 
-/** The value given to both scrollbars' `arrows` attribute
- *  (SCROLLER_Arrows in gadgets/scroller.h, a BOOL: draw the arrow
- *  buttons). Any value other than zero turns them on. */
-const SHOW_ARROWS = 15;
-
 /* Each scrollbar shows a tenth of what it scrolls over. */
 
 let verticalScroller = new Scroller({
@@ -46,7 +41,7 @@ let verticalScroller = new Scroller({
   top:         0,
   visible:     20,
   total:       200,
-  arrows:      SHOW_ARROWS,
+  arrows:      true,          /* draw the arrow buttons */
 });
 
 let horizontalScroller = new Scroller({
@@ -55,7 +50,7 @@ let horizontalScroller = new Scroller({
   top:         0,
   visible:     100,
   total:       1000,
-  arrows:      SHOW_ARROWS,
+  arrows:      true,          /* draw the arrow buttons */
 });
 
 let quitButton = new Button({ id: ID.QUIT, text: '_Quit' });

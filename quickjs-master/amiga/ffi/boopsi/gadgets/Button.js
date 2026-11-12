@@ -60,7 +60,7 @@ export class Button extends GadgetBase {
     fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
     fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'uint32' },
     bgPen:          { tagID: BUTTON.BgPen,        type: 'uint32' },
-    current:        { tagID: BUTTON.Current,      type: 'bool' },
+    current:        { tagID: BUTTON.Current,      type: 'int32' },   /* (LONG) which item of BUTTON_Array is current */
     bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'uint32' },
     transparent:    { tagID: BUTTON.Transparent,  type: 'bool' },
     justification:  { tagID: BUTTON.Justification,type: 'uint32' },

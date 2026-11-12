@@ -37,7 +37,7 @@ let slider = new Slider({
   level:       50,
   orientation: 'horizontal',
   ticks:       11,   /* one tick mark every ten steps, both ends included */
-  shortTicks:  1,    /* SLIDER_ShortTicks: alternate long and short ticks */
+  shortTicks:  true, /* alternate long and short ticks */
 });
 
 let caption    = new Label({ text: 'Slide me:' });
