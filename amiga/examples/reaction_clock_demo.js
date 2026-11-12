@@ -48,7 +48,7 @@
  * If the message port cannot be created or timer.device cannot be
  * opened, the script says so and exits with return code 1.
  *
- * Requires quickjs.library 0.169+.
+ * Requires quickjs.library 0.215+.
  * Run: qjs examples/reaction_clock_demo.js
  */
 

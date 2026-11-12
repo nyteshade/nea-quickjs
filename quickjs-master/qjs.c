@@ -39,9 +39,9 @@
 #ifdef __VBCC__
 /* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
  * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
-#define AMIGA_PORT_VERSION "0.214"
-#define AMIGA_PORT_DATE    "10.11.2026"
-#define AMIGA_PORT_DATE_US "11/09/2026"
+#define AMIGA_PORT_VERSION "0.215"
+#define AMIGA_PORT_DATE    "11.11.2026"
+#define AMIGA_PORT_DATE_US "11/11/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] =
     "$VER: qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE ")";

@@ -13,7 +13,7 @@
  *     wait is as accurate as the machine's CIA timers
  *   - the system clock is not changed by anything else during the wait
  *
- * Requires quickjs.library 0.213+.
+ * Requires quickjs.library 0.215+.
  * Run: qjs examples/timer_demo.js
  */
 

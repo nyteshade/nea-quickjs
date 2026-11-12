@@ -35,7 +35,7 @@
  *     which is why this file keeps two requests and tracks whether
  *     the tick is out (see part 2)
  *
- * Requires quickjs.library 0.214+.
+ * Requires quickjs.library 0.215+.
  * Run: qjs examples/clock_demo.js
  */
 

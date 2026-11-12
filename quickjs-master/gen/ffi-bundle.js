@@ -3351,9 +3351,46 @@ class Exec extends LibraryBase {
     return this.call(this.lvo.FreeVec, { a1: ptrOf(ptr) });
   }
 
-  /** FindTask(name) — a1=name (NULL = current task). Returns task ptr. */
+  /**
+   * Run `fn` with `name` as a C string pointer. A JS string is copied
+   * into a temporary NUL-terminated buffer that is freed afterwards;
+   * a number, struct or null goes through ptrOf unchanged.
+   *
+   * ptrOf alone must not be used for names: it turns a JS string into
+   * 0, so the OS call receives a NULL name. (OpenDevice and FindTask
+   * did exactly that until 0.215.)
+   *
+   * @param {string|number|null} name
+   * @param {(namePtr: number) => *} fn
+   * @returns {*} whatever fn returns
+   * @throws {Error} if the temporary buffer cannot be allocated
+   */
+  static _withName(name, fn) {
+    if (typeof name !== 'string') return fn(ptrOf(name));
+
+    let bytes  = name.length + 1;
+    let buffer = globalThis.amiga.allocMem(bytes);
+
+    if (!buffer) throw new Error('Exec: out of memory for a name');
+
+    try {
+      globalThis.amiga.pokeString(buffer, name);
+      return fn(buffer);
+    }
+    finally {
+      globalThis.amiga.freeMem(buffer, bytes);
+    }
+  }
+
+  /**
+   * FindTask(name) — a1=name (null = the current task).
+   *
+   * @param {string|number|null} name
+   * @returns {number} task pointer, 0 if there is no task of that name
+   */
   static FindTask(name) {
-    return this.call(this.lvo.FindTask, { a1: ptrOf(name) });
+    return this._withName(name, (namePtr) =>
+      this.call(this.lvo.FindTask, { a1: namePtr }));
   }
 
   /** Wait(signalSet) — d0=signalSet. Returns received signals. */
@@ -3420,12 +3457,24 @@ class Exec extends LibraryBase {
   /** Enable()  — re-enable interrupts */
   static Enable()  { return this.call(this.lvo.Enable,  {}); }
 
-  /** OpenDevice(name, unit, ioRequest, flags) — a0/d0/a1/d1 */
+  /**
+   * OpenDevice(name, unit, ioRequest, flags) — a0/d0/a1/d1.
+   *
+   * @param {string|number} name - e.g. 'timer.device'
+   * @param {number} unit
+   * @param {IORequest|number} ioRequest
+   * @param {number} flags
+   * @returns {number} 0 on success, otherwise an IOERR_ code. The
+   *   result is the low byte of d0, sign-extended, as exec defines it.
+   */
   static OpenDevice(name, unit, ioRequest, flags) {
-    return this.call(this.lvo.OpenDevice, {
-      a0: ptrOf(name), d0: unit | 0,
-      a1: ptrOf(ioRequest), d1: flags | 0,
-    });
+    let result = this._withName(name, (namePtr) =>
+      this.call(this.lvo.OpenDevice, {
+        a0: namePtr, d0: unit | 0,
+        a1: ptrOf(ioRequest), d1: flags | 0,
+      }));
+
+    return (result << 24) >> 24;
   }
 
   /** CloseDevice(ioRequest) — a1=ioRequest */
