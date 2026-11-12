@@ -1703,11 +1703,21 @@ where:
          allocation, no ownership). Omit to allocate a fresh 8-byte
          struct filled with zeroes (free() when done).
 
-Fields (read-only getters):
-  name   {string|null}  font name at +0 (STRPTR)
-  ySize  {number}       font height, +4 (UWORD)
-  style  {number}       TF_* bits, +6 (UBYTE)
-  flags  {number}       FPF_* bits, +7 (UBYTE)
+Fields:
+  name     {string|null}  font name at +0, read as a string
+  namePtr  {number}       the same field as a pointer; settable
+  ySize    {number}       font height in pixels, +4; settable
+  style    {number}       Graphics.consts.FSF_* bits, +6; settable
+  flags    {number}       Graphics.consts.FPF_* bits, +7; settable
+
+To describe a font of your own, allocate the name and point at it:
+  let name = amiga.allocString('topaz.font');
+  let attr = new TextAttr();
+  attr.namePtr = name.ptr;      // the string must outlive the TextAttr
+  attr.ySize   = 8;
+  attr.style   = Graphics.consts.FS_NORMAL;
+  ...
+  attr.free(); name.free();
 
 Typical use:
   screen.font.name, screen.font.ySize — live view of the screen's
@@ -1721,14 +1731,21 @@ Typical use:
     return p ? globalThis.amiga.peekString(p, 64) : null;
   }
 
-  /** @returns {number} font height in points/pixels */
-  get ySize() { return this.read16(TextAttr.OFFSET.ta_YSize); }
+  /** @returns {number} the font name as a C string pointer (ta_Name) */
+  get namePtr()  { return this.read32(TextAttr.OFFSET.ta_Name); }
+  set namePtr(v) { this.write32(TextAttr.OFFSET.ta_Name, (v && v.ptr) || (v | 0)); }
 
-  /** @returns {number} TF_NORMAL/TF_UNDERLINED/TF_BOLD/TF_ITALIC bitfield */
-  get style() { return this.read8(TextAttr.OFFSET.ta_Style); }
+  /** @returns {number} font height in pixels */
+  get ySize()  { return this.read16(TextAttr.OFFSET.ta_YSize); }
+  set ySize(v) { this.write16(TextAttr.OFFSET.ta_YSize, v | 0); }
 
-  /** @returns {number} */
-  get flags() { return this.read8(TextAttr.OFFSET.ta_Flags); }
+  /** @returns {number} Graphics.consts.FS_NORMAL or FSF_* bits */
+  get style()  { return this.read8(TextAttr.OFFSET.ta_Style); }
+  set style(v) { this.write8(TextAttr.OFFSET.ta_Style, v | 0); }
+
+  /** @returns {number} Graphics.consts.FPF_* bits */
+  get flags()  { return this.read8(TextAttr.OFFSET.ta_Flags); }
+  set flags(v) { this.write8(TextAttr.OFFSET.ta_Flags, v | 0); }
 }
 
 
@@ -5916,6 +5933,8 @@ class Intuition extends LibraryBase {
     SHIFTKEYIMAGE:       0x2A,
     MENUCHECK:           0x10,
     AMIGAKEY:            0x11,
+    MENUMX:              0x1B,
+    MENUSUB:             0x1C,
 
     /* Image drawing states (intuition/imageclass.h) */
     IDS_NORMAL:           0,
@@ -6048,6 +6067,65 @@ class Intuition extends LibraryBase {
     OM_REMMEMBER: 0x10A,
     /* consts-end */
   });
+
+  /* ============================================================
+   * Menu numbers
+   *
+   * An IDCMP_MENUPICK message's code is a 16-bit menu number: which
+   * menu, which item and which sub-item, packed together. These are
+   * the macros of the same names in intuition/intuition.h:
+   *
+   *   #define MENUNUM(n)  ((n) & 0x1F)
+   *   #define ITEMNUM(n)  (((n) >> 5) & 0x003F)
+   *   #define SUBNUM(n)   (((n) >> 11) & 0x001F)
+   *   #define FULLMENUNUM(menu, item, sub) \
+   *           (SHIFTSUB(sub) | SHIFTITEM(item) | SHIFTMENU(menu))
+   *
+   * Compare a whole number with Number(Intuition.consts.MENUNULL) to
+   * see whether anything was picked.
+   * ============================================================ */
+
+  /**
+   * Which menu a menu number names, counted from 0 at the left.
+   *
+   * @param {number} menuNumber
+   * @returns {number} 0..30, or 31 (NOMENU) for none
+   */
+  static MENUNUM(menuNumber) {
+    return menuNumber & 0x1F;
+  }
+
+  /**
+   * Which item of that menu, counted from 0 at the top.
+   *
+   * @param {number} menuNumber
+   * @returns {number} 0..62, or 63 (NOITEM) for none
+   */
+  static ITEMNUM(menuNumber) {
+    return (menuNumber >> 5) & 0x3F;
+  }
+
+  /**
+   * Which sub-item of that item, counted from 0 at the top.
+   *
+   * @param {number} menuNumber
+   * @returns {number} 0..30, or 31 (NOSUB) for none
+   */
+  static SUBNUM(menuNumber) {
+    return (menuNumber >> 11) & 0x1F;
+  }
+
+  /**
+   * Pack a menu, item and sub-item into one menu number.
+   *
+   * @param {number} menu
+   * @param {number} item
+   * @param {number} sub - 31 (NOSUB) for an item without sub-items
+   * @returns {number}
+   */
+  static FULLMENUNUM(menu, item, sub) {
+    return ((sub & 0x1F) << 11) | ((item & 0x3F) << 5) | (menu & 0x1F);
+  }
 
   /* ============================================================
    * Window lifecycle

@@ -41,10 +41,6 @@ const ID = { FONT_DISPLAY: 1, PICK: 2, QUIT: 3 };
 const MIN_FONT_HEIGHT = 6;
 const MAX_FONT_HEIGHT = 72;
 
-/** Byte offsets into struct TextAttr (graphics/text.h). */
-const TEXTATTR_NAME   = 0;   /* STRPTR ta_Name  */
-const TEXTATTR_HEIGHT = 4;   /* UWORD  ta_YSize */
-
 /**
  * Describe the font a struct TextAttr names.
  *
@@ -52,9 +48,10 @@ const TEXTATTR_HEIGHT = 4;   /* UWORD  ta_YSize */
  * @returns {string} for example "topaz.font / 8"
  */
 function describeFont(textAttr) {
-  let namePointer = amiga.peek32(textAttr + TEXTATTR_NAME);
-  let height      = amiga.peek16(textAttr + TEXTATTR_HEIGHT);
-  let name        = namePointer ? amiga.peekString(namePointer) : '(null)';
+  /* TextAttr wraps the address so the fields can be read by name. */
+  let font   = new TextAttr(textAttr);
+  let name   = font.name || '(null)';
+  let height = font.ySize;
 
   return name + ' / ' + height;
 }

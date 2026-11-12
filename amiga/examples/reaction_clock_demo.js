@@ -48,7 +48,7 @@
  * If the message port cannot be created or timer.device cannot be
  * opened, the script says so and exits with return code 1.
  *
- * Requires quickjs.library 0.215+.
+ * Requires quickjs.library 0.218+.
  * Run: qjs examples/reaction_clock_demo.js
  */
 
@@ -129,13 +129,16 @@ let window = new Window({
  * for. The same request is then sent again for the next second.
  * ================================================================== */
 
-/** timer.device unit that counts in vertical blanks.
- *  (devices/timer.h) */
-const UNIT_VBLANK = 1;
+/** timer.device's units and commands, by name (devices/timer.h):
+ *
+ *   T.UNIT_VBLANK    the unit that counts in vertical blanks
+ *   T.TR_ADDREQUEST  "reply to me after this long" */
+const T = TimerRequest.consts;
 
-/** timer.device command: reply after the given delay.
- *  (devices/timer.h; CMD_NONSTD in exec/io.h) */
-const TR_ADDREQUEST = 9;
+if (!T) {
+  print('Need quickjs.library 0.218 or later');
+  std.exit(1);
+}
 
 let Exec = amiga.Exec;
 
@@ -147,7 +150,7 @@ let timerRequest = new TimerRequest();
 timerRequest.replyPort  = portPointer;
 timerRequest.messageLen = TimerRequest.SIZE;
 
-let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK,
+let openError = Exec.OpenDevice('timer.device', T.UNIT_VBLANK,
                                 timerRequest, 0);
 if (openError !== 0) {
   print('OpenDevice(timer.device, UNIT_VBLANK) rc=' + openError);
@@ -174,7 +177,7 @@ let timerIsOut = false;
 function armTimer(seconds) {
   if (timerIsOut) return;
 
-  timerRequest.command = TR_ADDREQUEST;
+  timerRequest.command = T.TR_ADDREQUEST;
   timerRequest.setTimeval(seconds | 0, 0);
   Exec.SendIO(timerRequest);
   timerIsOut = true;

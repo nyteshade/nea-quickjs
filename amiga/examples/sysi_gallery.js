@@ -29,14 +29,17 @@
  *     pens and sizes without knowing the screen
  *   - pen 1 shows against the window background, for the labels
  *
- * Requires quickjs.library 0.130+.
+ * Requires quickjs.library 0.221+.
  * Run: qjs examples/sysi_gallery.js
  */
 
 import * as std from 'qjs:std';
 
-if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
+/* Intuition.consts.SYSIA_Which arrived in 0.221; its presence is the
+ * test for a new enough library. */
+if (typeof Intuition !== 'function' ||
+    !('SYSIA_Which' in Intuition.consts)) {
+  print('Need quickjs.library 0.221 or later');
   std.exit(1);
 }
 
@@ -48,54 +51,42 @@ const C = Intuition.consts;
  * 1. THE IMAGES
  * ================================================================== */
 
-/* sysiclass attribute tags. Intuition.consts does not have them, so
- * they are spelled out here, from intuition/imageclass.h:
- *
- *   IA_Dummy    = TAG_USER + 0x20000  = 0x80020000
- *   SYSIA_Size  = IA_Dummy + 0x0B
- *   SYSIA_Which = IA_Dummy + 0x0D */
-const SYSIA_Size  = 0x8002000B;   /* which size class to make it in */
-const SYSIA_Which = 0x8002000D;   /* which system image to make */
-
-/** SYSIA_Size value for a medium-resolution screen such as a 640 x
- *  256 Workbench (intuition/imageclass.h; the others are
- *  SYSISIZE_LOWRES = 1 and SYSISIZE_HIRES = 2). */
-const SYSISIZE_MEDRES = 0;
-
-/** The images to show: [label, SYSIA_Which code]. Names and codes
- *  are the header's (intuition/imageclass.h); the last four arrived
- *  with OS 3.2 (V47) and are skipped on an older system. */
+/** The images to show: [label, which image]. The names are the
+ *  header's (intuition/imageclass.h); the last four arrived with
+ *  OS 3.2 (V47) and are skipped on an older system. */
 const GALLERY = [
-  ['Depth',        0x00],   /* DEPTHIMAGE    window depth gadget     */
-  ['Zoom',         0x01],   /* ZOOMIMAGE     window zoom gadget      */
-  ['Size',         0x02],   /* SIZEIMAGE     window sizing gadget    */
-  ['Close',        0x03],   /* CLOSEIMAGE    window close gadget     */
-  ['ScreenDepth',  0x05],   /* SDEPTHIMAGE   screen depth gadget     */
-  ['Left',         0x0A],   /* LEFTIMAGE     arrow                   */
-  ['Up',           0x0B],   /* UPIMAGE                               */
-  ['Right',        0x0C],   /* RIGHTIMAGE                            */
-  ['Down',         0x0D],   /* DOWNIMAGE                             */
-  ['Check',        0x0E],   /* CHECKIMAGE    GadTools checkbox       */
-  ['Radio',        0x0F],   /* MXIMAGE       GadTools radio button   */
-  ['MenuCheck',    0x10],   /* MENUCHECK     menu checkmark          */
-  ['AmigaKey',     0x11],   /* AMIGAKEY      menu Amiga-key          */
-  ['Iconify',      0x16],   /* ICONIFYIMAGE  window iconify (V47)    */
-  ['MenuRadio',    0x1B],   /* MENUMX        menu radio mark (V47)   */
-  ['MenuSub',      0x1C],   /* MENUSUB       sub-menu marker (V47)   */
-  ['ShiftKey',     0x2A],   /* SHIFTKEYIMAGE menu Shift-key (V47)    */
+  ['Depth',        C.DEPTHIMAGE],      /* window depth gadget     */
+  ['Zoom',         C.ZOOMIMAGE],       /* window zoom gadget      */
+  ['Size',         C.SIZEIMAGE],       /* window sizing gadget    */
+  ['Close',        C.CLOSEIMAGE],      /* window close gadget     */
+  ['ScreenDepth',  C.SDEPTHIMAGE],     /* screen depth gadget     */
+  ['Left',         C.LEFTIMAGE],       /* arrow                   */
+  ['Up',           C.UPIMAGE],
+  ['Right',        C.RIGHTIMAGE],
+  ['Down',         C.DOWNIMAGE],
+  ['Check',        C.CHECKIMAGE],      /* GadTools checkbox       */
+  ['Radio',        C.MXIMAGE],         /* GadTools radio button   */
+  ['MenuCheck',    C.MENUCHECK],       /* menu checkmark          */
+  ['AmigaKey',     C.AMIGAKEY],        /* menu Amiga-key          */
+  ['Iconify',      C.ICONIFYIMAGE],    /* window iconify (V47)    */
+  ['MenuRadio',    C.MENUMX],          /* menu radio mark (V47)   */
+  ['MenuSub',      C.MENUSUB],         /* sub-menu marker (V47)   */
+  ['ShiftKey',     C.SHIFTKEYIMAGE],   /* menu Shift-key (V47)    */
 ];
 
 /**
  * Ask sysiclass for one system image. The caller must dispose of it
  * with Intuition.DisposeObject.
  *
- * @param {number} which - a SYSIA_Which code from GALLERY
+ * @param {number} which - an image name from GALLERY
  * @returns {Image|null} the image, or null if it could not be made
  */
 function makeSysImage(which) {
   return Intuition.NewObjectTags('sysiclass', [
-    [SYSIA_Which, which],
-    [SYSIA_Size,  SYSISIZE_MEDRES],
+    [C.SYSIA_Which, which],                /* which system image */
+    /* The size class for a medium-resolution screen such as a 640 x
+     * 256 Workbench; the others are SYSISIZE_LOWRES and _HIRES. */
+    [C.SYSIA_Size,  C.SYSISIZE_MEDRES],
   ]);
 }
 

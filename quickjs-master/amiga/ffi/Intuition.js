@@ -382,6 +382,8 @@ export class Intuition extends LibraryBase {
     SHIFTKEYIMAGE:       0x2A,
     MENUCHECK:           0x10,
     AMIGAKEY:            0x11,
+    MENUMX:              0x1B,
+    MENUSUB:             0x1C,
 
     /* Image drawing states (intuition/imageclass.h) */
     IDS_NORMAL:           0,
@@ -514,6 +516,65 @@ export class Intuition extends LibraryBase {
     OM_REMMEMBER: 0x10A,
     /* consts-end */
   });
+
+  /* ============================================================
+   * Menu numbers
+   *
+   * An IDCMP_MENUPICK message's code is a 16-bit menu number: which
+   * menu, which item and which sub-item, packed together. These are
+   * the macros of the same names in intuition/intuition.h:
+   *
+   *   #define MENUNUM(n)  ((n) & 0x1F)
+   *   #define ITEMNUM(n)  (((n) >> 5) & 0x003F)
+   *   #define SUBNUM(n)   (((n) >> 11) & 0x001F)
+   *   #define FULLMENUNUM(menu, item, sub) \
+   *           (SHIFTSUB(sub) | SHIFTITEM(item) | SHIFTMENU(menu))
+   *
+   * Compare a whole number with Number(Intuition.consts.MENUNULL) to
+   * see whether anything was picked.
+   * ============================================================ */
+
+  /**
+   * Which menu a menu number names, counted from 0 at the left.
+   *
+   * @param {number} menuNumber
+   * @returns {number} 0..30, or 31 (NOMENU) for none
+   */
+  static MENUNUM(menuNumber) {
+    return menuNumber & 0x1F;
+  }
+
+  /**
+   * Which item of that menu, counted from 0 at the top.
+   *
+   * @param {number} menuNumber
+   * @returns {number} 0..62, or 63 (NOITEM) for none
+   */
+  static ITEMNUM(menuNumber) {
+    return (menuNumber >> 5) & 0x3F;
+  }
+
+  /**
+   * Which sub-item of that item, counted from 0 at the top.
+   *
+   * @param {number} menuNumber
+   * @returns {number} 0..30, or 31 (NOSUB) for none
+   */
+  static SUBNUM(menuNumber) {
+    return (menuNumber >> 11) & 0x1F;
+  }
+
+  /**
+   * Pack a menu, item and sub-item into one menu number.
+   *
+   * @param {number} menu
+   * @param {number} item
+   * @param {number} sub - 31 (NOSUB) for an item without sub-items
+   * @returns {number}
+   */
+  static FULLMENUNUM(menu, item, sub) {
+    return ((sub & 0x1F) << 11) | ((item & 0x3F) << 5) | (menu & 0x1F);
+  }
 
   /* ============================================================
    * Window lifecycle

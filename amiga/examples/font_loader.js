@@ -17,14 +17,18 @@
  *   - the font is small enough for the lines to fit: they are drawn
  *     at fixed positions, 20 pixels apart
  *
- * Requires quickjs.library 0.135+.
+ * Requires quickjs.library 0.221+.
  * Run: qjs examples/font_loader.js [fontname.font=topaz.font] [size=11]
  */
 
 import * as std from 'qjs:std';
 
-if (typeof Diskfont !== 'function' || typeof TextAttr !== 'function') {
-  print('Q2 wrappers unavailable - need quickjs.library 0.135+');
+/* Graphics.consts.FS_NORMAL arrived in 0.221, with the TextAttr
+ * setters this file uses; its presence is the test for a new enough
+ * library. */
+if (typeof Diskfont !== 'function' || typeof TextAttr !== 'function' ||
+    !('FS_NORMAL' in Graphics.consts)) {
+  print('Need quickjs.library 0.221 or later');
   std.exit(1);
 }
 
@@ -39,15 +43,6 @@ const fontSize = parseInt((scriptArgs && scriptArgs[2]) || DEFAULT_FONT_SIZE,
 
 /** What the window title and the last-but-one line both say. */
 const fontCaption = 'Font: ' + fontName + ' @ ' + fontSize + 'pt';
-
-/** Byte offsets of the fields of struct TextAttr (graphics/text.h). */
-const TA_NAME  = 0;   /* STRPTR ta_Name  */
-const TA_YSIZE = 4;   /* UWORD  ta_YSize */
-const TA_STYLE = 6;   /* UBYTE  ta_Style */
-const TA_FLAGS = 7;   /* UBYTE  ta_Flags */
-
-/** ta_Style: plain text (FS_NORMAL, graphics/text.h). */
-const FS_NORMAL = 0;
 
 /** ta_Flags: no preference about where the font comes from. */
 const ANY_FONT_FLAGS = 0;
@@ -75,27 +70,29 @@ const LINES = [
  *
  * @param {string} name - e.g. "topaz.font"
  * @param {number} size - height in pixels
- * @returns {{textAttr: TextAttr, nameAlloc: {ptr: number, size: number}}}
+ * @returns {{textAttr: TextAttr, nameAlloc: {ptr: number, size: number, free: function(): undefined}}}
  */
 function makeTextAttr(name, size) {
   let textAttr = new TextAttr();
 
-  let bytes = name.length + 1;        /* the name and its NUL */
-  let ptr   = amiga.allocMem(bytes);
+  /* The TextAttr only POINTS at its name, so the name is a separate
+   * allocation that has to live as long as the TextAttr does. */
+  let nameAlloc;
 
-  if (!ptr) {
+  try {
+    nameAlloc = amiga.allocString(name);
+  }
+  catch (error) {
     textAttr.free();
-    throw new Error('allocMem failed for font name');
+    throw error;
   }
 
-  amiga.pokeString(ptr, name);
+  textAttr.namePtr = nameAlloc.ptr;
+  textAttr.ySize   = size;
+  textAttr.style   = Graphics.consts.FS_NORMAL;    /* plain text */
+  textAttr.flags   = ANY_FONT_FLAGS;
 
-  textAttr.write32(TA_NAME,  ptr);
-  textAttr.write16(TA_YSIZE, size);
-  textAttr.write8(TA_STYLE,  FS_NORMAL);
-  textAttr.write8(TA_FLAGS,  ANY_FONT_FLAGS);
-
-  return { textAttr, nameAlloc: { ptr, size: bytes } };
+  return { textAttr, nameAlloc };
 }
 
 /**
@@ -118,7 +115,7 @@ function closeFont(fontPtr) {
  * @returns {undefined}
  */
 function freeTextAttr() {
-  amiga.freeMem(nameAlloc.ptr, nameAlloc.size);
+  nameAlloc.free();
   textAttr.free();
 }
 

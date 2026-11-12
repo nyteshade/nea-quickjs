@@ -32,16 +32,20 @@
  *   - the Menu and MenuItem structs must outlive the menu strip, so
  *     the strip is cleared before anything is freed
  *
- * Requires quickjs.library 0.137+.
+ * Requires quickjs.library 0.221+.
  * Run: qjs examples/menu_demo.js
  */
 
 import * as std from 'qjs:std';
 
+/* The menu flags and Intuition.MENUNUM arrived in 0.221; their
+ * presence is the test for a new enough library. */
 if (typeof Intuition !== 'function' ||
     typeof amiga.intuition.Menu !== 'function' ||
-    typeof amiga.intuition.IntuiText !== 'function') {
-  print('Required wrappers unavailable - need quickjs.library 0.137+');
+    typeof amiga.intuition.IntuiText !== 'function' ||
+    !('CHECKIT' in Intuition.consts) ||
+    typeof Intuition.MENUNUM !== 'function') {
+  print('Need quickjs.library 0.221 or later');
   std.exit(1);
 }
 
@@ -59,26 +63,29 @@ const { Menu, MenuItem, IntuiText } = amiga.intuition;
  * back everything that has to be freed afterwards.
  * ================================================================== */
 
-/* MenuItem and Menu flag bits. They are not in Intuition.consts, so
- * they are spelled out here.
- * Values from intuition/intuition.h. */
-const CHECKIT     = 0x0001;   /* the item can carry a checkmark */
-const ITEMTEXT    = 0x0002;   /* ItemFill is an IntuiText */
-const COMMSEQ     = 0x0004;   /* the item has an Amiga-key shortcut */
-const MENUTOGGLE  = 0x0008;   /* picking it flips the checkmark */
-const ITEMENABLED = 0x0010;   /* the item can be picked */
-const HIGHCOMP    = 0x0040;   /* highlight by inverting the item */
-const CHECKED     = 0x0100;   /* the checkmark is showing */
+/* MenuItem and Menu flag bits, by name (intuition/intuition.h):
+ *
+ *   CHECKIT      the item can carry a checkmark
+ *   ITEMTEXT     ItemFill is an IntuiText
+ *   COMMSEQ      the item has an Amiga-key shortcut
+ *   MENUTOGGLE   picking it flips the checkmark
+ *   ITEMENABLED  the item can be picked
+ *   HIGHCOMP     highlight by inverting the item
+ *   CHECKED      the checkmark is showing
+ *   MENUENABLED  Menu flag: the menu can be opened
+ *
+ * They can be joined with | like numbers. */
+const { CHECKIT, ITEMTEXT, COMMSEQ, MENUTOGGLE, ITEMENABLED, HIGHCOMP,
+        CHECKED, MENUENABLED } = C;
 
-const MENUENABLED = 0x0001;   /* Menu flag: the menu can be opened */
-
-/** The menu number meaning "nothing (more) was picked"
- *  (MENUNULL, intuition/intuition.h). */
-const MENUNULL = 0xFFFF;
+/** The menu number meaning "nothing (more) was picked". Number() is
+ *  needed because it is compared with === against a plain number
+ *  below, and a constant is only equal to itself. */
+const MENUNULL = Number(C.MENUNULL);
 
 /** IntuiText draw mode: draw the text only, leave the background
- *  (JAM1, graphics/rastport.h). */
-const JAM1 = 0;
+ *  (graphics/rastport.h). */
+const JAM1 = Graphics.consts.JAM1;
 
 /** Pens for the labels. */
 const LABEL_FRONT_PEN = 1;
@@ -344,33 +351,6 @@ function itemAddress(menuCode) {
  * next one in its NextSelect field, and MENUNULL ends the chain.
  * ================================================================== */
 
-/* How a menu number is packed (the MENUNUM, ITEMNUM and SUBNUM macros
- * in intuition/intuition.h): menu in the low 5 bits, item in the next
- * 6, sub-item in the top 5. */
-const MENU_NUMBER_MASK  = 0x1F;
-const ITEM_NUMBER_SHIFT = 5;
-const ITEM_NUMBER_MASK  = 0x3F;
-const SUB_NUMBER_SHIFT  = 11;
-const SUB_NUMBER_MASK   = 0x1F;
-
-/** Byte offset of the UWORD NextSelect field in struct MenuItem
- *  (intuition/intuition.h). */
-const MENUITEM_NEXTSELECT = 32;
-
-/**
- * Unpack a menu number into its menu, item and sub-item indices.
- *
- * @param {number} menuCode
- * @returns {{menuNum: number, itemNum: number, subNum: number}}
- */
-function unpackMenuNum(menuCode) {
-  return {
-    menuNum: menuCode & MENU_NUMBER_MASK,
-    itemNum: (menuCode >> ITEM_NUMBER_SHIFT) & ITEM_NUMBER_MASK,
-    subNum:  (menuCode >> SUB_NUMBER_SHIFT) & SUB_NUMBER_MASK,
-  };
-}
-
 /**
  * Print every pick in one MENUPICK message, following the chain.
  *
@@ -382,7 +362,10 @@ function reportPicks(firstCode) {
   let shouldQuit = false;
 
   while (menuCode !== MENUNULL) {
-    let { menuNum, itemNum } = unpackMenuNum(menuCode);
+    /* Intuition.MENUNUM and ITEMNUM are the header's macros of the
+     * same names: they pull the menu and the item out of the number. */
+    let menuNum = Intuition.MENUNUM(menuCode);
+    let itemNum = Intuition.ITEMNUM(menuCode);
 
     print('pick: menu=' + menuNum + ' item=' + itemNum);
 
@@ -393,7 +376,7 @@ function reportPicks(firstCode) {
     let itemPtr = itemAddress(menuCode);
     if (!itemPtr) break;
 
-    menuCode = amiga.peek16(itemPtr + MENUITEM_NEXTSELECT);
+    menuCode = new MenuItem(itemPtr).nextSelect;
   }
 
   return shouldQuit;

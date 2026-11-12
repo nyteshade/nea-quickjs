@@ -26,23 +26,26 @@
  *   - ExNext returning zero is taken to mean "no more entries",
  *     without asking IoErr() whether it was really an error
  *
- * Requires quickjs.library 0.134+.
+ * Requires quickjs.library 0.221+.
  * Run: qjs examples/dir_listing.js [directory=SYS:]
  */
 
 import * as std from 'qjs:std';
 
-if (typeof FileInfoBlock !== 'function' || typeof Dos !== 'function') {
-  print('Q2 wrappers unavailable - need quickjs.library 0.134+');
+/* Dos.consts.SHARED_LOCK arrived in 0.221; its presence is the test
+ * for a new enough library. */
+if (typeof FileInfoBlock !== 'function' || typeof Dos !== 'function' ||
+    !('SHARED_LOCK' in Dos.consts)) {
+  print('Need quickjs.library 0.221 or later');
   std.exit(1);
 }
 
 /** The directory to list: the first argument, or SYS:. */
 const directory = scriptArgs && scriptArgs[1] ? scriptArgs[1] : 'SYS:';
 
-/** Lock mode that lets others read the directory too. SHARED_LOCK,
- *  also called ACCESS_READ, from dos/dos.h. */
-const SHARED_LOCK = -2;
+/** Lock mode that lets others read the directory too (dos/dos.h;
+ *  ACCESS_READ is another name for it). */
+const SHARED_LOCK = Dos.consts.SHARED_LOCK;
 
 /** How wide the size column is for a file, in characters. */
 const SIZE_COLUMN_WIDTH = 10;

@@ -21,14 +21,17 @@
  *   - the pointer stays inside the window while drawing; coordinates
  *     to the left of or above the window are not handled specially
  *
- * Requires quickjs.library 0.130+.
+ * Requires quickjs.library 0.221+.
  * Run: qjs examples/mouse_tracker.js
  */
 
 import * as std from 'qjs:std';
 
-if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
+/* Intuition.consts.SELECTDOWN arrived in 0.221; its presence is the
+ * test for a new enough library. */
+if (typeof Intuition !== 'function' ||
+    !('SELECTDOWN' in Intuition.consts)) {
+  print('Need quickjs.library 0.221 or later');
   std.exit(1);
 }
 
@@ -143,8 +146,8 @@ print('Hold the left button and drag. Close gadget to exit.');
  *  the left button: SELECTDOWN and SELECTUP from intuition/intuition.h
  *  (IECODE_LBUTTON, and the same with IECODE_UP_PREFIX set). The right
  *  button is not listed: it brings up the screen's menus instead. */
-const SELECTDOWN = 0x68;
-const SELECTUP   = 0xE8;
+const SELECTDOWN = Number(Intuition.consts.SELECTDOWN);
+const SELECTUP   = Number(Intuition.consts.SELECTUP);
 
 let rastPort = window.rastPort;
 
