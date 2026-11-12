@@ -38,15 +38,19 @@ export class Diskfont extends LibraryBase {
    *   AFF_BITMAP = 1 << 8   — bitmap fonts
    *   AFF_TAGGED = 1 << 16  — AFF with TagItem list
    */
-  static consts = class DiskfontConsts extends CEnumeration {
-    static {
-      DiskfontConsts.define('AFF_MEMORY', 0x00000001);
-      DiskfontConsts.define('AFF_DISK',   0x00000002);
-      DiskfontConsts.define('AFF_SCALED', 0x00000004);
-      DiskfontConsts.define('AFF_BITMAP', 0x00000008);
-      DiskfontConsts.define('AFF_TAGGED', 0x00010000);
-    }
-  };
+  static consts = CEnumeration.lazy('DiskfontConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* AvailFonts() flags (diskfont/diskfont.h) */
+    AFF_MEMORY:  0x0001,
+    AFF_DISK:    0x0002,
+    AFF_SCALED:  0x0004,
+    AFF_BITMAP:  0x0008,
+    AFF_OTAG:    0x0010,
+    AFF_CHARSET: 0x0020,
+    AFF_TYPE:    0x0040,
+    AFF_TAGGED:  0x10000,
+    /* consts-end */
+  });
 
   /**
    * OpenDiskFont(textAttr) — load a disk-resident font described by

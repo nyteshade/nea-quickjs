@@ -34,30 +34,80 @@ export class Exec extends LibraryBase {
    * Exec.AllocMem(64,
    *   Exec.consts.MEMF_PUBLIC | Exec.consts.MEMF_CLEAR);
    */
-  static consts = class ExecConsts extends CEnumeration {
-    static {
-      ExecConsts.define('MEMF_ANY',        0x00000000);
-      ExecConsts.define('MEMF_PUBLIC',     0x00000001);
-      ExecConsts.define('MEMF_CHIP',       0x00000002);
-      ExecConsts.define('MEMF_FAST',       0x00000004);
-      ExecConsts.define('MEMF_LOCAL',      0x00000100);
-      ExecConsts.define('MEMF_24BITDMA',   0x00000200);
-      ExecConsts.define('MEMF_KICK',       0x00000400);
-      ExecConsts.define('MEMF_CLEAR',      0x00010000);
-      ExecConsts.define('MEMF_LARGEST',    0x00020000);
-      ExecConsts.define('MEMF_REVERSE',    0x00040000);
-      ExecConsts.define('MEMF_TOTAL',      0x00080000);
-      ExecConsts.define('MEMF_NO_EXPUNGE', 0x80000000);
+  static consts = CEnumeration.lazy('ExecConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Memory flags for AllocMem / AllocVec (exec/memory.h) */
+    MEMF_ANY:        0,
+    MEMF_PUBLIC:     1,   /* 1UL<<0 */
+    MEMF_CHIP:       2,   /* 1UL<<1 */
+    MEMF_FAST:       4,   /* 1UL<<2 */
+    MEMF_LOCAL:      0x0100,   /* 1UL<<8 */
+    MEMF_24BITDMA:   0x0200,   /* 1UL<<9 */
+    MEMF_KICK:       0x0400,   /* 1UL<<10 */
+    MEMF_CLEAR:      0x00010000,   /* 1UL<<16 */
+    MEMF_LARGEST:    0x00020000,   /* 1UL<<17 */
+    MEMF_REVERSE:    0x00040000,   /* 1UL<<18 */
+    MEMF_TOTAL:      0x00080000,   /* 1UL<<19 */
+    MEMF_NO_EXPUNGE: 0x80000000,   /* 1UL<<31 */
 
-      /* Break signals, dos/dos.h: SIGBREAKF_CTRL_x = 1 << SIGBREAKB_CTRL_x,
-       * with the bit numbers 12, 13, 14, 15. Add SIGBREAKF_CTRL_C to
-       * the mask given to Exec.Wait to let Ctrl-C end a wait. */
-      ExecConsts.define('SIGBREAKF_CTRL_C', 1 << 12);
-      ExecConsts.define('SIGBREAKF_CTRL_D', 1 << 13);
-      ExecConsts.define('SIGBREAKF_CTRL_E', 1 << 14);
-      ExecConsts.define('SIGBREAKF_CTRL_F', 1 << 15);
-    }
-  };
+    /* Break signals: add to an Exec.Wait mask so Ctrl-C ends the wait (dos/dos.h) */
+    SIGBREAKF_CTRL_C: 0x1000,   /* 1<<SIGBREAKB_CTRL_C */
+    SIGBREAKF_CTRL_D: 0x2000,   /* 1<<SIGBREAKB_CTRL_D */
+    SIGBREAKF_CTRL_E: 0x4000,   /* 1<<SIGBREAKB_CTRL_E */
+    SIGBREAKF_CTRL_F: 0x8000,   /* (long)1<<SIGBREAKB_CTRL_F */
+
+    /* Node types (exec/nodes.h) */
+    NT_UNKNOWN:      0,
+    NT_TASK:         1,
+    NT_INTERRUPT:    2,
+    NT_DEVICE:       3,
+    NT_MSGPORT:      4,
+    NT_MESSAGE:      5,
+    NT_FREEMSG:      6,
+    NT_REPLYMSG:     7,
+    NT_RESOURCE:     8,
+    NT_LIBRARY:      9,
+    NT_MEMORY:       10,
+    NT_SOFTINT:      11,
+    NT_FONT:         12,
+    NT_PROCESS:      13,
+    NT_SEMAPHORE:    14,
+    NT_SIGNALSEM:    15,
+    NT_BOOTNODE:     16,
+    NT_KICKMEM:      17,
+    NT_GRAPHICS:     18,
+    NT_DEATHMESSAGE: 19,
+    NT_USER:         254,
+    NT_EXTENDED:     255,
+
+    /* Message port actions (exec/ports.h) */
+    PA_SIGNAL:  0,
+    PA_SOFTINT: 1,
+    PA_IGNORE:  2,
+
+    /* Device commands and flags (exec/io.h) */
+    CMD_INVALID: 0,
+    CMD_RESET:   1,
+    CMD_READ:    2,
+    CMD_WRITE:   3,
+    CMD_UPDATE:  4,
+    CMD_CLEAR:   5,
+    CMD_STOP:    6,
+    CMD_START:   7,
+    CMD_FLUSH:   8,
+    CMD_NONSTD:  9,
+    IOF_QUICK:   1,   /* 1<<0 */
+
+    /* Device errors: IORequest.error (exec/errors.h) */
+    IOERR_OPENFAIL:   -1,
+    IOERR_ABORTED:    -2,
+    IOERR_NOCMD:      -3,
+    IOERR_BADLENGTH:  -4,
+    IOERR_BADADDRESS: -5,
+    IOERR_UNITBUSY:   -6,
+    IOERR_SELFTEST:   -7,
+    /* consts-end */
+  });
 
   /** @returns {number} library base, or 0 on failure */
   static OpenLibrary(name, version) {

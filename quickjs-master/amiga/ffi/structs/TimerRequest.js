@@ -49,21 +49,21 @@ export class TimerRequest extends IORequest {
    * Exec.OpenDevice('timer.device', T.UNIT_VBLANK, request, 0);
    * request.command = T.TR_ADDREQUEST;
    */
-  static consts = class TimerConsts extends CEnumeration {
-    static {
-      const CMD_NONSTD = 9;
+  static consts = CEnumeration.lazy('TimerConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Units: the second argument of OpenDevice (devices/timer.h) */
+    UNIT_MICROHZ:    0,
+    UNIT_VBLANK:     1,
+    UNIT_ECLOCK:     2,
+    UNIT_WAITUNTIL:  3,
+    UNIT_WAITECLOCK: 4,
 
-      TimerConsts.define('UNIT_MICROHZ',    0);
-      TimerConsts.define('UNIT_VBLANK',     1);
-      TimerConsts.define('UNIT_ECLOCK',     2);
-      TimerConsts.define('UNIT_WAITUNTIL',  3);
-      TimerConsts.define('UNIT_WAITECLOCK', 4);
-
-      TimerConsts.define('TR_ADDREQUEST', CMD_NONSTD);
-      TimerConsts.define('TR_GETSYSTIME', CMD_NONSTD + 1);
-      TimerConsts.define('TR_SETSYSTIME', CMD_NONSTD + 2);
-    }
-  };
+    /* Commands: TimerRequest.command (devices/timer.h) */
+    TR_ADDREQUEST: 9,   /* CMD_NONSTD */
+    TR_GETSYSTIME: 10,   /* CMD_NONSTD + 1 */
+    TR_SETSYSTIME: 11,   /* CMD_NONSTD + 2 */
+    /* consts-end */
+  });
 
   /**
    * REPL help text.

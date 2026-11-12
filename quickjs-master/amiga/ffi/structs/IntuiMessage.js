@@ -54,7 +54,7 @@ where:
 
 Fields (read-only getters):
   class       {CEnumeration|number}  IDCMP_* flag at +20, resolved
-                                     via Intuition.consts.from(raw)
+                                     via Intuition.consts.fromPrefix('IDCMP_', raw)
   classRaw    {number}               raw ULONG at +20
   code        {number}               UWORD event code, +24
   qualifier   {number}               UWORD shift/alt/ctrl bits, +26
@@ -91,8 +91,10 @@ Typical use:
     let raw = this.read32(IntuiMessage.OFFSET.Class);
     let Intuition = globalThis.amiga && globalThis.amiga.Intuition;
 
-    if (Intuition && Intuition.consts && Intuition.consts.from) {
-      let hit = Intuition.consts.from(raw);
+    if (Intuition && Intuition.consts && Intuition.consts.fromPrefix) {
+      /* By family, not by value alone: 0x200 is IDCMP_CLOSEWINDOW here,
+       * but it is also WFLG_REPORTMOUSE and other constants. */
+      let hit = Intuition.consts.fromPrefix('IDCMP_', raw);
 
       if (hit) {
         return hit;

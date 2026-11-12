@@ -38,7 +38,7 @@ import * as std from 'qjs:std';
  * relies on, so its presence is the test for a new enough library. */
 if (typeof Intuition !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    Intuition.consts.WA_InnerWidth === undefined) {
+    !('WA_InnerWidth' in Intuition.consts)) {
   print('Need quickjs.library 0.217 or later');
   std.exit(1);
 }

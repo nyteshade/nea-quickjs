@@ -21,14 +21,46 @@ export class Graphics extends LibraryBase {
   /**
    * Drawing mode constants for SetDrMd.
    */
-  static consts = class GraphicsConsts extends CEnumeration {
-    static {
-      GraphicsConsts.define('JAM1',       0x00);
-      GraphicsConsts.define('JAM2',       0x01);
-      GraphicsConsts.define('COMPLEMENT', 0x02);
-      GraphicsConsts.define('INVERSVID',  0x04);
-    }
-  };
+  static consts = CEnumeration.lazy('GraphicsConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Drawing modes for SetDrMd (graphics/rastport.h) */
+    JAM1:       0,
+    JAM2:       1,
+    COMPLEMENT: 2,
+    INVERSVID:  4,
+
+    /* Font styles and flags (graphics/text.h) */
+    FS_NORMAL:        0,
+    FSF_UNDERLINED:   0x01,
+    FSF_BOLD:         0x02,
+    FSF_ITALIC:       0x04,
+    FSF_EXTENDED:     0x08,
+    FSF_COLORFONT:    0x40,
+    FSF_TAGGED:       0x80,
+    FPF_ROMFONT:      0x01,
+    FPF_DISKFONT:     0x02,
+    FPF_REVPATH:      0x04,
+    FPF_TALLDOT:      0x08,
+    FPF_WIDEDOT:      0x10,
+    FPF_PROPORTIONAL: 0x20,
+    FPF_DESIGNED:     0x40,
+    FPF_REMOVED:      128,   /* 1<<7 */
+
+    /* BitMap flags for AllocBitMap (graphics/gfx.h) */
+    BMF_CLEAR:       1,   /* 1l<<BMB_CLEAR */
+    BMF_DISPLAYABLE: 2,   /* 1l<<BMB_DISPLAYABLE */
+    BMF_INTERLEAVED: 4,   /* 1l<<BMB_INTERLEAVED */
+    BMF_STANDARD:    8,   /* 1l<<BMB_STANDARD */
+    BMF_MINPLANES:   16,   /* 1l<<BMB_MINPLANES */
+    BMF_HIJACKED:    128,   /* 1L<<BMB_HIJACKED */
+    BMF_RTGTAGS:     0x0100,   /* 1L<<BMB_RTGTAGS */
+    BMF_RTGCHECK:    0x0200,   /* 1L<<BMB_RTGCHECK */
+    BMF_FRIENDISTAG: 0x0400,   /* 1L<<BMB_FRIENDISTAG */
+    BMF_INVALID:     0x0800,   /* 1L<<BMB_INVALID */
+    BMF_CHECKMASK:   0x0F80,   /* BMF_HIJACKED | BMF_RTGTAGS | BMF_RTGCHECK | BMF_FRIENDISTAG | BMF_INVALID */
+    BMF_CHECKVALUE:  0x0700,   /* BMF_RTGTAGS | BMF_RTGCHECK | BMF_FRIENDISTAG */
+    /* consts-end */
+  });
 
   /* ============================================================
    * Pen / drawing mode setters

@@ -2595,15 +2595,19 @@ int lre_byte_swap(uint8_t *buf, size_t len, bool is_byte_swapped)
                 break;
             case REOP_range32: /* variable length */
                 nw = get_u16(&p[1]);  /* number of pairs of uint32_t */
+                /* AMIGA PORT FIX (0.221): the count read above is in the
+                 * foreign byte order; it is the count that needs swapping,
+                 * not n (the opcode size, 3). Swapping n made the loop a
+                 * no-op and then skipped 0x300 bytes of bytecode. */
                 if (is_byte_swapped)
-                    n = bswap16(n);
+                    nw = bswap16(nw);
                 for (r = 3 + 8 * nw; n < r; n += 4)
                     inplace_bswap32(&p[n]);
                 goto doswap16;
             case REOP_range: /* variable length */
                 nw = get_u16(&p[1]);  /* number of pairs of uint16_t */
                 if (is_byte_swapped)
-                    n = bswap16(n);
+                    nw = bswap16(nw);   /* AMIGA PORT FIX (0.221), as above */
                 for (r = 3 + 4 * nw; n < r; n += 2)
                     inplace_bswap16(&p[n]);
                 goto doswap16;

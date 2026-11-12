@@ -45,7 +45,7 @@ import * as std from 'qjs:std';
  * relies on, so its presence is the test for a new enough library. */
 if (typeof TimerRequest !== 'function' || typeof Exec !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    Intuition.consts.WA_InnerWidth === undefined ||
+    !('WA_InnerWidth' in Intuition.consts) ||
     TimerRequest.consts === undefined) {
   print('Need quickjs.library 0.218 or later');
   std.exit(1);

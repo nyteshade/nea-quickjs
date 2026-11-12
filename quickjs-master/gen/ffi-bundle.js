@@ -943,6 +943,236 @@ class CEnumeration extends Enumeration {
 
     return null;
   }
+
+  /**
+   * Make an enumeration class from a table of names and numbers whose
+   * cases are only created when they are first used.
+   *
+   * A wrapper such as Intuition.consts offers hundreds of constants,
+   * and a script uses a handful. Creating every case when the library
+   * starts cost about a third of start-up time with only 190 of them
+   * (measured on 0.220), so the cases are made on demand instead:
+   *
+   *   const C = Intuition.consts;
+   *   C.WA_Left              // the case is created here, once
+   *   C.from(0x200)          // looked up in the table, then created
+   *   for (let [k, v] of C)  // creates every case first
+   *
+   * Everything a script could do with an ordinary CEnumeration class
+   * still works; only the moment of creation changes.
+   *
+   * @param {string} name - the class name, e.g. 'IntuitionConsts'
+   * @param {Object<string, number>} table - constant name to value
+   * @returns {typeof CEnumeration} a class to use like any other
+   *   enumeration class
+   */
+  static lazy(name, table) {
+    const Base = this;
+    const keys = Object.keys(table);
+    const own = Object.prototype.hasOwnProperty;
+
+    /** True once every case exists. */
+    let complete = false;
+
+    /** prefix -> (value -> name), filled in by fromPrefix().
+     *  @type {Map<string, Map<number, string>>} */
+    const families = new Map();
+
+    /* The braces give the class its name: a class expression takes the
+     * name of the property it is assigned to. */
+    const Class = ({
+      [name]: class extends Base {
+        /**
+         * Find a case by name or by value. A value shared by several
+         * constants gives the first in the table; use fromPrefix()
+         * when the family is known.
+         *
+         * @param {string|number|*} query
+         * @returns {CEnumeration|null}
+         */
+        static from(query) {
+          if (typeof query === 'string' && own.call(table, query)) {
+            return create(query);
+          }
+
+          if (typeof query === 'number') {
+            for (let index = 0; index < keys.length; index++) {
+              if (table[keys[index]] === query) return create(keys[index]);
+            }
+
+            return null;
+          }
+
+          createAll();
+          return super.from(query);
+        }
+
+        /**
+         * Find the case with this value among the constants whose
+         * names start with `prefix`. Many constants share a number
+         * (IDCMP_CLOSEWINDOW and WFLG_REPORTMOUSE are both 0x200), so
+         * a value alone does not say which is meant.
+         *
+         * @param {string} prefix - e.g. 'IDCMP_'
+         * @param {number} value
+         * @returns {CEnumeration|null}
+         */
+        static fromPrefix(prefix, value) {
+          /* Called for every window message, so the scan of the whole
+           * table is done once per prefix and remembered. */
+          let index = families.get(prefix);
+
+          if (!index) {
+            index = new Map();
+
+            for (let position = 0; position < keys.length; position++) {
+              let key = keys[position];
+
+              if (key.startsWith(prefix) && !index.has(table[key])) {
+                index.set(table[key], key);
+              }
+            }
+
+            families.set(prefix, index);
+          }
+
+          let key = index.get(value);
+
+          return key === undefined ? null : create(key);
+        }
+      },
+    })[name];
+
+    /**
+     * Create one case if it does not exist yet, and return it.
+     *
+     * @param {string} key
+     * @returns {CEnumeration}
+     */
+    function create(key) {
+      if (!own.call(Class, key)) Class.define(key, table[key]);
+
+      return Class[key];
+    }
+
+    /**
+     * Create every case that does not exist yet.
+     *
+     * @returns {undefined}
+     */
+    function createAll() {
+      if (complete) return;
+
+      complete = true;
+      for (let index = 0; index < keys.length; index++) create(keys[index]);
+    }
+
+    /**
+     * The table name most like a misspelt one, as a hint for an error
+     * message: the name sharing the longest run of leading characters,
+     * and of those the one closest in length.
+     *
+     * @param {string} wanted
+     * @returns {string} ' - did you mean X?' or ''
+     */
+    function nearest(wanted) {
+      let best = '';
+      let bestShared = 2;      /* at least three characters in common */
+
+      for (let index = 0; index < keys.length; index++) {
+        let candidate = keys[index];
+        let shared = 0;
+
+        while (shared < candidate.length && shared < wanted.length &&
+               candidate[shared] === wanted[shared]) {
+          shared++;
+        }
+
+        if (shared > bestShared ||
+            (shared === bestShared && best &&
+             Math.abs(candidate.length - wanted.length) <
+             Math.abs(best.length - wanted.length))) {
+          best = candidate;
+          bestShared = shared;
+        }
+      }
+
+      return best ? ' - did you mean ' + best + '?' : '';
+    }
+
+    /**
+     * Whether a property name is shaped like an OS constant: it starts
+     * with a capital and either has an underscore (WA_Left) or is all
+     * capitals and digits, four or more long (JAM1, CHECKIT). Ordinary
+     * property names (from, name, toJSON, then) are not.
+     *
+     * Written without a regular expression on purpose: see the note on
+     * regular expressions in precompiled bytecode in this file's
+     * history (0.221).
+     *
+     * @param {string} key
+     * @returns {boolean}
+     */
+    function looksLikeConstant(key) {
+      let first = key.charCodeAt(0);
+
+      if (!(first >= 65 && first <= 90)) return false;       /* A-Z */
+      if (key.indexOf('_') > 0) return true;
+      if (key.length < 4) return false;
+
+      for (let index = 1; index < key.length; index++) {
+        let code = key.charCodeAt(index);
+        let capital = code >= 65 && code <= 90;
+        let digit   = code >= 48 && code <= 57;
+
+        if (!capital && !digit) return false;
+      }
+
+      return true;
+    }
+
+    return new Proxy(Class, {
+      get(target, key, receiver) {
+        if (typeof key === 'string' && own.call(table, key)) {
+          return create(key);
+        }
+
+        /* Anything that walks the cases needs them all to exist. */
+        if (key === 'cases' || key === 'values' || key === Symbol.iterator) {
+          createAll();
+        }
+
+        /* A name that looks like a constant but is not one is a
+         * spelling mistake, and `undefined` would travel on silently
+         * (in a tag list it used to END the list). Say so here, with
+         * the nearest real name. To ask whether a constant exists,
+         * use `'WA_Left' in Intuition.consts`. */
+        if (typeof key === 'string' && !Reflect.has(target, key) &&
+            looksLikeConstant(key)) {
+          throw new TypeError(name + ' has no constant ' + key +
+                              nearest(key));
+        }
+
+        return Reflect.get(target, key, receiver);
+      },
+
+      has(target, key) {
+        return (typeof key === 'string' && own.call(table, key)) ||
+               Reflect.has(target, key);
+      },
+
+      ownKeys(target) {
+        createAll();
+        return Reflect.ownKeys(target);
+      },
+
+      getOwnPropertyDescriptor(target, key) {
+        if (typeof key === 'string' && own.call(table, key)) create(key);
+
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+  }
 }
 
 
@@ -1328,7 +1558,7 @@ where:
 
 Fields (read-only getters):
   class       {CEnumeration|number}  IDCMP_* flag at +20, resolved
-                                     via Intuition.consts.from(raw)
+                                     via Intuition.consts.fromPrefix('IDCMP_', raw)
   classRaw    {number}               raw ULONG at +20
   code        {number}               UWORD event code, +24
   qualifier   {number}               UWORD shift/alt/ctrl bits, +26
@@ -1365,8 +1595,10 @@ Typical use:
     let raw = this.read32(IntuiMessage.OFFSET.Class);
     let Intuition = globalThis.amiga && globalThis.amiga.Intuition;
 
-    if (Intuition && Intuition.consts && Intuition.consts.from) {
-      let hit = Intuition.consts.from(raw);
+    if (Intuition && Intuition.consts && Intuition.consts.fromPrefix) {
+      /* By family, not by value alone: 0x200 is IDCMP_CLOSEWINDOW here,
+       * but it is also WFLG_REPORTMOUSE and other constants. */
+      let hit = Intuition.consts.fromPrefix('IDCMP_', raw);
 
       if (hit) {
         return hit;
@@ -3045,21 +3277,21 @@ class TimerRequest extends IORequest {
    * Exec.OpenDevice('timer.device', T.UNIT_VBLANK, request, 0);
    * request.command = T.TR_ADDREQUEST;
    */
-  static consts = class TimerConsts extends CEnumeration {
-    static {
-      const CMD_NONSTD = 9;
+  static consts = CEnumeration.lazy('TimerConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Units: the second argument of OpenDevice (devices/timer.h) */
+    UNIT_MICROHZ:    0,
+    UNIT_VBLANK:     1,
+    UNIT_ECLOCK:     2,
+    UNIT_WAITUNTIL:  3,
+    UNIT_WAITECLOCK: 4,
 
-      TimerConsts.define('UNIT_MICROHZ',    0);
-      TimerConsts.define('UNIT_VBLANK',     1);
-      TimerConsts.define('UNIT_ECLOCK',     2);
-      TimerConsts.define('UNIT_WAITUNTIL',  3);
-      TimerConsts.define('UNIT_WAITECLOCK', 4);
-
-      TimerConsts.define('TR_ADDREQUEST', CMD_NONSTD);
-      TimerConsts.define('TR_GETSYSTIME', CMD_NONSTD + 1);
-      TimerConsts.define('TR_SETSYSTIME', CMD_NONSTD + 2);
-    }
-  };
+    /* Commands: TimerRequest.command (devices/timer.h) */
+    TR_ADDREQUEST: 9,   /* CMD_NONSTD */
+    TR_GETSYSTIME: 10,   /* CMD_NONSTD + 1 */
+    TR_SETSYSTIME: 11,   /* CMD_NONSTD + 2 */
+    /* consts-end */
+  });
 
   /**
    * REPL help text.
@@ -3731,30 +3963,80 @@ class Exec extends LibraryBase {
    * Exec.AllocMem(64,
    *   Exec.consts.MEMF_PUBLIC | Exec.consts.MEMF_CLEAR);
    */
-  static consts = class ExecConsts extends CEnumeration {
-    static {
-      ExecConsts.define('MEMF_ANY',        0x00000000);
-      ExecConsts.define('MEMF_PUBLIC',     0x00000001);
-      ExecConsts.define('MEMF_CHIP',       0x00000002);
-      ExecConsts.define('MEMF_FAST',       0x00000004);
-      ExecConsts.define('MEMF_LOCAL',      0x00000100);
-      ExecConsts.define('MEMF_24BITDMA',   0x00000200);
-      ExecConsts.define('MEMF_KICK',       0x00000400);
-      ExecConsts.define('MEMF_CLEAR',      0x00010000);
-      ExecConsts.define('MEMF_LARGEST',    0x00020000);
-      ExecConsts.define('MEMF_REVERSE',    0x00040000);
-      ExecConsts.define('MEMF_TOTAL',      0x00080000);
-      ExecConsts.define('MEMF_NO_EXPUNGE', 0x80000000);
+  static consts = CEnumeration.lazy('ExecConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Memory flags for AllocMem / AllocVec (exec/memory.h) */
+    MEMF_ANY:        0,
+    MEMF_PUBLIC:     1,   /* 1UL<<0 */
+    MEMF_CHIP:       2,   /* 1UL<<1 */
+    MEMF_FAST:       4,   /* 1UL<<2 */
+    MEMF_LOCAL:      0x0100,   /* 1UL<<8 */
+    MEMF_24BITDMA:   0x0200,   /* 1UL<<9 */
+    MEMF_KICK:       0x0400,   /* 1UL<<10 */
+    MEMF_CLEAR:      0x00010000,   /* 1UL<<16 */
+    MEMF_LARGEST:    0x00020000,   /* 1UL<<17 */
+    MEMF_REVERSE:    0x00040000,   /* 1UL<<18 */
+    MEMF_TOTAL:      0x00080000,   /* 1UL<<19 */
+    MEMF_NO_EXPUNGE: 0x80000000,   /* 1UL<<31 */
 
-      /* Break signals, dos/dos.h: SIGBREAKF_CTRL_x = 1 << SIGBREAKB_CTRL_x,
-       * with the bit numbers 12, 13, 14, 15. Add SIGBREAKF_CTRL_C to
-       * the mask given to Exec.Wait to let Ctrl-C end a wait. */
-      ExecConsts.define('SIGBREAKF_CTRL_C', 1 << 12);
-      ExecConsts.define('SIGBREAKF_CTRL_D', 1 << 13);
-      ExecConsts.define('SIGBREAKF_CTRL_E', 1 << 14);
-      ExecConsts.define('SIGBREAKF_CTRL_F', 1 << 15);
-    }
-  };
+    /* Break signals: add to an Exec.Wait mask so Ctrl-C ends the wait (dos/dos.h) */
+    SIGBREAKF_CTRL_C: 0x1000,   /* 1<<SIGBREAKB_CTRL_C */
+    SIGBREAKF_CTRL_D: 0x2000,   /* 1<<SIGBREAKB_CTRL_D */
+    SIGBREAKF_CTRL_E: 0x4000,   /* 1<<SIGBREAKB_CTRL_E */
+    SIGBREAKF_CTRL_F: 0x8000,   /* (long)1<<SIGBREAKB_CTRL_F */
+
+    /* Node types (exec/nodes.h) */
+    NT_UNKNOWN:      0,
+    NT_TASK:         1,
+    NT_INTERRUPT:    2,
+    NT_DEVICE:       3,
+    NT_MSGPORT:      4,
+    NT_MESSAGE:      5,
+    NT_FREEMSG:      6,
+    NT_REPLYMSG:     7,
+    NT_RESOURCE:     8,
+    NT_LIBRARY:      9,
+    NT_MEMORY:       10,
+    NT_SOFTINT:      11,
+    NT_FONT:         12,
+    NT_PROCESS:      13,
+    NT_SEMAPHORE:    14,
+    NT_SIGNALSEM:    15,
+    NT_BOOTNODE:     16,
+    NT_KICKMEM:      17,
+    NT_GRAPHICS:     18,
+    NT_DEATHMESSAGE: 19,
+    NT_USER:         254,
+    NT_EXTENDED:     255,
+
+    /* Message port actions (exec/ports.h) */
+    PA_SIGNAL:  0,
+    PA_SOFTINT: 1,
+    PA_IGNORE:  2,
+
+    /* Device commands and flags (exec/io.h) */
+    CMD_INVALID: 0,
+    CMD_RESET:   1,
+    CMD_READ:    2,
+    CMD_WRITE:   3,
+    CMD_UPDATE:  4,
+    CMD_CLEAR:   5,
+    CMD_STOP:    6,
+    CMD_START:   7,
+    CMD_FLUSH:   8,
+    CMD_NONSTD:  9,
+    IOF_QUICK:   1,   /* 1<<0 */
+
+    /* Device errors: IORequest.error (exec/errors.h) */
+    IOERR_OPENFAIL:   -1,
+    IOERR_ABORTED:    -2,
+    IOERR_NOCMD:      -3,
+    IOERR_BADLENGTH:  -4,
+    IOERR_BADADDRESS: -5,
+    IOERR_UNITBUSY:   -6,
+    IOERR_SELFTEST:   -7,
+    /* consts-end */
+  });
 
   /** @returns {number} library base, or 0 on failure */
   static OpenLibrary(name, version) {
@@ -3980,18 +4262,101 @@ class Dos extends LibraryBase {
   /**
    * Common dos.library mode flags and seek origins.
    */
-  static consts = class DosConsts extends CEnumeration {
-    static {
-      DosConsts.define('MODE_OLDFILE',     1005);
-      DosConsts.define('MODE_NEWFILE',     1006);
-      DosConsts.define('MODE_READWRITE',   1004);
-      DosConsts.define('OFFSET_BEGINNING', -1);
-      DosConsts.define('OFFSET_CURRENT',    0);
-      DosConsts.define('OFFSET_END',        1);
-      DosConsts.define('ACCESS_READ',      -2);
-      DosConsts.define('ACCESS_WRITE',     -1);
-    }
-  };
+  static consts = CEnumeration.lazy('DosConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Open() modes (dos/dos.h) */
+    MODE_OLDFILE:   1005,
+    MODE_NEWFILE:   1006,
+    MODE_READWRITE: 1004,
+
+    /* Seek() positions (dos/dos.h) */
+    OFFSET_BEGINNING: -1,
+    OFFSET_CURRENT:   0,
+    OFFSET_END:       1,
+    OFFSET_BEGINING:  -1,   /* OFFSET_BEGINNING */
+
+    /* Lock() types (dos/dos.h) */
+    SHARED_LOCK:    -2,
+    ACCESS_READ:    -2,
+    EXCLUSIVE_LOCK: -1,
+    ACCESS_WRITE:   -1,
+
+    /* Truth values (dos/dos.h) */
+    DOSTRUE:  -1,
+    DOSFALSE: 0,
+
+    /* Return codes for a program (dos/dos.h) */
+    RETURN_OK:    0,
+    RETURN_WARN:  5,
+    RETURN_ERROR: 10,
+    RETURN_FAIL:  20,
+
+    /* File protection bits (dos/dos.h) */
+    FIBF_OTR_READ:    0x8000,   /* 1<<FIBB_OTR_READ */
+    FIBF_OTR_WRITE:   0x4000,   /* 1<<FIBB_OTR_WRITE */
+    FIBF_OTR_EXECUTE: 0x2000,   /* 1<<FIBB_OTR_EXECUTE */
+    FIBF_OTR_DELETE:  0x1000,   /* 1<<FIBB_OTR_DELETE */
+    FIBF_GRP_READ:    0x0800,   /* 1<<FIBB_GRP_READ */
+    FIBF_GRP_WRITE:   0x0400,   /* 1<<FIBB_GRP_WRITE */
+    FIBF_GRP_EXECUTE: 0x0200,   /* 1<<FIBB_GRP_EXECUTE */
+    FIBF_GRP_DELETE:  0x0100,   /* 1<<FIBB_GRP_DELETE */
+    FIBF_HOLD:        128,   /* 1<<FIBB_HOLD */
+    FIBF_SCRIPT:      64,   /* 1<<FIBB_SCRIPT */
+    FIBF_PURE:        32,   /* 1<<FIBB_PURE */
+    FIBF_ARCHIVE:     16,   /* 1<<FIBB_ARCHIVE */
+    FIBF_READ:        8,   /* 1<<FIBB_READ */
+    FIBF_WRITE:       4,   /* 1<<FIBB_WRITE */
+    FIBF_EXECUTE:     2,   /* 1<<FIBB_EXECUTE */
+    FIBF_DELETE:      1,   /* 1<<FIBB_DELETE */
+
+    /* IoErr() codes (dos/dos.h) */
+    ERROR_NO_FREE_STORE:            103,
+    ERROR_TASK_TABLE_FULL:          105,
+    ERROR_BAD_TEMPLATE:             114,
+    ERROR_BAD_NUMBER:               115,
+    ERROR_REQUIRED_ARG_MISSING:     116,
+    ERROR_KEY_NEEDS_ARG:            117,
+    ERROR_TOO_MANY_ARGS:            118,
+    ERROR_UNMATCHED_QUOTES:         119,
+    ERROR_LINE_TOO_LONG:            120,
+    ERROR_FILE_NOT_OBJECT:          121,
+    ERROR_INVALID_RESIDENT_LIBRARY: 122,
+    ERROR_NO_DEFAULT_DIR:           201,
+    ERROR_OBJECT_IN_USE:            202,
+    ERROR_OBJECT_EXISTS:            203,
+    ERROR_DIR_NOT_FOUND:            204,
+    ERROR_OBJECT_NOT_FOUND:         205,
+    ERROR_BAD_STREAM_NAME:          206,
+    ERROR_OBJECT_TOO_LARGE:         207,
+    ERROR_ACTION_NOT_KNOWN:         209,
+    ERROR_INVALID_COMPONENT_NAME:   210,
+    ERROR_INVALID_LOCK:             211,
+    ERROR_OBJECT_WRONG_TYPE:        212,
+    ERROR_DISK_NOT_VALIDATED:       213,
+    ERROR_DISK_WRITE_PROTECTED:     214,
+    ERROR_RENAME_ACROSS_DEVICES:    215,
+    ERROR_DIRECTORY_NOT_EMPTY:      216,
+    ERROR_TOO_MANY_LEVELS:          217,
+    ERROR_DEVICE_NOT_MOUNTED:       218,
+    ERROR_SEEK_ERROR:               219,
+    ERROR_COMMENT_TOO_BIG:          220,
+    ERROR_DISK_FULL:                221,
+    ERROR_DELETE_PROTECTED:         222,
+    ERROR_WRITE_PROTECTED:          223,
+    ERROR_READ_PROTECTED:           224,
+    ERROR_NOT_A_DOS_DISK:           225,
+    ERROR_NO_DISK:                  226,
+    ERROR_NO_MORE_ENTRIES:          232,
+    ERROR_IS_SOFT_LINK:             233,
+    ERROR_OBJECT_LINKED:            234,
+    ERROR_BAD_HUNK:                 235,
+    ERROR_NOT_IMPLEMENTED:          236,
+    ERROR_RECORD_NOT_LOCKED:        240,
+    ERROR_LOCK_COLLISION:           241,
+    ERROR_LOCK_TIMEOUT:             242,
+    ERROR_UNLOCK_ERROR:             243,
+    /* consts-end */
+  });
 
   /**
    * Open(name, accessMode) — d1=name, d2=accessMode. Returns BPTR.
@@ -4119,14 +4484,46 @@ class Graphics extends LibraryBase {
   /**
    * Drawing mode constants for SetDrMd.
    */
-  static consts = class GraphicsConsts extends CEnumeration {
-    static {
-      GraphicsConsts.define('JAM1',       0x00);
-      GraphicsConsts.define('JAM2',       0x01);
-      GraphicsConsts.define('COMPLEMENT', 0x02);
-      GraphicsConsts.define('INVERSVID',  0x04);
-    }
-  };
+  static consts = CEnumeration.lazy('GraphicsConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Drawing modes for SetDrMd (graphics/rastport.h) */
+    JAM1:       0,
+    JAM2:       1,
+    COMPLEMENT: 2,
+    INVERSVID:  4,
+
+    /* Font styles and flags (graphics/text.h) */
+    FS_NORMAL:        0,
+    FSF_UNDERLINED:   0x01,
+    FSF_BOLD:         0x02,
+    FSF_ITALIC:       0x04,
+    FSF_EXTENDED:     0x08,
+    FSF_COLORFONT:    0x40,
+    FSF_TAGGED:       0x80,
+    FPF_ROMFONT:      0x01,
+    FPF_DISKFONT:     0x02,
+    FPF_REVPATH:      0x04,
+    FPF_TALLDOT:      0x08,
+    FPF_WIDEDOT:      0x10,
+    FPF_PROPORTIONAL: 0x20,
+    FPF_DESIGNED:     0x40,
+    FPF_REMOVED:      128,   /* 1<<7 */
+
+    /* BitMap flags for AllocBitMap (graphics/gfx.h) */
+    BMF_CLEAR:       1,   /* 1l<<BMB_CLEAR */
+    BMF_DISPLAYABLE: 2,   /* 1l<<BMB_DISPLAYABLE */
+    BMF_INTERLEAVED: 4,   /* 1l<<BMB_INTERLEAVED */
+    BMF_STANDARD:    8,   /* 1l<<BMB_STANDARD */
+    BMF_MINPLANES:   16,   /* 1l<<BMB_MINPLANES */
+    BMF_HIJACKED:    128,   /* 1L<<BMB_HIJACKED */
+    BMF_RTGTAGS:     0x0100,   /* 1L<<BMB_RTGTAGS */
+    BMF_RTGCHECK:    0x0200,   /* 1L<<BMB_RTGCHECK */
+    BMF_FRIENDISTAG: 0x0400,   /* 1L<<BMB_FRIENDISTAG */
+    BMF_INVALID:     0x0800,   /* 1L<<BMB_INVALID */
+    BMF_CHECKMASK:   0x0F80,   /* BMF_HIJACKED | BMF_RTGTAGS | BMF_RTGCHECK | BMF_FRIENDISTAG | BMF_INVALID */
+    BMF_CHECKVALUE:  0x0700,   /* BMF_RTGTAGS | BMF_RTGCHECK | BMF_FRIENDISTAG */
+    /* consts-end */
+  });
 
   /* ============================================================
    * Pen / drawing mode setters
@@ -4453,36 +4850,149 @@ class GadTools extends LibraryBase {
    * Gadget kinds (CreateGadgetA's first arg) and selected GT_/GTLV_/
    * GTCB_/GTST_/GTIN_ tag IDs.
    */
-  static consts = class GadToolsConsts extends CEnumeration {
-    static {
-      /* Gadget kinds */
-      GadToolsConsts.define('GENERIC_KIND',    0);
-      GadToolsConsts.define('BUTTON_KIND',     1);
-      GadToolsConsts.define('CHECKBOX_KIND',   2);
-      GadToolsConsts.define('INTEGER_KIND',    3);
-      GadToolsConsts.define('LISTVIEW_KIND',   4);
-      GadToolsConsts.define('MX_KIND',         5);
-      GadToolsConsts.define('NUMBER_KIND',     6);
-      GadToolsConsts.define('CYCLE_KIND',      7);
-      GadToolsConsts.define('PALETTE_KIND',    8);
-      GadToolsConsts.define('SCROLLER_KIND',   9);
-      GadToolsConsts.define('SLIDER_KIND',    11);
-      GadToolsConsts.define('STRING_KIND',    12);
-      GadToolsConsts.define('TEXT_KIND',      13);
+  static consts = CEnumeration.lazy('GadToolsConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Gadget kinds (libraries/gadtools.h) */
+    GENERIC_KIND:  0,
+    BUTTON_KIND:   1,
+    CHECKBOX_KIND: 2,
+    INTEGER_KIND:  3,
+    LISTVIEW_KIND: 4,
+    MX_KIND:       5,
+    NUMBER_KIND:   6,
+    CYCLE_KIND:    7,
+    PALETTE_KIND:  8,
+    SCROLLER_KIND: 9,
+    SLIDER_KIND:   11,
+    STRING_KIND:   12,
+    TEXT_KIND:     13,
+    NWAY_KIND:     7,   /* CYCLE_KIND */
 
-      /* Common GadTools tag constants. Raw NDK names use the
-       * `GT_` / `GTLV_` / etc. prefixes; we keep them here verbatim
-       * on the JS side because the prefix tells you which gadget
-       * kind the tag is for (it's an attribute prefix, not a
-       * library prefix). */
-      GadToolsConsts.define('GT_Underscore', 0x80080040);
-      GadToolsConsts.define('GTCB_Checked',  0x80080004);
-      GadToolsConsts.define('GTLV_Selected', 0x80080036);
-      GadToolsConsts.define('GTLV_Labels',   0x80080006);
-      GadToolsConsts.define('GTST_String',   0x8008002D);
-      GadToolsConsts.define('GTIN_Number',   0x8008002F);
-    }
-  };
+    /* Gadget tags (libraries/gadtools.h) */
+    GTMENU_TRIMMED:       0x00000001,
+    GTMENU_INVALID:       0x00000002,
+    GTMENU_NOMEM:         0x00000003,
+    GT_TagBase:           0x80080000,   /* TAG_USER + 0x80000 */
+    GTVI_NewWindow:       0x80080001,   /* GT_TagBase + 1 */
+    GTVI_NWTags:          0x80080002,   /* GT_TagBase + 2 */
+    GT_Private0:          0x80080003,   /* GT_TagBase + 3 */
+    GTCB_Checked:         0x80080004,   /* GT_TagBase + 4 */
+    GTLV_Top:             0x80080005,   /* GT_TagBase + 5 */
+    GTLV_Labels:          0x80080006,   /* GT_TagBase + 6 */
+    GTLV_ReadOnly:        0x80080007,   /* GT_TagBase + 7 */
+    GTLV_ScrollWidth:     0x80080008,   /* GT_TagBase + 8 */
+    GTMX_Labels:          0x80080009,   /* GT_TagBase + 9 */
+    GTMX_Active:          0x8008000A,   /* GT_TagBase + 10 */
+    GTTX_Text:            0x8008000B,   /* GT_TagBase + 11 */
+    GTTX_CopyText:        0x8008000C,   /* GT_TagBase + 12 */
+    GTNM_Number:          0x8008000D,   /* GT_TagBase + 13 */
+    GTCY_Labels:          0x8008000E,   /* GT_TagBase + 14 */
+    GTCY_Active:          0x8008000F,   /* GT_TagBase + 15 */
+    GTPA_Depth:           0x80080010,   /* GT_TagBase + 16 */
+    GTPA_Color:           0x80080011,   /* GT_TagBase + 17 */
+    GTPA_ColorOffset:     0x80080012,   /* GT_TagBase + 18 */
+    GTPA_IndicatorWidth:  0x80080013,   /* GT_TagBase + 19 */
+    GTPA_IndicatorHeight: 0x80080014,   /* GT_TagBase + 20 */
+    GTSC_Top:             0x80080015,   /* GT_TagBase + 21 */
+    GTSC_Total:           0x80080016,   /* GT_TagBase + 22 */
+    GTSC_Visible:         0x80080017,   /* GT_TagBase + 23 */
+    GTSC_Overlap:         0x80080018,   /* GT_TagBase + 24 */
+    GTSL_Min:             0x80080026,   /* GT_TagBase + 38 */
+    GTSL_Max:             0x80080027,   /* GT_TagBase + 39 */
+    GTSL_Level:           0x80080028,   /* GT_TagBase + 40 */
+    GTSL_MaxLevelLen:     0x80080029,   /* GT_TagBase + 41 */
+    GTSL_LevelFormat:     0x8008002A,   /* GT_TagBase + 42 */
+    GTSL_LevelPlace:      0x8008002B,   /* GT_TagBase + 43 */
+    GTSL_DispFunc:        0x8008002C,   /* GT_TagBase + 44 */
+    GTST_String:          0x8008002D,   /* GT_TagBase + 45 */
+    GTST_MaxChars:        0x8008002E,   /* GT_TagBase + 46 */
+    GTIN_Number:          0x8008002F,   /* GT_TagBase + 47 */
+    GTIN_MaxChars:        0x80080030,   /* GT_TagBase + 48 */
+    GTMN_TextAttr:        0x80080031,   /* GT_TagBase + 49 */
+    GTMN_FrontPen:        0x80080032,   /* GT_TagBase + 50 */
+    GTBB_Recessed:        0x80080033,   /* GT_TagBase + 51 */
+    GT_VisualInfo:        0x80080034,   /* GT_TagBase + 52 */
+    GTLV_ShowSelected:    0x80080035,   /* GT_TagBase + 53 */
+    GTLV_Selected:        0x80080036,   /* GT_TagBase + 54 */
+    GT_Reserved1:         0x80080038,   /* GT_TagBase + 56 */
+    GTTX_Border:          0x80080039,   /* GT_TagBase + 57 */
+    GTNM_Border:          0x8008003A,   /* GT_TagBase + 58 */
+    GTSC_Arrows:          0x8008003B,   /* GT_TagBase + 59 */
+    GTMN_Menu:            0x8008003C,   /* GT_TagBase + 60 */
+    GTMX_Spacing:         0x8008003D,   /* GT_TagBase + 61 */
+    GTMN_FullMenu:        0x8008003E,   /* GT_TagBase + 62 */
+    GTMN_SecondaryError:  0x8008003F,   /* GT_TagBase + 63 */
+    GT_Underscore:        0x80080040,   /* GT_TagBase + 64 */
+    GTST_EditHook:        0x80080037,   /* GT_TagBase + 55 */
+    GTIN_EditHook:        0x80080037,   /* GTST_EditHook */
+    GTMN_Checkmark:       0x80080041,   /* GT_TagBase + 65 */
+    GTMN_AmigaKey:        0x80080042,   /* GT_TagBase + 66 */
+    GTMN_NewLookMenus:    0x80080043,   /* GT_TagBase + 67 */
+    GTCB_Scaled:          0x80080044,   /* GT_TagBase + 68 */
+    GTMX_Scaled:          0x80080045,   /* GT_TagBase + 69 */
+    GTPA_NumColors:       0x80080046,   /* GT_TagBase + 70 */
+    GTMX_TitlePlace:      0x80080047,   /* GT_TagBase + 71 */
+    GTTX_FrontPen:        0x80080048,   /* GT_TagBase + 72 */
+    GTTX_BackPen:         0x80080049,   /* GT_TagBase + 73 */
+    GTTX_Justification:   0x8008004A,   /* GT_TagBase + 74 */
+    GTNM_FrontPen:        0x80080048,   /* GT_TagBase + 72 */
+    GTNM_BackPen:         0x80080049,   /* GT_TagBase + 73 */
+    GTNM_Justification:   0x8008004A,   /* GT_TagBase + 74 */
+    GTNM_Format:          0x8008004B,   /* GT_TagBase + 75 */
+    GTNM_MaxNumberLen:    0x8008004C,   /* GT_TagBase + 76 */
+    GTBB_FrameType:       0x8008004D,   /* GT_TagBase + 77 */
+    GTLV_MakeVisible:     0x8008004E,   /* GT_TagBase + 78 */
+    GTLV_ItemHeight:      0x8008004F,   /* GT_TagBase + 79 */
+    GTSL_MaxPixelLen:     0x80080050,   /* GT_TagBase + 80 */
+    GTSL_Justification:   0x80080051,   /* GT_TagBase + 81 */
+    GTPA_ColorTable:      0x80080052,   /* GT_TagBase + 82 */
+    GTLV_CallBack:        0x80080053,   /* GT_TagBase + 83 */
+    GTLV_MaxPen:          0x80080054,   /* GT_TagBase + 84 */
+    GTTX_Clipped:         0x80080055,   /* GT_TagBase + 85 */
+    GTNM_Clipped:         0x80080055,   /* GT_TagBase + 85 */
+    GTBB_reserved1:       0x8008005A,   /* GT_TagBase + 90 */
+    GTMN_reserved1:       0x8008005B,   /* GT_TagBase + 91 */
+    GTLV_Total:           0x8008005C,   /* GT_TagBase + 92 */
+    GTLV_Visible:         0x8008005D,   /* GT_TagBase + 93 */
+    GTBB_Scale:           0x8008005C,   /* GT_TagBase + 92 */
+    GTBB_Headline:        0x8008005D,   /* GT_TagBase + 93 */
+    GTBB_HeadlinePen:     0x8008005E,   /* GT_TagBase + 94 */
+    GTBB_HeadlineFont:    0x8008005F,   /* GT_TagBase + 95 */
+    GTVI_LeftBorder:      0x80080060,   /* GT_TagBase + 96 */
+    GTVI_TopBorder:       0x80080061,   /* GT_TagBase + 97 */
+    GTVI_AlignRight:      0x80080062,   /* GT_TagBase + 98 */
+    GTVI_AlignBottom:     0x80080063,   /* GT_TagBase + 99 */
+    GTVI_MinFontWidth:    0x80080064,   /* GT_TagBase + 100 */
+    GTVI_MinFontHeight:   0x80080065,   /* GT_TagBase + 101 */
+    GTMX_ScaledSpacing:   0x80080066,   /* GT_TagBase + 102 */
+    GT_Reserved0:         0x80080037,   /* GTST_EditHook */
+    GTJ_LEFT:             0,
+    GTJ_RIGHT:            1,
+    GTJ_CENTER:           2,
+    GTNW_Labels:          0x8008000E,   /* GTCY_Labels */
+    GTNW_Active:          0x8008000F,   /* GTCY_Active */
+
+    /* Where a gadget's label goes (libraries/gadtools.h) */
+    PLACETEXT_LEFT:  0x0001,
+    PLACETEXT_RIGHT: 0x0002,
+    PLACETEXT_ABOVE: 0x0004,
+    PLACETEXT_BELOW: 0x0008,
+    PLACETEXT_IN:    0x0010,
+
+    /* NewMenu entry types (libraries/gadtools.h) */
+    NM_TITLE:         1,
+    NM_ITEM:          2,
+    NM_SUB:           3,
+    NM_END:           0,
+    NM_IGNORE:        64,
+    NM_BARLABEL:      0xFFFFFFFF,   /* (STRPTR)-1 */
+    NM_MENUDISABLED:  0x0001,   /* MENUENABLED */
+    NM_ITEMDISABLED:  0x0010,   /* ITEMENABLED */
+    NM_COMMANDSTRING: 0x0004,   /* COMMSEQ */
+    NM_FLAGMASK:      0xFFFFFF39,   /* ~(COMMSEQ | ITEMTEXT | HIGHFLAGS) */
+    NM_FLAGMASK_V39:  0xFFFFFF3D,   /* ~(ITEMTEXT | HIGHFLAGS) */
+    /* consts-end */
+  });
 
   /* === Methods (GT_ library prefix stripped where applicable) === */
 
@@ -4666,33 +5176,150 @@ class Asl extends LibraryBase {
    * they were hand-typed and seven of the file-requester tags were
    * wrong: InitialDrawer was really InitialFile's value, for one.)
    */
-  static consts = class AslConsts extends CEnumeration {
-    static {
-      AslConsts.define('ASL_FileRequest',       0);
-      AslConsts.define('ASL_FontRequest',       1);
-      AslConsts.define('ASL_ScreenModeRequest', 2);
+  static consts = CEnumeration.lazy('AslConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Requester types (libraries/asl.h) */
+    ASL_FileRequest:       0,
+    ASL_FontRequest:       1,
+    ASL_ScreenModeRequest: 2,
 
-      /* File-request tags (the most-used subset). */
-      AslConsts.define('ASLFR_TitleText',      0x80080001);  /* ASL_TB+1  */
-      AslConsts.define('ASLFR_Window',         0x80080002);  /* ASL_TB+2  */
-      AslConsts.define('ASLFR_InitialFile',    0x80080008);  /* ASL_TB+8  */
-      AslConsts.define('ASLFR_InitialDrawer',  0x80080009);  /* ASL_TB+9  */
-      AslConsts.define('ASLFR_InitialPattern', 0x8008000A);  /* ASL_TB+10 */
-      AslConsts.define('ASLFR_DoSaveMode',     0x8008002C);  /* ASL_TB+44 */
-      AslConsts.define('ASLFR_DoMultiSelect',  0x8008002D);  /* ASL_TB+45 */
-      AslConsts.define('ASLFR_DoPatterns',     0x8008002E);  /* ASL_TB+46 */
+    /* File requester tags (libraries/asl.h) */
+    ASLFR_Window:             0x80080002,   /* ASL_TB + 2 */
+    ASLFR_Screen:             0x80080028,   /* ASL_TB + 40 */
+    ASLFR_PubScreenName:      0x80080029,   /* ASL_TB + 41 */
+    ASLFR_PrivateIDCMP:       0x8008002A,   /* ASL_TB + 42 */
+    ASLFR_IntuiMsgFunc:       0x80080046,   /* ASL_TB + 70 */
+    ASLFR_SleepWindow:        0x8008002B,   /* ASL_TB + 43 */
+    ASLFR_UserData:           0x80080034,   /* ASL_TB + 52 */
+    ASLFR_PopToFront:         0x80080083,   /* ASL_TB + 131 */
+    ASLFR_Activate:           0x80080084,   /* ASL_TB + 132 */
+    ASLFR_TextAttr:           0x80080033,   /* ASL_TB + 51 */
+    ASLFR_Locale:             0x80080032,   /* ASL_TB + 50 */
+    ASLFR_TitleText:          0x80080001,   /* ASL_TB + 1 */
+    ASLFR_PositiveText:       0x80080012,   /* ASL_TB + 18 */
+    ASLFR_NegativeText:       0x80080013,   /* ASL_TB + 19 */
+    ASLFR_InitialLeftEdge:    0x80080003,   /* ASL_TB + 3 */
+    ASLFR_InitialTopEdge:     0x80080004,   /* ASL_TB + 4 */
+    ASLFR_InitialWidth:       0x80080005,   /* ASL_TB + 5 */
+    ASLFR_InitialHeight:      0x80080006,   /* ASL_TB + 6 */
+    ASLFR_InitialFile:        0x80080008,   /* ASL_TB + 8 */
+    ASLFR_InitialDrawer:      0x80080009,   /* ASL_TB + 9 */
+    ASLFR_InitialPattern:     0x8008000A,   /* ASL_TB + 10 */
+    ASLFR_InitialShowVolumes: 0x80080082,   /* ASL_TB + 130 */
+    ASLFR_Flags1:             0x80080014,   /* ASL_TB + 20 */
+    ASLFR_Flags2:             0x80080016,   /* ASL_TB + 22 */
+    ASLFR_DoSaveMode:         0x8008002C,   /* ASL_TB + 44 */
+    ASLFR_DoMultiSelect:      0x8008002D,   /* ASL_TB + 45 */
+    ASLFR_DoPatterns:         0x8008002E,   /* ASL_TB + 46 */
+    ASLFR_DrawersOnly:        0x8008002F,   /* ASL_TB + 47 */
+    ASLFR_FilterFunc:         0x80080031,   /* ASL_TB + 49 */
+    ASLFR_RejectIcons:        0x8008003C,   /* ASL_TB + 60 */
+    ASLFR_RejectPattern:      0x8008003D,   /* ASL_TB + 61 */
+    ASLFR_AcceptPattern:      0x8008003E,   /* ASL_TB + 62 */
+    ASLFR_FilterDrawers:      0x8008003F,   /* ASL_TB + 63 */
+    ASLFR_HookFunc:           0x80080007,   /* ASL_TB + 7 */
+    ASLFR_SetSortBy:          0x8008007C,   /* ASL_TB + 124 */
+    ASLFR_GetSortBy:          0x8008007D,   /* ASL_TB + 125 */
+    ASLFR_SetSortDrawers:     0x8008007E,   /* ASL_TB + 126 */
+    ASLFR_GetSortDrawers:     0x8008007F,   /* ASL_TB + 127 */
+    ASLFR_SetSortOrder:       0x80080080,   /* ASL_TB + 128 */
+    ASLFR_GetSortOrder:       0x80080081,   /* ASL_TB + 129 */
 
-      /* Font-request tags. */
-      AslConsts.define('ASLFO_TitleText',      0x80080001);  /* ASL_TB+1  */
-      AslConsts.define('ASLFO_Window',         0x80080002);  /* ASL_TB+2  */
-      AslConsts.define('ASLFO_InitialName',    0x8008000A);  /* ASL_TB+10 */
-      AslConsts.define('ASLFO_InitialSize',    0x8008000B);  /* ASL_TB+11 */
+    /* Font requester tags (libraries/asl.h) */
+    ASLFO_Window:          0x80080002,   /* ASL_TB + 2 */
+    ASLFO_Screen:          0x80080028,   /* ASL_TB + 40 */
+    ASLFO_PubScreenName:   0x80080029,   /* ASL_TB + 41 */
+    ASLFO_PrivateIDCMP:    0x8008002A,   /* ASL_TB + 42 */
+    ASLFO_IntuiMsgFunc:    0x80080046,   /* ASL_TB + 70 */
+    ASLFO_SleepWindow:     0x8008002B,   /* ASL_TB + 43 */
+    ASLFO_UserData:        0x80080034,   /* ASL_TB + 52 */
+    ASLFO_PopToFront:      0x80080083,   /* ASL_TB + 131 */
+    ASLFO_Activate:        0x80080084,   /* ASL_TB + 132 */
+    ASLFO_TextAttr:        0x80080033,   /* ASL_TB + 51 */
+    ASLFO_Locale:          0x80080032,   /* ASL_TB + 50 */
+    ASLFO_TitleText:       0x80080001,   /* ASL_TB + 1 */
+    ASLFO_PositiveText:    0x80080012,   /* ASL_TB + 18 */
+    ASLFO_NegativeText:    0x80080013,   /* ASL_TB + 19 */
+    ASLFO_InitialLeftEdge: 0x80080003,   /* ASL_TB + 3 */
+    ASLFO_InitialTopEdge:  0x80080004,   /* ASL_TB + 4 */
+    ASLFO_InitialWidth:    0x80080005,   /* ASL_TB + 5 */
+    ASLFO_InitialHeight:   0x80080006,   /* ASL_TB + 6 */
+    ASLFO_InitialName:     0x8008000A,   /* ASL_TB + 10 */
+    ASLFO_InitialSize:     0x8008000B,   /* ASL_TB + 11 */
+    ASLFO_InitialStyle:    0x8008000C,   /* ASL_TB + 12 */
+    ASLFO_InitialFlags:    0x8008000D,   /* ASL_TB + 13 */
+    ASLFO_InitialFrontPen: 0x8008000E,   /* ASL_TB + 14 */
+    ASLFO_InitialBackPen:  0x8008000F,   /* ASL_TB + 15 */
+    ASLFO_InitialDrawMode: 0x8008003B,   /* ASL_TB + 59 */
+    ASLFO_InitialSpecMode: 0x8008008B,   /* ASL_TB + 139 */
+    ASLFO_InitialCharSet:  0x80080086,   /* ASL_TB + 134 */
+    ASLFO_Flags:           0x80080014,   /* ASL_TB + 20 */
+    ASLFO_DoFrontPen:      0x8008002C,   /* ASL_TB + 44 */
+    ASLFO_DoBackPen:       0x8008002D,   /* ASL_TB + 45 */
+    ASLFO_DoStyle:         0x8008002E,   /* ASL_TB + 46 */
+    ASLFO_DoDrawMode:      0x8008002F,   /* ASL_TB + 47 */
+    ASLFO_DoSpecialMode:   0x8008008C,   /* ASL_TB + 140 */
+    ASLFO_DoCharSet:       0x80080087,   /* ASL_TB + 135 */
+    ASLFO_SampleText:      0x80080085,   /* ASL_TB + 133 */
+    ASLFO_FixedWidthOnly:  0x80080030,   /* ASL_TB + 48 */
+    ASLFO_OTagOnly:        0x80080088,   /* ASL_TB + 136 */
+    ASLFO_ScalableOnly:    0x80080089,   /* ASL_TB + 137 */
+    ASLFO_MinHeight:       0x80080010,   /* ASL_TB + 16 */
+    ASLFO_MaxHeight:       0x80080011,   /* ASL_TB + 17 */
+    ASLFO_FilterFunc:      0x80080031,   /* ASL_TB + 49 */
+    ASLFO_CSFilterFunc:    0x8008008A,   /* ASL_TB + 138 */
+    ASLFO_HookFunc:        0x80080007,   /* ASL_TB + 7 */
+    ASLFO_MaxFrontPen:     0x80080042,   /* ASL_TB + 66 */
+    ASLFO_MaxBackPen:      0x80080043,   /* ASL_TB + 67 */
+    ASLFO_ModeList:        0x80080015,   /* ASL_TB + 21 */
+    ASLFO_FrontPens:       0x80080040,   /* ASL_TB + 64 */
+    ASLFO_BackPens:        0x80080041,   /* ASL_TB + 65 */
 
-      /* Screenmode-request tags. */
-      AslConsts.define('ASLSM_TitleText',      0x80080001);  /* ASL_TB+1  */
-      AslConsts.define('ASLSM_Window',         0x80080002);  /* ASL_TB+2  */
-    }
-  };
+    /* Screen mode requester tags (libraries/asl.h) */
+    ASLSM_Window:               0x80080002,   /* ASL_TB + 2 */
+    ASLSM_Screen:               0x80080028,   /* ASL_TB + 40 */
+    ASLSM_PubScreenName:        0x80080029,   /* ASL_TB + 41 */
+    ASLSM_PrivateIDCMP:         0x8008002A,   /* ASL_TB + 42 */
+    ASLSM_IntuiMsgFunc:         0x80080046,   /* ASL_TB + 70 */
+    ASLSM_SleepWindow:          0x8008002B,   /* ASL_TB + 43 */
+    ASLSM_UserData:             0x80080034,   /* ASL_TB + 52 */
+    ASLSM_PopToFront:           0x80080083,   /* ASL_TB + 131 */
+    ASLSM_Activate:             0x80080084,   /* ASL_TB + 132 */
+    ASLSM_TextAttr:             0x80080033,   /* ASL_TB + 51 */
+    ASLSM_Locale:               0x80080032,   /* ASL_TB + 50 */
+    ASLSM_TitleText:            0x80080001,   /* ASL_TB + 1 */
+    ASLSM_PositiveText:         0x80080012,   /* ASL_TB + 18 */
+    ASLSM_NegativeText:         0x80080013,   /* ASL_TB + 19 */
+    ASLSM_InitialLeftEdge:      0x80080003,   /* ASL_TB + 3 */
+    ASLSM_InitialTopEdge:       0x80080004,   /* ASL_TB + 4 */
+    ASLSM_InitialWidth:         0x80080005,   /* ASL_TB + 5 */
+    ASLSM_InitialHeight:        0x80080006,   /* ASL_TB + 6 */
+    ASLSM_InitialDisplayID:     0x80080064,   /* ASL_TB + 100 */
+    ASLSM_InitialDisplayWidth:  0x80080065,   /* ASL_TB + 101 */
+    ASLSM_InitialDisplayHeight: 0x80080066,   /* ASL_TB + 102 */
+    ASLSM_InitialDisplayDepth:  0x80080067,   /* ASL_TB + 103 */
+    ASLSM_InitialOverscanType:  0x80080068,   /* ASL_TB + 104 */
+    ASLSM_InitialAutoScroll:    0x80080069,   /* ASL_TB + 105 */
+    ASLSM_InitialInfoOpened:    0x8008006A,   /* ASL_TB + 106 */
+    ASLSM_InitialInfoLeftEdge:  0x8008006B,   /* ASL_TB + 107 */
+    ASLSM_InitialInfoTopEdge:   0x8008006C,   /* ASL_TB + 108 */
+    ASLSM_DoWidth:              0x8008006D,   /* ASL_TB + 109 */
+    ASLSM_DoHeight:             0x8008006E,   /* ASL_TB + 110 */
+    ASLSM_DoDepth:              0x8008006F,   /* ASL_TB + 111 */
+    ASLSM_DoOverscanType:       0x80080070,   /* ASL_TB + 112 */
+    ASLSM_DoAutoScroll:         0x80080071,   /* ASL_TB + 113 */
+    ASLSM_PropertyFlags:        0x80080072,   /* ASL_TB + 114 */
+    ASLSM_PropertyMask:         0x80080073,   /* ASL_TB + 115 */
+    ASLSM_MinWidth:             0x80080074,   /* ASL_TB + 116 */
+    ASLSM_MaxWidth:             0x80080075,   /* ASL_TB + 117 */
+    ASLSM_MinHeight:            0x80080076,   /* ASL_TB + 118 */
+    ASLSM_MaxHeight:            0x80080077,   /* ASL_TB + 119 */
+    ASLSM_MinDepth:             0x80080078,   /* ASL_TB + 120 */
+    ASLSM_MaxDepth:             0x80080079,   /* ASL_TB + 121 */
+    ASLSM_FilterFunc:           0x8008007A,   /* ASL_TB + 122 */
+    ASLSM_CustomSMList:         0x8008007B,   /* ASL_TB + 123 */
+    /* consts-end */
+  });
 
   /**
    * AllocAslRequest(type, tagList) — d0=type, a0=tagList. Returns
@@ -4865,15 +5492,19 @@ class Diskfont extends LibraryBase {
    *   AFF_BITMAP = 1 << 8   — bitmap fonts
    *   AFF_TAGGED = 1 << 16  — AFF with TagItem list
    */
-  static consts = class DiskfontConsts extends CEnumeration {
-    static {
-      DiskfontConsts.define('AFF_MEMORY', 0x00000001);
-      DiskfontConsts.define('AFF_DISK',   0x00000002);
-      DiskfontConsts.define('AFF_SCALED', 0x00000004);
-      DiskfontConsts.define('AFF_BITMAP', 0x00000008);
-      DiskfontConsts.define('AFF_TAGGED', 0x00010000);
-    }
-  };
+  static consts = CEnumeration.lazy('DiskfontConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* AvailFonts() flags (diskfont/diskfont.h) */
+    AFF_MEMORY:  0x0001,
+    AFF_DISK:    0x0002,
+    AFF_SCALED:  0x0004,
+    AFF_BITMAP:  0x0008,
+    AFF_OTAG:    0x0010,
+    AFF_CHARSET: 0x0020,
+    AFF_TYPE:    0x0040,
+    AFF_TAGGED:  0x10000,
+    /* consts-end */
+  });
 
   /**
    * OpenDiskFont(textAttr) — load a disk-resident font described by
@@ -4933,80 +5564,490 @@ class Intuition extends LibraryBase {
    * numeric value via Symbol.toPrimitive — usable directly in tag
    * lists.
    */
-  static consts = class IntuitionConsts extends CEnumeration {
-    static {
-      /* Window Attributes — WA_Dummy = TAG_USER + 99 = 0x80000063 */
-      IntuitionConsts.define('WA_Left',         0x80000064);
-      IntuitionConsts.define('WA_Top',          0x80000065);
-      IntuitionConsts.define('WA_Width',        0x80000066);
-      IntuitionConsts.define('WA_Height',       0x80000067);
-      IntuitionConsts.define('WA_DetailPen',    0x80000068);
-      IntuitionConsts.define('WA_BlockPen',     0x80000069);
-      IntuitionConsts.define('WA_IDCMP',        0x8000006A);
-      IntuitionConsts.define('WA_Flags',        0x8000006B);
-      IntuitionConsts.define('WA_Gadgets',      0x8000006C);
-      IntuitionConsts.define('WA_Title',        0x8000006E);
-      IntuitionConsts.define('WA_ScreenTitle',  0x8000006F);
-      IntuitionConsts.define('WA_CustomScreen', 0x80000070);
-      IntuitionConsts.define('WA_MinWidth',     0x80000072);
-      IntuitionConsts.define('WA_MinHeight',    0x80000073);
-      IntuitionConsts.define('WA_MaxWidth',     0x80000074);
-      IntuitionConsts.define('WA_MaxHeight',    0x80000075);
-      IntuitionConsts.define('WA_InnerWidth',   0x80000076);
-      IntuitionConsts.define('WA_InnerHeight',  0x80000077);
-      IntuitionConsts.define('WA_PubScreenName',0x80000078);
-      IntuitionConsts.define('WA_SimpleRefresh',0x8000008C);
-      IntuitionConsts.define('WA_SmartRefresh', 0x8000008D);
-      IntuitionConsts.define('WA_BackFill',     0x8000007F);
-      IntuitionConsts.define('WA_AutoAdjust',   0x80000090);
+  static consts = CEnumeration.lazy('IntuitionConsts', {
+    /* consts-begin - written by scripts/gen_consts.py from the NDK headers; do not edit */
+    /* Window attributes: tags for OpenWindowTags (intuition/intuition.h) */
+    WA_Left:              0x80000064,   /* WA_Dummy + 0x01 */
+    WA_Top:               0x80000065,   /* WA_Dummy + 0x02 */
+    WA_Width:             0x80000066,   /* WA_Dummy + 0x03 */
+    WA_Height:            0x80000067,   /* WA_Dummy + 0x04 */
+    WA_DetailPen:         0x80000068,   /* WA_Dummy + 0x05 */
+    WA_BlockPen:          0x80000069,   /* WA_Dummy + 0x06 */
+    WA_IDCMP:             0x8000006A,   /* WA_Dummy + 0x07 */
+    WA_Flags:             0x8000006B,   /* WA_Dummy + 0x08 */
+    WA_Gadgets:           0x8000006C,   /* WA_Dummy + 0x09 */
+    WA_Checkmark:         0x8000006D,   /* WA_Dummy + 0x0A */
+    WA_Title:             0x8000006E,   /* WA_Dummy + 0x0B */
+    WA_ScreenTitle:       0x8000006F,   /* WA_Dummy + 0x0C */
+    WA_CustomScreen:      0x80000070,   /* WA_Dummy + 0x0D */
+    WA_SuperBitMap:       0x80000071,   /* WA_Dummy + 0x0E */
+    WA_MinWidth:          0x80000072,   /* WA_Dummy + 0x0F */
+    WA_MinHeight:         0x80000073,   /* WA_Dummy + 0x10 */
+    WA_MaxWidth:          0x80000074,   /* WA_Dummy + 0x11 */
+    WA_MaxHeight:         0x80000075,   /* WA_Dummy + 0x12 */
+    WA_InnerWidth:        0x80000076,   /* WA_Dummy + 0x13 */
+    WA_InnerHeight:       0x80000077,   /* WA_Dummy + 0x14 */
+    WA_PubScreenName:     0x80000078,   /* WA_Dummy + 0x15 */
+    WA_PubScreen:         0x80000079,   /* WA_Dummy + 0x16 */
+    WA_PubScreenFallBack: 0x8000007A,   /* WA_Dummy + 0x17 */
+    WA_WindowName:        0x8000007B,   /* WA_Dummy + 0x18 */
+    WA_Colors:            0x8000007C,   /* WA_Dummy + 0x19 */
+    WA_Zoom:              0x8000007D,   /* WA_Dummy + 0x1A */
+    WA_MouseQueue:        0x8000007E,   /* WA_Dummy + 0x1B */
+    WA_BackFill:          0x8000007F,   /* WA_Dummy + 0x1C */
+    WA_RptQueue:          0x80000080,   /* WA_Dummy + 0x1D */
+    WA_SizeGadget:        0x80000081,   /* WA_Dummy + 0x1E */
+    WA_DragBar:           0x80000082,   /* WA_Dummy + 0x1F */
+    WA_DepthGadget:       0x80000083,   /* WA_Dummy + 0x20 */
+    WA_CloseGadget:       0x80000084,   /* WA_Dummy + 0x21 */
+    WA_Backdrop:          0x80000085,   /* WA_Dummy + 0x22 */
+    WA_ReportMouse:       0x80000086,   /* WA_Dummy + 0x23 */
+    WA_NoCareRefresh:     0x80000087,   /* WA_Dummy + 0x24 */
+    WA_Borderless:        0x80000088,   /* WA_Dummy + 0x25 */
+    WA_Activate:          0x80000089,   /* WA_Dummy + 0x26 */
+    WA_RMBTrap:           0x8000008A,   /* WA_Dummy + 0x27 */
+    WA_WBenchWindow:      0x8000008B,   /* WA_Dummy + 0x28 */
+    WA_SimpleRefresh:     0x8000008C,   /* WA_Dummy + 0x29 */
+    WA_SmartRefresh:      0x8000008D,   /* WA_Dummy + 0x2A */
+    WA_SizeBRight:        0x8000008E,   /* WA_Dummy + 0x2B */
+    WA_SizeBBottom:       0x8000008F,   /* WA_Dummy + 0x2C */
+    WA_AutoAdjust:        0x80000090,   /* WA_Dummy + 0x2D */
+    WA_GimmeZeroZero:     0x80000091,   /* WA_Dummy + 0x2E */
+    WA_MenuHelp:          0x80000092,   /* WA_Dummy + 0x2F */
+    WA_NewLookMenus:      0x80000093,   /* WA_Dummy + 0x30 */
+    WA_AmigaKey:          0x80000094,   /* WA_Dummy + 0x31 */
+    WA_NotifyDepth:       0x80000095,   /* WA_Dummy + 0x32 */
+    WA_Pointer:           0x80000097,   /* WA_Dummy + 0x34 */
+    WA_BusyPointer:       0x80000098,   /* WA_Dummy + 0x35 */
+    WA_PointerDelay:      0x80000099,   /* WA_Dummy + 0x36 */
+    WA_TabletMessages:    0x8000009A,   /* WA_Dummy + 0x37 */
+    WA_HelpGroup:         0x8000009B,   /* WA_Dummy + 0x38 */
+    WA_HelpGroupWindow:   0x8000009C,   /* WA_Dummy + 0x39 */
+    WA_Hidden:            0x8000009F,   /* WA_Dummy + 0x3c */
+    WA_PointerType:       0x800000B3,   /* WA_Dummy + 0x50 */
+    WA_IconifyGadget:     0x800000C3,   /* WA_Dummy + 0x60 */
 
-      /* Screen Attributes — SA_Dummy = TAG_USER + 32 = 0x80000020 */
-      IntuitionConsts.define('SA_Left',     0x80000021);
-      IntuitionConsts.define('SA_Top',      0x80000022);
-      IntuitionConsts.define('SA_Width',    0x80000023);
-      IntuitionConsts.define('SA_Height',   0x80000024);
-      IntuitionConsts.define('SA_Depth',    0x80000025);
-      IntuitionConsts.define('SA_Title',    0x80000028);
-      IntuitionConsts.define('SA_Type',     0x8000002D);
+    /* Window flags: the value of WA_Flags (intuition/intuition.h) */
+    WFLG_SIZEGADGET:     0x00000001,
+    WFLG_DRAGBAR:        0x00000002,
+    WFLG_DEPTHGADGET:    0x00000004,
+    WFLG_CLOSEGADGET:    0x00000008,
+    WFLG_SIZEBRIGHT:     0x00000010,
+    WFLG_SIZEBBOTTOM:    0x00000020,
+    WFLG_REFRESHBITS:    0x000000C0,
+    WFLG_SMART_REFRESH:  0x00000000,
+    WFLG_SIMPLE_REFRESH: 0x00000040,
+    WFLG_SUPER_BITMAP:   0x00000080,
+    WFLG_OTHER_REFRESH:  0x000000C0,
+    WFLG_BACKDROP:       0x00000100,
+    WFLG_REPORTMOUSE:    0x00000200,
+    WFLG_GIMMEZEROZERO:  0x00000400,
+    WFLG_BORDERLESS:     0x00000800,
+    WFLG_ACTIVATE:       0x00001000,
+    WFLG_RMBTRAP:        0x00010000,
+    WFLG_NOCAREREFRESH:  0x00020000,
+    WFLG_NW_EXTENDED:    0x00040000,
+    WFLG_NEWLOOKMENUS:   0x00200000,
+    WFLG_WINDOWACTIVE:   0x00002000,
+    WFLG_INREQUEST:      0x00004000,
+    WFLG_MENUSTATE:      0x00008000,
+    WFLG_WINDOWREFRESH:  0x01000000,
+    WFLG_WBENCHWINDOW:   0x02000000,
+    WFLG_WINDOWTICKED:   0x04000000,
+    WFLG_VISITOR:        0x08000000,
+    WFLG_ZOOMED:         0x10000000,
+    WFLG_HASZOOM:        0x20000000,
+    WFLG_HASICONIFY:     0x40000000,
 
-      /* IA_ tags — IA_Dummy = TAG_USER + 0x20000 = 0x80020000 */
-      IntuitionConsts.define('IA_Left',      0x80020001);
-      IntuitionConsts.define('IA_Top',       0x80020002);
-      IntuitionConsts.define('IA_Width',     0x80020003);
-      IntuitionConsts.define('IA_Height',    0x80020004);
-      IntuitionConsts.define('IA_FGPen',     0x80020005);
-      IntuitionConsts.define('IA_BGPen',     0x80020006);
-      IntuitionConsts.define('IA_Recessed',  0x80020015);
-      IntuitionConsts.define('IA_FrameType', 0x8002001B);
+    /* IDCMP classes: the value of WA_IDCMP, and IntuiMessage.class (intuition/intuition.h) */
+    IDCMP_SIZEVERIFY:     0x00000001,
+    IDCMP_NEWSIZE:        0x00000002,
+    IDCMP_REFRESHWINDOW:  0x00000004,
+    IDCMP_MOUSEBUTTONS:   0x00000008,
+    IDCMP_MOUSEMOVE:      0x00000010,
+    IDCMP_GADGETDOWN:     0x00000020,
+    IDCMP_GADGETUP:       0x00000040,
+    IDCMP_REQSET:         0x00000080,
+    IDCMP_MENUPICK:       0x00000100,
+    IDCMP_CLOSEWINDOW:    0x00000200,
+    IDCMP_RAWKEY:         0x00000400,
+    IDCMP_REQVERIFY:      0x00000800,
+    IDCMP_REQCLEAR:       0x00001000,
+    IDCMP_MENUVERIFY:     0x00002000,
+    IDCMP_NEWPREFS:       0x00004000,
+    IDCMP_DISKINSERTED:   0x00008000,
+    IDCMP_DISKREMOVED:    0x00010000,
+    IDCMP_WBENCHMESSAGE:  0x00020000,
+    IDCMP_ACTIVEWINDOW:   0x00040000,
+    IDCMP_INACTIVEWINDOW: 0x00080000,
+    IDCMP_DELTAMOVE:      0x00100000,
+    IDCMP_VANILLAKEY:     0x00200000,
+    IDCMP_INTUITICKS:     0x00400000,
+    IDCMP_IDCMPUPDATE:    0x00800000,
+    IDCMP_MENUHELP:       0x01000000,
+    IDCMP_CHANGEWINDOW:   0x02000000,
+    IDCMP_GADGETHELP:     0x04000000,
+    IDCMP_EXTENDEDMOUSE:  0x08000000,
+    IDCMP_LONELYMESSAGE:  0x80000000,
 
-      /* IDCMP flags */
-      IntuitionConsts.define('IDCMP_SIZEVERIFY',    0x00000001);
-      IntuitionConsts.define('IDCMP_NEWSIZE',       0x00000002);
-      IntuitionConsts.define('IDCMP_REFRESHWINDOW', 0x00000004);
-      IntuitionConsts.define('IDCMP_MOUSEBUTTONS',  0x00000008);
-      IntuitionConsts.define('IDCMP_MOUSEMOVE',     0x00000010);
-      IntuitionConsts.define('IDCMP_GADGETDOWN',    0x00000020);
-      IntuitionConsts.define('IDCMP_GADGETUP',      0x00000040);
-      IntuitionConsts.define('IDCMP_MENUPICK',      0x00000100);
-      IntuitionConsts.define('IDCMP_CLOSEWINDOW',   0x00000200);
-      IntuitionConsts.define('IDCMP_RAWKEY',        0x00000400);
-      IntuitionConsts.define('IDCMP_VANILLAKEY',    0x00200000);
+    /* Mouse button codes: IntuiMessage.code for IDCMP_MOUSEBUTTONS (intuition/intuition.h) */
+    SELECTDOWN: 0x68,   /* IECODE_LBUTTON */
+    SELECTUP:   232,   /* IECODE_LBUTTON | IECODE_UP_PREFIX */
+    MENUDOWN:   0x69,   /* IECODE_RBUTTON */
+    MENUUP:     233,   /* IECODE_RBUTTON | IECODE_UP_PREFIX */
+    MIDDLEDOWN: 0x6A,   /* IECODE_MBUTTON */
+    MIDDLEUP:   234,   /* IECODE_MBUTTON | IECODE_UP_PREFIX */
 
-      /* WFLG — window flags (WA_Flags value) */
-      IntuitionConsts.define('WFLG_SIZEGADGET',  0x00000001);
-      IntuitionConsts.define('WFLG_DRAGBAR',     0x00000002);
-      IntuitionConsts.define('WFLG_DEPTHGADGET', 0x00000004);
-      IntuitionConsts.define('WFLG_CLOSEGADGET', 0x00000008);
-      IntuitionConsts.define('WFLG_BACKDROP',    0x00000100);
-      IntuitionConsts.define('WFLG_REPORTMOUSE', 0x00000200);
-      IntuitionConsts.define('WFLG_BORDERLESS',  0x00000800);
-      IntuitionConsts.define('WFLG_ACTIVATE',    0x00001000);
+    /* Menu and menu item flags (intuition/intuition.h) */
+    MENUENABLED: 0x0001,
+    MIDRAWN:     0x0100,
+    CHECKIT:     0x0001,
+    ITEMTEXT:    0x0002,
+    COMMSEQ:     0x0004,
+    MENUTOGGLE:  0x0008,
+    ITEMENABLED: 0x0010,
+    HIGHFLAGS:   0x00C0,
+    HIGHIMAGE:   0x0000,
+    HIGHCOMP:    0x0040,
+    HIGHBOX:     0x0080,
+    HIGHNONE:    0x00C0,
+    CHECKED:     0x0100,
+    ISDRAWN:     0x1000,
+    HIGHITEM:    0x2000,
+    MENUTOGGLED: 0x4000,
 
-      /* Screen types (NewWindow.Type) */
-      IntuitionConsts.define('WBENCHSCREEN', 0x0001);
-      IntuitionConsts.define('CUSTOMSCREEN', 0x000F);
-    }
-  };
+    /* Menu numbers: "nothing chosen" values (intuition/intuition.h) */
+    MENUNULL: 0xFFFF,
+    NOMENU:   0x001F,
+    NOITEM:   0x003F,
+    NOSUB:    0x001F,
+
+    /* Gadget flags, activation and types (intuition/intuition.h) */
+    GFLG_GADGHIGHBITS: 0x0003,
+    GFLG_GADGHCOMP:    0x0000,
+    GFLG_GADGHBOX:     0x0001,
+    GFLG_GADGHIMAGE:   0x0002,
+    GFLG_GADGHNONE:    0x0003,
+    GFLG_GADGIMAGE:    0x0004,
+    GFLG_RELBOTTOM:    0x0008,
+    GFLG_RELRIGHT:     0x0010,
+    GFLG_RELWIDTH:     0x0020,
+    GFLG_RELHEIGHT:    0x0040,
+    GFLG_RELSPECIAL:   0x4000,
+    GFLG_SELECTED:     0x0080,
+    GFLG_DISABLED:     0x0100,
+    GFLG_LABELMASK:    0x3000,
+    GFLG_LABELITEXT:   0x0000,
+    GFLG_LABELSTRING:  0x1000,
+    GFLG_LABELIMAGE:   0x2000,
+    GFLG_TABCYCLE:     0x0200,
+    GFLG_STRINGEXTEND: 0x0400,
+    GFLG_IMAGEDISABLE: 0x0800,
+    GFLG_EXTENDED:     0x8000,
+    GACT_RELVERIFY:    0x0001,
+    GACT_IMMEDIATE:    0x0002,
+    GACT_ENDGADGET:    0x0004,
+    GACT_FOLLOWMOUSE:  0x0008,
+    GACT_RIGHTBORDER:  0x0010,
+    GACT_LEFTBORDER:   0x0020,
+    GACT_TOPBORDER:    0x0040,
+    GACT_BOTTOMBORDER: 0x0080,
+    GACT_BORDERSNIFF:  0x8000,
+    GACT_TOGGLESELECT: 0x0100,
+    GACT_BOOLEXTEND:   0x2000,
+    GACT_STRINGLEFT:   0x0000,
+    GACT_STRINGCENTER: 0x0200,
+    GACT_STRINGRIGHT:  0x0400,
+    GACT_LONGINT:      0x0800,
+    GACT_ALTKEYMAP:    0x1000,
+    GACT_STRINGEXTEND: 0x2000,
+    GACT_ACTIVEGADGET: 0x4000,
+    GTYP_GADGETTYPE:   0xFC00,
+    GTYP_SCRGADGET:    0x4000,
+    GTYP_GZZGADGET:    0x2000,
+    GTYP_REQGADGET:    0x1000,
+    GTYP_SYSGADGET:    0x8000,
+    GTYP_SYSTYPEMASK:  0x00F0,
+    GTYP_SIZING:       0x0010,
+    GTYP_WDRAGGING:    0x0020,
+    GTYP_SDRAGGING:    0x0030,
+    GTYP_WDEPTH:       0x0040,
+    GTYP_SDEPTH:       0x0050,
+    GTYP_WZOOM:        0x0060,
+    GTYP_SUNUSED:      0x0070,
+    GTYP_CLOSE:        0x0080,
+    GTYP_ICONIFY:      0x0090,
+    GTYP_WUPFRONT:     0x0040,   /* GTYP_WDEPTH */
+    GTYP_SUPFRONT:     0x0050,   /* GTYP_SDEPTH */
+    GTYP_WDOWNBACK:    0x0060,   /* GTYP_WZOOM */
+    GTYP_SDOWNBACK:    0x0070,   /* GTYP_SUNUSED */
+    GTYP_GTYPEMASK:    0x0007,
+    GTYP_BOOLGADGET:   0x0001,
+    GTYP_GADGET0002:   0x0002,
+    GTYP_PROPGADGET:   0x0003,
+    GTYP_STRGADGET:    0x0004,
+    GTYP_CUSTOMGADGET: 0x0005,
+
+    /* Screen types (intuition/screens.h) */
+    WBENCHSCREEN: 0x0001,
+    PUBLICSCREEN: 0x0002,
+    CUSTOMSCREEN: 0x000F,
+
+    /* Screen attributes: tags for OpenScreenTags (intuition/screens.h) */
+    SA_Left:              0x80000021,   /* SA_Dummy + 0x0001 */
+    SA_Top:               0x80000022,   /* SA_Dummy + 0x0002 */
+    SA_Width:             0x80000023,   /* SA_Dummy + 0x0003 */
+    SA_Height:            0x80000024,   /* SA_Dummy + 0x0004 */
+    SA_Depth:             0x80000025,   /* SA_Dummy + 0x0005 */
+    SA_DetailPen:         0x80000026,   /* SA_Dummy + 0x0006 */
+    SA_BlockPen:          0x80000027,   /* SA_Dummy + 0x0007 */
+    SA_Title:             0x80000028,   /* SA_Dummy + 0x0008 */
+    SA_Colors:            0x80000029,   /* SA_Dummy + 0x0009 */
+    SA_ErrorCode:         0x8000002A,   /* SA_Dummy + 0x000A */
+    SA_Font:              0x8000002B,   /* SA_Dummy + 0x000B */
+    SA_SysFont:           0x8000002C,   /* SA_Dummy + 0x000C */
+    SA_Type:              0x8000002D,   /* SA_Dummy + 0x000D */
+    SA_BitMap:            0x8000002E,   /* SA_Dummy + 0x000E */
+    SA_PubName:           0x8000002F,   /* SA_Dummy + 0x000F */
+    SA_PubSig:            0x80000030,   /* SA_Dummy + 0x0010 */
+    SA_PubTask:           0x80000031,   /* SA_Dummy + 0x0011 */
+    SA_DisplayID:         0x80000032,   /* SA_Dummy + 0x0012 */
+    SA_DClip:             0x80000033,   /* SA_Dummy + 0x0013 */
+    SA_Overscan:          0x80000034,   /* SA_Dummy + 0x0014 */
+    SA_Obsolete1:         0x80000035,   /* SA_Dummy + 0x0015 */
+    SA_ShowTitle:         0x80000036,   /* SA_Dummy + 0x0016 */
+    SA_Behind:            0x80000037,   /* SA_Dummy + 0x0017 */
+    SA_Quiet:             0x80000038,   /* SA_Dummy + 0x0018 */
+    SA_AutoScroll:        0x80000039,   /* SA_Dummy + 0x0019 */
+    SA_Pens:              0x8000003A,   /* SA_Dummy + 0x001A */
+    SA_FullPalette:       0x8000003B,   /* SA_Dummy + 0x001B */
+    SA_ColorMapEntries:   0x8000003C,   /* SA_Dummy + 0x001C */
+    SA_Parent:            0x8000003D,   /* SA_Dummy + 0x001D */
+    SA_Draggable:         0x8000003E,   /* SA_Dummy + 0x001E */
+    SA_Exclusive:         0x8000003F,   /* SA_Dummy + 0x001F */
+    SA_SharePens:         0x80000040,   /* SA_Dummy + 0x0020 */
+    SA_BackFill:          0x80000041,   /* SA_Dummy + 0x0021 */
+    SA_Interleaved:       0x80000042,   /* SA_Dummy + 0x0022 */
+    SA_Colors32:          0x80000043,   /* SA_Dummy + 0x0023 */
+    SA_VideoControl:      0x80000044,   /* SA_Dummy + 0x0024 */
+    SA_FrontChild:        0x80000045,   /* SA_Dummy + 0x0025 */
+    SA_BackChild:         0x80000046,   /* SA_Dummy + 0x0026 */
+    SA_LikeWorkbench:     0x80000047,   /* SA_Dummy + 0x0027 */
+    SA_Reserved:          0x80000048,   /* SA_Dummy + 0x0028 */
+    SA_MinimizeISG:       0x80000049,   /* SA_Dummy + 0x0029 */
+    SA_OffScreenDragging: 0x8000004A,   /* SA_Dummy + 0x002a */
+
+    /* Overscan types: the value of SA_Overscan (intuition/screens.h) */
+    OSCAN_TEXT:     1,
+    OSCAN_STANDARD: 2,
+    OSCAN_MAX:      3,
+    OSCAN_VIDEO:    4,
+
+    /* DrawInfo pen numbers: indexes into dri_Pens (intuition/screens.h) */
+    DETAILPEN:        0x0000,
+    BLOCKPEN:         0x0001,
+    TEXTPEN:          0x0002,
+    SHINEPEN:         0x0003,
+    SHADOWPEN:        0x0004,
+    FILLPEN:          0x0005,
+    FILLTEXTPEN:      0x0006,
+    BACKGROUNDPEN:    0x0007,
+    HIGHLIGHTTEXTPEN: 0x0008,
+    BARDETAILPEN:     0x0009,
+    BARBLOCKPEN:      0x000A,
+    BARTRIMPEN:       0x000B,
+    NUMDRIPENS:       0x000D,
+
+    /* Image attributes (intuition/imageclass.h) */
+    IA_Left:            0x80020001,   /* IA_Dummy + 0x01 */
+    IA_Top:             0x80020002,   /* IA_Dummy + 0x02 */
+    IA_Width:           0x80020003,   /* IA_Dummy + 0x03 */
+    IA_Height:          0x80020004,   /* IA_Dummy + 0x04 */
+    IA_FGPen:           0x80020005,   /* IA_Dummy + 0x05 */
+    IA_BGPen:           0x80020006,   /* IA_Dummy + 0x06 */
+    IA_Data:            0x80020007,   /* IA_Dummy + 0x07 */
+    IA_LineWidth:       0x80020008,   /* IA_Dummy + 0x08 */
+    IA_Pens:            0x8002000E,   /* IA_Dummy + 0x0E */
+    IA_Resolution:      0x8002000F,   /* IA_Dummy + 0x0F */
+    IA_APattern:        0x80020010,   /* IA_Dummy + 0x10 */
+    IA_APatSize:        0x80020011,   /* IA_Dummy + 0x11 */
+    IA_Mode:            0x80020012,   /* IA_Dummy + 0x12 */
+    IA_Font:            0x80020013,   /* IA_Dummy + 0x13 */
+    IA_Outline:         0x80020014,   /* IA_Dummy + 0x14 */
+    IA_Recessed:        0x80020015,   /* IA_Dummy + 0x15 */
+    IA_DoubleEmboss:    0x80020016,   /* IA_Dummy + 0x16 */
+    IA_EdgesOnly:       0x80020017,   /* IA_Dummy + 0x17 */
+    IA_ShadowPen:       0x80020009,   /* IA_Dummy + 0x09 */
+    IA_HighlightPen:    0x8002000A,   /* IA_Dummy + 0x0A */
+    IA_SupportsDisable: 0x8002001A,   /* IA_Dummy + 0x1a */
+    IA_FrameType:       0x8002001B,   /* IA_Dummy + 0x1b */
+    IA_Underscore:      0x8002001C,   /* IA_Dummy + 0x1c */
+    IA_Scalable:        0x8002001D,   /* IA_Dummy + 0x1d */
+    IA_ActivateKey:     0x8002001E,   /* IA_Dummy + 0x1e */
+    IA_Screen:          0x8002001F,   /* IA_Dummy + 0x1f */
+    IA_Precision:       0x80020020,   /* IA_Dummy + 0x20 */
+    IA_Orientation:     0x80020023,   /* IA_Dummy + 0x23 */
+    IA_Label:           0x80020028,   /* IA_Dummy + 0x28 */
+    IA_EraseBackground: 0x8002002D,   /* IA_Dummy + 0x2D */
+    IA_LabelPen:        0x80020038,   /* IA_Dummy + 0x38 */
+
+    /* sysiclass: attributes, sizes and which image (intuition/imageclass.h) */
+    SYSIA_Size:          0x8002000B,   /* IA_Dummy + 0x0B */
+    SYSIA_Depth:         0x8002000C,   /* IA_Dummy + 0x0C */
+    SYSIA_Which:         0x8002000D,   /* IA_Dummy + 0x0D */
+    SYSIA_DrawInfo:      0x80020018,   /* IA_Dummy + 0x18 */
+    SYSIA_Pens:          0x8002000E,   /* IA_Pens */
+    SYSIA_ReferenceFont: 0x80020019,   /* IA_Dummy + 0x19 */
+    SYSISIZE_MEDRES:     0,
+    SYSISIZE_LOWRES:     1,
+    SYSISIZE_HIRES:      2,
+    DEPTHIMAGE:          0x00,
+    ZOOMIMAGE:           0x01,
+    SIZEIMAGE:           0x02,
+    CLOSEIMAGE:          0x03,
+    SDEPTHIMAGE:         0x05,
+    LEFTIMAGE:           0x0A,
+    UPIMAGE:             0x0B,
+    RIGHTIMAGE:          0x0C,
+    DOWNIMAGE:           0x0D,
+    CHECKIMAGE:          0x0E,
+    MXIMAGE:             0x0F,
+    ICONIFYIMAGE:        0x16,
+    SHIFTKEYIMAGE:       0x2A,
+    MENUCHECK:           0x10,
+    AMIGAKEY:            0x11,
+
+    /* Image drawing states (intuition/imageclass.h) */
+    IDS_NORMAL:           0,
+    IDS_SELECTED:         1,
+    IDS_DISABLED:         2,
+    IDS_BUSY:             3,
+    IDS_INDETERMINATE:    4,
+    IDS_INACTIVENORMAL:   5,
+    IDS_INACTIVESELECTED: 6,
+    IDS_INACTIVEDISABLED: 7,
+    IDS_SELECTEDDISABLED: 8,
+    IDS_INDETERMINANT:    4,   /* IDS_INDETERMINATE */
+
+    /* frameiclass frame types (intuition/imageclass.h) */
+    FRAME_DEFAULT:     0,
+    FRAME_BUTTON:      1,
+    FRAME_RIDGE:       2,
+    FRAME_ICONDROPBOX: 3,
+    FRAME_PROPBORDER:  4,
+    FRAME_PROPKNOB:    5,
+    FRAME_DISPLAY:     6,
+    FRAME_CONTEXT:     7,
+
+    /* Gadget attributes (intuition/gadgetclass.h) */
+    GA_Left:                0x80030001,   /* GA_Dummy + 1 */
+    GA_RelRight:            0x80030002,   /* GA_Dummy + 2 */
+    GA_Top:                 0x80030003,   /* GA_Dummy + 3 */
+    GA_RelBottom:           0x80030004,   /* GA_Dummy + 4 */
+    GA_Width:               0x80030005,   /* GA_Dummy + 5 */
+    GA_RelWidth:            0x80030006,   /* GA_Dummy + 6 */
+    GA_Height:              0x80030007,   /* GA_Dummy + 7 */
+    GA_RelHeight:           0x80030008,   /* GA_Dummy + 8 */
+    GA_Text:                0x80030009,   /* GA_Dummy + 9 */
+    GA_Image:               0x8003000A,   /* GA_Dummy + 10 */
+    GA_Border:              0x8003000B,   /* GA_Dummy + 11 */
+    GA_SelectRender:        0x8003000C,   /* GA_Dummy + 12 */
+    GA_Highlight:           0x8003000D,   /* GA_Dummy + 13 */
+    GA_Disabled:            0x8003000E,   /* GA_Dummy + 14 */
+    GA_GZZGadget:           0x8003000F,   /* GA_Dummy + 15 */
+    GA_ID:                  0x80030010,   /* GA_Dummy + 16 */
+    GA_UserData:            0x80030011,   /* GA_Dummy + 17 */
+    GA_SpecialInfo:         0x80030012,   /* GA_Dummy + 18 */
+    GA_Selected:            0x80030013,   /* GA_Dummy + 19 */
+    GA_EndGadget:           0x80030014,   /* GA_Dummy + 20 */
+    GA_Immediate:           0x80030015,   /* GA_Dummy + 21 */
+    GA_RelVerify:           0x80030016,   /* GA_Dummy + 22 */
+    GA_FollowMouse:         0x80030017,   /* GA_Dummy + 23 */
+    GA_RightBorder:         0x80030018,   /* GA_Dummy + 24 */
+    GA_LeftBorder:          0x80030019,   /* GA_Dummy + 25 */
+    GA_TopBorder:           0x8003001A,   /* GA_Dummy + 26 */
+    GA_BottomBorder:        0x8003001B,   /* GA_Dummy + 27 */
+    GA_ToggleSelect:        0x8003001C,   /* GA_Dummy + 28 */
+    GA_SysGadget:           0x8003001D,   /* GA_Dummy + 29 */
+    GA_SysGType:            0x8003001E,   /* GA_Dummy + 30 */
+    GA_Previous:            0x8003001F,   /* GA_Dummy + 31 */
+    GA_Next:                0x80030020,   /* GA_Dummy + 32 */
+    GA_DrawInfo:            0x80030021,   /* GA_Dummy + 33 */
+    GA_IntuiText:           0x80030022,   /* GA_Dummy + 34 */
+    GA_LabelImage:          0x80030023,   /* GA_Dummy + 35 */
+    GA_TabCycle:            0x80030024,   /* GA_Dummy + 36 */
+    GA_GadgetHelp:          0x80030025,   /* GA_Dummy + 37 */
+    GA_Bounds:              0x80030026,   /* GA_Dummy + 38 */
+    GA_RelSpecial:          0x80030027,   /* GA_Dummy + 39 */
+    GA_TextAttr:            0x80030028,   /* GA_Dummy + 40 */
+    GA_ReadOnly:            0x80030029,   /* GA_Dummy + 41 */
+    GA_Underscore:          0x8003002A,   /* GA_Dummy + 42 */
+    GA_ActivateKey:         0x8003002B,   /* GA_Dummy + 43 */
+    GA_BackFill:            0x8003002C,   /* GA_Dummy + 44 */
+    GA_GadgetHelpText:      0x8003002D,   /* GA_Dummy + 45 */
+    GA_UserInput:           0x8003002E,   /* GA_Dummy + 46 */
+    GA_Hidden:              0x80030036,   /* GA_Dummy + 54 */
+    GA_CustomMousePointer:  0x8003003C,   /* GA_Dummy + 60 */
+    GA_PointerType:         0x8003003D,   /* GA_Dummy + 61 */
+    GA_ParentHidden:        0x8003003E,   /* GA_Dummy + 62 */
+    PGA_Freedom:            0x80031001,   /* PGA_Dummy + 0x0001 */
+    PGA_Borderless:         0x80031002,   /* PGA_Dummy + 0x0002 */
+    PGA_HorizPot:           0x80031003,   /* PGA_Dummy + 0x0003 */
+    PGA_HorizBody:          0x80031004,   /* PGA_Dummy + 0x0004 */
+    PGA_VertPot:            0x80031005,   /* PGA_Dummy + 0x0005 */
+    PGA_VertBody:           0x80031006,   /* PGA_Dummy + 0x0006 */
+    PGA_Total:              0x80031007,   /* PGA_Dummy + 0x0007 */
+    PGA_Visible:            0x80031008,   /* PGA_Dummy + 0x0008 */
+    PGA_Top:                0x80031009,   /* PGA_Dummy + 0x0009 */
+    PGA_NewLook:            0x8003100A,   /* PGA_Dummy + 0x000A */
+    PGA_KnobImage:          0x8003100D,   /* PGA_Dummy + 0x000D */
+    STRINGA_MaxChars:       0x80032001,   /* STRINGA_Dummy + 0x0001 */
+    STRINGA_Buffer:         0x80032002,   /* STRINGA_Dummy + 0x0002 */
+    STRINGA_UndoBuffer:     0x80032003,   /* STRINGA_Dummy + 0x0003 */
+    STRINGA_WorkBuffer:     0x80032004,   /* STRINGA_Dummy + 0x0004 */
+    STRINGA_BufferPos:      0x80032005,   /* STRINGA_Dummy + 0x0005 */
+    STRINGA_DispPos:        0x80032006,   /* STRINGA_Dummy + 0x0006 */
+    STRINGA_AltKeyMap:      0x80032007,   /* STRINGA_Dummy + 0x0007 */
+    STRINGA_Font:           0x80032008,   /* STRINGA_Dummy + 0x0008 */
+    STRINGA_Pens:           0x80032009,   /* STRINGA_Dummy + 0x0009 */
+    STRINGA_ActivePens:     0x8003200A,   /* STRINGA_Dummy + 0x000A */
+    STRINGA_EditHook:       0x8003200B,   /* STRINGA_Dummy + 0x000B */
+    STRINGA_EditModes:      0x8003200C,   /* STRINGA_Dummy + 0x000C */
+    STRINGA_ReplaceMode:    0x8003200D,   /* STRINGA_Dummy + 0x000D */
+    STRINGA_FixedFieldMode: 0x8003200E,   /* STRINGA_Dummy + 0x000E */
+    STRINGA_NoFilterMode:   0x8003200F,   /* STRINGA_Dummy + 0x000F */
+    STRINGA_Justification:  0x80032010,   /* STRINGA_Dummy + 0x0010 */
+    STRINGA_LongVal:        0x80032011,   /* STRINGA_Dummy + 0x0011 */
+    STRINGA_TextVal:        0x80032012,   /* STRINGA_Dummy + 0x0012 */
+    STRINGA_ExitHelp:       0x80032013,   /* STRINGA_Dummy + 0x0013 */
+    LAYOUTA_LayoutObj:      0x80038001,   /* LAYOUTA_Dummy + 0x0001 */
+    LAYOUTA_Spacing:        0x80038002,   /* LAYOUTA_Dummy + 0x0002 */
+    LAYOUTA_Orientation:    0x80038003,   /* LAYOUTA_Dummy + 0x0003 */
+    LAYOUTA_ChildMaxWidth:  0x80038004,   /* LAYOUTA_Dummy + 0x0004 */
+    LAYOUTA_ChildMaxHeight: 0x80038005,   /* LAYOUTA_Dummy + 0x0005 */
+
+    /* Interconnection (icclass) attributes (intuition/icclass.h) */
+    ICA_TARGET:     0x80040001,   /* ICA_Dummy + 1 */
+    ICA_MAP:        0x80040002,   /* ICA_Dummy + 2 */
+    ICTARGET_IDCMP: 0xFFFFFFFF,   /* ~0L */
+    ICM_SETLOOP:    0x0402,
+    ICM_CLEARLOOP:  0x0403,
+    ICM_CHECKLOOP:  0x0404,
+    ICSPECIAL_CODE: 0x80040003,   /* ICA_Dummy + 3 */
+
+    /* BOOPSI root methods (intuition/classusr.h) */
+    OM_NEW:       0x101,
+    OM_DISPOSE:   0x102,
+    OM_SET:       0x103,
+    OM_GET:       0x104,
+    OM_ADDTAIL:   0x105,
+    OM_REMOVE:    0x106,
+    OM_NOTIFY:    0x107,
+    OM_UPDATE:    0x108,
+    OM_ADDMEMBER: 0x109,
+    OM_REMMEMBER: 0x10A,
+    /* consts-end */
+  });
 
   /* ============================================================
    * Window lifecycle

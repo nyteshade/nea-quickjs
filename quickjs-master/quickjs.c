@@ -38176,6 +38176,73 @@ static int BC_add_object_ref(BCReaderState *s, JSValue obj)
     return BC_add_object_ref1(s, JS_VALUE_GET_OBJ(obj));
 }
 
+/* AMIGA PORT FIX (0.221).
+ *
+ * A regular expression literal is compiled when its script is compiled,
+ * and its compiled form is kept in the function's constant pool as an
+ * ordinary 8-bit string, used by OP_regexp:
+ *
+ *     push_const <pattern> ; push_const <compiled> ; regexp
+ *
+ * The compiled form holds 16- and 32-bit numbers in the byte order of
+ * the machine that compiled it. JS_ReadRegExp() swaps a RegExp OBJECT
+ * read from bytecode, but nothing swapped these constant-pool strings,
+ * so every regular expression literal in bytecode made by qjsc on a
+ * little-endian host (the FFI bundle, extended.js, the REPL) ran
+ * foreign-order bytecode on the big-endian Amiga and read wild
+ * addresses.
+ *
+ * This walks the function's bytecode after it has been read, finds each
+ * OP_regexp, and swaps the constant pushed just before it. Each
+ * constant is swapped once, in case two literals share one. */
+static int JS_SwapRegExpConstants(BCReaderState *s, JSFunctionBytecode *b)
+{
+    JSContext *ctx = s->ctx;
+    uint8_t *bc_buf = b->byte_code_buf;
+    uint8_t *done;
+    int pos, len, op;
+    int32_t last, idx;
+    int ret = 0;
+
+    if (b->cpool_count == 0)
+        return 0;
+    done = js_mallocz(ctx, b->cpool_count);
+    if (!done)
+        return -1;
+
+    last = -1;
+    pos = 0;
+    while (pos < b->byte_code_len) {
+        op = bc_buf[pos];
+        len = short_opcode_info(op).size;
+        idx = -1;
+        if (op == OP_push_const) {
+            idx = (int32_t)get_u32(bc_buf + pos + 1);
+        } else if (op == OP_push_const8) {
+            idx = bc_buf[pos + 1];
+        } else if (op == OP_regexp && last >= 0 && last < b->cpool_count &&
+                   !done[last]) {
+            JSValue val = b->cpool[last];
+            if (JS_VALUE_GET_TAG(val) == JS_TAG_STRING) {
+                JSString *p = JS_VALUE_GET_STRING(val);
+                if (!p->is_wide_char) {
+                    if (lre_byte_swap(str8(p), p->len,
+                                      /*is_byte_swapped*/true)) {
+                        JS_ThrowInternalError(ctx, "bad regexp bytecode");
+                        ret = -1;
+                        break;
+                    }
+                    done[last] = 1;
+                }
+            }
+        }
+        last = idx;
+        pos += len;
+    }
+    js_free(ctx, done);
+    return ret;
+}
+
 static JSValue JS_ReadFunctionTag(BCReaderState *s)
 {
     JSContext *ctx = s->ctx;
@@ -38359,6 +38426,9 @@ static JSValue JS_ReadFunctionTag(BCReaderState *s)
     {
         bc_read_trace(s, "bytecode {\n");
         if (JS_ReadFunctionBytecode(s, b, byte_code_offset, b->byte_code_len))
+            goto fail;
+        /* AMIGA PORT FIX (0.221): see JS_SwapRegExpConstants. */
+        if (is_be() && JS_SwapRegExpConstants(s, b))
             goto fail;
         bc_read_trace(s, "}\n");
     }
