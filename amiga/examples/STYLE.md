@@ -103,9 +103,25 @@ something different, use a table keyed by gadget ID rather than a long
 - Gadget IDs live together in one `const ID = { ... }`.
 - No bare numbers in the logic. Give each a named constant with a
   comment saying what it is and in what unit.
-- A raw tag or LVO value is a last resort. When one is unavoidable it
-  gets a name and a comment naming the NDK header it came from. Never
-  type one from memory.
+- An OS value is never typed into an example: no tag, flag, method ID,
+  library offset or structure offset. Use the library's name for it
+  (`Intuition.consts.WA_InnerWidth`, `TimerRequest.consts.UNIT_VBLANK`,
+  `new TextAttr(pointer).ySize`). If the library has no name for it,
+  add one to the library (docs/CONSTANTS.md says how) and then use it.
+  `python3 scripts/check_constants.py` checks any that remain.
+- A constant is only equal to itself. Compare `message.class` with a
+  constant directly; to compare a raw number, convert the constant
+  once: `const SELECTDOWN = Number(C.SELECTDOWN);`
+- A version check tests for the newest thing the script uses, with
+  `in`, which does not throw on a missing name:
+  `if (!('WA_InnerWidth' in Intuition.consts)) ...`. Say in a comment
+  which version it arrived in.
+- Sizes on screen come from the screen font, not from fixed pixel
+  counts: the user chooses the font. Measure with `ScreenFont` before
+  the window opens, ask for `WA_InnerWidth` / `WA_InnerHeight`, and
+  place things from `window.borderLeft` / `borderTop` and the
+  RastPort's `fontHeight` / `fontBaseline` (clock_demo.js and
+  drawing_demo.js show how).
 
 ## 8. Comments
 
