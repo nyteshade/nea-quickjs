@@ -6005,8 +6005,8 @@ _manifests.push(new LocalManifest({
                 WA_CustomScreen: 0x80000070, WA_MinWidth:      0x80000072,
                 WA_MinHeight:    0x80000073, WA_MaxWidth:      0x80000074,
                 WA_MaxHeight:    0x80000075, WA_PubScreenName: 0x80000078,
-                WA_SimpleRefresh:0x80000079, WA_SmartRefresh:  0x8000007A,
-                WA_BackFill:     0x8000007F, WA_AutoAdjust:    0x80000083,
+                WA_SimpleRefresh:0x8000008C, WA_SmartRefresh:  0x8000008D,
+                WA_BackFill:     0x8000007F, WA_AutoAdjust:    0x80000090,
 
                 /* Screen Attributes — SA_Dummy = TAG_USER + 32 = 0x80000020 */
                 SA_Left:    0x80000021, SA_Top:     0x80000022,

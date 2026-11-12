@@ -21,13 +21,13 @@
  *   4. THE LOOP    - wait for either signal, deal with it, repeat.
  *
  * Assumptions:
- *   - opens on the default public screen (Workbench), which is at
- *     least 360 x 140 pixels
+ *   - opens on the default public screen (normally Workbench)
  *   - timer.device is present (it is in every Kickstart ROM)
  *   - ticks come from the vertical-blank unit, so each is accurate to
  *     about a fiftieth (PAL) or sixtieth (NTSC) of a second
- *   - the screen font is about 8 pixels high: the two lines of text
- *     are drawn at fixed positions
+ *   - the window draws its text in the screen's font, which is what a
+ *     window gets unless it asks for another. The window is sized from
+ *     that font before it opens (see part 1)
  *   - pen 0 is the window background and pen 1 is visible against it
  *   - a timer request that has come back does not need ReplyMsg
  *   - a request must never be sent while it is still out. Doing so
@@ -35,14 +35,16 @@
  *     which is why this file keeps two requests and tracks whether
  *     the tick is out (see part 2)
  *
- * Requires quickjs.library 0.215+.
+ * Requires quickjs.library 0.217+.
  * Run: qjs examples/clock_demo.js
  */
 
 import * as std from 'qjs:std';
 
-if (typeof TimerRequest !== 'function' || typeof Exec !== 'function') {
-  print('Q2 wrappers unavailable - need quickjs.library 0.134+');
+if (typeof TimerRequest !== 'function' || typeof Exec !== 'function' ||
+    typeof amiga.ScreenFont !== 'function' ||
+    typeof amiga.allocString !== 'function') {
+  print('Need quickjs.library 0.217 or later');
   std.exit(1);
 }
 
@@ -76,17 +78,12 @@ const TICK_SECONDS = 1;
 const BACKGROUND_PEN = 0;
 const TEXT_PEN       = 1;
 
-/** The area wiped before each redraw: this far in from the window's
- *  left, right and bottom edges, and starting this far down, below the
- *  title bar. In pixels. */
-const FACE_MARGIN = 4;
-const FACE_TOP    = 20;
+/** The two pieces of text. The time is appended to the first. */
+const TIME_LABEL = 'Elapsed since start: ';
+const HINT_TEXT  = 'Close to exit.';
 
-/** Where the two lines of text go, in pixels from the window's top
- *  left corner. */
-const TEXT_LEFT     = 12;
-const TIME_BASELINE = 40;
-const HINT_BASELINE = 60;
+/** The widest the time can be, for measuring. */
+const WIDEST_TIME = '00:00:00';
 
 
 /* ==================================================================
@@ -95,18 +92,56 @@ const HINT_BASELINE = 60;
  * The window first, then a message port for the timer to reply to,
  * then the timer request itself. Each step undoes the ones before it
  * if it fails.
+ *
+ * Nothing about the window's size is a fixed number of pixels. The
+ * user chooses the screen font, and it may be 8 pixels high or 24, so
+ * the size is worked out from the font: wide enough for the longest
+ * line, tall enough for two lines, with a margin all round.
  * ================================================================== */
 
+const { ScreenFont } = amiga;
+
+/* ScreenFont locks the screen and reads its font, so text can be
+ * measured before any window exists. */
+let screenFont = new ScreenFont();
+
+/** One line of text, in pixels. Every distance below is a fraction
+ *  of it. */
+const LINE = screenFont.height;
+
+/** Space between the text and the window's borders. across() turns a
+ *  vertical distance into the horizontal one that looks the same, for
+ *  screens whose pixels are not square. */
+const MARGIN_DOWN   = Math.round(LINE / 2);
+const MARGIN_ACROSS = screenFont.across(MARGIN_DOWN);
+
+/** Space between the two lines. */
+const LINE_GAP = Math.round(LINE / 4);
+
+/** The inside of the window: the area within its borders. */
+const INNER_WIDTH = 2 * MARGIN_ACROSS + Math.max(
+  screenFont.widthOf(TIME_LABEL + WIDEST_TIME),
+  screenFont.widthOf(HINT_TEXT));
+
+const INNER_HEIGHT = 2 * MARGIN_DOWN + 2 * LINE + LINE_GAP;
+
+/* WA_InnerWidth and WA_InnerHeight give the size inside the borders;
+ * Intuition adds the title bar and borders, which also depend on the
+ * font. */
 let window = Intuition.OpenWindowTags([
-  [C.WA_Left,   60],
-  [C.WA_Top,    60],
-  [C.WA_Width,  300],
-  [C.WA_Height, 80],
-  [C.WA_Title,  'Clock - close to exit'],
-  [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
-              | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
-  [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
+  [C.WA_Left,        60],
+  [C.WA_Top,         60],
+  [C.WA_InnerWidth,  INNER_WIDTH],
+  [C.WA_InnerHeight, INNER_HEIGHT],
+  [C.WA_Title,       'Clock - close to exit'],
+  [C.WA_Flags,       C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
+                   | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
+  [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
 ]);
+
+/* The window keeps the screen open from here on, so the lock that
+ * ScreenFont holds can go. LINE and the margins stay usable. */
+screenFont.close();
 
 if (!window) {
   print('OpenWindowTags failed');
@@ -114,6 +149,22 @@ if (!window) {
 }
 
 let rastPort = window.rastPort;
+
+/* Where things go, in pixels from the window's top left corner. The
+ * borders are measured from the open window, because (0, 0) is the
+ * corner of the window frame, not of the area inside it.
+ *
+ * text() puts the BASELINE of the text at the y it is given, so the
+ * first baseline is the top of the first line plus the font's
+ * baseline. */
+const FACE_LEFT   = window.borderLeft;
+const FACE_TOP    = window.borderTop;
+const FACE_RIGHT  = window.width  - window.borderRight  - 1;
+const FACE_BOTTOM = window.height - window.borderBottom - 1;
+
+const TEXT_LEFT     = FACE_LEFT + MARGIN_ACROSS;
+const TIME_BASELINE = FACE_TOP + MARGIN_DOWN + rastPort.fontBaseline;
+const HINT_BASELINE = TIME_BASELINE + rastPort.fontHeight + LINE_GAP;
 
 let timerPort = new MsgPort(Exec.CreateMsgPort());
 
@@ -266,12 +317,11 @@ function redraw() {
   lastDrawn = elapsed;
 
   rastPort.setColor(BACKGROUND_PEN);
-  rastPort.rectFill(FACE_MARGIN, FACE_TOP,
-                    window.width - FACE_MARGIN, window.height - FACE_MARGIN);
+  rastPort.rectFill(FACE_LEFT, FACE_TOP, FACE_RIGHT, FACE_BOTTOM);
 
   rastPort.setColor(TEXT_PEN);
-  rastPort.text(TEXT_LEFT, TIME_BASELINE, 'Elapsed since start: ' + elapsed);
-  rastPort.text(TEXT_LEFT, HINT_BASELINE, 'Close to exit.');
+  rastPort.text(TEXT_LEFT, TIME_BASELINE, TIME_LABEL + elapsed);
+  rastPort.text(TEXT_LEFT, HINT_BASELINE, HINT_TEXT);
 }
 
 

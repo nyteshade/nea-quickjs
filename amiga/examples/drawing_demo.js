@@ -1,8 +1,8 @@
 /*
  * drawing_demo.js - lines, boxes and text drawn straight into a window.
  *
- * A 400 x 240 window opens and shows one labelled sample of each basic
- * drawing operation:
+ * A window opens and shows one labelled sample of each basic drawing
+ * operation:
  *
  *   Line:      -----------------------------
  *   Rect:      ############
@@ -15,115 +15,232 @@
  * rectFill and text. Click in the window or on its close gadget to
  * quit.
  *
+ * The file has three parts:
+ *
+ *   1. MEASURING  - sizes worked out from the screen font.
+ *   2. PAINTING   - the drawing itself.
+ *   3. THE WINDOW - open it, paint, wait, close.
+ *
  * Assumptions:
- *   - the default public screen (normally Workbench) is open and big
- *     enough for a 400 x 240 window placed at 80, 40
+ *   - opens on the default public screen (normally Workbench)
  *   - pens 1, 2 and 3 are visible against the window background. On a
  *     standard four-colour Workbench they are black, white and blue.
- *   - the screen's title bar is no taller than about 25 pixels: the
- *     window is not GimmeZeroZero, so coordinates start at the very
- *     top left of the frame and the first row is drawn at y = 40
+ *   - the window draws its text in the screen's font, which is what a
+ *     window gets unless it asks for another
  *
- * Requires quickjs.library 0.127+.
+ * Requires quickjs.library 0.217+.
  * Run: qjs examples/drawing_demo.js
  */
 
 import * as std from 'qjs:std';
 
-if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available - need quickjs.library 0.127+');
+if (typeof Intuition !== 'function' ||
+    typeof amiga.ScreenFont !== 'function' ||
+    typeof amiga.allocString !== 'function') {
+  print('Need quickjs.library 0.217 or later');
   std.exit(1);
 }
+
+const { ScreenFont } = amiga;
 
 /** Intuition's constants: WA_ tags, WFLG_ flags and IDCMP_ classes. */
 const C = Intuition.consts;
 
 /** Pen numbers. The names are what a standard Workbench palette shows;
- *  another palette draws the same shapes in other colours. */
+ *  a different palette shows different colours. */
 const PEN = { BLACK: 1, WHITE: 2, BLUE: 3 };
 
-/** Where things sit across the window, in pixels from its left edge. */
-const LABEL_X     = 10;    /* every label starts here */
-const SHAPE_LEFT  = 80;    /* every shape starts here */
-const SHAPE_RIGHT = 360;   /* the line and the outline end here */
-const RECT_RIGHT  = 200;   /* the filled rectangle is shorter */
+/** The label at the start of each row, top to bottom. */
+const LABELS = ['Line:', 'Rect:', 'Outline:', 'Hatch:'];
 
-/** The text baseline of each row, in pixels from the window's top. */
-const ROW = { LINE: 40, RECT: 80, OUTLINE: 130, HATCH: 180, HINT: 220 };
+/** Which row each sample is on. */
+const ROW = { LINE: 0, RECT: 1, OUTLINE: 2, HATCH: 3 };
 
-/** A shape reaches this far above and below its row's baseline. */
-const SHAPE_HALF_HEIGHT = 15;
+const HINT_TEXT = 'Click or close to exit.';
 
-/** The hatch: this many strokes, this far apart, each leaning this far
- *  to the right, in pixels. */
+/** How many strokes the hatch has. */
 const HATCH_STROKES = 10;
-const HATCH_STEP    = 20;
-const HATCH_LEAN    = 30;
+
+
+/* ==================================================================
+ * 1. MEASURING
+ *
+ * Nothing here is a fixed number of pixels. The user chooses the
+ * screen font, and it may be 8 pixels high or 24, so every size is a
+ * multiple of the font's height and every width comes from measuring
+ * the text.
+ * ================================================================== */
+
+/* ScreenFont locks the screen and reads its font, so text can be
+ * measured before any window exists. */
+let screenFont = new ScreenFont();
+
+/** One line of text, in pixels. */
+const LINE = screenFont.height;
+
+/** Space between the contents and the window's borders. across()
+ *  turns a vertical distance into the horizontal one that looks the
+ *  same, for screens whose pixels are not square. */
+const MARGIN_DOWN   = Math.round(LINE / 2);
+const MARGIN_ACROSS = screenFont.across(MARGIN_DOWN);
+
+/** A shape reaches this far above and below the middle of its row. */
+const SHAPE_HALF_HEIGHT = Math.round(LINE * 3 / 4);
+
+/** From the middle of one row to the middle of the next. */
+const ROW_STEP = 2 * SHAPE_HALF_HEIGHT + Math.round(LINE / 2);
+
+/** The label column is as wide as its widest label. */
+const LABEL_WIDTH = Math.max(...LABELS.map((label) =>
+  screenFont.widthOf(label)));
+
+/** The gap between the labels and the shapes. */
+const LABEL_GAP = screenFont.across(LINE);
+
+/** How wide the longest shapes are. The filled rectangle is shorter. */
+const SHAPE_WIDTH = screenFont.across(LINE * 12);
+const RECT_WIDTH  = Math.round(SHAPE_WIDTH * 2 / 5);
+
+/** The inside of the window: the area within its borders. */
+const INNER_WIDTH = 2 * MARGIN_ACROSS + Math.max(
+  LABEL_WIDTH + LABEL_GAP + SHAPE_WIDTH,
+  screenFont.widthOf(HINT_TEXT));
+
+const INNER_HEIGHT = 2 * MARGIN_DOWN
+                   + LABELS.length * ROW_STEP     /* the four samples */
+                   + LINE;                        /* the hint */
+
+
+/* ==================================================================
+ * 2. PAINTING
+ * ================================================================== */
 
 /**
  * Draw the whole picture. Called once when the window opens and again
  * whenever Intuition says part of it needs redrawing.
  *
- * @param {RastPort} rastPort - the window's RastPort
+ * Coordinates are in pixels from the top left corner of the window
+ * FRAME, so everything is offset by the left and top borders.
+ *
+ * @param {Window} window - the open window
  * @returns {undefined}
  */
-function paint(rastPort) {
-  let top, bottom;
+function paint(window) {
+  let rastPort = window.rastPort;
 
-  /* A line: move the pen, then draw to where it should end. */
-  rastPort.setColor(PEN.BLACK);
-  rastPort.text(LABEL_X, ROW.LINE, 'Line:');
-  rastPort.move(SHAPE_LEFT, ROW.LINE);
-  rastPort.draw(SHAPE_RIGHT, ROW.LINE);
+  /* The top left corner of the area we may draw in. */
+  let originX = window.borderLeft + MARGIN_ACROSS;
+  let originY = window.borderTop  + MARGIN_DOWN;
 
-  /* A filled rectangle is one call. */
-  top    = ROW.RECT - SHAPE_HALF_HEIGHT;
-  bottom = ROW.RECT + SHAPE_HALF_HEIGHT;
+  let shapeLeft  = originX + LABEL_WIDTH + LABEL_GAP;
+  let shapeRight = shapeLeft + SHAPE_WIDTH;
 
-  rastPort.setColor(PEN.WHITE);
-  rastPort.text(LABEL_X, ROW.RECT, 'Rect:');
-  rastPort.rectFill(SHAPE_LEFT, top, RECT_RIGHT, bottom);
-
-  /* An outline is four lines, each starting where the last ended. */
-  top    = ROW.OUTLINE - SHAPE_HALF_HEIGHT;
-  bottom = ROW.OUTLINE + SHAPE_HALF_HEIGHT;
-
-  rastPort.setColor(PEN.BLUE);
-  rastPort.text(LABEL_X, ROW.OUTLINE, 'Outline:');
-  rastPort.move(SHAPE_LEFT,  top);
-  rastPort.draw(SHAPE_RIGHT, top);
-  rastPort.draw(SHAPE_RIGHT, bottom);
-  rastPort.draw(SHAPE_LEFT,  bottom);
-  rastPort.draw(SHAPE_LEFT,  top);
-
-  /* A hatch is the same slanted stroke repeated along the row. */
-  top    = ROW.HATCH - SHAPE_HALF_HEIGHT;
-  bottom = ROW.HATCH + SHAPE_HALF_HEIGHT;
-
-  rastPort.setColor(PEN.BLACK);
-  rastPort.text(LABEL_X, ROW.HATCH, 'Hatch:');
-
-  for (let stroke = 0; stroke < HATCH_STROKES; stroke++) {
-    let x = SHAPE_LEFT + stroke * HATCH_STEP;
-
-    rastPort.move(x, top);
-    rastPort.draw(x + HATCH_LEAN, bottom);
+  /**
+   * The middle of a row, in pixels down from the top of the frame.
+   *
+   * @param {number} row - 0 for the top row
+   * @returns {number}
+   */
+  function middleOf(row) {
+    return originY + row * ROW_STEP + SHAPE_HALF_HEIGHT;
   }
 
+  /**
+   * Draw a row's label so that it sits level with the row's shape.
+   * text() puts the BASELINE of the text at the y it is given, so the
+   * baseline is worked out from where the top of the text should be.
+   *
+   * @param {number} row
+   * @returns {undefined}
+   */
+  function label(row) {
+    let textTop = middleOf(row) - Math.round(rastPort.fontHeight / 2);
+
+    rastPort.text(originX, textTop + rastPort.fontBaseline, LABELS[row]);
+  }
+
+  let middle, top, bottom;
+
+  /* A line: move the pen, then draw to where it should end. */
+  middle = middleOf(ROW.LINE);
+
+  rastPort.setColor(PEN.BLACK);
+  label(ROW.LINE);
+  rastPort.move(shapeLeft, middle);
+  rastPort.draw(shapeRight, middle);
+
+  /* A filled rectangle is one call. */
+  middle = middleOf(ROW.RECT);
+  top    = middle - SHAPE_HALF_HEIGHT;
+  bottom = middle + SHAPE_HALF_HEIGHT;
+
   rastPort.setColor(PEN.WHITE);
-  rastPort.text(LABEL_X, ROW.HINT, 'Click or close to exit.');
+  label(ROW.RECT);
+  rastPort.rectFill(shapeLeft, top, shapeLeft + RECT_WIDTH, bottom);
+
+  /* An outline is four lines, each starting where the last ended. */
+  middle = middleOf(ROW.OUTLINE);
+  top    = middle - SHAPE_HALF_HEIGHT;
+  bottom = middle + SHAPE_HALF_HEIGHT;
+
+  rastPort.setColor(PEN.BLUE);
+  label(ROW.OUTLINE);
+  rastPort.move(shapeLeft,  top);
+  rastPort.draw(shapeRight, top);
+  rastPort.draw(shapeRight, bottom);
+  rastPort.draw(shapeLeft,  bottom);
+  rastPort.draw(shapeLeft,  top);
+
+  /* A hatch is the same slanted stroke repeated along the row. Each
+   * stroke leans one and a half steps to the right, and the steps are
+   * sized so that the last stroke ends where the other shapes do. */
+  middle = middleOf(ROW.HATCH);
+  top    = middle - SHAPE_HALF_HEIGHT;
+  bottom = middle + SHAPE_HALF_HEIGHT;
+
+  let hatchStep = SHAPE_WIDTH / (HATCH_STROKES + 0.5);
+  let hatchLean = hatchStep * 1.5;
+
+  rastPort.setColor(PEN.BLACK);
+  label(ROW.HATCH);
+
+  for (let stroke = 0; stroke < HATCH_STROKES; stroke++) {
+    let x = shapeLeft + stroke * hatchStep;
+
+    rastPort.move(Math.round(x), top);
+    rastPort.draw(Math.round(x + hatchLean), bottom);
+  }
+
+  /* The hint goes on its own line under the last row. */
+  let hintTop = originY + LABELS.length * ROW_STEP;
+
+  rastPort.setColor(PEN.WHITE);
+  rastPort.text(originX, hintTop + rastPort.fontBaseline, HINT_TEXT);
 }
 
+
+/* ==================================================================
+ * 3. THE WINDOW
+ * ================================================================== */
+
+/* WA_InnerWidth and WA_InnerHeight give the size inside the borders;
+ * Intuition adds the title bar and borders, which also depend on the
+ * font. */
 let window = Intuition.OpenWindowTags([
-  [C.WA_Left,   80],
-  [C.WA_Top,    40],
-  [C.WA_Width,  400],
-  [C.WA_Height, 240],
-  [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
-              | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
-  [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_MOUSEBUTTONS
-              | C.IDCMP_REFRESHWINDOW],
+  [C.WA_Left,        80],
+  [C.WA_Top,         40],
+  [C.WA_InnerWidth,  INNER_WIDTH],
+  [C.WA_InnerHeight, INNER_HEIGHT],
+  [C.WA_Title,       'Drawing'],
+  [C.WA_Flags,       C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
+                   | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
+  [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_MOUSEBUTTONS
+                   | C.IDCMP_REFRESHWINDOW],
 ]);
+
+/* The window keeps the screen open from here on, so the lock that
+ * ScreenFont holds can go. The sizes measured above stay usable. */
+screenFont.close();
 
 if (!window) {
   print('OpenWindowTags failed');
@@ -132,9 +249,7 @@ if (!window) {
 
 print('Window open. Click or close to exit.');
 
-let rastPort = window.rastPort;
-
-paint(rastPort);
+paint(window);
 
 try {
   for (let message of window.messages()) {
@@ -148,7 +263,7 @@ try {
       /* Between BeginRefresh and EndRefresh, drawing is clipped to the
        * damaged part of the window, so painting everything is cheap. */
       Intuition.BeginRefresh(window);
-      paint(rastPort);
+      paint(window);
       Intuition.EndRefresh(window, true);
     }
   }

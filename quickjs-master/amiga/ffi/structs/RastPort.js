@@ -29,7 +29,33 @@ Instance methods (delegate to graphics.library):
   draw(x, y)                 - Draw line from cursor to (x,y)
   rectFill(x1, y1, x2, y2)   - RectFill with A-pen
   text(x, y, str)            - Move + render JS string (allocates
-                               and frees C-string internally)`;
+                               and frees C-string internally)
+  textWidth(str)             - pixel width of str in the current font
+
+Properties (read-only, graphics/rastport.h):
+  fontHeight    {number} rp_TxHeight, +58: pixels in one line of text
+  fontBaseline  {number} rp_TxBaseline, +62: top of a line to its
+                         baseline; text(x, y) puts the BASELINE at y`;
+  }
+
+  /** @returns {number} height in pixels of the current font */
+  get fontHeight()   { return this.read16(58); }
+
+  /** @returns {number} pixels from the top of a line to its baseline */
+  get fontBaseline() { return this.read16(62); }
+
+  /**
+   * The width of a piece of text in this RastPort's current font.
+   *
+   * @param {string} str - plain ASCII / Latin-1
+   * @returns {number} pixels
+   */
+  textWidth(str) {
+    str = String(str);
+    if (str.length === 0) return 0;
+
+    return globalThis.amiga.withString(str, (pointer) =>
+      globalThis.amiga.Graphics.TextLength(this, pointer, str.length));
   }
 
   /**
@@ -91,21 +117,11 @@ Instance methods (delegate to graphics.library):
    * @param {string} str
    */
   text(x, y, str) {
-    let bytes = str.length + 1;
-    let p = globalThis.amiga.allocMem(bytes);
+    str = String(str);
 
-    if (!p) {
-      return;
-    }
-
-    try {
-      globalThis.amiga.pokeString(p, str);
+    globalThis.amiga.withString(str, (pointer) => {
       this.move(x, y);
-      globalThis.amiga.Graphics.Text(this, p, str.length);
-    }
-
-    finally {
-      globalThis.amiga.freeMem(p, bytes);
-    }
+      globalThis.amiga.Graphics.Text(this, pointer, str.length);
+    });
   }
 }

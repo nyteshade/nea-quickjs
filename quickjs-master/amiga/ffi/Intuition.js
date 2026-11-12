@@ -49,11 +49,13 @@ export class Intuition extends LibraryBase {
       IntuitionConsts.define('WA_MinHeight',    0x80000073);
       IntuitionConsts.define('WA_MaxWidth',     0x80000074);
       IntuitionConsts.define('WA_MaxHeight',    0x80000075);
+      IntuitionConsts.define('WA_InnerWidth',   0x80000076);
+      IntuitionConsts.define('WA_InnerHeight',  0x80000077);
       IntuitionConsts.define('WA_PubScreenName',0x80000078);
-      IntuitionConsts.define('WA_SimpleRefresh',0x80000079);
-      IntuitionConsts.define('WA_SmartRefresh', 0x8000007A);
+      IntuitionConsts.define('WA_SimpleRefresh',0x8000008C);
+      IntuitionConsts.define('WA_SmartRefresh', 0x8000008D);
       IntuitionConsts.define('WA_BackFill',     0x8000007F);
-      IntuitionConsts.define('WA_AutoAdjust',   0x80000083);
+      IntuitionConsts.define('WA_AutoAdjust',   0x80000090);
 
       /* Screen Attributes — SA_Dummy = TAG_USER + 32 = 0x80000020 */
       IntuitionConsts.define('SA_Left',     0x80000021);
@@ -143,16 +145,77 @@ export class Intuition extends LibraryBase {
    * @returns {Window|null}
    */
   static OpenWindowTags(pairs) {
-    let tags = globalThis.amiga.makeTags(pairs);
-    let bytes = (pairs.length + 1) * 8;
+    return this._openWithTags(pairs,
+      (tags) => this.OpenWindowTagList(null, tags));
+  }
+
+  /**
+   * Shared by OpenWindowTags and OpenScreenTags: build the tag list,
+   * open, free the tag list, and look after any strings.
+   *
+   * A JS string given as tag data (WA_Title, SA_Title, ...) is copied
+   * to a C string first. Intuition keeps the POINTER to a title, not a
+   * copy, so those strings must stay allocated for as long as the
+   * window or screen is open. They are attached to the wrapper that is
+   * returned and freed by CloseWindow / CloseScreen (or the wrapper's
+   * close()). Until 0.217 a string here became 0, so no title showed.
+   *
+   * @template T
+   * @param {Array<[number, number|string]>} pairs
+   * @param {(tags: number) => T|null} open - opens with the tag list
+   * @returns {T|null} the wrapper `open` returned, or null
+   */
+  static _openWithTags(pairs, open) {
+    let strings = [];
+    let opened  = null;
 
     try {
-      return this.OpenWindowTagList(null, tags);
+      let converted = pairs.map(([tag, data]) => {
+        if (typeof data !== 'string') return [tag, data];
+
+        let holder = globalThis.amiga.allocString(data);
+        strings.push(holder);
+        return [tag, holder.ptr];
+      });
+
+      let tags  = globalThis.amiga.makeTags(converted);
+      let bytes = (converted.length + 1) * 8;
+
+      try {
+        opened = open(tags);
+      }
+
+      finally {
+        globalThis.amiga.freeMem(tags, bytes);
+      }
     }
 
     finally {
-      globalThis.amiga.freeMem(tags, bytes);
+      if (opened) {
+        opened._ownedStrings = strings;
+      }
+
+      else {
+        for (let holder of strings) holder.free();
+      }
     }
+
+    return opened;
+  }
+
+  /**
+   * Free the strings _openWithTags attached to a wrapper. Call only
+   * after the window or screen has been closed.
+   *
+   * @param {*} wrapper - a Window or Screen wrapper, or a raw pointer
+   * @returns {undefined}
+   */
+  static _freeOwnedStrings(wrapper) {
+    if (!wrapper || typeof wrapper !== 'object') return;
+    if (!wrapper._ownedStrings) return;
+
+    for (let holder of wrapper._ownedStrings) holder.free();
+    wrapper._ownedStrings = null;
   }
 
   /**
@@ -162,7 +225,10 @@ export class Intuition extends LibraryBase {
    * @returns {undefined}
    */
   static CloseWindow(window) {
-    return this.call(this.lvo.CloseWindow, { a0: ptrOf(window) });
+    let result = this.call(this.lvo.CloseWindow, { a0: ptrOf(window) });
+
+    this._freeOwnedStrings(window);
+    return result;
   }
 
   static MoveWindow(window, dx, dy) {
@@ -212,20 +278,17 @@ export class Intuition extends LibraryBase {
   }
 
   static OpenScreenTags(pairs) {
-    let tags = globalThis.amiga.makeTags(pairs);
-    let bytes = (pairs.length + 1) * 8;
-
-    try {
-      return this.OpenScreenTagList(null, tags);
-    }
-
-    finally {
-      globalThis.amiga.freeMem(tags, bytes);
-    }
+    return this._openWithTags(pairs,
+      (tags) => this.OpenScreenTagList(null, tags));
   }
 
   static CloseScreen(screen) {
-    return this.call(this.lvo.CloseScreen, { a0: ptrOf(screen) });
+    let result = this.call(this.lvo.CloseScreen, { a0: ptrOf(screen) });
+
+    /* CloseScreen returns FALSE and leaves the screen open if windows
+     * are still on it; its title must then stay allocated. */
+    if (result) this._freeOwnedStrings(screen);
+    return result;
   }
 
   static ScreenToFront(screen) {
