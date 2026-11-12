@@ -6,7 +6,8 @@
  *   call(lib, lvo, regs)         (generic m68k register-level dispatch via
  *                                 amiga_ffi_call.s)
  *   peek/poke 8/16/32            (direct memory access)
- *   peekString/pokeString        (NUL-terminated ASCII)
+ *   peekString/pokeString        (NUL-terminated Latin-1)
+ *   peekStringUTF8/pokeStringUTF8 (NUL-terminated UTF-8)
  *   allocMem/freeMem             (exec MemF_PUBLIC/MEMF_CLEAR)
  *   makeTags                     (TagItem array builder)
  *
@@ -230,11 +231,133 @@ static JSValue js_amiga_poke32(JSContext *ctx, JSValueConst this_val,
 }
 
 /* ------------------------------------------------------------------
- * peekString / pokeString — NUL-terminated ASCII.
+ * Strings.
+ *
+ * AmigaOS text is one byte per character (ISO 8859-1, "Latin-1").
+ * JavaScript strings are UTF-16, and QuickJS hands them to C as UTF-8,
+ * where any character above 127 takes two or more bytes.
+ *
+ *   peekString / pokeString          Latin-1. One byte per JS string
+ *                                    unit, always, so a string of
+ *                                    str.length units needs exactly
+ *                                    str.length + 1 bytes. A character
+ *                                    above 255 is written as '?'.
+ *   peekStringUTF8 / pokeStringUTF8  UTF-8, for libraries that want
+ *                                    it. Size the buffer with the
+ *                                    JS-side amiga.utf8Length(str) + 1.
+ *
+ * Until 0.216 pokeString wrote the UTF-8 bytes while every caller
+ * allocated str.length + 1, so one non-ASCII character overran the
+ * buffer.
  * ----------------------------------------------------------------- */
 
+/* Decode one UTF-8 sequence starting at s[*pi] (i < slen). Advances
+ * *pi. Returns the code point, or 0xFFFD for a malformed sequence
+ * (consuming one byte). */
+static ULONG utf8_next(const UBYTE *s, size_t slen, size_t *pi)
+{
+    size_t i = *pi;
+    ULONG c = s[i];
+    int need, k;
+
+    if (c < 0x80)       { *pi = i + 1; return c; }
+    else if (c >= 0xF0 && c < 0xF8) { need = 3; c &= 0x07; }
+    else if (c >= 0xE0) { need = 2; c &= 0x0F; }
+    else if (c >= 0xC0) { need = 1; c &= 0x1F; }
+    else                { *pi = i + 1; return 0xFFFD; }
+
+    /* i < slen, so slen - 1 - i cannot wrap. */
+    if ((size_t)need > slen - 1 - i) { *pi = i + 1; return 0xFFFD; }
+    for (k = 1; k <= need; k++) {
+        ULONG cc = s[i + k];
+        if ((cc & 0xC0) != 0x80) { *pi = i + 1; return 0xFFFD; }
+        c = (c << 6) | (cc & 0x3F);
+    }
+    *pi = i + need + 1;
+    return c;
+}
+
+/* peekString(addr, maxLen) — read NUL-terminated Latin-1. */
 static JSValue js_amiga_peekString(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv)
+{
+    ULONG addr;
+    int64_t maxLen = 4096;
+    const volatile UBYTE *p;
+    ULONG len, i, j;
+    char *buf;
+    JSValue result;
+
+    if (argc < 1 || js_to_uint32_strict(ctx, argv[0], &addr)) return JS_EXCEPTION;
+    if (argc >= 2 && JS_ToInt64(ctx, &maxLen, argv[1])) return JS_EXCEPTION;
+    if (maxLen < 0) maxLen = 0;
+    if (addr == 0) return JS_NewStringLen(ctx, "", 0);
+
+    p = (const volatile UBYTE*)addr;
+    len = 0;
+    while (len < (ULONG)maxLen && p[len] != 0) len++;
+    if (len == 0) return JS_NewStringLen(ctx, "", 0);
+
+    /* Latin-1 -> UTF-8: a byte above 127 becomes two bytes. */
+    buf = (char *)js_malloc(ctx, (size_t)len * 2 + 1);
+    if (!buf) return JS_EXCEPTION;
+    j = 0;
+    for (i = 0; i < len; i++) {
+        UBYTE c = p[i];
+        if (c < 0x80) {
+            buf[j++] = (char)c;
+        } else {
+            buf[j++] = (char)(0xC0 | (c >> 6));
+            buf[j++] = (char)(0x80 | (c & 0x3F));
+        }
+    }
+    result = JS_NewStringLen(ctx, buf, j);
+    js_free(ctx, buf);
+    return result;
+}
+
+/* pokeString(addr, str) — write Latin-1 plus a NUL. Writes exactly
+ * str.length + 1 bytes and returns that count. */
+static JSValue js_amiga_pokeString(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv)
+{
+    ULONG addr;
+    const char *s;
+    size_t slen;
+    size_t i;
+    ULONG out;
+    volatile UBYTE *p;
+
+    if (argc < 2) return JS_ThrowTypeError(ctx, "pokeString: (addr, str)");
+    if (js_to_uint32_strict(ctx, argv[0], &addr)) return JS_EXCEPTION;
+    if (addr == 0) return JS_ThrowTypeError(ctx, "pokeString: addr is 0");
+    s = JS_ToCStringLen(ctx, &slen, argv[1]);
+    if (!s) return JS_EXCEPTION;
+
+    p = (volatile UBYTE*)addr;
+    i = 0;
+    out = 0;
+    while (i < slen) {
+        ULONG c = utf8_next((const UBYTE *)s, slen, &i);
+        if (c <= 0xFF) {
+            p[out++] = (UBYTE)c;
+        } else if (c > 0xFFFF) {
+            /* Two UTF-16 units in the JS string: keep the byte count
+             * equal to str.length. */
+            p[out++] = '?';
+            p[out++] = '?';
+        } else {
+            p[out++] = '?';
+        }
+    }
+    p[out] = 0;
+    JS_FreeCString(ctx, s);
+    return JS_NewInt32(ctx, (int32_t)(out + 1));
+}
+
+/* peekStringUTF8(addr, maxLen) — read NUL-terminated UTF-8 bytes. */
+static JSValue js_amiga_peekStringUTF8(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv)
 {
     ULONG addr;
     int64_t maxLen = 4096;
@@ -252,25 +375,39 @@ static JSValue js_amiga_peekString(JSContext *ctx, JSValueConst this_val,
     return JS_NewStringLen(ctx, (const char*)addr, len);
 }
 
-static JSValue js_amiga_pokeString(JSContext *ctx, JSValueConst this_val,
-                                   int argc, JSValueConst *argv)
+/* pokeStringUTF8(addr, str, capacity) — write UTF-8 plus a NUL into a
+ * buffer of `capacity` bytes. Throws RangeError, writing nothing, if
+ * the bytes and the NUL do not fit. Returns the bytes written,
+ * including the NUL. */
+static JSValue js_amiga_pokeStringUTF8(JSContext *ctx, JSValueConst this_val,
+                                       int argc, JSValueConst *argv)
 {
     ULONG addr;
+    int32_t capacity;
     const char *s;
     size_t slen;
     size_t i;
     volatile UBYTE *p;
 
-    if (argc < 2) return JS_ThrowTypeError(ctx, "pokeString: (addr, str)");
+    if (argc < 3) return JS_ThrowTypeError(ctx,
+                    "pokeStringUTF8: (addr, str, capacity)");
     if (js_to_uint32_strict(ctx, argv[0], &addr)) return JS_EXCEPTION;
+    if (addr == 0) return JS_ThrowTypeError(ctx, "pokeStringUTF8: addr is 0");
+    if (JS_ToInt32(ctx, &capacity, argv[2])) return JS_EXCEPTION;
     s = JS_ToCStringLen(ctx, &slen, argv[1]);
     if (!s) return JS_EXCEPTION;
+
+    if (capacity < 1 || slen + 1 > (size_t)capacity) {
+        JS_FreeCString(ctx, s);
+        return JS_ThrowRangeError(ctx,
+            "pokeStringUTF8: string does not fit the buffer");
+    }
 
     p = (volatile UBYTE*)addr;
     for (i = 0; i < slen; i++) p[i] = (UBYTE)s[i];
     p[slen] = 0;
     JS_FreeCString(ctx, s);
-    return JS_NewInt64(ctx, (int64_t)(slen + 1));
+    return JS_NewInt32(ctx, (int32_t)(slen + 1));
 }
 
 /* ------------------------------------------------------------------
@@ -485,6 +622,10 @@ void qjs_install_amiga_ffi_global(JSContext *ctx)
     JS_SetPropertyStr(ctx, global, "__qjs_amiga_peekString", fn);
     fn = JS_NewCFunction(ctx, js_amiga_pokeString,   "__qjs_amiga_pokeString",   2);
     JS_SetPropertyStr(ctx, global, "__qjs_amiga_pokeString", fn);
+    fn = JS_NewCFunction(ctx, js_amiga_peekStringUTF8, "__qjs_amiga_peekStringUTF8", 2);
+    JS_SetPropertyStr(ctx, global, "__qjs_amiga_peekStringUTF8", fn);
+    fn = JS_NewCFunction(ctx, js_amiga_pokeStringUTF8, "__qjs_amiga_pokeStringUTF8", 3);
+    JS_SetPropertyStr(ctx, global, "__qjs_amiga_pokeStringUTF8", fn);
     fn = JS_NewCFunction(ctx, js_amiga_allocMem,     "__qjs_amiga_allocMem",     2);
     JS_SetPropertyStr(ctx, global, "__qjs_amiga_allocMem", fn);
     fn = JS_NewCFunction(ctx, js_amiga_freeMem,      "__qjs_amiga_freeMem",      2);

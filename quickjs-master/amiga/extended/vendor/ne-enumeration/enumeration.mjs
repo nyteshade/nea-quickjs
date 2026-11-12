@@ -243,12 +243,31 @@ export class Enumeration {
      * `.key` or `.value`, it is safer to use the {@link Enumeration#associated}
      * function retrieve the value. You have been warned.
      */
-    Object.setPrototypeOf(
-      this.constructor.prototype,
-      SubscriptProxy(
-        Object.create(Object.getPrototypeOf(this.constructor.prototype))
-      )
-    );
+    /* LOCAL PATCH (nea-quickjs 0.216): install the proxy once per class,
+     * not once per case. Unguarded, every case constructed pushed one
+     * more Proxy into the class's prototype chain, so a lookup that
+     * reaches the base class (valueOf, Symbol.toPrimitive) went through
+     * one proxy per case. With the 57 cases of Intuition.consts a single
+     * Number(case) used about 220 KB of machine stack on m68k, which
+     * overran the task's stack and crashed the Amiga. */
+    const classPrototype = this.constructor.prototype;
+    const subscripted = Symbol.for('@nejs.enumeration.subscripted');
+
+    if (!Object.hasOwn(classPrototype, subscripted)) {
+      Object.setPrototypeOf(
+        classPrototype,
+        SubscriptProxy(
+          Object.create(Object.getPrototypeOf(classPrototype))
+        )
+      );
+
+      Object.defineProperty(classPrototype, subscripted, {
+        value: true,
+        configurable: false,
+        enumerable: false,
+        writable: false,
+      });
+    }
 
     return this;
   }

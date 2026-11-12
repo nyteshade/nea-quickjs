@@ -5649,6 +5649,119 @@ _manifests.push(new LocalManifest({
                 return N.__qjs_amiga_pokeString(addr, String(str));
             },
 
+            /* --- strings: sizes worked out for you ---
+             *
+             * AmigaOS text is Latin-1, one byte per character, and that
+             * is what peekString / pokeString read and write: a string
+             * always takes exactly str.length + 1 bytes (a character
+             * above 255 is written as '?'). The UTF8 variants are for
+             * libraries that expect UTF-8, where a character can take
+             * up to four bytes; never size a UTF-8 buffer from
+             * str.length, use utf8Length(). */
+
+            /**
+             * Read a NUL-terminated UTF-8 string.
+             *
+             * @param {number} addr
+             * @param {number} [maxLen=4096] - most bytes to read
+             * @returns {string}
+             */
+            peekStringUTF8(addr, maxLen) {
+                return N.__qjs_amiga_peekStringUTF8(addr, maxLen === undefined ? 4096 : (maxLen | 0));
+            },
+
+            /**
+             * Write a string as UTF-8 plus a NUL into a buffer of
+             * `capacity` bytes. Throws RangeError, writing nothing, if
+             * it does not fit.
+             *
+             * @param {number} addr
+             * @param {string} str
+             * @param {number} capacity - size of the buffer in bytes
+             * @returns {number} bytes written, including the NUL
+             */
+            pokeStringUTF8(addr, str, capacity) {
+                return N.__qjs_amiga_pokeStringUTF8(addr, String(str), capacity | 0);
+            },
+
+            /**
+             * How many bytes a string takes as UTF-8, not counting the
+             * NUL.
+             *
+             * @param {string} str
+             * @returns {number}
+             */
+            utf8Length(str) {
+                str = String(str);
+                let bytes = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const unit = str.charCodeAt(i);
+                    if (unit < 0x80) bytes += 1;
+                    else if (unit < 0x800) bytes += 2;
+                    else if (unit >= 0xD800 && unit <= 0xDBFF &&
+                             i + 1 < str.length &&
+                             str.charCodeAt(i + 1) >= 0xDC00 &&
+                             str.charCodeAt(i + 1) <= 0xDFFF) {
+                        bytes += 4;   /* a surrogate pair: one character */
+                        i++;
+                    }
+                    else bytes += 3;
+                }
+                return bytes;
+            },
+
+            /**
+             * Allocate a C string holding `str`. The buffer is exactly
+             * the right size for the encoding, and the object remembers
+             * that size, so free() cannot be given the wrong one.
+             *
+             * @param {string} str
+             * @param {'latin1'|'utf8'} [encoding='latin1']
+             * @returns {{ptr: number, size: number, free: function(): undefined}}
+             * @throws {Error} if memory cannot be allocated
+             */
+            allocString(str, encoding) {
+                str = (str === null || str === undefined) ? '' : String(str);
+                const utf8 = encoding === 'utf8';
+                if (encoding !== undefined && !utf8 && encoding !== 'latin1') {
+                    throw new TypeError("amiga.allocString: encoding must be 'latin1' or 'utf8'");
+                }
+                const size = (utf8 ? amiga.utf8Length(str) : str.length) + 1;
+                const ptr = amiga.allocMem(size);
+                if (!ptr) throw new Error('amiga.allocString: out of memory');
+                try {
+                    if (utf8) amiga.pokeStringUTF8(ptr, str, size);
+                    else amiga.pokeString(ptr, str);
+                }
+                catch (error) {
+                    amiga.freeMem(ptr, size);
+                    throw error;
+                }
+                const holder = {
+                    ptr, size,
+                    free() {
+                        if (holder.ptr) amiga.freeMem(holder.ptr, holder.size);
+                        holder.ptr = 0;
+                    },
+                };
+                return holder;
+            },
+
+            /**
+             * Run fn(ptr) with `str` as a temporary C string, and free
+             * it afterwards whether or not fn throws.
+             *
+             * @param {string} str
+             * @param {function(number): *} fn - receives the pointer
+             * @param {'latin1'|'utf8'} [encoding='latin1']
+             * @returns {*} whatever fn returns
+             */
+            withString(str, fn, encoding) {
+                const holder = amiga.allocString(str, encoding);
+                try { return fn(holder.ptr); }
+                finally { holder.free(); }
+            },
+
             /* --- memory allocation --- */
             allocMem(size, flags) {
                 if (flags === undefined) flags = amiga.exec.MEMF_PUBLIC | amiga.exec.MEMF_CLEAR;
@@ -5782,13 +5895,16 @@ _manifests.push(new LocalManifest({
                 }
                 const strs = [];
                 for (let s of arr) {
-                    const b = (s == null ? '' : String(s)).length + 1;
+                    /* One text for both the size and the copy: sizing
+                     * '' but copying String(null) overran until 0.216. */
+                    const text = (s == null) ? '' : String(s);
+                    const b = text.length + 1;
                     const p = amiga.allocMem(b);
                     if (!p) {
                         for (let [sp, sb] of strs) amiga.freeMem(sp, sb);
                         throw new Error('makeStringArray: allocMem failed');
                     }
-                    amiga.pokeString(p, String(s));
+                    amiga.pokeString(p, text);
                     strs.push([p, b]);
                 }
                 const arrBytes = (arr.length + 1) * 4;
