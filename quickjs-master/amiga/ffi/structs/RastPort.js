@@ -21,7 +21,35 @@ export class RastPort extends Struct {
     TxBaseline: 62,
   });
 
-  /* SIZE not exposed — RastPort is allocated by Intuition. */
+  /** sizeof(struct RastPort). A window's RastPort belongs to
+   *  Intuition; this is for a RastPort of your own (see scratch()).
+   *  @type {number} */
+  static SIZE = 100;
+
+  /**
+   * Make a RastPort that is not attached to anything, for measuring
+   * text before a window exists, or in a font other than the screen's:
+   *
+   *   let measure = RastPort.scratch(font);
+   *   let width   = measure.textWidth('Hello');
+   *   let height  = measure.fontHeight;
+   *   measure.free();
+   *
+   * It has no bitmap, so it cannot be drawn into; textWidth,
+   * fontHeight and fontBaseline are what it is for. free() it when
+   * done.
+   *
+   * @param {number} [font] - struct TextFont pointer to measure in
+   * @returns {RastPort} an owned RastPort; call free()
+   */
+  static scratch(font) {
+    let rastPort = new RastPort();
+
+    globalThis.amiga.Graphics.InitRastPort(rastPort);
+    if (font) globalThis.amiga.Graphics.SetFont(rastPort, font);
+
+    return rastPort;
+  }
 
   /**
    * REPL help text — a human-readable constructor signature.
@@ -31,9 +59,9 @@ export class RastPort extends Struct {
   static get signature() {
     return `RastPort(ptr)
 where:
-  ptr - REQUIRED: an existing struct RastPort pointer. Typically
-        obtained as win.rastPort from a Window wrapper. You cannot
-        allocate a RastPort from scratch via this wrapper.
+  ptr - an existing struct RastPort pointer, typically win.rastPort
+        from a Window wrapper. For a RastPort of your own, to measure
+        text with, use RastPort.scratch(font).
 
 Instance methods (delegate to graphics.library):
   setColor(pen)              - SetAPen

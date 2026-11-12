@@ -22,8 +22,10 @@
  *     least 600 x 200, the size the window opens at
  *   - Kickstart 3.0 (V39) or later: frameiclass is built into
  *     Intuition, but it only learned the four frame types in V39
- *   - the screen font's height is a fair guess at the height of the
- *     window's title bar, which is how the grid is kept clear of it
+ *   - the frames are a fixed size in pixels, as in the original; only
+ *     their position follows the window's borders, so a tall title bar
+ *     pushes the grid down and the bottom row may then need the window
+ *     to be at its full height
  *
  * Requires quickjs.library 0.127+.
  * Run: qjs examples/frameidemo.js
@@ -51,9 +53,8 @@ const RECESSED_STATES = 2;
 const FRAME_WIDTH  = 80;
 const FRAME_HEIGHT = 20;
 
-/** The grid the frames are drawn on, in pixels. The top of the grid is
- *  the screen font's height plus GRID_TOP_GAP below the window's top
- *  edge, which clears the title bar. */
+/** The grid the frames are drawn on, in pixels, measured from the
+ *  inside of the window's left border and title bar. */
 const GRID_LEFT    = 20;
 const GRID_TOP_GAP = 12;
 const COLUMN_STEP  = 100;
@@ -62,17 +63,22 @@ const ROW_STEP     = 30;
 /**
  * Draw one frame in its place on the grid.
  *
- * @param {RastPort} rastPort - the window's RastPort
+ * Positions are in pixels from the top left corner of the window
+ * FRAME, so the left border and the title bar are added on. Their
+ * sizes are read from the open window: the title bar is as tall as
+ * the screen font makes it, and guessing would put the top row under
+ * it on a screen with a large font.
+ *
+ * @param {Window} window - the open window
  * @param {Image} frame - a frameiclass object
  * @param {number} column - 0 to 3, counted from the left
  * @param {number} row - 0 for the top row, 1 for the bottom row
- * @param {number} fontHeight - height of the screen font, in pixels
  * @returns {undefined}
  */
-function drawFrame(rastPort, frame, column, row, fontHeight) {
-  Intuition.DrawImage(rastPort, frame,
-    GRID_LEFT + column * COLUMN_STEP,
-    fontHeight + GRID_TOP_GAP + row * ROW_STEP);
+function drawFrame(window, frame, column, row) {
+  Intuition.DrawImage(window.rastPort, frame,
+    window.borderLeft + GRID_LEFT + column * COLUMN_STEP,
+    window.borderTop  + GRID_TOP_GAP + row * ROW_STEP);
 }
 
 let newWindow = new NewWindow({
@@ -99,8 +105,6 @@ print('Window open - close-gadget or CTRL-C to exit.');
  *  redrawn on a refresh and disposed of at the end. */
 let frames = [];
 
-let fontHeight = window.screen.font.ySize;
-let rastPort   = window.rastPort;
 
 try {
   /* Make the eight frames, drawing each one as soon as it exists. */
@@ -116,7 +120,7 @@ try {
       if (!frame) continue;
 
       frames.push(frame);
-      drawFrame(rastPort, frame, frameType, recessed, fontHeight);
+      drawFrame(window, frame, frameType, recessed);
     }
   }
 
@@ -136,7 +140,7 @@ try {
         let row    = Math.floor(cell / FRAME_TYPE_COUNT);
 
         if (frames[cell]) {
-          drawFrame(rastPort, frames[cell], column, row, fontHeight);
+          drawFrame(window, frames[cell], column, row);
         }
       }
 

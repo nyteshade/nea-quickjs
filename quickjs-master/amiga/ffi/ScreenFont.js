@@ -66,6 +66,8 @@ Properties:
   nominalWidth  {number} the font's nominal character width
   pixelAspect   {number} how many pixels across cover the same
                          distance as one pixel down (1 = square)
+  screenWidth   {number} the screen's width in pixels
+  screenHeight  {number} the screen's height in pixels
 
 Methods:
   widthOf(text) {number} pixel width of text in this font
@@ -115,6 +117,13 @@ Typical use:
       this.close();
       throw new Error('ScreenFont: screen has no DrawInfo');
     }
+
+    /** @type {number} the screen's width in pixels: how wide a
+     *  window can be */
+    this.screenWidth = this._screen.width;
+
+    /** @type {number} the screen's height in pixels */
+    this.screenHeight = this._screen.height;
 
     let drawInfo = new DrawInfo(this._drawInfoPtr);
 
@@ -199,8 +208,9 @@ Typical use:
 
   /**
    * Release the DrawInfo, the private RastPort and the screen lock.
-   * Safe to call twice. height, baseline, nominalWidth and pixelAspect
-   * stay readable afterwards; widthOf() does not work any more.
+   * Safe to call twice. height, baseline, nominalWidth, pixelAspect,
+   * screenWidth and screenHeight stay readable afterwards; widthOf()
+   * does not work any more.
    *
    * @returns {undefined}
    */

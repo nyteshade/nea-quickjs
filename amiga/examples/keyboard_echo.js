@@ -17,24 +17,25 @@
  *   3. THE LOOP    - one key in, text changed, window redrawn.
  *
  * Assumptions:
- *   - the default public screen (normally Workbench) is open and big
- *     enough for a 420 x 180 window placed at 30, 30
- *   - the screen font is the font the window draws with, so its
- *     height is the right distance between lines
- *   - a line is wrapped after 55 characters whatever the font, which
- *     is not measured; whether 55 characters fit is not checked
- *   - the window's borders are no more than 2 pixels thick at the
- *     left, right and bottom, where the text area is cleared
+ *   - opens on the default public screen (normally Workbench)
+ *   - the screen font is the font the window draws with; the window
+ *     is sized from it before it opens
+ *   - a line is wrapped after 55 characters. The window is made wide
+ *     enough for 55 characters of the font's usual width, so a
+ *     proportional font may show slightly more or less
  *   - pen 0 is the window background and pen 1 shows against it
  *
- * Requires quickjs.library 0.130+.
+ * Requires quickjs.library 0.217+.
  * Run: qjs examples/keyboard_echo.js
  */
 
 import * as std from 'qjs:std';
 
-if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
+/* WA_InnerWidth arrived in 0.217, with ScreenFont and window titles;
+ * its presence is the test for a new enough library. */
+if (typeof Intuition !== 'function' ||
+    !('WA_InnerWidth' in Intuition.consts)) {
+  print('Need quickjs.library 0.217 or later');
   std.exit(1);
 }
 
@@ -112,17 +113,42 @@ function newline(maxVisibleLines) {
  * 2. THE WINDOW
  * ================================================================== */
 
+/* The window is sized from the screen font, not in fixed pixels: the
+ * user chooses that font, and it may be 8 pixels high or 24.
+ * ScreenFont reads it before any window exists. */
+const { ScreenFont } = amiga;
+
+/** How much text the window holds when it opens: as wide as the
+ *  longest line can be. */
+const COLUMNS_SHOWN = MAX_LINE_CHARS;
+const LINES_SHOWN   = 8;
+
+let screenFont = new ScreenFont();
+
+/** Space between the text and the window's borders, in pixels: half a
+ *  line down, and the same distance across. */
+const MARGIN_DOWN   = Math.round(screenFont.height / 2);
+const MARGIN_ACROSS = screenFont.across(MARGIN_DOWN);
+
+/* WA_InnerWidth and WA_InnerHeight give the size inside the borders;
+ * Intuition adds the title bar and borders itself. nominalWidth is the
+ * font's usual character width, which is near enough for "about 48
+ * columns". */
 let window = Intuition.OpenWindowTags([
-  [C.WA_Left,   30],
-  [C.WA_Top,    30],
-  [C.WA_Width,  420],
-  [C.WA_Height, 180],
-  [C.WA_Title,  'Type anything - ESC or close to exit'],
-  [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
-              | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
-  [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_VANILLAKEY
-              | C.IDCMP_REFRESHWINDOW],
+  [C.WA_Left,        30],
+  [C.WA_Top,         30],
+  [C.WA_InnerWidth,  COLUMNS_SHOWN * screenFont.nominalWidth
+                     + 2 * MARGIN_ACROSS],
+  [C.WA_InnerHeight, LINES_SHOWN * screenFont.height + 2 * MARGIN_DOWN],
+  [C.WA_Title,       'Type anything - ESC or close to exit'],
+  [C.WA_Flags,       C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
+                   | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
+  [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_VANILLAKEY
+                   | C.IDCMP_REFRESHWINDOW],
 ]);
+
+/* The window keeps the screen open from here on. */
+screenFont.close();
 
 if (!window) {
   print('OpenWindowTags failed');
@@ -136,30 +162,36 @@ let rastPort = window.rastPort;
 /** Pens: the window background, and the text drawn on it. */
 const PEN = { BACKGROUND: 0, TEXT: 1 };
 
-/** Height of the screen's font in pixels, used as the line spacing.
- *  The window was given no font of its own, so it draws with this
- *  one. */
-const fontHeight = window.screen.font.ySize;
+/** Height of one line of text in pixels, used as the line spacing.
+ *  The window was given no font of its own, so it draws with the
+ *  screen's. */
+const fontHeight = rastPort.fontHeight;
 
-/** Text starts this many pixels in from the window's left edge. */
-const TEXT_LEFT = 4;
+/* The area the text may use, in pixels from the top left corner of
+ * the window FRAME: everything inside the borders. The borders are
+ * read from the open window, so the title bar is cleared whatever
+ * its height. */
+const AREA_LEFT   = window.borderLeft;
+const AREA_TOP    = window.borderTop;
 
-/** The baseline of the first line, in pixels from the window's top:
- *  one line of text plus 18 pixels, to stay below the title bar. */
-const TITLE_BAR_ALLOWANCE = 18;
-const firstBaseline = fontHeight + TITLE_BAR_ALLOWANCE;
+/** Text starts this far in from the window's left edge. */
+const TEXT_LEFT = AREA_LEFT + MARGIN_ACROSS;
 
-/** The cleared area stops this many pixels short of the window's
- *  left, right and bottom edges. */
-const ERASE_INSET = 2;
+/** The baseline of the first line. text() puts the BASELINE at the y
+ *  it is given, so this is the top of the first line plus the font's
+ *  baseline. */
+const firstBaseline = AREA_TOP + MARGIN_DOWN + rastPort.fontBaseline;
 
 /**
- * How many lines of text fit below the title bar.
+ * How many lines of text fit inside the window.
  *
  * @returns {number}
  */
 function visibleLineCount() {
-  return Math.floor((window.height - firstBaseline) / fontHeight);
+  let usable = window.height - window.borderBottom - AREA_TOP
+             - 2 * MARGIN_DOWN;
+
+  return Math.max(1, Math.floor(usable / fontHeight));
 }
 
 /**
@@ -170,16 +202,17 @@ function visibleLineCount() {
  */
 function redrawAll() {
   rastPort.setColor(PEN.BACKGROUND);
-  rastPort.rectFill(ERASE_INSET, firstBaseline - fontHeight,
-                    window.width - ERASE_INSET,
-                    window.height - ERASE_INSET);
+  rastPort.rectFill(AREA_LEFT, AREA_TOP,
+                    window.width  - window.borderRight  - 1,
+                    window.height - window.borderBottom - 1);
 
   rastPort.setColor(PEN.TEXT);
 
-  for (let index = 0; index < lines.length; index++) {
+  let shown = Math.min(lines.length, visibleLineCount());
+
+  for (let index = 0; index < shown; index++) {
     let y = firstBaseline + index * fontHeight;
 
-    if (y > window.height - fontHeight) break;
     if (lines[index].length) rastPort.text(TEXT_LEFT, y, lines[index]);
   }
 }

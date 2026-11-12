@@ -44,7 +44,7 @@ that each make a decision. The formula is at the top of
 `scripts/example_load.py`; regenerate these tables with
 `python3 scripts/example_load.py --index`.
 
-Now: 49 low, 11 medium, 1 high.
+Now: 48 low, 12 medium, 1 high.
 Before: 45 low, 15 medium, 1 high.
 
 ## Reaction examples
@@ -97,15 +97,15 @@ Before: 45 low, 15 medium, 1 high.
 | `clock_demo.js` | A window that counts the seconds since it opened. | 33 medium | 29 medium |
 | `dir_listing.js` | List a directory, the way the Dir command does. Optional arguments: `[directory=SYS:]`. | 18 low | 16 low |
 | `drawing_demo.js` | Lines, boxes and text drawn straight into a window. | 16 low | 11 low |
-| `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 23 low | 19 low |
+| `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 24 low | 19 low |
 | `frameidemo.js` | The four standard frame styles, raised and recessed. | 24 low | 28 medium |
-| `keyboard_echo.js` | Type into a window and see the text appear. | 26 medium | 28 medium |
+| `keyboard_echo.js` | Type into a window and see the text appear. | 27 medium | 28 medium |
 | `memory_probe.js` | Print how much memory of each kind is free. Optional arguments: `[iterations=1]`. | 12 low | 14 low |
 | `menu_demo.js` | A classic Intuition menu bar, built struct by struct. | 38 medium | 48 medium |
 | `mouse_tracker.js` | Draw in a window by dragging the mouse. | 19 low | 18 low |
-| `screen_custom.js` | A screen of our own, with one window drawn into. | 10 low | 10 low |
+| `screen_custom.js` | A screen of our own, with one window drawn into. | 11 low | 10 low |
 | `screen_info.js` | Print the size, title and font of the Workbench screen. | 8 low | 8 low |
-| `sysi_gallery.js` | A labelled gallery of the system's own gadget images. | 19 low | 19 low |
+| `sysi_gallery.js` | A labelled gallery of the system's own gadget images. | 31 medium | 19 low |
 | `timer_demo.js` | Wait two seconds with timer.device and time the wait. | 12 low | 11 low |
 | `window_hello.js` | The smallest useful Intuition window, from JavaScript. | 9 low | 9 low |
 

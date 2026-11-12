@@ -258,6 +258,19 @@ export class Graphics extends LibraryBase {
   }
 
   /**
+   * Close a font opened with OpenFont or Diskfont.OpenDiskFont. Close
+   * the windows that draw with it first.
+   *
+   * @param {number} font - struct TextFont pointer; 0 does nothing
+   * @returns {undefined}
+   */
+  static CloseFont(font) {
+    if (!font) return;
+
+    this.call(this.lvo.CloseFont, { a1: ptrOf(font) });
+  }
+
+  /**
    * Install a font (TextFont ptr) on the RastPort.
    *
    * @param {RastPort|number} rport

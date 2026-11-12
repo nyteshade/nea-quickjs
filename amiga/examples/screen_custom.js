@@ -21,17 +21,20 @@
  *     mode; no mode is asked for
  *   - pens 1, 2 and 3 of the new screen's default palette are visible
  *     against pen 0, the background
- *   - the screen's font is small enough that the window's title bar
- *     ends above y = 20, where the first line of text is drawn
+ *   - the window draws in the new screen's font, and is sized and
+ *     laid out from that font's height
  *
- * Requires quickjs.library 0.130+.
+ * Requires quickjs.library 0.217+.
  * Run: qjs examples/screen_custom.js
  */
 
 import * as std from 'qjs:std';
 
-if (typeof Intuition !== 'function') {
-  print('Q2 wrapper classes not available - need quickjs.library 0.130+');
+/* WA_InnerWidth arrived in 0.217, with RastPort.fontHeight and window
+ * titles; its presence is the test for a new enough library. */
+if (typeof Intuition !== 'function' ||
+    !('WA_InnerWidth' in Intuition.consts)) {
+  print('Need quickjs.library 0.217 or later');
   std.exit(1);
 }
 
@@ -69,11 +72,15 @@ function openCustomScreen() {
  * @returns {Window|null} the window, or null if it could not be opened
  */
 function openWindowOnScreen(screen) {
+  let layout = layoutFor(screen.font.ySize);
+
+  /* WA_InnerWidth and WA_InnerHeight give the size inside the
+   * borders; Intuition adds the title bar and borders itself. */
   return Intuition.OpenWindowTags([
     [C.WA_Left,         20],
     [C.WA_Top,          20],
-    [C.WA_Width,        280],
-    [C.WA_Height,       160],
+    [C.WA_InnerWidth,   layout.innerWidth],
+    [C.WA_InnerHeight,  layout.innerHeight],
     [C.WA_Title,        'Hello, Custom Screen'],
 
     /* This tag is what puts the window on our screen. */
@@ -85,34 +92,86 @@ function openWindowOnScreen(screen) {
   ]);
 }
 
+/** How wide the contents are, in pixels. The screen is only 320
+ *  across, so this is a fixed number that fits it. */
+const CONTENT_WIDTH = 250;
+
+/**
+ * Where everything goes, worked out from the height of one line of
+ * text. All positions are in pixels from the top left corner of the
+ * area INSIDE the window's borders:
+ *
+ *   a line of text
+ *   a filled box, two lines high and half as wide as the contents
+ *   an outlined box, two lines high and as wide as the contents
+ *   a line of text
+ *
+ * with half a line between each and around the outside.
+ *
+ * @param {number} line - height of one line of text, in pixels
+ * @returns {{margin: number, line: number, fillTop: number,
+ *            outlineTop: number, boxHeight: number, hintTop: number,
+ *            innerWidth: number, innerHeight: number}}
+ */
+function layoutFor(line) {
+  let margin    = Math.round(line / 2);
+  let boxHeight = 2 * line;
+
+  let fillTop    = margin + line + margin;
+  let outlineTop = fillTop + boxHeight + margin;
+  let hintTop    = outlineTop + boxHeight + margin;
+
+  return {
+    margin, line, fillTop, outlineTop, boxHeight, hintTop,
+    innerWidth:  CONTENT_WIDTH + 2 * margin,
+    innerHeight: hintTop + line + margin,
+  };
+}
+
 /**
  * Draw the window's contents. Called once when the window opens and
- * again whenever Intuition says part of it needs redrawing. The
- * coordinates are pixels from the window's top left corner.
+ * again whenever Intuition says part of it needs redrawing.
+ *
+ * Drawing coordinates are pixels from the top left corner of the
+ * window FRAME, so the left border and the title bar are added to
+ * every position.
  *
  * @param {Window} window
  * @returns {undefined}
  */
 function paint(window) {
   let rastPort = window.rastPort;
+  let layout   = layoutFor(rastPort.fontHeight);
 
+  let left     = window.borderLeft + layout.margin;
+  let top      = window.borderTop;
+  let right    = left + CONTENT_WIDTH;
+  let baseline = rastPort.fontBaseline;
+
+  /* text() puts the BASELINE of the text at the y it is given. */
   rastPort.setColor(PEN.TEXT);
-  rastPort.text(10, 20, 'Hello from a custom screen!');
+  rastPort.text(left, top + layout.margin + baseline,
+                'Hello from a custom screen!');
 
   rastPort.setColor(PEN.FILL);
-  rastPort.rectFill(10, 40, 120, 80);
+  rastPort.rectFill(left, top + layout.fillTop,
+                    left + Math.round(CONTENT_WIDTH / 2),
+                    top + layout.fillTop + layout.boxHeight);
 
   /* The outlined box: four lines, each starting where the last
    * ended. */
+  let outlineTop    = top + layout.outlineTop;
+  let outlineBottom = outlineTop + layout.boxHeight;
+
   rastPort.setColor(PEN.OUTLINE);
-  rastPort.move(10, 100);
-  rastPort.draw(260, 100);
-  rastPort.draw(260, 140);
-  rastPort.draw(10, 140);
-  rastPort.draw(10, 100);
+  rastPort.move(left,  outlineTop);
+  rastPort.draw(right, outlineTop);
+  rastPort.draw(right, outlineBottom);
+  rastPort.draw(left,  outlineBottom);
+  rastPort.draw(left,  outlineTop);
 
   rastPort.setColor(PEN.TEXT);
-  rastPort.text(10, 155, 'Close to exit.');
+  rastPort.text(left, top + layout.hintTop + baseline, 'Close to exit.');
 }
 
 let screen = openCustomScreen();

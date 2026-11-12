@@ -7,28 +7,28 @@
  * quit.
  *
  * Assumptions:
- *   - opens on the default public screen (Workbench), which is at
- *     least 560 x 220 pixels
+ *   - opens on the default public screen (normally Workbench), which
+ *     is wide enough for the longest line in the chosen font
  *   - diskfont.library is installed (standard Workbench)
  *   - the named font exists in FONTS: at the size asked for; the
  *     default, topaz.font 11, ships with Workbench. If it cannot be
  *     opened the script says so and stops.
  *   - pen 1 is visible against the window background
- *   - the font is small enough for the lines to fit: they are drawn
- *     at fixed positions, 20 pixels apart
+ *   - the window is sized from the loaded font, by measuring the text
+ *     in it before the window opens
  *
- * Requires quickjs.library 0.221+.
+ * Requires quickjs.library 0.225+.
  * Run: qjs examples/font_loader.js [fontname.font=topaz.font] [size=11]
  */
 
 import * as std from 'qjs:std';
 
-/* Graphics.consts.FS_NORMAL arrived in 0.221, with the TextAttr
- * setters this file uses; its presence is the test for a new enough
- * library. */
+/* RastPort.scratch arrived in 0.225 and Graphics.consts.FS_NORMAL in
+ * 0.221; their presence is the test for a new enough library. */
 if (typeof Diskfont !== 'function' || typeof TextAttr !== 'function' ||
-    !('FS_NORMAL' in Graphics.consts)) {
-  print('Need quickjs.library 0.221 or later');
+    !('FS_NORMAL' in Graphics.consts) ||
+    typeof RastPort.scratch !== 'function') {
+  print('Need quickjs.library 0.225 or later');
   std.exit(1);
 }
 
@@ -50,17 +50,15 @@ const ANY_FONT_FLAGS = 0;
 /** The pen the text is drawn with. */
 const TEXT_PEN = 1;
 
-/** Left edge of every line of text, in pixels from the window edge. */
-const TEXT_LEFT = 10;
-
-/** What is drawn, and the baseline of each line in pixels from the top
- *  of the window. */
+/** What is drawn, one entry to a line. An empty entry leaves a line
+ *  blank. */
 const LINES = [
-  { y: 40,  text: 'The quick brown fox jumps over the lazy dog.' },
-  { y: 60,  text: 'Pack my box with five dozen liquor jugs.' },
-  { y: 80,  text: '0 1 2 3 4 5 6 7 8 9   ! @ # $ % ^ & * ( ) - _ = +' },
-  { y: 120, text: fontCaption },
-  { y: 140, text: 'Close window to exit.' },
+  'The quick brown fox jumps over the lazy dog.',
+  'Pack my box with five dozen liquor jugs.',
+  '0 1 2 3 4 5 6 7 8 9   ! @ # $ % ^ & * ( ) - _ = +',
+  '',
+  fontCaption,
+  'Close window to exit.',
 ];
 
 /**
@@ -96,20 +94,6 @@ function makeTextAttr(name, size) {
 }
 
 /**
- * Close a font opened with OpenDiskFont. graphics.library CloseFont
- * has no method on the Graphics wrapper yet, so it is called directly.
- *
- * @param {number} fontPtr - struct TextFont pointer; 0 does nothing
- * @returns {undefined}
- */
-function closeFont(fontPtr) {
-  if (!fontPtr) return;
-
-  amiga.call(Graphics.ensureLibrary(), amiga.graphics.lvo.CloseFont,
-    { a1: fontPtr });
-}
-
-/**
  * Release the TextAttr and the name it points at.
  *
  * @returns {undefined}
@@ -127,8 +111,20 @@ function freeTextAttr() {
 function repaint() {
   Graphics.SetFont(rastPort, font);
 
+  /* Positions are in pixels from the top left corner of the window
+   * FRAME, so the left border and the title bar are added on.
+   * text() puts the BASELINE of the text at the y it is given. */
+  let left = window.borderLeft + MARGIN;
+  let top  = window.borderTop  + MARGIN;
+
   rastPort.setColor(TEXT_PEN);
-  for (let line of LINES) rastPort.text(TEXT_LEFT, line.y, line.text);
+
+  for (let index = 0; index < LINES.length; index++) {
+    if (LINES[index].length === 0) continue;
+
+    rastPort.text(left, top + index * LINE_HEIGHT + BASELINE,
+                  LINES[index]);
+  }
 }
 
 print('Loading "' + fontName + '" at ' + fontSize + 'pt...');
@@ -146,20 +142,42 @@ if (!font) {
 
 print('Loaded. Opening demo window...');
 
+/* The window has to fit text in a font that was only just loaded, so
+ * the text is measured first. A scratch RastPort is one that is
+ * attached to nothing: it cannot be drawn into, but text can be
+ * measured against it in any font. */
+let measure = RastPort.scratch(font);
+
+/** One line of the loaded font, and where its baseline sits, in
+ *  pixels. */
+const LINE_HEIGHT = measure.fontHeight;
+const BASELINE    = measure.fontBaseline;
+
+/** The widest line, in pixels. */
+const TEXT_WIDTH = Math.max(...LINES.map((line) => measure.textWidth(line)));
+
+measure.free();
+
+/** Space between the text and the window's borders: half a line. */
+const MARGIN = Math.round(LINE_HEIGHT / 2);
+
+/* WA_InnerWidth and WA_InnerHeight give the size inside the borders;
+ * Intuition adds the title bar and borders itself. (The title bar is
+ * drawn in the SCREEN's font, not the loaded one.) */
 let window = Intuition.OpenWindowTags([
-  [C.WA_Left,   40],
-  [C.WA_Top,    40],
-  [C.WA_Width,  520],
-  [C.WA_Height, 180],
-  [C.WA_Title,  fontCaption],
-  [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
-              | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
-  [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
+  [C.WA_Left,        40],
+  [C.WA_Top,         40],
+  [C.WA_InnerWidth,  TEXT_WIDTH + 2 * MARGIN],
+  [C.WA_InnerHeight, LINES.length * LINE_HEIGHT + 2 * MARGIN],
+  [C.WA_Title,       fontCaption],
+  [C.WA_Flags,       C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
+                   | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
+  [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
 ]);
 
 if (!window) {
   print('OpenWindowTags failed');
-  closeFont(font);
+  Graphics.CloseFont(font);
   freeTextAttr();
   std.exit(1);
 }
@@ -183,7 +201,7 @@ finally {
   /* The window goes first, so nothing is still drawing with the font
    * when it is closed. */
   window.close();
-  closeFont(font);
+  Graphics.CloseFont(font);
   freeTextAttr();
 }
 

@@ -1940,7 +1940,35 @@ class RastPort extends Struct {
     TxBaseline: 62,
   });
 
-  /* SIZE not exposed — RastPort is allocated by Intuition. */
+  /** sizeof(struct RastPort). A window's RastPort belongs to
+   *  Intuition; this is for a RastPort of your own (see scratch()).
+   *  @type {number} */
+  static SIZE = 100;
+
+  /**
+   * Make a RastPort that is not attached to anything, for measuring
+   * text before a window exists, or in a font other than the screen's:
+   *
+   *   let measure = RastPort.scratch(font);
+   *   let width   = measure.textWidth('Hello');
+   *   let height  = measure.fontHeight;
+   *   measure.free();
+   *
+   * It has no bitmap, so it cannot be drawn into; textWidth,
+   * fontHeight and fontBaseline are what it is for. free() it when
+   * done.
+   *
+   * @param {number} [font] - struct TextFont pointer to measure in
+   * @returns {RastPort} an owned RastPort; call free()
+   */
+  static scratch(font) {
+    let rastPort = new RastPort();
+
+    globalThis.amiga.Graphics.InitRastPort(rastPort);
+    if (font) globalThis.amiga.Graphics.SetFont(rastPort, font);
+
+    return rastPort;
+  }
 
   /**
    * REPL help text — a human-readable constructor signature.
@@ -1950,9 +1978,9 @@ class RastPort extends Struct {
   static get signature() {
     return `RastPort(ptr)
 where:
-  ptr - REQUIRED: an existing struct RastPort pointer. Typically
-        obtained as win.rastPort from a Window wrapper. You cannot
-        allocate a RastPort from scratch via this wrapper.
+  ptr - an existing struct RastPort pointer, typically win.rastPort
+        from a Window wrapper. For a RastPort of your own, to measure
+        text with, use RastPort.scratch(font).
 
 Instance methods (delegate to graphics.library):
   setColor(pen)              - SetAPen
@@ -4754,6 +4782,19 @@ class Graphics extends LibraryBase {
   }
 
   /**
+   * Close a font opened with OpenFont or Diskfont.OpenDiskFont. Close
+   * the windows that draw with it first.
+   *
+   * @param {number} font - struct TextFont pointer; 0 does nothing
+   * @returns {undefined}
+   */
+  static CloseFont(font) {
+    if (!font) return;
+
+    this.call(this.lvo.CloseFont, { a1: ptrOf(font) });
+  }
+
+  /**
    * Install a font (TextFont ptr) on the RastPort.
    *
    * @param {RastPort|number} rport
@@ -6694,6 +6735,8 @@ Properties:
   nominalWidth  {number} the font's nominal character width
   pixelAspect   {number} how many pixels across cover the same
                          distance as one pixel down (1 = square)
+  screenWidth   {number} the screen's width in pixels
+  screenHeight  {number} the screen's height in pixels
 
 Methods:
   widthOf(text) {number} pixel width of text in this font
@@ -6743,6 +6786,13 @@ Typical use:
       this.close();
       throw new Error('ScreenFont: screen has no DrawInfo');
     }
+
+    /** @type {number} the screen's width in pixels: how wide a
+     *  window can be */
+    this.screenWidth = this._screen.width;
+
+    /** @type {number} the screen's height in pixels */
+    this.screenHeight = this._screen.height;
 
     let drawInfo = new DrawInfo(this._drawInfoPtr);
 
@@ -6827,8 +6877,9 @@ Typical use:
 
   /**
    * Release the DrawInfo, the private RastPort and the screen lock.
-   * Safe to call twice. height, baseline, nominalWidth and pixelAspect
-   * stay readable afterwards; widthOf() does not work any more.
+   * Safe to call twice. height, baseline, nominalWidth, pixelAspect,
+   * screenWidth and screenHeight stay readable afterwards; widthOf()
+   * does not work any more.
    *
    * @returns {undefined}
    */
