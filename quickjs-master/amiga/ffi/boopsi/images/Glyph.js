@@ -11,6 +11,7 @@ import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
 
 /** @internal GLYPH_* tag IDs (images/glyph.h). */
 const GLYPH = Object.freeze({
+  /* check-constants: prefix GLYPH_ header images/glyph.h */
   Glyph:     0x85015001,  /* (UWORD) which glyph, see GlyphKind */
   DrawInfo:  0x85015002,  /* (struct DrawInfo*) for pen lookup */
 });
@@ -25,6 +26,7 @@ const GLYPH = Object.freeze({
  * @enum {number}
  */
 export const GlyphKind = Object.freeze({
+  /* check-constants: prefix GLYPH_ header images/glyph.h */
   NONE:           0,
   DOWNARROW:      1,
   UPARROW:        2,

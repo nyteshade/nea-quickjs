@@ -17,6 +17,7 @@ import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
 
 /** @internal DRAWLIST_* tag IDs (images/drawlist.h). */
 const DRAWLIST = Object.freeze({
+  /* check-constants: prefix DRAWLIST_ header images/drawlist.h */
   Directives: 0x85017001,  /* (struct DrawList *) directive array */
   RefHeight:  0x85017002,  /* (WORD) grid height                  */
   RefWidth:   0x85017003,  /* (WORD) grid width                   */
@@ -30,6 +31,7 @@ const DRAWLIST = Object.freeze({
  * @enum {number}
  */
 export const DrawOp = Object.freeze({
+  /* check-constants: prefix DLST_ header images/drawlist.h */
   END:      0,   /* DLST_END      - terminates the list              */
   LINE:     1,   /* DLST_LINE     - line x1,y1 to x2,y2              */
   RECT:     2,   /* DLST_RECT     - RectFill x1,y1,x2,y2             */

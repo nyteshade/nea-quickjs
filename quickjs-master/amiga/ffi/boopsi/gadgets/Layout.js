@@ -22,6 +22,7 @@ const ICTARGET_IDCMP = 0xFFFFFFFF;  /* ~0L per icclass.h:45 */
 
 /** @internal LAYOUT_* tag IDs (gadgets/layout.h) */
 const LAYOUT = Object.freeze({
+  /* check-constants: prefix LAYOUT_ header gadgets/layout.h */
   Orientation:     0x85007001,
   FixedHoriz:      0x85007002,
   FixedVert:       0x85007003,
@@ -85,6 +86,7 @@ const LAYOUT = Object.freeze({
  *   LAYOUT_VERTICAL   = 1
  */
 export const LayoutOrient = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   HORIZONTAL: 0,
   VERTICAL:   1,
 });

@@ -28,6 +28,7 @@ import { BOOPSIBase } from './BOOPSIBase.js';
  * touching this table — never copy by hand from memory.
  */
 export const GA = Object.freeze({
+  /* check-constants: prefix GA_ header intuition/gadgetclass.h */
   Left:               0x80030001,
   RelRight:           0x80030002,
   Top:                0x80030003,

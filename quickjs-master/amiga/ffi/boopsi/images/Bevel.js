@@ -11,6 +11,7 @@ import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
 
 /** @internal BEVEL_* tag IDs (images/bevel.h). */
 const BEVEL = Object.freeze({
+  /* check-constants: prefix BEVEL_ header images/bevel.h */
   Style:       0x85016001,
   Label:       0x85016003,  /* (STRPTR) label text */
   LabelImage:  0x85016004,  /* (Object*) label.image child */
@@ -43,6 +44,7 @@ const BEVEL = Object.freeze({
  * @enum {number}
  */
 export const BevelStyle = Object.freeze({
+  /* check-constants: prefix BVS_ header images/bevel.h */
   THIN:        0,  /* BVS_THIN       thin, usually 1 pixel             */
   BUTTON:      1,  /* BVS_BUTTON     standard button bevel             */
   GROUP:       2,  /* BVS_GROUP      group box                         */

@@ -17,6 +17,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 
 /** @internal SPACE_* tag IDs (gadgets/space.h). */
 const SPACE = Object.freeze({
+  /* check-constants: prefix SPACE_ header gadgets/space.h */
   MinHeight:   0x85009001,   /* +1 */
   MinWidth:    0x85009002,   /* +2 */
   MouseX:      0x85009003,   /* +3 */

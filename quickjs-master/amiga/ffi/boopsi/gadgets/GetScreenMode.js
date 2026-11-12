@@ -18,6 +18,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal GETSCREENMODE_* tag IDs (gadgets/getscreenmode.h). */
 const GETSCREENMODE = Object.freeze({
+  /* check-constants: prefix GETSCREENMODE_ header gadgets/getscreenmode.h */
   TitleText:       0x85041001,   /* +1 */
   Height:          0x85041002,   /* +2 */
   Width:           0x85041003,   /* +3 */

@@ -16,6 +16,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const FUELGAUGE = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   Min:            0x85012001,   /* +1 (LONG)  minimum */
   Max:            0x85012002,   /* +2 (LONG)  maximum */
   Level:          0x85012003,   /* +3 (LONG)  current */
@@ -34,12 +35,14 @@ const FUELGAUGE = Object.freeze({
 
 /** FuelGauge orientation values per gadgets/fuelgauge.h FGORIENT_*. */
 export const FuelGaugeOrient = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   HORIZONTAL: 0,   /* FGORIENT_HORIZ */
   VERTICAL:   1,   /* FGORIENT_VERT */
 });
 
 /** FuelGauge text justification per FGJ_*. */
 export const FuelGaugeJustify = Object.freeze({
+  /* check-constants: prefix BCJ_ header gadgets/button.h */
   LEFT:   0,
   CENTER: 1,
   CENTRE: 1,

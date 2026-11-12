@@ -12,6 +12,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal SLIDER_* tag IDs (gadgets/slider.h). */
 const SLIDER = Object.freeze({
+  /* check-constants: prefix SLIDER_ header gadgets/slider.h */
   Min:           0x85028001,
   Max:           0x85028002,
   Level:         0x85028003,
@@ -46,12 +47,14 @@ const SLIDER = Object.freeze({
  * tick marks under their horizontal knob (slider on About tab in
  * clicktab_demo). */
 export const SliderOrient = Object.freeze({
+  /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
   HORIZONTAL: 0x2,
   VERTICAL:   0x4,
 });
 
 /** SLIDER_LevelJustify (SLJ_*). */
 export const SliderJustify = Object.freeze({
+  /* check-constants: prefix BALIGN_ header gadgets/button.h */
   LEFT:   0,
   CENTER: 1,
   RIGHT:  2,

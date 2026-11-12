@@ -18,6 +18,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal DATEBROWSER_* tag IDs (gadgets/datebrowser.h). */
 const DATEBROWSER = Object.freeze({
+  /* check-constants: prefix DATEBROWSER_ header gadgets/datebrowser.h */
   Day:          0x85061000,   /* +0 (Dummy itself; 1..31) */
   Month:        0x85061001,   /* +1 (1..12) */
   Year:         0x85061002,   /* +2 (full year, e.g. 2026) */

@@ -10,6 +10,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const INTEGER = Object.freeze({
+  /* check-constants: prefix INTEGER_ header gadgets/integer.h */
   Number:     0x85002001,  /* (LONG) current value */
   MaxChars:   0x85002002,
   Minimum:    0x85002003,

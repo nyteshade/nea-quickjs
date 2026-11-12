@@ -15,6 +15,7 @@
 import { Layout } from './Layout.js';
 
 const VIRTUALA = Object.freeze({
+  /* check-constants: prefix VIRTUALA_ header gadgets/virtual.h */
   Contents:    0x85024500,  /* + 0  (Object *) child layout          */
   Scroller:    0x85024501,  /* + 1  (BOOL) show scrollbars, def TRUE */
   ScrollX:     0x85024502,  /* + 2  (WORD) scroll by N pixels        */

@@ -22,6 +22,9 @@ import { EventKind } from '../EventKind.js';
  * to +19). Same discipline as the GA_* audit in GadgetBase.js.
  */
 const STRINGA = Object.freeze({
+  /* check-constants: prefix STRINGA_
+   * (intuition/gadgetclass.h, with string.gadget's additions from
+   * gadgets/string.h) */
   /* strgclass tags — STRINGA_Dummy = TAG_USER + 0x32000 = 0x80032000
    * (gadgets/gadgetclass.h lines 259-290). */
   MaxChars:       0x80032001,   /* +0x01 */
@@ -60,6 +63,7 @@ const STRINGA = Object.freeze({
 
 /** String.HookType values (SHK_*). */
 export const StringHookType = Object.freeze({
+  /* check-constants: prefix SHK_ header gadgets/string.h */
   CUSTOM:       0,
   PASSWORD:     1,
   IPADDRESS:    2,

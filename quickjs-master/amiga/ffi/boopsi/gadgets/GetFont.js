@@ -17,6 +17,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal GETFONT_* tag IDs (gadgets/getfont.h). */
 const GETFONT = Object.freeze({
+  /* check-constants: prefix GETFONT_ header gadgets/getfont.h */
   TextAttr:       0x85040001,   /* +1 (struct TextAttr* — the chosen font) */
   DoFrontPen:     0x85040002,   /* +2 — show front-pen chooser */
   DoBackPen:      0x85040003,   /* +3 */

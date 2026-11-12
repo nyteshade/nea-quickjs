@@ -12,6 +12,7 @@ import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
 
 /** @internal LED_* tag IDs (images/led.h). */
 const LED = Object.freeze({
+  /* check-constants: prefix LED_ header images/led.h */
   Pairs:       0x84000001,  /* (WORD) number of digit pairs */
   Values:      0x84000002,  /* (UBYTE*) array of digit values */
   Colon:       0x84000003,  /* (BOOL) show colon between pairs */

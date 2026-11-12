@@ -19,6 +19,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal CHOOSER_* tag IDs (gadgets/chooser.h). */
 const CHOOSER = Object.freeze({
+  /* check-constants: prefix CHOOSER_ header gadgets/chooser.h */
   PopUp:                      0x85001001,
   DropDown:                   0x85001002,
   Title:                      0x85001003,
@@ -38,11 +39,13 @@ const CHOOSER = Object.freeze({
 
 /** CHOOSER_Justification (CHJ_*). */
 export const ChooserJustify = Object.freeze({
+  /* check-constants: prefix BALIGN_ header gadgets/button.h */
   LEFT: 0, CENTER: 1, RIGHT: 2,
 });
 
 /** @internal CNA_* node-attribute tags (CNA_Dummy = TAG_USER+0x5001500). */
 export const CNA = Object.freeze({
+  /* check-constants: prefix CNA_ header gadgets/chooser.h */
   Text:     0x85001501,
   Image:    0x85001502,
   SelImage: 0x85001503,

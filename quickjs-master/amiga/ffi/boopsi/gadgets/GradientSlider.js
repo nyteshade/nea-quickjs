@@ -10,6 +10,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const GRAD = Object.freeze({
+  /* check-constants: prefix GRAD_ header gadgets/gradientslider.h */
   MaxVal:     0x85000001,
   CurVal:     0x85000002,
   SkipVal:    0x85000003,

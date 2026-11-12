@@ -887,8 +887,20 @@ class CEnumeration extends Enumeration {
   }
 
   /**
-   * Number coercion drills the same way; string coercion still
-   * returns the key.
+   * What a case becomes when JavaScript needs a plain value.
+   *
+   *   Number(c), c | 0, c & mask     its number
+   *   c + 1, c == 0x200, c < 10      its number, when it has one
+   *   String(c), `${c}`, obj[c]      its name
+   *
+   * The middle line is what makes a constant behave like the number
+   * it stands for in arithmetic and in == comparisons. (Until 0.223
+   * those gave the name, so `C.WA_Left + 1` was the text "WA_Left1".)
+   * A case whose value is a record rather than a number, such as an
+   * EventKind, still gives its name there.
+   *
+   * === is not affected by any of this: a case is only identical to
+   * itself. Use Number(c) to compare with === against a plain number.
    *
    * @param {string} hint  'number' | 'string' | 'default'
    * @returns {number|string}
@@ -898,6 +910,10 @@ class CEnumeration extends Enumeration {
       let v = this.valueOf();
 
       return typeof v === 'number' ? v : Number(v);
+    }
+
+    if (hint === 'default' && typeof this.value === 'number') {
+      return this.value;
     }
 
     return String(this.key);
@@ -8147,6 +8163,7 @@ const OM = Object.freeze({
  * touching this table — never copy by hand from memory.
  */
 const GA = Object.freeze({
+  /* check-constants: prefix GA_ header intuition/gadgetclass.h */
   Left:               0x80030001,
   RelRight:           0x80030002,
   Top:                0x80030003,
@@ -8371,6 +8388,7 @@ class ImageBase extends BOOPSIBase {
 
 /** @internal LABEL_* tag IDs (images/label.h) */
 const LABEL = Object.freeze({
+  /* check-constants: prefix LABEL_ header images/label.h */
   Text:           0x85006001,
   Image:          0x85006002,
   Mapping:        0x85006003,
@@ -8445,6 +8463,7 @@ class Label extends ImageBase {
  * not attrs.
  */
 const LabelJustify = Object.freeze({
+  /* check-constants: prefix BALIGN_ header gadgets/button.h */
   LEFT:   0,
   CENTER: 1,
   RIGHT:  2,
@@ -8465,6 +8484,7 @@ const LabelJustify = Object.freeze({
 
 /** @internal LED_* tag IDs (images/led.h). */
 const LED = Object.freeze({
+  /* check-constants: prefix LED_ header images/led.h */
   Pairs:       0x84000001,  /* (WORD) number of digit pairs */
   Values:      0x84000002,  /* (UBYTE*) array of digit values */
   Colon:       0x84000003,  /* (BOOL) show colon between pairs */
@@ -8512,6 +8532,7 @@ class Led extends ImageBase {
 
 /** @internal BEVEL_* tag IDs (images/bevel.h). */
 const BEVEL = Object.freeze({
+  /* check-constants: prefix BEVEL_ header images/bevel.h */
   Style:       0x85016001,
   Label:       0x85016003,  /* (STRPTR) label text */
   LabelImage:  0x85016004,  /* (Object*) label.image child */
@@ -8544,6 +8565,7 @@ const BEVEL = Object.freeze({
  * @enum {number}
  */
 const BevelStyle = Object.freeze({
+  /* check-constants: prefix BVS_ header images/bevel.h */
   THIN:        0,  /* BVS_THIN       thin, usually 1 pixel             */
   BUTTON:      1,  /* BVS_BUTTON     standard button bevel             */
   GROUP:       2,  /* BVS_GROUP      group box                         */
@@ -8607,6 +8629,7 @@ class Bevel extends ImageBase {
 
 /** @internal GLYPH_* tag IDs (images/glyph.h). */
 const GLYPH = Object.freeze({
+  /* check-constants: prefix GLYPH_ header images/glyph.h */
   Glyph:     0x85015001,  /* (UWORD) which glyph, see GlyphKind */
   DrawInfo:  0x85015002,  /* (struct DrawInfo*) for pen lookup */
 });
@@ -8621,6 +8644,7 @@ const GLYPH = Object.freeze({
  * @enum {number}
  */
 const GlyphKind = Object.freeze({
+  /* check-constants: prefix GLYPH_ header images/glyph.h */
   NONE:           0,
   DOWNARROW:      1,
   UPARROW:        2,
@@ -8684,6 +8708,7 @@ class Glyph extends ImageBase {
 
 /** @internal DRAWLIST_* tag IDs (images/drawlist.h). */
 const DRAWLIST = Object.freeze({
+  /* check-constants: prefix DRAWLIST_ header images/drawlist.h */
   Directives: 0x85017001,  /* (struct DrawList *) directive array */
   RefHeight:  0x85017002,  /* (WORD) grid height                  */
   RefWidth:   0x85017003,  /* (WORD) grid width                   */
@@ -8697,6 +8722,7 @@ const DRAWLIST = Object.freeze({
  * @enum {number}
  */
 const DrawOp = Object.freeze({
+  /* check-constants: prefix DLST_ header images/drawlist.h */
   END:      0,   /* DLST_END      - terminates the list              */
   LINE:     1,   /* DLST_LINE     - line x1,y1 to x2,y2              */
   RECT:     2,   /* DLST_RECT     - RectFill x1,y1,x2,y2             */
@@ -8808,6 +8834,7 @@ class DrawList extends ImageBase {
 
 /** @internal BITMAP_* tag IDs (images/bitmap.h). */
 const BITMAP = Object.freeze({
+  /* check-constants: prefix BITMAP_ header images/bitmap.h */
   SourceFile:       0x85019001,
   Screen:           0x85019002,
   Precision:        0x85019003,
@@ -8878,6 +8905,7 @@ class Bitmap extends ImageBase {
 
 /** @internal BUTTON_* tag IDs (gadgets/button.h) */
 const BUTTON = Object.freeze({
+  /* check-constants: prefix BUTTON_ header gadgets/button.h */
   PushButton:   0x84000001,
   Glyph:        0x84000002,
   Array:        0x84000003,
@@ -9036,6 +9064,7 @@ EventKind.define('CHECKBOX_TOGGLE', {
 
 /** @internal RADIOBUTTON_* tag IDs (gadgets/radiobutton.h). */
 const RADIOBUTTON = Object.freeze({
+  /* check-constants: prefix RADIOBUTTON_ header gadgets/radiobutton.h */
   Labels:     0x85014001,  /* (struct List *) RBNA nodes — OS3.2+ */
   Strings:    0x85014002,  /* RESERVED - presently unsupported */
   Spacing:    0x85014003,
@@ -9046,6 +9075,7 @@ const RADIOBUTTON = Object.freeze({
 
 /** RBNA_* node-attribute tag IDs (RBNA_Dummy = TAG_USER+0x020000). */
 const RBNA = Object.freeze({
+  /* check-constants: prefix RBNA_ header gadgets/radiobutton.h */
   UserData: 0x80020001,
   Label:    0x80020002,   /* STRPTR — the label text */
 });
@@ -9229,6 +9259,7 @@ EventKind.define('RADIO_SELECT', {
 
 /** @internal SLIDER_* tag IDs (gadgets/slider.h). */
 const SLIDER = Object.freeze({
+  /* check-constants: prefix SLIDER_ header gadgets/slider.h */
   Min:           0x85028001,
   Max:           0x85028002,
   Level:         0x85028003,
@@ -9263,12 +9294,14 @@ const SLIDER = Object.freeze({
  * tick marks under their horizontal knob (slider on About tab in
  * clicktab_demo). */
 const SliderOrient = Object.freeze({
+  /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
   HORIZONTAL: 0x2,
   VERTICAL:   0x4,
 });
 
 /** SLIDER_LevelJustify (SLJ_*). */
 const SliderJustify = Object.freeze({
+  /* check-constants: prefix BALIGN_ header gadgets/button.h */
   LEFT:   0,
   CENTER: 1,
   RIGHT:  2,
@@ -9339,6 +9372,7 @@ EventKind.define('SLIDER_CHANGE', {
 
 
 const SCROLLER = Object.freeze({
+  /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
   Top:            0x85005001,
   Visible:        0x85005002,
   Total:          0x85005003,
@@ -9354,6 +9388,7 @@ const SCROLLER = Object.freeze({
  *  (intuition/intuition.h:593-594). Same fix as Slider's at 0.173 —
  *  was 0x1/0x2 which the class treated as no-bit-set. */
 const ScrollerOrient = Object.freeze({
+  /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
   HORIZONTAL: 0x2,
   VERTICAL:   0x4,
 });
@@ -9411,6 +9446,7 @@ EventKind.define('SCROLLER_CHANGE', {
 
 
 const INTEGER = Object.freeze({
+  /* check-constants: prefix INTEGER_ header gadgets/integer.h */
   Number:     0x85002001,  /* (LONG) current value */
   MaxChars:   0x85002002,
   Minimum:    0x85002003,
@@ -9481,6 +9517,9 @@ EventKind.define('INTEGER_CHANGED', {
  * to +19). Same discipline as the GA_* audit in GadgetBase.js.
  */
 const STRINGA = Object.freeze({
+  /* check-constants: prefix STRINGA_
+   * (intuition/gadgetclass.h, with string.gadget's additions from
+   * gadgets/string.h) */
   /* strgclass tags — STRINGA_Dummy = TAG_USER + 0x32000 = 0x80032000
    * (gadgets/gadgetclass.h lines 259-290). */
   MaxChars:       0x80032001,   /* +0x01 */
@@ -9519,6 +9558,7 @@ const STRINGA = Object.freeze({
 
 /** String.HookType values (SHK_*). */
 const StringHookType = Object.freeze({
+  /* check-constants: prefix SHK_ header gadgets/string.h */
   CUSTOM:       0,
   PASSWORD:     1,
   IPADDRESS:    2,
@@ -9631,6 +9671,7 @@ EventKind.define('STRING_CHANGED', {
 
 /** @internal CHOOSER_* tag IDs (gadgets/chooser.h). */
 const CHOOSER = Object.freeze({
+  /* check-constants: prefix CHOOSER_ header gadgets/chooser.h */
   PopUp:                      0x85001001,
   DropDown:                   0x85001002,
   Title:                      0x85001003,
@@ -9650,11 +9691,13 @@ const CHOOSER = Object.freeze({
 
 /** CHOOSER_Justification (CHJ_*). */
 const ChooserJustify = Object.freeze({
+  /* check-constants: prefix BALIGN_ header gadgets/button.h */
   LEFT: 0, CENTER: 1, RIGHT: 2,
 });
 
 /** @internal CNA_* node-attribute tags (CNA_Dummy = TAG_USER+0x5001500). */
 const CNA = Object.freeze({
+  /* check-constants: prefix CNA_ header gadgets/chooser.h */
   Text:     0x85001501,
   Image:    0x85001502,
   SelImage: 0x85001503,
@@ -9853,6 +9896,7 @@ EventKind.define('CHOOSER_SELECT', {
 
 /** @internal CLICKTAB_* tag IDs (gadgets/clicktab.h). */
 const CLICKTAB = Object.freeze({
+  /* check-constants: prefix CLICKTAB_ header gadgets/clicktab.h */
   Labels:                   0x85027001,
   Current:                  0x85027002,
   CurrentNode:              0x85027003,
@@ -9877,6 +9921,7 @@ const CLICKTAB = Object.freeze({
 
 /** @internal TNA_* tab-node attribute tags (TNA_Dummy = TAG_USER+0x010000). */
 const TNA = Object.freeze({
+  /* check-constants: prefix TNA_ header gadgets/clicktab.h */
   UserData:    0x80010001,
   /* +2 (Enabled), +3 (Spacing), +4 (Highlight) documented obsolete. */
   Image:       0x80010005,
@@ -10073,6 +10118,7 @@ EventKind.define('CLICKTAB_CHANGE', {
 
 /** @internal LISTBROWSER_* tag IDs (gadgets/listbrowser.h). */
 const LISTBROWSER = Object.freeze({
+  /* check-constants: prefix LISTBROWSER_ header gadgets/listbrowser.h */
   Top:                0x85003001,
   Labels:             0x85003003,
   Selected:           0x85003004,
@@ -10125,6 +10171,7 @@ const LISTBROWSER = Object.freeze({
 
 /** @internal LBNA_* node-level attribute tags (LBNA_Dummy = TAG_USER+0x5003500). */
 const LBNA = Object.freeze({
+  /* check-constants: prefix LBNA_ header gadgets/listbrowser.h */
   Selected:   0x85003501,
   Flags:      0x85003502,
   UserData:   0x85003503,
@@ -10134,6 +10181,7 @@ const LBNA = Object.freeze({
 
 /** @internal LBNCA_* node-column attribute tags. */
 const LBNCA = Object.freeze({
+  /* check-constants: prefix LBNCA_ header gadgets/listbrowser.h */
   Text:          0x85003505,
   Integer:       0x85003506,
   FGPen:         0x85003507,
@@ -10155,6 +10203,7 @@ const LBNCA = Object.freeze({
 
 /** @internal LBCIA_* column-info attribute tags. */
 const LBCIA = Object.freeze({
+  /* check-constants: prefix LBCIA_ header gadgets/listbrowser.h */
   MemPool:          0x85003532,
   Column:           0x85003533,
   Title:            0x85003534,
@@ -10173,6 +10222,7 @@ const LBCIA = Object.freeze({
 
 /** LBFLG_* node flags (gadgets/listbrowser.h line 257-261). */
 const LBFLG = Object.freeze({
+  /* check-constants: prefix LBFLG_ header gadgets/listbrowser.h */
   READONLY:     1,
   CUSTOMPENS:   2,
   HASCHILDREN:  4,
@@ -10366,6 +10416,7 @@ EventKind.define('LIST_SELECT', {
  * aliases that macro-expand to the same value. Both forms exposed
  * here just for clarity. */
 const PALETTE = Object.freeze({
+  /* check-constants: prefix PALETTE_ header gadgets/palette.h */
   Colour:       0x85004001,   /* +1 — current selected colour index */
   Color:        0x85004001,   /* alias */
   ColourOffset: 0x85004002,   /* +2 — first pen in the palette */
@@ -10431,6 +10482,7 @@ EventKind.define('PALETTE_CHANGE', {
 
 /** @internal SPACE_* tag IDs (gadgets/space.h). */
 const SPACE = Object.freeze({
+  /* check-constants: prefix SPACE_ header gadgets/space.h */
   MinHeight:   0x85009001,   /* +1 */
   MinWidth:    0x85009002,   /* +2 */
   MouseX:      0x85009003,   /* +3 */
@@ -10485,6 +10537,7 @@ class Space extends GadgetBase {
 
 
 const FUELGAUGE = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   Min:            0x85012001,   /* +1 (LONG)  minimum */
   Max:            0x85012002,   /* +2 (LONG)  maximum */
   Level:          0x85012003,   /* +3 (LONG)  current */
@@ -10503,12 +10556,14 @@ const FUELGAUGE = Object.freeze({
 
 /** FuelGauge orientation values per gadgets/fuelgauge.h FGORIENT_*. */
 const FuelGaugeOrient = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   HORIZONTAL: 0,   /* FGORIENT_HORIZ */
   VERTICAL:   1,   /* FGORIENT_VERT */
 });
 
 /** FuelGauge text justification per FGJ_*. */
 const FuelGaugeJustify = Object.freeze({
+  /* check-constants: prefix BCJ_ header gadgets/button.h */
   LEFT:   0,
   CENTER: 1,
   CENTRE: 1,
@@ -10580,6 +10635,7 @@ class FuelGauge extends GadgetBase {
 
 /** @internal SPEEDBAR_* tag IDs (gadgets/speedbar.h). */
 const SPEEDBAR = Object.freeze({
+  /* check-constants: prefix SPEEDBAR_ header gadgets/speedbar.h */
   Buttons:     0x85013001,
   Orientation: 0x85013002,
   Background:  0x85013003,
@@ -10606,6 +10662,7 @@ const SPEEDBAR = Object.freeze({
  * correct per NDK (both use TAG_USER+0x010000 as Dummy). The meaning
  * is class-scoped; SBNA tags are only recognised by speedbar.gadget. */
 const SBNA = Object.freeze({
+  /* check-constants: prefix SBNA_ header gadgets/speedbar.h */
   Left:      0x80010001,
   Top:       0x80010002,
   Width:     0x80010003,
@@ -10626,6 +10683,7 @@ const SBNA = Object.freeze({
 
 /** SpeedBar orientation values (SBORIENT_*). */
 const SpeedBarOrient = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   HORIZONTAL: 0,
   VERTICAL:   1,
 });
@@ -10639,6 +10697,7 @@ const SpeedBarOrient = Object.freeze({
  * IMAGE    — display alternate SBNA_SelImage when selected
  */
 const SpeedBarHighlight = Object.freeze({
+  /* check-constants: prefix SBH_ header gadgets/speedbar.h */
   NONE:     0,
   BACKFILL: 1,
   RECESS:   2,
@@ -11026,6 +11085,7 @@ EventKind.define('FILE_SELECTED', {
 
 /** @internal GETFONT_* tag IDs (gadgets/getfont.h). */
 const GETFONT = Object.freeze({
+  /* check-constants: prefix GETFONT_ header gadgets/getfont.h */
   TextAttr:       0x85040001,   /* +1 (struct TextAttr* — the chosen font) */
   DoFrontPen:     0x85040002,   /* +2 — show front-pen chooser */
   DoBackPen:      0x85040003,   /* +3 */
@@ -11125,6 +11185,7 @@ EventKind.define('FONT_SELECTED', {
 
 /** @internal GETSCREENMODE_* tag IDs (gadgets/getscreenmode.h). */
 const GETSCREENMODE = Object.freeze({
+  /* check-constants: prefix GETSCREENMODE_ header gadgets/getscreenmode.h */
   TitleText:       0x85041001,   /* +1 */
   Height:          0x85041002,   /* +2 */
   Width:           0x85041003,   /* +3 */
@@ -11237,6 +11298,7 @@ EventKind.define('SCREENMODE_SELECTED', {
 
 
 const GETCOLOR = Object.freeze({
+  /* check-constants: prefix GETCOLOR_ header gadgets/getcolor.h */
   TitleText:   0x85043001,
   Screen:      0x85043002,
   Color:       0x85043003,
@@ -11326,6 +11388,7 @@ EventKind.define('COLOR_SELECTED', {
 
 /** @internal DATEBROWSER_* tag IDs (gadgets/datebrowser.h). */
 const DATEBROWSER = Object.freeze({
+  /* check-constants: prefix DATEBROWSER_ header gadgets/datebrowser.h */
   Day:          0x85061000,   /* +0 (Dummy itself; 1..31) */
   Month:        0x85061001,   /* +1 (1..12) */
   Year:         0x85061002,   /* +2 (full year, e.g. 2026) */
@@ -11398,6 +11461,7 @@ EventKind.define('DATE_CHANGE', {
 
 /** @internal GA_TEXTEDITOR_* tag IDs (gadgets/texteditor.h). */
 const TEXTEDITOR = Object.freeze({
+  /* check-constants: prefix GA_TEXTEDITOR_ header gadgets/texteditor.h */
   Contents:        0x85026002,   /* +0x02 — the text */
   CursorX:         0x85026004,   /* +0x04 — position in block */
   CursorY:         0x85026005,   /* +0x05 — block number */
@@ -11481,6 +11545,7 @@ class TextEditor extends GadgetBase {
 
   /** GP_TEXTEDITOR_InsertText pos values per gadgets/texteditor.h:165-167. */
   static InsertPos = Object.freeze({
+    /* check-constants: prefix GV_TEXTEDITOR_InsertText_ header gadgets/texteditor.h */
     CURSOR: 0,   /* at current cursor position */
     TOP:    1,   /* prepend */
     BOTTOM: 2,   /* append (canonical for "load file content") */
@@ -11899,6 +11964,7 @@ EventKind.define('TEXT_CHANGE', {
 
 
 const SGA = Object.freeze({
+  /* check-constants: prefix SGA_ header gadgets/sketchboard.h */
   BitMap:              0x85024600,  /* + 0  (struct BitMap *)        */
   MouseX:              0x85024601,  /* + 1  (LONG, OM_GET/NOTIFY)    */
   MouseY:              0x85024602,  /* + 2  (LONG, OM_GET/NOTIFY)    */
@@ -11942,6 +12008,7 @@ const SGA = Object.freeze({
  * @enum {number}
  */
 const SketchTool = Object.freeze({
+  /* check-constants: prefix SGTOOL_ header gadgets/sketchboard.h */
   FREEHAND_DOTS:  0,  /* default */
   FREEHAND:       1,
   ELLIPSE:        2,
@@ -12005,6 +12072,7 @@ EventKind.define('SKETCH_UPDATE', {
 
 
 const TDECK = Object.freeze({
+  /* check-constants: prefix TDECK_ header gadgets/tapedeck.h */
   Mode:         0x85000001,  /* TDECK_Dummy + 1  */
   Paused:       0x85000002,  /* TDECK_Dummy + 2  */
   Tape:         0x85000003,  /* TDECK_Dummy + 3  */
@@ -12019,6 +12087,7 @@ const TDECK = Object.freeze({
  * @enum {number}
  */
 const TapeDeckMode = Object.freeze({
+  /* check-constants: prefix BUT_ header gadgets/tapedeck.h */
   REWIND:  0,  /* BUT_REWIND  */
   PLAY:    1,  /* BUT_PLAY    */
   FORWARD: 2,  /* BUT_FORWARD */
@@ -12087,6 +12156,7 @@ EventKind.define('TAPEDECK_CLICK', {
 
 
 const WHEEL = Object.freeze({
+  /* check-constants: prefix WHEEL_ header gadgets/colorwheel.h */
   Hue:            0x84000001,  /* WHEEL_Dummy + 1  (ULONG fraction)   */
   Saturation:     0x84000002,  /* WHEEL_Dummy + 2  (ULONG fraction)   */
   Brightness:     0x84000003,  /* WHEEL_Dummy + 3  (ULONG fraction)   */
@@ -12164,6 +12234,7 @@ EventKind.define('COLORWHEEL_CHANGE', {
 
 
 const GRAD = Object.freeze({
+  /* check-constants: prefix GRAD_ header gadgets/gradientslider.h */
   MaxVal:     0x85000001,
   CurVal:     0x85000002,
   SkipVal:    0x85000003,
@@ -12237,6 +12308,7 @@ const ICTARGET_IDCMP = 0xFFFFFFFF;  /* ~0L per icclass.h:45 */
 
 /** @internal LAYOUT_* tag IDs (gadgets/layout.h) */
 const LAYOUT = Object.freeze({
+  /* check-constants: prefix LAYOUT_ header gadgets/layout.h */
   Orientation:     0x85007001,
   FixedHoriz:      0x85007002,
   FixedVert:       0x85007003,
@@ -12300,6 +12372,7 @@ const LAYOUT = Object.freeze({
  *   LAYOUT_VERTICAL   = 1
  */
 const LayoutOrient = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   HORIZONTAL: 0,
   VERTICAL:   1,
 });
@@ -12594,6 +12667,7 @@ class Layout extends GadgetBase {
 
 
 const PAGE = Object.freeze({
+  /* check-constants: prefix PAGE_ header gadgets/layout.h */
   Add:         0x85007201,   /* +1 (Object*) child to add (varargs OK) */
   Remove:      0x85007202,   /* +2 (Object*) child to remove */
   Current:     0x85007203,   /* +3 (uint32) zero-based visible index */
@@ -12736,6 +12810,7 @@ class Page extends Layout {
 
 
 const VIRTUALA = Object.freeze({
+  /* check-constants: prefix VIRTUALA_ header gadgets/virtual.h */
   Contents:    0x85024500,  /* + 0  (Object *) child layout          */
   Scroller:    0x85024501,  /* + 1  (BOOL) show scrollbars, def TRUE */
   ScrollX:     0x85024502,  /* + 2  (WORD) scroll by N pixels        */
@@ -12828,6 +12903,7 @@ class Virtual extends Layout {
  * classes/window.h (WINDOW_Dummy = REACTION_Dummy + 0x25000 =
  * 0x85025000). Both are accepted by window.class at NewObject time. */
 const WA = Object.freeze({
+  /* check-constants: prefix WA_ header intuition/intuition.h */
   Left:          0x80000064,
   Top:           0x80000065,
   Width:         0x80000066,
@@ -12856,6 +12932,7 @@ const WA = Object.freeze({
 });
 
 const WINDOW = Object.freeze({
+  /* check-constants: prefix WINDOW_ header classes/window.h */
   Window:        0x85025001,
   SigMask:       0x85025002,
   MenuStrip:     0x85025004,
@@ -12899,6 +12976,7 @@ const WM_CLOSE       = 0x570003;
  * a class-specific data value (gadget ID, raw key, menu code, ...).
  * WMHI_LASTMSG=0 means the queue is drained; loop ends. */
 const WMHI = Object.freeze({
+  /* check-constants: prefix WMHI_ header classes/window.h */
   LASTMSG:        0,
   IGNORE:         0xFFFFFFFF >>> 0,
   CLASSMASK:      0xFFFF0000,
@@ -13481,6 +13559,7 @@ class ReactionWindow extends BOOPSIBase {
 
 /** @internal REQ_* tag IDs (classes/requester.h). */
 const REQ = Object.freeze({
+  /* check-constants: prefix REQ_ header classes/requester.h */
   Type:        0x85045001,
   TitleText:   0x85045002,
   BodyText:    0x85045003,
@@ -13498,6 +13577,7 @@ const REQ = Object.freeze({
 
 /** REQ_Type values. */
 const RequesterType = Object.freeze({
+  /* check-constants: prefix REQTYPE_ header classes/requester.h */
   INFO:     0,
   STRING:   2,
   INTEGER:  1,
@@ -13506,6 +13586,7 @@ const RequesterType = Object.freeze({
 
 /** REQ_Image values (standard icons). */
 const RequesterImage = Object.freeze({
+  /* check-constants: prefix REQIMAGE_ header classes/requester.h */
   DEFAULT: 0,
   INFO:    1,
   WARNING: 2,

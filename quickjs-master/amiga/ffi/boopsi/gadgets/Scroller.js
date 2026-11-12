@@ -11,6 +11,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const SCROLLER = Object.freeze({
+  /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
   Top:            0x85005001,
   Visible:        0x85005002,
   Total:          0x85005003,
@@ -26,6 +27,7 @@ const SCROLLER = Object.freeze({
  *  (intuition/intuition.h:593-594). Same fix as Slider's at 0.173 —
  *  was 0x1/0x2 which the class treated as no-bit-set. */
 export const ScrollerOrient = Object.freeze({
+  /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
   HORIZONTAL: 0x2,
   VERTICAL:   0x4,
 });

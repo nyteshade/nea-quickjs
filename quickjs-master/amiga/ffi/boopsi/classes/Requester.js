@@ -12,6 +12,7 @@ import { BOOPSIBase } from '../BOOPSIBase.js';
 
 /** @internal REQ_* tag IDs (classes/requester.h). */
 const REQ = Object.freeze({
+  /* check-constants: prefix REQ_ header classes/requester.h */
   Type:        0x85045001,
   TitleText:   0x85045002,
   BodyText:    0x85045003,
@@ -29,6 +30,7 @@ const REQ = Object.freeze({
 
 /** REQ_Type values. */
 export const RequesterType = Object.freeze({
+  /* check-constants: prefix REQTYPE_ header classes/requester.h */
   INFO:     0,
   STRING:   2,
   INTEGER:  1,
@@ -37,6 +39,7 @@ export const RequesterType = Object.freeze({
 
 /** REQ_Image values (standard icons). */
 export const RequesterImage = Object.freeze({
+  /* check-constants: prefix REQIMAGE_ header classes/requester.h */
   DEFAULT: 0,
   INFO:    1,
   WARNING: 2,

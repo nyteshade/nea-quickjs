@@ -9,6 +9,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const GETCOLOR = Object.freeze({
+  /* check-constants: prefix GETCOLOR_ header gadgets/getcolor.h */
   TitleText:   0x85043001,
   Screen:      0x85043002,
   Color:       0x85043003,

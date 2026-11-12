@@ -26,6 +26,7 @@
 import { Layout } from './Layout.js';
 
 const PAGE = Object.freeze({
+  /* check-constants: prefix PAGE_ header gadgets/layout.h */
   Add:         0x85007201,   /* +1 (Object*) child to add (varargs OK) */
   Remove:      0x85007202,   /* +2 (Object*) child to remove */
   Current:     0x85007203,   /* +3 (uint32) zero-based visible index */

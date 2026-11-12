@@ -87,7 +87,7 @@ if (!('WA_InnerWidth' in Intuition.consts)) {
 }
 ```
 
-**2. Compare with `===` against another constant, or use `Number()`.**
+**2. With `===`, compare against another constant, or use `Number()`.**
 
 A constant is only equal to itself. `message.class` gives you a
 constant, so this works:
@@ -104,9 +104,16 @@ const SELECTDOWN = Number(C.SELECTDOWN);
 if (message.code === SELECTDOWN) ...
 ```
 
-**3. Do not add with `+`.** `C.WA_Left + 1` joins text ("WA_Left1"),
-because a constant prints as its name. Join flags with `|`, and write
-`Number(C.X) + 1` for arithmetic.
+**3. In arithmetic and with `==` it is its number; as text it is its
+name.**
+
+```js
+C.WA_Left + 1          // 0x80000065
+message.code == C.SELECTDOWN   // true when they match (==, not ===)
+String(C.WA_Left)      // 'WA_Left'
+`tag ${C.WA_Left}`     // 'tag WA_Left'
+'tag ' + C.WA_Left     // 'tag 2147483748': + means arithmetic first
+```
 
 ### Finding a constant from its value
 

@@ -16,6 +16,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const TDECK = Object.freeze({
+  /* check-constants: prefix TDECK_ header gadgets/tapedeck.h */
   Mode:         0x85000001,  /* TDECK_Dummy + 1  */
   Paused:       0x85000002,  /* TDECK_Dummy + 2  */
   Tape:         0x85000003,  /* TDECK_Dummy + 3  */
@@ -30,6 +31,7 @@ const TDECK = Object.freeze({
  * @enum {number}
  */
 export const TapeDeckMode = Object.freeze({
+  /* check-constants: prefix BUT_ header gadgets/tapedeck.h */
   REWIND:  0,  /* BUT_REWIND  */
   PLAY:    1,  /* BUT_PLAY    */
   FORWARD: 2,  /* BUT_FORWARD */

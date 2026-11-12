@@ -32,6 +32,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal LISTBROWSER_* tag IDs (gadgets/listbrowser.h). */
 const LISTBROWSER = Object.freeze({
+  /* check-constants: prefix LISTBROWSER_ header gadgets/listbrowser.h */
   Top:                0x85003001,
   Labels:             0x85003003,
   Selected:           0x85003004,
@@ -84,6 +85,7 @@ const LISTBROWSER = Object.freeze({
 
 /** @internal LBNA_* node-level attribute tags (LBNA_Dummy = TAG_USER+0x5003500). */
 export const LBNA = Object.freeze({
+  /* check-constants: prefix LBNA_ header gadgets/listbrowser.h */
   Selected:   0x85003501,
   Flags:      0x85003502,
   UserData:   0x85003503,
@@ -93,6 +95,7 @@ export const LBNA = Object.freeze({
 
 /** @internal LBNCA_* node-column attribute tags. */
 export const LBNCA = Object.freeze({
+  /* check-constants: prefix LBNCA_ header gadgets/listbrowser.h */
   Text:          0x85003505,
   Integer:       0x85003506,
   FGPen:         0x85003507,
@@ -114,6 +117,7 @@ export const LBNCA = Object.freeze({
 
 /** @internal LBCIA_* column-info attribute tags. */
 export const LBCIA = Object.freeze({
+  /* check-constants: prefix LBCIA_ header gadgets/listbrowser.h */
   MemPool:          0x85003532,
   Column:           0x85003533,
   Title:            0x85003534,
@@ -132,6 +136,7 @@ export const LBCIA = Object.freeze({
 
 /** LBFLG_* node flags (gadgets/listbrowser.h line 257-261). */
 export const LBFLG = Object.freeze({
+  /* check-constants: prefix LBFLG_ header gadgets/listbrowser.h */
   READONLY:     1,
   CUSTOMPENS:   2,
   HASCHILDREN:  4,

@@ -13,6 +13,7 @@ import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
 
 /** @internal LABEL_* tag IDs (images/label.h) */
 const LABEL = Object.freeze({
+  /* check-constants: prefix LABEL_ header images/label.h */
   Text:           0x85006001,
   Image:          0x85006002,
   Mapping:        0x85006003,
@@ -87,6 +88,7 @@ export class Label extends ImageBase {
  * not attrs.
  */
 export const LabelJustify = Object.freeze({
+  /* check-constants: prefix BALIGN_ header gadgets/button.h */
   LEFT:   0,
   CENTER: 1,
   RIGHT:  2,

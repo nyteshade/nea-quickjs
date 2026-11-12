@@ -21,6 +21,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal GA_TEXTEDITOR_* tag IDs (gadgets/texteditor.h). */
 const TEXTEDITOR = Object.freeze({
+  /* check-constants: prefix GA_TEXTEDITOR_ header gadgets/texteditor.h */
   Contents:        0x85026002,   /* +0x02 — the text */
   CursorX:         0x85026004,   /* +0x04 — position in block */
   CursorY:         0x85026005,   /* +0x05 — block number */
@@ -104,6 +105,7 @@ export class TextEditor extends GadgetBase {
 
   /** GP_TEXTEDITOR_InsertText pos values per gadgets/texteditor.h:165-167. */
   static InsertPos = Object.freeze({
+    /* check-constants: prefix GV_TEXTEDITOR_InsertText_ header gadgets/texteditor.h */
     CURSOR: 0,   /* at current cursor position */
     TOP:    1,   /* prepend */
     BOTTOM: 2,   /* append (canonical for "load file content") */

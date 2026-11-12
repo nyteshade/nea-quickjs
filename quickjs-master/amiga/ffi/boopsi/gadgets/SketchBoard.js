@@ -14,6 +14,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const SGA = Object.freeze({
+  /* check-constants: prefix SGA_ header gadgets/sketchboard.h */
   BitMap:              0x85024600,  /* + 0  (struct BitMap *)        */
   MouseX:              0x85024601,  /* + 1  (LONG, OM_GET/NOTIFY)    */
   MouseY:              0x85024602,  /* + 2  (LONG, OM_GET/NOTIFY)    */
@@ -57,6 +58,7 @@ const SGA = Object.freeze({
  * @enum {number}
  */
 export const SketchTool = Object.freeze({
+  /* check-constants: prefix SGTOOL_ header gadgets/sketchboard.h */
   FREEHAND_DOTS:  0,  /* default */
   FREEHAND:       1,
   ELLIPSE:        2,

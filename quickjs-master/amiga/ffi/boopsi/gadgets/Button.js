@@ -18,6 +18,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal BUTTON_* tag IDs (gadgets/button.h) */
 const BUTTON = Object.freeze({
+  /* check-constants: prefix BUTTON_ header gadgets/button.h */
   PushButton:   0x84000001,
   Glyph:        0x84000002,
   Array:        0x84000003,

@@ -24,6 +24,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal CLICKTAB_* tag IDs (gadgets/clicktab.h). */
 const CLICKTAB = Object.freeze({
+  /* check-constants: prefix CLICKTAB_ header gadgets/clicktab.h */
   Labels:                   0x85027001,
   Current:                  0x85027002,
   CurrentNode:              0x85027003,
@@ -48,6 +49,7 @@ const CLICKTAB = Object.freeze({
 
 /** @internal TNA_* tab-node attribute tags (TNA_Dummy = TAG_USER+0x010000). */
 export const TNA = Object.freeze({
+  /* check-constants: prefix TNA_ header gadgets/clicktab.h */
   UserData:    0x80010001,
   /* +2 (Enabled), +3 (Spacing), +4 (Highlight) documented obsolete. */
   Image:       0x80010005,

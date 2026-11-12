@@ -27,6 +27,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal RADIOBUTTON_* tag IDs (gadgets/radiobutton.h). */
 const RADIOBUTTON = Object.freeze({
+  /* check-constants: prefix RADIOBUTTON_ header gadgets/radiobutton.h */
   Labels:     0x85014001,  /* (struct List *) RBNA nodes — OS3.2+ */
   Strings:    0x85014002,  /* RESERVED - presently unsupported */
   Spacing:    0x85014003,
@@ -37,6 +38,7 @@ const RADIOBUTTON = Object.freeze({
 
 /** RBNA_* node-attribute tag IDs (RBNA_Dummy = TAG_USER+0x020000). */
 const RBNA = Object.freeze({
+  /* check-constants: prefix RBNA_ header gadgets/radiobutton.h */
   UserData: 0x80020001,
   Label:    0x80020002,   /* STRPTR — the label text */
 });

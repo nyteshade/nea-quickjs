@@ -41,8 +41,20 @@ export class CEnumeration extends Enumeration {
   }
 
   /**
-   * Number coercion drills the same way; string coercion still
-   * returns the key.
+   * What a case becomes when JavaScript needs a plain value.
+   *
+   *   Number(c), c | 0, c & mask     its number
+   *   c + 1, c == 0x200, c < 10      its number, when it has one
+   *   String(c), `${c}`, obj[c]      its name
+   *
+   * The middle line is what makes a constant behave like the number
+   * it stands for in arithmetic and in == comparisons. (Until 0.223
+   * those gave the name, so `C.WA_Left + 1` was the text "WA_Left1".)
+   * A case whose value is a record rather than a number, such as an
+   * EventKind, still gives its name there.
+   *
+   * === is not affected by any of this: a case is only identical to
+   * itself. Use Number(c) to compare with === against a plain number.
    *
    * @param {string} hint  'number' | 'string' | 'default'
    * @returns {number|string}
@@ -52,6 +64,10 @@ export class CEnumeration extends Enumeration {
       let v = this.valueOf();
 
       return typeof v === 'number' ? v : Number(v);
+    }
+
+    if (hint === 'default' && typeof this.value === 'number') {
+      return this.value;
     }
 
     return String(this.key);

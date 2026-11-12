@@ -20,6 +20,7 @@ import { EventKind } from '../EventKind.js';
  * aliases that macro-expand to the same value. Both forms exposed
  * here just for clarity. */
 const PALETTE = Object.freeze({
+  /* check-constants: prefix PALETTE_ header gadgets/palette.h */
   Colour:       0x85004001,   /* +1 — current selected colour index */
   Color:        0x85004001,   /* alias */
   ColourOffset: 0x85004002,   /* +2 — first pen in the palette */

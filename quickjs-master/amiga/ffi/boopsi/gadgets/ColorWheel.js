@@ -14,6 +14,7 @@ import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
 
 const WHEEL = Object.freeze({
+  /* check-constants: prefix WHEEL_ header gadgets/colorwheel.h */
   Hue:            0x84000001,  /* WHEEL_Dummy + 1  (ULONG fraction)   */
   Saturation:     0x84000002,  /* WHEEL_Dummy + 2  (ULONG fraction)   */
   Brightness:     0x84000003,  /* WHEEL_Dummy + 3  (ULONG fraction)   */

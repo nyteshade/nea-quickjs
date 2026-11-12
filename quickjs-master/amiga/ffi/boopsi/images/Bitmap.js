@@ -11,6 +11,7 @@ import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
 
 /** @internal BITMAP_* tag IDs (images/bitmap.h). */
 const BITMAP = Object.freeze({
+  /* check-constants: prefix BITMAP_ header images/bitmap.h */
   SourceFile:       0x85019001,
   Screen:           0x85019002,
   Precision:        0x85019003,

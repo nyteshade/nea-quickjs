@@ -31,6 +31,7 @@ import { EventKind, IDCMP_REACTION_DEFAULT } from '../EventKind.js';
  * classes/window.h (WINDOW_Dummy = REACTION_Dummy + 0x25000 =
  * 0x85025000). Both are accepted by window.class at NewObject time. */
 const WA = Object.freeze({
+  /* check-constants: prefix WA_ header intuition/intuition.h */
   Left:          0x80000064,
   Top:           0x80000065,
   Width:         0x80000066,
@@ -59,6 +60,7 @@ const WA = Object.freeze({
 });
 
 const WINDOW = Object.freeze({
+  /* check-constants: prefix WINDOW_ header classes/window.h */
   Window:        0x85025001,
   SigMask:       0x85025002,
   MenuStrip:     0x85025004,
@@ -102,6 +104,7 @@ const WM_CLOSE       = 0x570003;
  * a class-specific data value (gadget ID, raw key, menu code, ...).
  * WMHI_LASTMSG=0 means the queue is drained; loop ends. */
 const WMHI = Object.freeze({
+  /* check-constants: prefix WMHI_ header classes/window.h */
   LASTMSG:        0,
   IGNORE:         0xFFFFFFFF >>> 0,
   CLASSMASK:      0xFFFF0000,

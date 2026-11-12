@@ -28,6 +28,7 @@ import { EventKind } from '../EventKind.js';
 
 /** @internal SPEEDBAR_* tag IDs (gadgets/speedbar.h). */
 const SPEEDBAR = Object.freeze({
+  /* check-constants: prefix SPEEDBAR_ header gadgets/speedbar.h */
   Buttons:     0x85013001,
   Orientation: 0x85013002,
   Background:  0x85013003,
@@ -54,6 +55,7 @@ const SPEEDBAR = Object.freeze({
  * correct per NDK (both use TAG_USER+0x010000 as Dummy). The meaning
  * is class-scoped; SBNA tags are only recognised by speedbar.gadget. */
 export const SBNA = Object.freeze({
+  /* check-constants: prefix SBNA_ header gadgets/speedbar.h */
   Left:      0x80010001,
   Top:       0x80010002,
   Width:     0x80010003,
@@ -74,6 +76,7 @@ export const SBNA = Object.freeze({
 
 /** SpeedBar orientation values (SBORIENT_*). */
 export const SpeedBarOrient = Object.freeze({
+  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
   HORIZONTAL: 0,
   VERTICAL:   1,
 });
@@ -87,6 +90,7 @@ export const SpeedBarOrient = Object.freeze({
  * IMAGE    — display alternate SBNA_SelImage when selected
  */
 export const SpeedBarHighlight = Object.freeze({
+  /* check-constants: prefix SBH_ header gadgets/speedbar.h */
   NONE:     0,
   BACKFILL: 1,
   RECESS:   2,
