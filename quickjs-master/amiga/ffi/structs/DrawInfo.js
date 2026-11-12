@@ -24,6 +24,25 @@
 import { Struct } from './Struct.js';
 
 export class DrawInfo extends Struct {
+  /* check-structs: struct DrawInfo */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/screens.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    dri_Version: 0,
+    dri_NumPens: 2,
+    dri_Pens:    4,
+    dri_Font:    8,
+    dri_Depth:   12,
+    resolutionX: 14,   /* dri_Resolution + 0 as 2 bytes: its X */
+    resolutionY: 16,   /* dri_Resolution + 2 as 2 bytes: its Y */
+    dri_Flags:   18,
+  });
+
   /* Allocated by Intuition; we wrap. */
 
   /**
@@ -58,28 +77,28 @@ Typical use (raw-FFI escape hatch, wrapper pending):
   }
 
   /** @returns {number} */
-  get version()     { return this.read16(0); }
+  get version()     { return this.read16(DrawInfo.OFFSET.dri_Version); }
 
   /** @returns {number} */
-  get numPens()     { return this.read16(2); }
+  get numPens()     { return this.read16(DrawInfo.OFFSET.dri_NumPens); }
 
   /** @returns {number} UWORD* pen array pointer */
-  get pens()        { return this.read32(4); }
+  get pens()        { return this.read32(DrawInfo.OFFSET.dri_Pens); }
 
   /** @returns {number} TextFont* pointer */
-  get font()        { return this.read32(8); }
+  get font()        { return this.read32(DrawInfo.OFFSET.dri_Font); }
 
   /** @returns {number} screen depth in bit-planes */
-  get depth()       { return this.read16(12); }
+  get depth()       { return this.read16(DrawInfo.OFFSET.dri_Depth); }
 
   /** @returns {number} horizontal resolution */
-  get resolutionX() { return this.read16(14); }
+  get resolutionX() { return this.read16(DrawInfo.OFFSET.resolutionX); }
 
   /** @returns {number} vertical resolution */
-  get resolutionY() { return this.read16(16); }
+  get resolutionY() { return this.read16(DrawInfo.OFFSET.resolutionY); }
 
   /** @returns {number} dri_Flags bitfield */
-  get flags()       { return this.read32(18); }
+  get flags()       { return this.read32(DrawInfo.OFFSET.dri_Flags); }
 
   /**
    * Read one entry from the pen array.

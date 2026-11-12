@@ -19,6 +19,25 @@
 import { Struct } from './Struct.js';
 
 export class InputEvent extends Struct {
+  /* check-structs: struct InputEvent */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * devices/inputevent.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    ie_NextEvent: 0,
+    ie_Class:     4,
+    ie_SubClass:  5,
+    ie_Code:      6,
+    ie_Qualifier: 8,
+    ie_position:  10,
+    tv_secs:      14,   /* ie_TimeStamp + 0 as 4 bytes: seconds */
+    tv_micro:     18,   /* ie_TimeStamp + 4 as 4 bytes: microseconds */
+  });
+
   /** @type {number} */
   static SIZE = 22;
 
@@ -53,32 +72,32 @@ IECLASS_* codes (UBYTE):
   }
 
   /** @returns {number} */
-  get nextEvent()    { return this.read32(0); }
-  set nextEvent(v)   { this.write32(0, (v && v.ptr) || (v | 0)); }
+  get nextEvent()    { return this.read32(InputEvent.OFFSET.ie_NextEvent); }
+  set nextEvent(v)   { this.write32(InputEvent.OFFSET.ie_NextEvent, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} UBYTE, IECLASS_* */
-  get class()        { return this.read8(4); }
-  set class(v)       { this.write8(4, v | 0); }
+  get class()        { return this.read8(InputEvent.OFFSET.ie_Class); }
+  set class(v)       { this.write8(InputEvent.OFFSET.ie_Class, v | 0); }
 
   /** @returns {number} UBYTE */
-  get subClass()     { return this.read8(5); }
-  set subClass(v)    { this.write8(5, v | 0); }
+  get subClass()     { return this.read8(InputEvent.OFFSET.ie_SubClass); }
+  set subClass(v)    { this.write8(InputEvent.OFFSET.ie_SubClass, v | 0); }
 
   /** @returns {number} UWORD */
-  get code()         { return this.read16(6); }
-  set code(v)        { this.write16(6, v | 0); }
+  get code()         { return this.read16(InputEvent.OFFSET.ie_Code); }
+  set code(v)        { this.write16(InputEvent.OFFSET.ie_Code, v | 0); }
 
   /** @returns {number} UWORD */
-  get qualifier()    { return this.read16(8); }
-  set qualifier(v)   { this.write16(8, v | 0); }
+  get qualifier()    { return this.read16(InputEvent.OFFSET.ie_Qualifier); }
+  set qualifier(v)   { this.write16(InputEvent.OFFSET.ie_Qualifier, v | 0); }
 
   /** @returns {number} APTR (class-dependent interpretation) */
-  get eventAddress() { return this.read32(10); }
-  set eventAddress(v){ this.write32(10, (v && v.ptr) || (v | 0)); }
+  get eventAddress() { return this.read32(InputEvent.OFFSET.ie_position); }
+  set eventAddress(v){ this.write32(InputEvent.OFFSET.ie_position, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} TimeStamp tv_secs */
-  get seconds()      { return this.read32(14); }
+  get seconds()      { return this.read32(InputEvent.OFFSET.tv_secs); }
 
   /** @returns {number} TimeStamp tv_micro */
-  get micros()       { return this.read32(18); }
+  get micros()       { return this.read32(InputEvent.OFFSET.tv_micro); }
 }

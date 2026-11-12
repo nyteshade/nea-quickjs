@@ -27,6 +27,24 @@ import { Struct } from './Struct.js';
 import { ColorMap } from './ColorMap.js';
 
 export class ViewPort extends Struct {
+  /* check-structs: struct ViewPort */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/view.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    Next:     0,
+    ColorMap: 4,
+    DWidth:   24,
+    DHeight:  26,
+    DxOffset: 28,
+    DyOffset: 30,
+    Modes:    32,
+  });
+
   /* Allocated as part of Screen or View; we wrap. */
 
   /**
@@ -56,26 +74,26 @@ graphics.library calls over raw writes.`;
   }
 
   /** @returns {number} */
-  get nextViewPort() { return this.read32(0); }
+  get nextViewPort() { return this.read32(ViewPort.OFFSET.Next); }
 
   /** @returns {ColorMap|null} */
   get colorMap() {
-    let p = this.read32(4);
+    let p = this.read32(ViewPort.OFFSET.ColorMap);
     return p ? new ColorMap(p) : null;
   }
 
   /** @returns {number} */
-  get dWidth()    { return this.read16(24); }
+  get dWidth()    { return this.read16(ViewPort.OFFSET.DWidth); }
 
   /** @returns {number} */
-  get dHeight()   { return this.read16(26); }
+  get dHeight()   { return this.read16(ViewPort.OFFSET.DHeight); }
 
   /** @returns {number} */
-  get dxOffset()  { return this.read16(28); }
+  get dxOffset()  { return this.read16(ViewPort.OFFSET.DxOffset); }
 
   /** @returns {number} */
-  get dyOffset()  { return this.read16(30); }
+  get dyOffset()  { return this.read16(ViewPort.OFFSET.DyOffset); }
 
   /** @returns {number} UWORD mode flags (LORES/HIRES/HAM/DUALPF etc.) */
-  get modes()     { return this.read16(32); }
+  get modes()     { return this.read16(ViewPort.OFFSET.Modes); }
 }

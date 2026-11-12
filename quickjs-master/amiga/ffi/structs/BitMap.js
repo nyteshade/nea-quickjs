@@ -18,6 +18,22 @@
 import { Struct } from './Struct.js';
 
 export class BitMap extends Struct {
+  /* check-structs: struct BitMap */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/gfx.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    BytesPerRow: 0,
+    Rows:        2,
+    Flags:       4,
+    Depth:       5,
+    Planes:      8,   /* Planes: eight plane pointers */
+  });
+
   /** @type {number} */
   static SIZE = 40;
 
@@ -46,20 +62,20 @@ yet wrapped) over manual construction.`;
   }
 
   /** @returns {number} */
-  get bytesPerRow() { return this.read16(0); }
-  set bytesPerRow(v){ this.write16(0, v | 0); }
+  get bytesPerRow() { return this.read16(BitMap.OFFSET.BytesPerRow); }
+  set bytesPerRow(v){ this.write16(BitMap.OFFSET.BytesPerRow, v | 0); }
 
   /** @returns {number} */
-  get rows()        { return this.read16(2); }
-  set rows(v)       { this.write16(2, v | 0); }
+  get rows()        { return this.read16(BitMap.OFFSET.Rows); }
+  set rows(v)       { this.write16(BitMap.OFFSET.Rows, v | 0); }
 
   /** @returns {number} UBYTE */
-  get flags()       { return this.read8(4); }
-  set flags(v)      { this.write8(4, v | 0); }
+  get flags()       { return this.read8(BitMap.OFFSET.Flags); }
+  set flags(v)      { this.write8(BitMap.OFFSET.Flags, v | 0); }
 
   /** @returns {number} UBYTE */
-  get depth()       { return this.read8(5); }
-  set depth(v)      { this.write8(5, v | 0); }
+  get depth()       { return this.read8(BitMap.OFFSET.Depth); }
+  set depth(v)      { this.write8(BitMap.OFFSET.Depth, v | 0); }
 
   /**
    * Get one bit-plane pointer from the Planes[] array.
@@ -69,7 +85,7 @@ yet wrapped) over manual construction.`;
    */
   getPlane(i) {
     if (i < 0 || i > 7) return 0;
-    return this.read32(8 + i * 4);
+    return this.read32(BitMap.OFFSET.Planes + i * 4);
   }
 
   /**
@@ -80,6 +96,6 @@ yet wrapped) over manual construction.`;
    */
   setPlane(i, ptr) {
     if (i < 0 || i > 7) return;
-    this.write32(8 + i * 4, ptr | 0);
+    this.write32(BitMap.OFFSET.Planes + i * 4, ptr | 0);
   }
 }

@@ -322,6 +322,10 @@ def read_js(path):
                     found.append((match.group(2), match.group(3)))
 
             name, forced, hint, skip = table_state()
+            # Structure offset tables are check_structs.py's business:
+            # it asks the compiler, which this script cannot.
+            if name == 'OFFSET':
+                skip = True
             if not skip:
                 for key, value_text in found:
                     value = js_number(value_text)

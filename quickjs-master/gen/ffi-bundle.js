@@ -1222,8 +1222,21 @@ function withStruct(StructClass, fn) {
 
 
 class MsgPort extends Struct {
+  /* check-structs: struct MsgPort */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * exec/ports.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    mp_SigBit:  15,
+    mp_SigTask: 16,
+  });
+
   /** @type {number} */
-  static SIZE = 32;
+  static SIZE = 34;
 
   /**
    * REPL help text — a human-readable constructor signature.
@@ -1249,10 +1262,10 @@ Typical use:
   }
 
   /** @returns {number} signal bit number this port uses */
-  get sigBit() { return this.read8(15); }
+  get sigBit() { return this.read8(MsgPort.OFFSET.mp_SigBit); }
 
   /** @returns {number} owner task ptr */
-  get sigTask() { return this.read32(16); }
+  get sigTask() { return this.read32(MsgPort.OFFSET.mp_SigTask); }
 
   /** @returns {number} signal mask = 1 << sigBit */
   get sigMask() { return 1 << this.sigBit; }
@@ -1277,6 +1290,26 @@ Typical use:
 
 
 class IntuiMessage extends Struct {
+  /* check-structs: struct IntuiMessage */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    Class:       20,
+    Code:        24,
+    Qualifier:   26,
+    IAddress:    28,
+    MouseX:      32,
+    MouseY:      34,
+    Seconds:     36,
+    Micros:      40,
+    IDCMPWindow: 44,
+  });
+
   /** @type {number} */
   static SIZE = 52;
 
@@ -1329,7 +1362,7 @@ Typical use:
    * @returns {CEnumeration|number}
    */
   get class() {
-    let raw = this.read32(20);
+    let raw = this.read32(IntuiMessage.OFFSET.Class);
     let Intuition = globalThis.amiga && globalThis.amiga.Intuition;
 
     if (Intuition && Intuition.consts && Intuition.consts.from) {
@@ -1356,31 +1389,31 @@ Typical use:
   }
 
   /** @returns {number} same as `class` but always the raw flag */
-  get classRaw() { return this.read32(20); }
+  get classRaw() { return this.read32(IntuiMessage.OFFSET.Class); }
 
   /** @returns {number} */
-  get code()      { return this.read16(24); }
+  get code()      { return this.read16(IntuiMessage.OFFSET.Code); }
 
   /** @returns {number} */
-  get qualifier() { return this.read16(26); }
+  get qualifier() { return this.read16(IntuiMessage.OFFSET.Qualifier); }
 
   /** @returns {number} */
-  get iAddress()  { return this.read32(28); }
+  get iAddress()  { return this.read32(IntuiMessage.OFFSET.IAddress); }
 
   /** @returns {number} */
-  get mouseX()    { return IntuiMessage._signed16(this.read16(32)); }
+  get mouseX()    { return IntuiMessage._signed16(this.read16(IntuiMessage.OFFSET.MouseX)); }
 
   /** @returns {number} */
-  get mouseY()    { return IntuiMessage._signed16(this.read16(34)); }
+  get mouseY()    { return IntuiMessage._signed16(this.read16(IntuiMessage.OFFSET.MouseY)); }
 
   /** @returns {number} */
-  get seconds()   { return this.read32(36); }
+  get seconds()   { return this.read32(IntuiMessage.OFFSET.Seconds); }
 
   /** @returns {number} */
-  get micros()    { return this.read32(40); }
+  get micros()    { return this.read32(IntuiMessage.OFFSET.Micros); }
 
   /** @returns {number} */
-  get idcmpWindow() { return this.read32(44); }
+  get idcmpWindow() { return this.read32(IntuiMessage.OFFSET.IDCMPWindow); }
 
   /**
    * Reply this message back to Intuition. After calling, the message
@@ -1408,6 +1441,21 @@ Typical use:
 
 
 class TextAttr extends Struct {
+  /* check-structs: struct TextAttr */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/text.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    ta_Name:  0,
+    ta_YSize: 4,
+    ta_Style: 6,
+    ta_Flags: 7,
+  });
+
   /** @type {number} */
   static SIZE = 8;
 
@@ -1436,19 +1484,19 @@ Typical use:
 
   /** @returns {string|null} font name */
   get name() {
-    let p = this.read32(0);
+    let p = this.read32(TextAttr.OFFSET.ta_Name);
 
     return p ? globalThis.amiga.peekString(p, 64) : null;
   }
 
   /** @returns {number} font height in points/pixels */
-  get ySize() { return this.read16(4); }
+  get ySize() { return this.read16(TextAttr.OFFSET.ta_YSize); }
 
   /** @returns {number} TF_NORMAL/TF_UNDERLINED/TF_BOLD/TF_ITALIC bitfield */
-  get style() { return this.read8(6); }
+  get style() { return this.read8(TextAttr.OFFSET.ta_Style); }
 
   /** @returns {number} */
-  get flags() { return this.read8(7); }
+  get flags() { return this.read8(TextAttr.OFFSET.ta_Flags); }
 }
 
 
@@ -1461,6 +1509,22 @@ Typical use:
 
 
 class Image extends Struct {
+  /* check-structs: struct Image */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge: 0,
+    TopEdge:  2,
+    Width:    4,
+    Height:   6,
+    Depth:    8,
+  });
+
   /* Allocated by NewObject; we just wrap. */
 
   /**
@@ -1487,19 +1551,19 @@ Lifecycle: call Intuition.DisposeObject(img) when done.`;
   }
 
   /** @returns {number} */
-  get leftEdge() { return this.read16(0); }
+  get leftEdge() { return this.read16(Image.OFFSET.LeftEdge); }
 
   /** @returns {number} */
-  get topEdge()  { return this.read16(2); }
+  get topEdge()  { return this.read16(Image.OFFSET.TopEdge); }
 
   /** @returns {number} */
-  get width()    { return this.read16(4); }
+  get width()    { return this.read16(Image.OFFSET.Width); }
 
   /** @returns {number} */
-  get height()   { return this.read16(6); }
+  get height()   { return this.read16(Image.OFFSET.Height); }
 
   /** @returns {number} */
-  get depth()    { return this.read16(8); }
+  get depth()    { return this.read16(Image.OFFSET.Depth); }
 }
 
 
@@ -1512,6 +1576,26 @@ Lifecycle: call Intuition.DisposeObject(img) when done.`;
 
 
 class Gadget extends Struct {
+  /* check-structs: struct Gadget */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    NextGadget: 0,
+    LeftEdge:   4,
+    TopEdge:    6,
+    Width:      8,
+    Height:     10,
+    Flags:      12,
+    Activation: 14,
+    GadgetType: 16,
+    GadgetID:     38,
+  });
+
   /* Allocated by GadTools or user; we wrap. */
 
   /**
@@ -1535,35 +1619,36 @@ Fields (read-only getters):
   flags      {number} GFLG_* bits, +12
   activation {number} GACT_* bits, +14
   gadgetType {number} GTYP_* bits, +16
-  gadgetID   {number} user-assigned id, +34`;
+  gadgetID   {number} user-assigned id, +38
+             (read from +34, which is SpecialInfo, until 0.220)`;
   }
 
   /** @returns {number} next gadget ptr */
-  get nextGadget() { return this.read32(0); }
+  get nextGadget() { return this.read32(Gadget.OFFSET.NextGadget); }
 
   /** @returns {number} */
-  get leftEdge()   { return this.read16(4); }
+  get leftEdge()   { return this.read16(Gadget.OFFSET.LeftEdge); }
 
   /** @returns {number} */
-  get topEdge()    { return this.read16(6); }
+  get topEdge()    { return this.read16(Gadget.OFFSET.TopEdge); }
 
   /** @returns {number} */
-  get width()      { return this.read16(8); }
+  get width()      { return this.read16(Gadget.OFFSET.Width); }
 
   /** @returns {number} */
-  get height()     { return this.read16(10); }
+  get height()     { return this.read16(Gadget.OFFSET.Height); }
 
   /** @returns {number} */
-  get flags()      { return this.read16(12); }
+  get flags()      { return this.read16(Gadget.OFFSET.Flags); }
 
   /** @returns {number} */
-  get activation() { return this.read16(14); }
+  get activation() { return this.read16(Gadget.OFFSET.Activation); }
 
   /** @returns {number} */
-  get gadgetType() { return this.read16(16); }
+  get gadgetType() { return this.read16(Gadget.OFFSET.GadgetType); }
 
   /** @returns {number} */
-  get gadgetID()   { return this.read16(34); }
+  get gadgetID()   { return this.read16(Gadget.OFFSET.GadgetID); }
 }
 
 
@@ -1577,6 +1662,19 @@ Fields (read-only getters):
 
 
 class RastPort extends Struct {
+  /* check-structs: struct RastPort */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/rastport.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    TxHeight:   58,
+    TxBaseline: 62,
+  });
+
   /* SIZE not exposed — RastPort is allocated by Intuition. */
 
   /**
@@ -1608,10 +1706,10 @@ Properties (read-only, graphics/rastport.h):
   }
 
   /** @returns {number} height in pixels of the current font */
-  get fontHeight()   { return this.read16(58); }
+  get fontHeight()   { return this.read16(RastPort.OFFSET.TxHeight); }
 
   /** @returns {number} pixels from the top of a line to its baseline */
-  get fontBaseline() { return this.read16(62); }
+  get fontBaseline() { return this.read16(RastPort.OFFSET.TxBaseline); }
 
   /**
    * The width of a piece of text in this RastPort's current font.
@@ -1722,6 +1820,25 @@ Properties (read-only, graphics/rastport.h):
 
 
 class DrawInfo extends Struct {
+  /* check-structs: struct DrawInfo */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/screens.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    dri_Version: 0,
+    dri_NumPens: 2,
+    dri_Pens:    4,
+    dri_Font:    8,
+    dri_Depth:   12,
+    resolutionX: 14,   /* dri_Resolution + 0 as 2 bytes: its X */
+    resolutionY: 16,   /* dri_Resolution + 2 as 2 bytes: its Y */
+    dri_Flags:   18,
+  });
+
   /* Allocated by Intuition; we wrap. */
 
   /**
@@ -1756,28 +1873,28 @@ Typical use (raw-FFI escape hatch, wrapper pending):
   }
 
   /** @returns {number} */
-  get version()     { return this.read16(0); }
+  get version()     { return this.read16(DrawInfo.OFFSET.dri_Version); }
 
   /** @returns {number} */
-  get numPens()     { return this.read16(2); }
+  get numPens()     { return this.read16(DrawInfo.OFFSET.dri_NumPens); }
 
   /** @returns {number} UWORD* pen array pointer */
-  get pens()        { return this.read32(4); }
+  get pens()        { return this.read32(DrawInfo.OFFSET.dri_Pens); }
 
   /** @returns {number} TextFont* pointer */
-  get font()        { return this.read32(8); }
+  get font()        { return this.read32(DrawInfo.OFFSET.dri_Font); }
 
   /** @returns {number} screen depth in bit-planes */
-  get depth()       { return this.read16(12); }
+  get depth()       { return this.read16(DrawInfo.OFFSET.dri_Depth); }
 
   /** @returns {number} horizontal resolution */
-  get resolutionX() { return this.read16(14); }
+  get resolutionX() { return this.read16(DrawInfo.OFFSET.resolutionX); }
 
   /** @returns {number} vertical resolution */
-  get resolutionY() { return this.read16(16); }
+  get resolutionY() { return this.read16(DrawInfo.OFFSET.resolutionY); }
 
   /** @returns {number} dri_Flags bitfield */
-  get flags()       { return this.read32(18); }
+  get flags()       { return this.read32(DrawInfo.OFFSET.dri_Flags); }
 
   /**
    * Read one entry from the pen array.
@@ -1816,6 +1933,25 @@ Typical use (raw-FFI escape hatch, wrapper pending):
 
 
 class Menu extends Struct {
+  /* check-structs: struct Menu */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    NextMenu:  0,
+    LeftEdge:  4,
+    TopEdge:   6,
+    Width:     8,
+    Height:    10,
+    Flags:     12,
+    MenuName:  14,
+    FirstItem: 18,
+  });
+
   /** @type {number} */
   static SIZE = 30;
 
@@ -1848,41 +1984,41 @@ Setters:
   }
 
   /** @returns {number} */
-  get nextMenu()   { return this.read32(0); }
-  set nextMenu(v)  { this.write32(0, v | 0); }
+  get nextMenu()   { return this.read32(Menu.OFFSET.NextMenu); }
+  set nextMenu(v)  { this.write32(Menu.OFFSET.NextMenu, v | 0); }
 
   /** @returns {number} */
-  get leftEdge()   { return this.read16(4); }
-  set leftEdge(v)  { this.write16(4, v | 0); }
+  get leftEdge()   { return this.read16(Menu.OFFSET.LeftEdge); }
+  set leftEdge(v)  { this.write16(Menu.OFFSET.LeftEdge, v | 0); }
 
   /** @returns {number} */
-  get topEdge()    { return this.read16(6); }
-  set topEdge(v)   { this.write16(6, v | 0); }
+  get topEdge()    { return this.read16(Menu.OFFSET.TopEdge); }
+  set topEdge(v)   { this.write16(Menu.OFFSET.TopEdge, v | 0); }
 
   /** @returns {number} */
-  get width()      { return this.read16(8); }
-  set width(v)     { this.write16(8, v | 0); }
+  get width()      { return this.read16(Menu.OFFSET.Width); }
+  set width(v)     { this.write16(Menu.OFFSET.Width, v | 0); }
 
   /** @returns {number} */
-  get height()     { return this.read16(10); }
-  set height(v)    { this.write16(10, v | 0); }
+  get height()     { return this.read16(Menu.OFFSET.Height); }
+  set height(v)    { this.write16(Menu.OFFSET.Height, v | 0); }
 
   /** @returns {number} MENUENABLED = 0x0001 etc. */
-  get flags()      { return this.read16(12); }
-  set flags(v)     { this.write16(12, v | 0); }
+  get flags()      { return this.read16(Menu.OFFSET.Flags); }
+  set flags(v)     { this.write16(Menu.OFFSET.Flags, v | 0); }
 
   /** @returns {string|null} */
   get menuName() {
-    let p = this.read32(14);
+    let p = this.read32(Menu.OFFSET.MenuName);
     return p ? globalThis.amiga.peekString(p, 128) : null;
   }
 
   /** @param {number} ptr — STRPTR (caller-managed) */
-  set menuName(ptr) { this.write32(14, ptr | 0); }
+  set menuName(ptr) { this.write32(Menu.OFFSET.MenuName, ptr | 0); }
 
   /** @returns {MenuItem|null} */
   get firstItem() {
-    let p = this.read32(18);
+    let p = this.read32(Menu.OFFSET.FirstItem);
     if (!p) return null;
 
     /* Circular-import-safe lookup through the global namespace. */
@@ -1892,7 +2028,7 @@ Setters:
     return MI ? new MI(p) : null;
   }
 
-  set firstItem(v) { this.write32(18, (v && v.ptr) || (v | 0)); }
+  set firstItem(v) { this.write32(Menu.OFFSET.FirstItem, (v && v.ptr) || (v | 0)); }
 }
 
 
@@ -1921,6 +2057,29 @@ Setters:
 
 
 class MenuItem extends Struct {
+  /* check-structs: struct MenuItem */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    NextItem:      0,
+    LeftEdge:      4,
+    TopEdge:       6,
+    Width:         8,
+    Height:        10,
+    Flags:         12,
+    MutualExclude: 14,
+    ItemFill:      18,
+    SelectFill:    22,
+    Command:       26,
+    SubItem:       28,
+    NextSelect:    32,
+  });
+
   /** @type {number} */
   static SIZE = 34;
 
@@ -1955,58 +2114,58 @@ Flags conveniences: COMMSEQ | ITEMTEXT | ITEMENABLED is the typical
   }
 
   /** @returns {number} */
-  get nextItem()      { return this.read32(0); }
-  set nextItem(v)     { this.write32(0, v | 0); }
+  get nextItem()      { return this.read32(MenuItem.OFFSET.NextItem); }
+  set nextItem(v)     { this.write32(MenuItem.OFFSET.NextItem, v | 0); }
 
   /** @returns {number} */
-  get leftEdge()      { return this.read16(4); }
-  set leftEdge(v)     { this.write16(4, v | 0); }
+  get leftEdge()      { return this.read16(MenuItem.OFFSET.LeftEdge); }
+  set leftEdge(v)     { this.write16(MenuItem.OFFSET.LeftEdge, v | 0); }
 
   /** @returns {number} */
-  get topEdge()       { return this.read16(6); }
-  set topEdge(v)      { this.write16(6, v | 0); }
+  get topEdge()       { return this.read16(MenuItem.OFFSET.TopEdge); }
+  set topEdge(v)      { this.write16(MenuItem.OFFSET.TopEdge, v | 0); }
 
   /** @returns {number} */
-  get width()         { return this.read16(8); }
-  set width(v)        { this.write16(8, v | 0); }
+  get width()         { return this.read16(MenuItem.OFFSET.Width); }
+  set width(v)        { this.write16(MenuItem.OFFSET.Width, v | 0); }
 
   /** @returns {number} */
-  get height()        { return this.read16(10); }
-  set height(v)       { this.write16(10, v | 0); }
+  get height()        { return this.read16(MenuItem.OFFSET.Height); }
+  set height(v)       { this.write16(MenuItem.OFFSET.Height, v | 0); }
 
   /** @returns {number} */
-  get flags()         { return this.read16(12); }
-  set flags(v)        { this.write16(12, v | 0); }
+  get flags()         { return this.read16(MenuItem.OFFSET.Flags); }
+  set flags(v)        { this.write16(MenuItem.OFFSET.Flags, v | 0); }
 
   /** @returns {number} */
-  get mutualExclude() { return this.read32(14); }
-  set mutualExclude(v){ this.write32(14, v | 0); }
+  get mutualExclude() { return this.read32(MenuItem.OFFSET.MutualExclude); }
+  set mutualExclude(v){ this.write32(MenuItem.OFFSET.MutualExclude, v | 0); }
 
   /** @returns {number} APTR (Image* or IntuiText*) */
-  get itemFill()      { return this.read32(18); }
-  set itemFill(v)     { this.write32(18, (v && v.ptr) || (v | 0)); }
+  get itemFill()      { return this.read32(MenuItem.OFFSET.ItemFill); }
+  set itemFill(v)     { this.write32(MenuItem.OFFSET.ItemFill, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} APTR */
-  get selectFill()    { return this.read32(22); }
-  set selectFill(v)   { this.write32(22, (v && v.ptr) || (v | 0)); }
+  get selectFill()    { return this.read32(MenuItem.OFFSET.SelectFill); }
+  set selectFill(v)   { this.write32(MenuItem.OFFSET.SelectFill, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} BYTE — Amiga-key shortcut (ASCII) */
-  get command()       { return this.read8(26); }
-  set command(v)      { this.write8(26, v | 0); }
+  get command()       { return this.read8(MenuItem.OFFSET.Command); }
+  set command(v)      { this.write8(MenuItem.OFFSET.Command, v | 0); }
 
   /** @returns {MenuItem|null} */
   get subItem() {
-    let p = this.read32(28);
+    let p = this.read32(MenuItem.OFFSET.SubItem);
     if (!p) return null;
 
     return new MenuItem(p);
   }
 
-  set subItem(v) { this.write32(28, (v && v.ptr) || (v | 0)); }
+  set subItem(v) { this.write32(MenuItem.OFFSET.SubItem, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get nextSelect()    { return this.read16(32); }
-  set nextSelect(v)   { this.write16(32, v | 0); }
+  get nextSelect()    { return this.read16(MenuItem.OFFSET.NextSelect); }
+  set nextSelect(v)   { this.write16(MenuItem.OFFSET.NextSelect, v | 0); }
 }
 
 
@@ -2035,6 +2194,25 @@ Flags conveniences: COMMSEQ | ITEMTEXT | ITEMENABLED is the typical
 
 
 class IntuiText extends Struct {
+  /* check-structs: struct IntuiText */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    FrontPen:  0,
+    BackPen:   1,
+    DrawMode:  2,
+    LeftEdge:  4,
+    TopEdge:   6,
+    ITextFont: 8,
+    IText:     12,
+    NextText:  16,
+  });
+
   /** @type {number} */
   static SIZE = 20;
 
@@ -2088,9 +2266,9 @@ Methods: free() — releases struct + owned text allocation.`;
     if (i.drawMode !== undefined) this.drawMode = i.drawMode;
     if (i.leftEdge !== undefined) this.leftEdge = i.leftEdge;
     if (i.topEdge  !== undefined) this.topEdge  = i.topEdge;
-    if (i.font     !== undefined) this.write32(8, ptrOf(i.font));
+    if (i.font     !== undefined) this.write32(IntuiText.OFFSET.ITextFont, ptrOf(i.font));
     if (i.text     !== undefined) this.text = i.text;
-    if (i.nextText !== undefined) this.write32(16, ptrOf(i.nextText));
+    if (i.nextText !== undefined) this.write32(IntuiText.OFFSET.NextText, ptrOf(i.nextText));
   }
 
   /**
@@ -2111,24 +2289,24 @@ Methods: free() — releases struct + owned text allocation.`;
   }
 
   /** @returns {number} UBYTE */
-  get frontPen()  { return this.read8(0); }
-  set frontPen(v) { this.write8(0, v | 0); }
+  get frontPen()  { return this.read8(IntuiText.OFFSET.FrontPen); }
+  set frontPen(v) { this.write8(IntuiText.OFFSET.FrontPen, v | 0); }
 
   /** @returns {number} UBYTE */
-  get backPen()   { return this.read8(1); }
-  set backPen(v)  { this.write8(1, v | 0); }
+  get backPen()   { return this.read8(IntuiText.OFFSET.BackPen); }
+  set backPen(v)  { this.write8(IntuiText.OFFSET.BackPen, v | 0); }
 
   /** @returns {number} JAM1/JAM2/COMPLEMENT/INVERSVID */
-  get drawMode()  { return this.read8(2); }
-  set drawMode(v) { this.write8(2, v | 0); }
+  get drawMode()  { return this.read8(IntuiText.OFFSET.DrawMode); }
+  set drawMode(v) { this.write8(IntuiText.OFFSET.DrawMode, v | 0); }
 
   /** @returns {number} */
-  get leftEdge()  { return this.read16(4); }
-  set leftEdge(v) { this.write16(4, v | 0); }
+  get leftEdge()  { return this.read16(IntuiText.OFFSET.LeftEdge); }
+  set leftEdge(v) { this.write16(IntuiText.OFFSET.LeftEdge, v | 0); }
 
   /** @returns {number} */
-  get topEdge()   { return this.read16(6); }
-  set topEdge(v)  { this.write16(6, v | 0); }
+  get topEdge()   { return this.read16(IntuiText.OFFSET.TopEdge); }
+  set topEdge(v)  { this.write16(IntuiText.OFFSET.TopEdge, v | 0); }
 
   /**
    * Text field. Set with a string to allocate + own; set with a
@@ -2146,7 +2324,7 @@ Methods: free() — releases struct + owned text allocation.`;
     }
 
     if (value === null || value === undefined || value === 0) {
-      this.write32(12, 0);
+      this.write32(IntuiText.OFFSET.IText, 0);
       return;
     }
 
@@ -2157,23 +2335,23 @@ Methods: free() — releases struct + owned text allocation.`;
       if (!p) throw new Error('IntuiText.text: allocMem failed');
 
       globalThis.amiga.pokeString(p, value);
-      this.write32(12, p);
+      this.write32(IntuiText.OFFSET.IText, p);
       this._textAlloc = { ptr: p, size: bytes };
       return;
     }
 
-    this.write32(12, value | 0);
+    this.write32(IntuiText.OFFSET.IText, value | 0);
   }
 
   /** @returns {string|null} */
   get text() {
-    let p = this.read32(12);
+    let p = this.read32(IntuiText.OFFSET.IText);
     return p ? globalThis.amiga.peekString(p, 256) : null;
   }
 
   /** @returns {number} */
-  get nextText()  { return this.read32(16); }
-  set nextText(v) { this.write32(16, (v && v.ptr) || (v | 0)); }
+  get nextText()  { return this.read32(IntuiText.OFFSET.NextText); }
+  set nextText(v) { this.write32(IntuiText.OFFSET.NextText, (v && v.ptr) || (v | 0)); }
 }
 
 
@@ -2197,6 +2375,22 @@ Methods: free() — releases struct + owned text allocation.`;
 
 
 class BitMap extends Struct {
+  /* check-structs: struct BitMap */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/gfx.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    BytesPerRow: 0,
+    Rows:        2,
+    Flags:       4,
+    Depth:       5,
+    Planes:      8,   /* Planes: eight plane pointers */
+  });
+
   /** @type {number} */
   static SIZE = 40;
 
@@ -2225,20 +2419,20 @@ yet wrapped) over manual construction.`;
   }
 
   /** @returns {number} */
-  get bytesPerRow() { return this.read16(0); }
-  set bytesPerRow(v){ this.write16(0, v | 0); }
+  get bytesPerRow() { return this.read16(BitMap.OFFSET.BytesPerRow); }
+  set bytesPerRow(v){ this.write16(BitMap.OFFSET.BytesPerRow, v | 0); }
 
   /** @returns {number} */
-  get rows()        { return this.read16(2); }
-  set rows(v)       { this.write16(2, v | 0); }
+  get rows()        { return this.read16(BitMap.OFFSET.Rows); }
+  set rows(v)       { this.write16(BitMap.OFFSET.Rows, v | 0); }
 
   /** @returns {number} UBYTE */
-  get flags()       { return this.read8(4); }
-  set flags(v)      { this.write8(4, v | 0); }
+  get flags()       { return this.read8(BitMap.OFFSET.Flags); }
+  set flags(v)      { this.write8(BitMap.OFFSET.Flags, v | 0); }
 
   /** @returns {number} UBYTE */
-  get depth()       { return this.read8(5); }
-  set depth(v)      { this.write8(5, v | 0); }
+  get depth()       { return this.read8(BitMap.OFFSET.Depth); }
+  set depth(v)      { this.write8(BitMap.OFFSET.Depth, v | 0); }
 
   /**
    * Get one bit-plane pointer from the Planes[] array.
@@ -2248,7 +2442,7 @@ yet wrapped) over manual construction.`;
    */
   getPlane(i) {
     if (i < 0 || i > 7) return 0;
-    return this.read32(8 + i * 4);
+    return this.read32(BitMap.OFFSET.Planes + i * 4);
   }
 
   /**
@@ -2259,7 +2453,7 @@ yet wrapped) over manual construction.`;
    */
   setPlane(i, ptr) {
     if (i < 0 || i > 7) return;
-    this.write32(8 + i * 4, ptr | 0);
+    this.write32(BitMap.OFFSET.Planes + i * 4, ptr | 0);
   }
 }
 
@@ -2282,6 +2476,20 @@ yet wrapped) over manual construction.`;
 
 
 class ColorMap extends Struct {
+  /* check-structs: struct ColorMap */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/view.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    Flags: 0,
+    Type:  1,
+    Count: 2,
+  });
+
   /* Allocated by graphics.library GetColorMap / attached to ViewPort. */
 
   /**
@@ -2307,13 +2515,13 @@ internal representation.`;
   }
 
   /** @returns {number} UBYTE */
-  get flags() { return this.read8(0); }
+  get flags() { return this.read8(ColorMap.OFFSET.Flags); }
 
   /** @returns {number} UBYTE */
-  get type()  { return this.read8(1); }
+  get type()  { return this.read8(ColorMap.OFFSET.Type); }
 
   /** @returns {number} UWORD */
-  get count() { return this.read16(2); }
+  get count() { return this.read16(ColorMap.OFFSET.Count); }
 }
 
 
@@ -2345,6 +2553,24 @@ internal representation.`;
 
 
 class ViewPort extends Struct {
+  /* check-structs: struct ViewPort */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/view.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    Next:     0,
+    ColorMap: 4,
+    DWidth:   24,
+    DHeight:  26,
+    DxOffset: 28,
+    DyOffset: 30,
+    Modes:    32,
+  });
+
   /* Allocated as part of Screen or View; we wrap. */
 
   /**
@@ -2374,28 +2600,28 @@ graphics.library calls over raw writes.`;
   }
 
   /** @returns {number} */
-  get nextViewPort() { return this.read32(0); }
+  get nextViewPort() { return this.read32(ViewPort.OFFSET.Next); }
 
   /** @returns {ColorMap|null} */
   get colorMap() {
-    let p = this.read32(4);
+    let p = this.read32(ViewPort.OFFSET.ColorMap);
     return p ? new ColorMap(p) : null;
   }
 
   /** @returns {number} */
-  get dWidth()    { return this.read16(24); }
+  get dWidth()    { return this.read16(ViewPort.OFFSET.DWidth); }
 
   /** @returns {number} */
-  get dHeight()   { return this.read16(26); }
+  get dHeight()   { return this.read16(ViewPort.OFFSET.DHeight); }
 
   /** @returns {number} */
-  get dxOffset()  { return this.read16(28); }
+  get dxOffset()  { return this.read16(ViewPort.OFFSET.DxOffset); }
 
   /** @returns {number} */
-  get dyOffset()  { return this.read16(30); }
+  get dyOffset()  { return this.read16(ViewPort.OFFSET.DyOffset); }
 
   /** @returns {number} UWORD mode flags (LORES/HIRES/HAM/DUALPF etc.) */
-  get modes()     { return this.read16(32); }
+  get modes()     { return this.read16(ViewPort.OFFSET.Modes); }
 }
 
 
@@ -2429,6 +2655,29 @@ graphics.library calls over raw writes.`;
 
 
 class FileInfoBlock extends Struct {
+  /* check-structs: struct FileInfoBlock */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * dos/dos.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    fib_DiskKey:      0,
+    fib_DirEntryType: 4,
+    fib_FileName:     8,
+    fib_Protection:   116,
+    fib_Size:         124,
+    fib_NumBlocks:    128,
+    ds_Days:          132,   /* fib_Date.ds_Days */
+    ds_Minute:        136,   /* fib_Date.ds_Minute */
+    ds_Tick:          140,   /* fib_Date.ds_Tick */
+    fib_Comment:      144,
+    fib_OwnerUID:     224,
+    fib_OwnerGID:     226,
+  });
+
   /** @type {number} */
   static SIZE = 260;
 
@@ -2491,40 +2740,40 @@ Typical use:
   }
 
   /** @returns {number} LONG */
-  get diskKey()      { return this.read32(0); }
+  get diskKey()      { return this.read32(FileInfoBlock.OFFSET.fib_DiskKey); }
 
   /** @returns {number} LONG (<0 file, >0 directory) */
-  get dirEntryType() { return this.read32(4) | 0; }
+  get dirEntryType() { return this.read32(FileInfoBlock.OFFSET.fib_DirEntryType) | 0; }
 
   /** @returns {string} */
-  get fileName()     { return this._readCString(8, 108); }
+  get fileName()     { return this._readCString(FileInfoBlock.OFFSET.fib_FileName, 108); }
 
   /** @returns {number} LONG protection bits */
-  get protection()   { return this.read32(116); }
+  get protection()   { return this.read32(FileInfoBlock.OFFSET.fib_Protection); }
 
   /** @returns {number} LONG byte size */
-  get size()         { return this.read32(124); }
+  get size()         { return this.read32(FileInfoBlock.OFFSET.fib_Size); }
 
   /** @returns {number} LONG */
-  get numBlocks()    { return this.read32(128); }
+  get numBlocks()    { return this.read32(FileInfoBlock.OFFSET.fib_NumBlocks); }
 
   /** @returns {number} DateStamp.ds_Days */
-  get dateDays()     { return this.read32(132); }
+  get dateDays()     { return this.read32(FileInfoBlock.OFFSET.ds_Days); }
 
   /** @returns {number} DateStamp.ds_Minute */
-  get dateMinute()   { return this.read32(136); }
+  get dateMinute()   { return this.read32(FileInfoBlock.OFFSET.ds_Minute); }
 
   /** @returns {number} DateStamp.ds_Tick */
-  get dateTick()     { return this.read32(140); }
+  get dateTick()     { return this.read32(FileInfoBlock.OFFSET.ds_Tick); }
 
   /** @returns {string} comment, NULL-terminated C string */
-  get comment()      { return this._readCString(144, 80); }
+  get comment()      { return this._readCString(FileInfoBlock.OFFSET.fib_Comment, 80); }
 
   /** @returns {number} UWORD */
-  get ownerUID()     { return this.read16(224); }
+  get ownerUID()     { return this.read16(FileInfoBlock.OFFSET.fib_OwnerUID); }
 
   /** @returns {number} UWORD */
-  get ownerGID()     { return this.read16(226); }
+  get ownerGID()     { return this.read16(FileInfoBlock.OFFSET.fib_OwnerGID); }
 }
 
 
@@ -2549,6 +2798,25 @@ Typical use:
 
 
 class InputEvent extends Struct {
+  /* check-structs: struct InputEvent */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * devices/inputevent.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    ie_NextEvent: 0,
+    ie_Class:     4,
+    ie_SubClass:  5,
+    ie_Code:      6,
+    ie_Qualifier: 8,
+    ie_position:  10,
+    tv_secs:      14,   /* ie_TimeStamp + 0 as 4 bytes: seconds */
+    tv_micro:     18,   /* ie_TimeStamp + 4 as 4 bytes: microseconds */
+  });
+
   /** @type {number} */
   static SIZE = 22;
 
@@ -2583,34 +2851,34 @@ IECLASS_* codes (UBYTE):
   }
 
   /** @returns {number} */
-  get nextEvent()    { return this.read32(0); }
-  set nextEvent(v)   { this.write32(0, (v && v.ptr) || (v | 0)); }
+  get nextEvent()    { return this.read32(InputEvent.OFFSET.ie_NextEvent); }
+  set nextEvent(v)   { this.write32(InputEvent.OFFSET.ie_NextEvent, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} UBYTE, IECLASS_* */
-  get class()        { return this.read8(4); }
-  set class(v)       { this.write8(4, v | 0); }
+  get class()        { return this.read8(InputEvent.OFFSET.ie_Class); }
+  set class(v)       { this.write8(InputEvent.OFFSET.ie_Class, v | 0); }
 
   /** @returns {number} UBYTE */
-  get subClass()     { return this.read8(5); }
-  set subClass(v)    { this.write8(5, v | 0); }
+  get subClass()     { return this.read8(InputEvent.OFFSET.ie_SubClass); }
+  set subClass(v)    { this.write8(InputEvent.OFFSET.ie_SubClass, v | 0); }
 
   /** @returns {number} UWORD */
-  get code()         { return this.read16(6); }
-  set code(v)        { this.write16(6, v | 0); }
+  get code()         { return this.read16(InputEvent.OFFSET.ie_Code); }
+  set code(v)        { this.write16(InputEvent.OFFSET.ie_Code, v | 0); }
 
   /** @returns {number} UWORD */
-  get qualifier()    { return this.read16(8); }
-  set qualifier(v)   { this.write16(8, v | 0); }
+  get qualifier()    { return this.read16(InputEvent.OFFSET.ie_Qualifier); }
+  set qualifier(v)   { this.write16(InputEvent.OFFSET.ie_Qualifier, v | 0); }
 
   /** @returns {number} APTR (class-dependent interpretation) */
-  get eventAddress() { return this.read32(10); }
-  set eventAddress(v){ this.write32(10, (v && v.ptr) || (v | 0)); }
+  get eventAddress() { return this.read32(InputEvent.OFFSET.ie_position); }
+  set eventAddress(v){ this.write32(InputEvent.OFFSET.ie_position, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} TimeStamp tv_secs */
-  get seconds()      { return this.read32(14); }
+  get seconds()      { return this.read32(InputEvent.OFFSET.tv_secs); }
 
   /** @returns {number} TimeStamp tv_micro */
-  get micros()       { return this.read32(18); }
+  get micros()       { return this.read32(InputEvent.OFFSET.tv_micro); }
 }
 
 
@@ -2638,6 +2906,24 @@ IECLASS_* codes (UBYTE):
 
 
 class IORequest extends Struct {
+  /* check-structs: struct IORequest */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * exec/io.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    mn_ReplyPort: 14,   /* io_Message.mn_ReplyPort */
+    mn_Length:    18,   /* io_Message.mn_Length */
+    io_Device:    20,
+    io_Unit:      24,
+    io_Command:   28,
+    io_Flags:     30,
+    io_Error:     31,
+  });
+
   /** @type {number} */
   static SIZE = 32;
 
@@ -2673,36 +2959,36 @@ See TimerRequest for a concrete specialization.`;
   }
 
   /** @returns {number} */
-  get replyPort()   { return this.read32(14); }
-  set replyPort(v)  { this.write32(14, (v && v.ptr) || (v | 0)); }
+  get replyPort()   { return this.read32(IORequest.OFFSET.mn_ReplyPort); }
+  set replyPort(v)  { this.write32(IORequest.OFFSET.mn_ReplyPort, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get messageLen()  { return this.read16(18); }
-  set messageLen(v) { this.write16(18, v | 0); }
+  get messageLen()  { return this.read16(IORequest.OFFSET.mn_Length); }
+  set messageLen(v) { this.write16(IORequest.OFFSET.mn_Length, v | 0); }
 
   /* device and unit are filled in by OpenDevice. They are writable so
    * that a second request can be pointed at a device that is already
    * open, by copying both from the request that opened it. */
 
   /** @returns {number} */
-  get device()      { return this.read32(20); }
-  set device(v)     { this.write32(20, (v && v.ptr) || (v | 0)); }
+  get device()      { return this.read32(IORequest.OFFSET.io_Device); }
+  set device(v)     { this.write32(IORequest.OFFSET.io_Device, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get unit()        { return this.read32(24); }
-  set unit(v)       { this.write32(24, (v && v.ptr) || (v | 0)); }
+  get unit()        { return this.read32(IORequest.OFFSET.io_Unit); }
+  set unit(v)       { this.write32(IORequest.OFFSET.io_Unit, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get command()     { return this.read16(28); }
-  set command(v)    { this.write16(28, v | 0); }
+  get command()     { return this.read16(IORequest.OFFSET.io_Command); }
+  set command(v)    { this.write16(IORequest.OFFSET.io_Command, v | 0); }
 
   /** @returns {number} UBYTE */
-  get flags()       { return this.read8(30); }
-  set flags(v)      { this.write8(30, v | 0); }
+  get flags()       { return this.read8(IORequest.OFFSET.io_Flags); }
+  set flags(v)      { this.write8(IORequest.OFFSET.io_Flags, v | 0); }
 
   /** @returns {number} BYTE (may be negative for error codes) */
   get error()       {
-    let b = this.read8(31);
+    let b = this.read8(IORequest.OFFSET.io_Error);
     /* BYTE is signed; extend from 8-bit 2s-complement. */
     return b >= 0x80 ? b - 0x100 : b;
   }
@@ -2730,6 +3016,19 @@ See TimerRequest for a concrete specialization.`;
 
 
 class TimerRequest extends IORequest {
+  /* check-structs: struct timerequest */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * devices/timer.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    tv_secs:  32,   /* tr_time.tv_secs */
+    tv_micro: 36,   /* tr_time.tv_micro */
+  });
+
   /** @type {number} */
   static SIZE = 40;
 
@@ -2795,12 +3094,12 @@ Commands:
   }
 
   /** @returns {number} ULONG seconds */
-  get tvSecs()   { return this.read32(32); }
-  set tvSecs(v)  { this.write32(32, v | 0); }
+  get tvSecs()   { return this.read32(TimerRequest.OFFSET.tv_secs); }
+  set tvSecs(v)  { this.write32(TimerRequest.OFFSET.tv_secs, v | 0); }
 
   /** @returns {number} ULONG microseconds (0..999999) */
-  get tvMicro()  { return this.read32(36); }
-  set tvMicro(v) { this.write32(36, v | 0); }
+  get tvMicro()  { return this.read32(TimerRequest.OFFSET.tv_micro); }
+  set tvMicro(v) { this.write32(TimerRequest.OFFSET.tv_micro, v | 0); }
 
   /**
    * Fill both tv fields at once.
@@ -2833,6 +3132,25 @@ Commands:
 
 
 class Screen extends Struct {
+  /* check-structs: struct Screen */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/screens.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge:  8,
+    TopEdge:   10,
+    Width:     12,
+    Height:    14,
+    Flags:     20,
+    Title:     22,
+    BarHeight: 30,
+    Font:      40,
+  });
+
   /* SIZE not exposed — Screen is allocated by Intuition. */
 
   /**
@@ -2854,33 +3172,33 @@ Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
   }
 
   /** @returns {number} */
-  get leftEdge() { return this.read16( 8); }
+  get leftEdge() { return this.read16(Screen.OFFSET.LeftEdge); }
 
   /** @returns {number} */
-  get topEdge()  { return this.read16(10); }
+  get topEdge()  { return this.read16(Screen.OFFSET.TopEdge); }
 
   /** @returns {number} */
-  get width()    { return this.read16(12); }
+  get width()    { return this.read16(Screen.OFFSET.Width); }
 
   /** @returns {number} */
-  get height()   { return this.read16(14); }
+  get height()   { return this.read16(Screen.OFFSET.Height); }
 
   /** @returns {number} */
-  get flags()    { return this.read16(20); }
+  get flags()    { return this.read16(Screen.OFFSET.Flags); }
 
   /** @returns {string|null} */
   get title() {
-    let p = this.read32(22);
+    let p = this.read32(Screen.OFFSET.Title);
 
     return p ? globalThis.amiga.peekString(p, 64) : null;
   }
 
   /** @returns {number} */
-  get barHeight() { return this.read8(30); }
+  get barHeight() { return this.read8(Screen.OFFSET.BarHeight); }
 
   /** @returns {TextAttr|null} */
   get font() {
-    let p = this.read32(40);
+    let p = this.read32(Screen.OFFSET.Font);
 
     return p ? new TextAttr(p) : null;
   }
@@ -2964,6 +3282,31 @@ function withTags(pairs, fn) {
 
 
 class NewWindow extends Struct {
+  /* check-structs: struct NewWindow */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge:   0,
+    TopEdge:    2,
+    Width:      4,
+    Height:     6,
+    DetailPen:  8,
+    BlockPen:   9,
+    IDCMPFlags: 10,
+    Flags:      14,
+    Title:      26,
+    MinWidth:   38,
+    MinHeight:  40,
+    MaxWidth:   42,
+    MaxHeight:  44,
+    Type:       46,
+  });
+
   /** @type {number} */
   static SIZE = 48;
 
@@ -3026,11 +3369,11 @@ Typical use:
     this._titleAlloc = null;
 
     /* DetailPen / BlockPen default to 0xFF (-1) per the C convention. */
-    this.write8(8, 0xFF);
-    this.write8(9, 0xFF);
+    this.write8(NewWindow.OFFSET.DetailPen, 0xFF);
+    this.write8(NewWindow.OFFSET.BlockPen, 0xFF);
 
     /* Type default = WBENCHSCREEN (1) */
-    this.write16(46, 1);
+    this.write16(NewWindow.OFFSET.Type, 1);
 
     if (!initOrPtr) {
       return;
@@ -3042,16 +3385,16 @@ Typical use:
     if (i.top       !== undefined) this.top       = i.top;
     if (i.width     !== undefined) this.width     = i.width;
     if (i.height    !== undefined) this.height    = i.height;
-    if (i.detailPen !== undefined) this.write8(8, i.detailPen);
-    if (i.blockPen  !== undefined) this.write8(9, i.blockPen);
+    if (i.detailPen !== undefined) this.write8(NewWindow.OFFSET.DetailPen, i.detailPen);
+    if (i.blockPen  !== undefined) this.write8(NewWindow.OFFSET.BlockPen, i.blockPen);
     if (i.idcmp     !== undefined) this.idcmp     = i.idcmp;
     if (i.flags     !== undefined) this.flags     = i.flags;
     if (i.title     !== undefined) this.title     = i.title;
-    if (i.minWidth  !== undefined) this.write16(38, i.minWidth);
-    if (i.minHeight !== undefined) this.write16(40, i.minHeight);
-    if (i.maxWidth  !== undefined) this.write16(42, i.maxWidth);
-    if (i.maxHeight !== undefined) this.write16(44, i.maxHeight);
-    if (i.type      !== undefined) this.write16(46, i.type);
+    if (i.minWidth  !== undefined) this.write16(NewWindow.OFFSET.MinWidth, i.minWidth);
+    if (i.minHeight !== undefined) this.write16(NewWindow.OFFSET.MinHeight, i.minHeight);
+    if (i.maxWidth  !== undefined) this.write16(NewWindow.OFFSET.MaxWidth, i.maxWidth);
+    if (i.maxHeight !== undefined) this.write16(NewWindow.OFFSET.MaxHeight, i.maxHeight);
+    if (i.type      !== undefined) this.write16(NewWindow.OFFSET.Type, i.type);
   }
 
   /**
@@ -3071,23 +3414,23 @@ Typical use:
     super.free();
   }
 
-  get left()      { return this.read16(0); }
-  set left(v)     { this.write16(0, v); }
+  get left()      { return this.read16(NewWindow.OFFSET.LeftEdge); }
+  set left(v)     { this.write16(NewWindow.OFFSET.LeftEdge, v); }
 
-  get top()       { return this.read16(2); }
-  set top(v)      { this.write16(2, v); }
+  get top()       { return this.read16(NewWindow.OFFSET.TopEdge); }
+  set top(v)      { this.write16(NewWindow.OFFSET.TopEdge, v); }
 
-  get width()     { return this.read16(4); }
-  set width(v)    { this.write16(4, v); }
+  get width()     { return this.read16(NewWindow.OFFSET.Width); }
+  set width(v)    { this.write16(NewWindow.OFFSET.Width, v); }
 
-  get height()    { return this.read16(6); }
-  set height(v)   { this.write16(6, v); }
+  get height()    { return this.read16(NewWindow.OFFSET.Height); }
+  set height(v)   { this.write16(NewWindow.OFFSET.Height, v); }
 
-  get idcmp()     { return this.read32(10); }
-  set idcmp(v)    { this.write32(10, v | 0); }
+  get idcmp()     { return this.read32(NewWindow.OFFSET.IDCMPFlags); }
+  set idcmp(v)    { this.write32(NewWindow.OFFSET.IDCMPFlags, v | 0); }
 
-  get flags()     { return this.read32(14); }
-  set flags(v)    { this.write32(14, v | 0); }
+  get flags()     { return this.read32(NewWindow.OFFSET.Flags); }
+  set flags(v)    { this.write32(NewWindow.OFFSET.Flags, v | 0); }
 
   /**
    * Title field. Set with a string to allocate + own; set with a
@@ -3103,7 +3446,7 @@ Typical use:
     }
 
     if (value === null || value === undefined || value === 0) {
-      this.write32(26, 0);
+      this.write32(NewWindow.OFFSET.Title, 0);
       return;
     }
 
@@ -3116,17 +3459,17 @@ Typical use:
       }
 
       globalThis.amiga.pokeString(strPtr, value);
-      this.write32(26, strPtr);
+      this.write32(NewWindow.OFFSET.Title, strPtr);
       this._titleAlloc = { ptr: strPtr, size: bytes };
       return;
     }
 
     /* number / pointer */
-    this.write32(26, ptrOf(value));
+    this.write32(NewWindow.OFFSET.Title, ptrOf(value));
   }
 
   get title() {
-    let p = this.read32(26);
+    let p = this.read32(NewWindow.OFFSET.Title);
 
     return p ? globalThis.amiga.peekString(p, 256) : null;
   }
@@ -3163,6 +3506,29 @@ Typical use:
 
 
 class Window extends Struct {
+  /* check-structs: struct Window */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge:     4,
+    TopEdge:      6,
+    Width:        8,
+    Height:       10,
+    Title:        32,
+    WScreen:      46,
+    RPort:        50,
+    BorderLeft:   54,
+    BorderTop:    55,
+    BorderRight:  56,
+    BorderBottom: 57,
+    UserPort:     86,
+  });
+
   /* SIZE not exposed — Window is allocated by Intuition. */
 
   /**
@@ -3190,27 +3556,27 @@ Methods:
   }
 
   /** @returns {number} */
-  get leftEdge() { return this.read16(4); }
+  get leftEdge() { return this.read16(Window.OFFSET.LeftEdge); }
 
   /** @returns {number} */
-  get topEdge()  { return this.read16(6); }
+  get topEdge()  { return this.read16(Window.OFFSET.TopEdge); }
 
   /** @returns {number} */
-  get width()    { return this.read16(8); }
+  get width()    { return this.read16(Window.OFFSET.Width); }
 
   /** @returns {number} */
-  get height()   { return this.read16(10); }
+  get height()   { return this.read16(Window.OFFSET.Height); }
 
   /** @returns {string|null} */
   get title() {
-    let p = this.read32(32);
+    let p = this.read32(Window.OFFSET.Title);
 
     return p ? globalThis.amiga.peekString(p, 256) : null;
   }
 
   /** @returns {Screen|null} */
   get screen() {
-    let p = this.read32(46);
+    let p = this.read32(Window.OFFSET.WScreen);
 
     return p ? new Screen(p) : null;
   }
@@ -3218,28 +3584,28 @@ Methods:
   /** Width in pixels of the left-edge border (outside the usable
    *  content area). 8-bit field at struct Window offset 54.
    *  @returns {number} */
-  get borderLeft()   { return this.read8(54); }
+  get borderLeft()   { return this.read8(Window.OFFSET.BorderLeft); }
 
   /** Height of the top border (title bar area for most windows).
    *  @returns {number} */
-  get borderTop()    { return this.read8(55); }
+  get borderTop()    { return this.read8(Window.OFFSET.BorderTop); }
 
   /** Width of the right border. @returns {number} */
-  get borderRight()  { return this.read8(56); }
+  get borderRight()  { return this.read8(Window.OFFSET.BorderRight); }
 
   /** Height of the bottom border. @returns {number} */
-  get borderBottom() { return this.read8(57); }
+  get borderBottom() { return this.read8(Window.OFFSET.BorderBottom); }
 
   /** @returns {RastPort|null} */
   get rastPort() {
-    let p = this.read32(50);
+    let p = this.read32(Window.OFFSET.RPort);
 
     return p ? new RastPort(p) : null;
   }
 
   /** @returns {MsgPort|null} */
   get userPort() {
-    let p = this.read32(86);
+    let p = this.read32(Window.OFFSET.UserPort);
 
     return p ? new MsgPort(p) : null;
   }

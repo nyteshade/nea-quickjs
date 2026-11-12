@@ -16,6 +16,20 @@
 import { Struct } from './Struct.js';
 
 export class ColorMap extends Struct {
+  /* check-structs: struct ColorMap */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/view.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    Flags: 0,
+    Type:  1,
+    Count: 2,
+  });
+
   /* Allocated by graphics.library GetColorMap / attached to ViewPort. */
 
   /**
@@ -41,11 +55,11 @@ internal representation.`;
   }
 
   /** @returns {number} UBYTE */
-  get flags() { return this.read8(0); }
+  get flags() { return this.read8(ColorMap.OFFSET.Flags); }
 
   /** @returns {number} UBYTE */
-  get type()  { return this.read8(1); }
+  get type()  { return this.read8(ColorMap.OFFSET.Type); }
 
   /** @returns {number} UWORD */
-  get count() { return this.read16(2); }
+  get count() { return this.read16(ColorMap.OFFSET.Count); }
 }

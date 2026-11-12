@@ -28,6 +28,29 @@
 import { Struct } from './Struct.js';
 
 export class FileInfoBlock extends Struct {
+  /* check-structs: struct FileInfoBlock */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * dos/dos.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    fib_DiskKey:      0,
+    fib_DirEntryType: 4,
+    fib_FileName:     8,
+    fib_Protection:   116,
+    fib_Size:         124,
+    fib_NumBlocks:    128,
+    ds_Days:          132,   /* fib_Date.ds_Days */
+    ds_Minute:        136,   /* fib_Date.ds_Minute */
+    ds_Tick:          140,   /* fib_Date.ds_Tick */
+    fib_Comment:      144,
+    fib_OwnerUID:     224,
+    fib_OwnerGID:     226,
+  });
+
   /** @type {number} */
   static SIZE = 260;
 
@@ -90,38 +113,38 @@ Typical use:
   }
 
   /** @returns {number} LONG */
-  get diskKey()      { return this.read32(0); }
+  get diskKey()      { return this.read32(FileInfoBlock.OFFSET.fib_DiskKey); }
 
   /** @returns {number} LONG (<0 file, >0 directory) */
-  get dirEntryType() { return this.read32(4) | 0; }
+  get dirEntryType() { return this.read32(FileInfoBlock.OFFSET.fib_DirEntryType) | 0; }
 
   /** @returns {string} */
-  get fileName()     { return this._readCString(8, 108); }
+  get fileName()     { return this._readCString(FileInfoBlock.OFFSET.fib_FileName, 108); }
 
   /** @returns {number} LONG protection bits */
-  get protection()   { return this.read32(116); }
+  get protection()   { return this.read32(FileInfoBlock.OFFSET.fib_Protection); }
 
   /** @returns {number} LONG byte size */
-  get size()         { return this.read32(124); }
+  get size()         { return this.read32(FileInfoBlock.OFFSET.fib_Size); }
 
   /** @returns {number} LONG */
-  get numBlocks()    { return this.read32(128); }
+  get numBlocks()    { return this.read32(FileInfoBlock.OFFSET.fib_NumBlocks); }
 
   /** @returns {number} DateStamp.ds_Days */
-  get dateDays()     { return this.read32(132); }
+  get dateDays()     { return this.read32(FileInfoBlock.OFFSET.ds_Days); }
 
   /** @returns {number} DateStamp.ds_Minute */
-  get dateMinute()   { return this.read32(136); }
+  get dateMinute()   { return this.read32(FileInfoBlock.OFFSET.ds_Minute); }
 
   /** @returns {number} DateStamp.ds_Tick */
-  get dateTick()     { return this.read32(140); }
+  get dateTick()     { return this.read32(FileInfoBlock.OFFSET.ds_Tick); }
 
   /** @returns {string} comment, NULL-terminated C string */
-  get comment()      { return this._readCString(144, 80); }
+  get comment()      { return this._readCString(FileInfoBlock.OFFSET.fib_Comment, 80); }
 
   /** @returns {number} UWORD */
-  get ownerUID()     { return this.read16(224); }
+  get ownerUID()     { return this.read16(FileInfoBlock.OFFSET.fib_OwnerUID); }
 
   /** @returns {number} UWORD */
-  get ownerGID()     { return this.read16(226); }
+  get ownerGID()     { return this.read16(FileInfoBlock.OFFSET.fib_OwnerGID); }
 }

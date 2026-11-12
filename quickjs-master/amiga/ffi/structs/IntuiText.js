@@ -24,6 +24,25 @@ import { Struct } from './Struct.js';
 import { ptrOf } from '../ptrOf.js';
 
 export class IntuiText extends Struct {
+  /* check-structs: struct IntuiText */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    FrontPen:  0,
+    BackPen:   1,
+    DrawMode:  2,
+    LeftEdge:  4,
+    TopEdge:   6,
+    ITextFont: 8,
+    IText:     12,
+    NextText:  16,
+  });
+
   /** @type {number} */
   static SIZE = 20;
 
@@ -77,9 +96,9 @@ Methods: free() — releases struct + owned text allocation.`;
     if (i.drawMode !== undefined) this.drawMode = i.drawMode;
     if (i.leftEdge !== undefined) this.leftEdge = i.leftEdge;
     if (i.topEdge  !== undefined) this.topEdge  = i.topEdge;
-    if (i.font     !== undefined) this.write32(8, ptrOf(i.font));
+    if (i.font     !== undefined) this.write32(IntuiText.OFFSET.ITextFont, ptrOf(i.font));
     if (i.text     !== undefined) this.text = i.text;
-    if (i.nextText !== undefined) this.write32(16, ptrOf(i.nextText));
+    if (i.nextText !== undefined) this.write32(IntuiText.OFFSET.NextText, ptrOf(i.nextText));
   }
 
   /**
@@ -100,24 +119,24 @@ Methods: free() — releases struct + owned text allocation.`;
   }
 
   /** @returns {number} UBYTE */
-  get frontPen()  { return this.read8(0); }
-  set frontPen(v) { this.write8(0, v | 0); }
+  get frontPen()  { return this.read8(IntuiText.OFFSET.FrontPen); }
+  set frontPen(v) { this.write8(IntuiText.OFFSET.FrontPen, v | 0); }
 
   /** @returns {number} UBYTE */
-  get backPen()   { return this.read8(1); }
-  set backPen(v)  { this.write8(1, v | 0); }
+  get backPen()   { return this.read8(IntuiText.OFFSET.BackPen); }
+  set backPen(v)  { this.write8(IntuiText.OFFSET.BackPen, v | 0); }
 
   /** @returns {number} JAM1/JAM2/COMPLEMENT/INVERSVID */
-  get drawMode()  { return this.read8(2); }
-  set drawMode(v) { this.write8(2, v | 0); }
+  get drawMode()  { return this.read8(IntuiText.OFFSET.DrawMode); }
+  set drawMode(v) { this.write8(IntuiText.OFFSET.DrawMode, v | 0); }
 
   /** @returns {number} */
-  get leftEdge()  { return this.read16(4); }
-  set leftEdge(v) { this.write16(4, v | 0); }
+  get leftEdge()  { return this.read16(IntuiText.OFFSET.LeftEdge); }
+  set leftEdge(v) { this.write16(IntuiText.OFFSET.LeftEdge, v | 0); }
 
   /** @returns {number} */
-  get topEdge()   { return this.read16(6); }
-  set topEdge(v)  { this.write16(6, v | 0); }
+  get topEdge()   { return this.read16(IntuiText.OFFSET.TopEdge); }
+  set topEdge(v)  { this.write16(IntuiText.OFFSET.TopEdge, v | 0); }
 
   /**
    * Text field. Set with a string to allocate + own; set with a
@@ -135,7 +154,7 @@ Methods: free() — releases struct + owned text allocation.`;
     }
 
     if (value === null || value === undefined || value === 0) {
-      this.write32(12, 0);
+      this.write32(IntuiText.OFFSET.IText, 0);
       return;
     }
 
@@ -146,21 +165,21 @@ Methods: free() — releases struct + owned text allocation.`;
       if (!p) throw new Error('IntuiText.text: allocMem failed');
 
       globalThis.amiga.pokeString(p, value);
-      this.write32(12, p);
+      this.write32(IntuiText.OFFSET.IText, p);
       this._textAlloc = { ptr: p, size: bytes };
       return;
     }
 
-    this.write32(12, value | 0);
+    this.write32(IntuiText.OFFSET.IText, value | 0);
   }
 
   /** @returns {string|null} */
   get text() {
-    let p = this.read32(12);
+    let p = this.read32(IntuiText.OFFSET.IText);
     return p ? globalThis.amiga.peekString(p, 256) : null;
   }
 
   /** @returns {number} */
-  get nextText()  { return this.read32(16); }
-  set nextText(v) { this.write32(16, (v && v.ptr) || (v | 0)); }
+  get nextText()  { return this.read32(IntuiText.OFFSET.NextText); }
+  set nextText(v) { this.write32(IntuiText.OFFSET.NextText, (v && v.ptr) || (v | 0)); }
 }

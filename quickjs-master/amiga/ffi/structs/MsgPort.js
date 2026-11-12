@@ -16,8 +16,21 @@
 import { Struct } from './Struct.js';
 
 export class MsgPort extends Struct {
+  /* check-structs: struct MsgPort */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * exec/ports.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    mp_SigBit:  15,
+    mp_SigTask: 16,
+  });
+
   /** @type {number} */
-  static SIZE = 32;
+  static SIZE = 34;
 
   /**
    * REPL help text — a human-readable constructor signature.
@@ -43,10 +56,10 @@ Typical use:
   }
 
   /** @returns {number} signal bit number this port uses */
-  get sigBit() { return this.read8(15); }
+  get sigBit() { return this.read8(MsgPort.OFFSET.mp_SigBit); }
 
   /** @returns {number} owner task ptr */
-  get sigTask() { return this.read32(16); }
+  get sigTask() { return this.read32(MsgPort.OFFSET.mp_SigTask); }
 
   /** @returns {number} signal mask = 1 << sigBit */
   get sigMask() { return 1 << this.sigBit; }

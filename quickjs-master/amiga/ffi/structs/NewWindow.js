@@ -32,6 +32,31 @@ import { Struct } from './Struct.js';
 import { ptrOf } from '../ptrOf.js';
 
 export class NewWindow extends Struct {
+  /* check-structs: struct NewWindow */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge:   0,
+    TopEdge:    2,
+    Width:      4,
+    Height:     6,
+    DetailPen:  8,
+    BlockPen:   9,
+    IDCMPFlags: 10,
+    Flags:      14,
+    Title:      26,
+    MinWidth:   38,
+    MinHeight:  40,
+    MaxWidth:   42,
+    MaxHeight:  44,
+    Type:       46,
+  });
+
   /** @type {number} */
   static SIZE = 48;
 
@@ -94,11 +119,11 @@ Typical use:
     this._titleAlloc = null;
 
     /* DetailPen / BlockPen default to 0xFF (-1) per the C convention. */
-    this.write8(8, 0xFF);
-    this.write8(9, 0xFF);
+    this.write8(NewWindow.OFFSET.DetailPen, 0xFF);
+    this.write8(NewWindow.OFFSET.BlockPen, 0xFF);
 
     /* Type default = WBENCHSCREEN (1) */
-    this.write16(46, 1);
+    this.write16(NewWindow.OFFSET.Type, 1);
 
     if (!initOrPtr) {
       return;
@@ -110,16 +135,16 @@ Typical use:
     if (i.top       !== undefined) this.top       = i.top;
     if (i.width     !== undefined) this.width     = i.width;
     if (i.height    !== undefined) this.height    = i.height;
-    if (i.detailPen !== undefined) this.write8(8, i.detailPen);
-    if (i.blockPen  !== undefined) this.write8(9, i.blockPen);
+    if (i.detailPen !== undefined) this.write8(NewWindow.OFFSET.DetailPen, i.detailPen);
+    if (i.blockPen  !== undefined) this.write8(NewWindow.OFFSET.BlockPen, i.blockPen);
     if (i.idcmp     !== undefined) this.idcmp     = i.idcmp;
     if (i.flags     !== undefined) this.flags     = i.flags;
     if (i.title     !== undefined) this.title     = i.title;
-    if (i.minWidth  !== undefined) this.write16(38, i.minWidth);
-    if (i.minHeight !== undefined) this.write16(40, i.minHeight);
-    if (i.maxWidth  !== undefined) this.write16(42, i.maxWidth);
-    if (i.maxHeight !== undefined) this.write16(44, i.maxHeight);
-    if (i.type      !== undefined) this.write16(46, i.type);
+    if (i.minWidth  !== undefined) this.write16(NewWindow.OFFSET.MinWidth, i.minWidth);
+    if (i.minHeight !== undefined) this.write16(NewWindow.OFFSET.MinHeight, i.minHeight);
+    if (i.maxWidth  !== undefined) this.write16(NewWindow.OFFSET.MaxWidth, i.maxWidth);
+    if (i.maxHeight !== undefined) this.write16(NewWindow.OFFSET.MaxHeight, i.maxHeight);
+    if (i.type      !== undefined) this.write16(NewWindow.OFFSET.Type, i.type);
   }
 
   /**
@@ -139,23 +164,23 @@ Typical use:
     super.free();
   }
 
-  get left()      { return this.read16(0); }
-  set left(v)     { this.write16(0, v); }
+  get left()      { return this.read16(NewWindow.OFFSET.LeftEdge); }
+  set left(v)     { this.write16(NewWindow.OFFSET.LeftEdge, v); }
 
-  get top()       { return this.read16(2); }
-  set top(v)      { this.write16(2, v); }
+  get top()       { return this.read16(NewWindow.OFFSET.TopEdge); }
+  set top(v)      { this.write16(NewWindow.OFFSET.TopEdge, v); }
 
-  get width()     { return this.read16(4); }
-  set width(v)    { this.write16(4, v); }
+  get width()     { return this.read16(NewWindow.OFFSET.Width); }
+  set width(v)    { this.write16(NewWindow.OFFSET.Width, v); }
 
-  get height()    { return this.read16(6); }
-  set height(v)   { this.write16(6, v); }
+  get height()    { return this.read16(NewWindow.OFFSET.Height); }
+  set height(v)   { this.write16(NewWindow.OFFSET.Height, v); }
 
-  get idcmp()     { return this.read32(10); }
-  set idcmp(v)    { this.write32(10, v | 0); }
+  get idcmp()     { return this.read32(NewWindow.OFFSET.IDCMPFlags); }
+  set idcmp(v)    { this.write32(NewWindow.OFFSET.IDCMPFlags, v | 0); }
 
-  get flags()     { return this.read32(14); }
-  set flags(v)    { this.write32(14, v | 0); }
+  get flags()     { return this.read32(NewWindow.OFFSET.Flags); }
+  set flags(v)    { this.write32(NewWindow.OFFSET.Flags, v | 0); }
 
   /**
    * Title field. Set with a string to allocate + own; set with a
@@ -171,7 +196,7 @@ Typical use:
     }
 
     if (value === null || value === undefined || value === 0) {
-      this.write32(26, 0);
+      this.write32(NewWindow.OFFSET.Title, 0);
       return;
     }
 
@@ -184,17 +209,17 @@ Typical use:
       }
 
       globalThis.amiga.pokeString(strPtr, value);
-      this.write32(26, strPtr);
+      this.write32(NewWindow.OFFSET.Title, strPtr);
       this._titleAlloc = { ptr: strPtr, size: bytes };
       return;
     }
 
     /* number / pointer */
-    this.write32(26, ptrOf(value));
+    this.write32(NewWindow.OFFSET.Title, ptrOf(value));
   }
 
   get title() {
-    let p = this.read32(26);
+    let p = this.read32(NewWindow.OFFSET.Title);
 
     return p ? globalThis.amiga.peekString(p, 256) : null;
   }

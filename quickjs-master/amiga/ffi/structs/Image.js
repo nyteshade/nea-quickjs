@@ -7,6 +7,22 @@
 import { Struct } from './Struct.js';
 
 export class Image extends Struct {
+  /* check-structs: struct Image */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge: 0,
+    TopEdge:  2,
+    Width:    4,
+    Height:   6,
+    Depth:    8,
+  });
+
   /* Allocated by NewObject; we just wrap. */
 
   /**
@@ -33,17 +49,17 @@ Lifecycle: call Intuition.DisposeObject(img) when done.`;
   }
 
   /** @returns {number} */
-  get leftEdge() { return this.read16(0); }
+  get leftEdge() { return this.read16(Image.OFFSET.LeftEdge); }
 
   /** @returns {number} */
-  get topEdge()  { return this.read16(2); }
+  get topEdge()  { return this.read16(Image.OFFSET.TopEdge); }
 
   /** @returns {number} */
-  get width()    { return this.read16(4); }
+  get width()    { return this.read16(Image.OFFSET.Width); }
 
   /** @returns {number} */
-  get height()   { return this.read16(6); }
+  get height()   { return this.read16(Image.OFFSET.Height); }
 
   /** @returns {number} */
-  get depth()    { return this.read16(8); }
+  get depth()    { return this.read16(Image.OFFSET.Depth); }
 }

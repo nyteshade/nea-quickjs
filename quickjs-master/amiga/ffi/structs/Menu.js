@@ -19,6 +19,25 @@
 import { Struct } from './Struct.js';
 
 export class Menu extends Struct {
+  /* check-structs: struct Menu */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    NextMenu:  0,
+    LeftEdge:  4,
+    TopEdge:   6,
+    Width:     8,
+    Height:    10,
+    Flags:     12,
+    MenuName:  14,
+    FirstItem: 18,
+  });
+
   /** @type {number} */
   static SIZE = 30;
 
@@ -51,41 +70,41 @@ Setters:
   }
 
   /** @returns {number} */
-  get nextMenu()   { return this.read32(0); }
-  set nextMenu(v)  { this.write32(0, v | 0); }
+  get nextMenu()   { return this.read32(Menu.OFFSET.NextMenu); }
+  set nextMenu(v)  { this.write32(Menu.OFFSET.NextMenu, v | 0); }
 
   /** @returns {number} */
-  get leftEdge()   { return this.read16(4); }
-  set leftEdge(v)  { this.write16(4, v | 0); }
+  get leftEdge()   { return this.read16(Menu.OFFSET.LeftEdge); }
+  set leftEdge(v)  { this.write16(Menu.OFFSET.LeftEdge, v | 0); }
 
   /** @returns {number} */
-  get topEdge()    { return this.read16(6); }
-  set topEdge(v)   { this.write16(6, v | 0); }
+  get topEdge()    { return this.read16(Menu.OFFSET.TopEdge); }
+  set topEdge(v)   { this.write16(Menu.OFFSET.TopEdge, v | 0); }
 
   /** @returns {number} */
-  get width()      { return this.read16(8); }
-  set width(v)     { this.write16(8, v | 0); }
+  get width()      { return this.read16(Menu.OFFSET.Width); }
+  set width(v)     { this.write16(Menu.OFFSET.Width, v | 0); }
 
   /** @returns {number} */
-  get height()     { return this.read16(10); }
-  set height(v)    { this.write16(10, v | 0); }
+  get height()     { return this.read16(Menu.OFFSET.Height); }
+  set height(v)    { this.write16(Menu.OFFSET.Height, v | 0); }
 
   /** @returns {number} MENUENABLED = 0x0001 etc. */
-  get flags()      { return this.read16(12); }
-  set flags(v)     { this.write16(12, v | 0); }
+  get flags()      { return this.read16(Menu.OFFSET.Flags); }
+  set flags(v)     { this.write16(Menu.OFFSET.Flags, v | 0); }
 
   /** @returns {string|null} */
   get menuName() {
-    let p = this.read32(14);
+    let p = this.read32(Menu.OFFSET.MenuName);
     return p ? globalThis.amiga.peekString(p, 128) : null;
   }
 
   /** @param {number} ptr — STRPTR (caller-managed) */
-  set menuName(ptr) { this.write32(14, ptr | 0); }
+  set menuName(ptr) { this.write32(Menu.OFFSET.MenuName, ptr | 0); }
 
   /** @returns {MenuItem|null} */
   get firstItem() {
-    let p = this.read32(18);
+    let p = this.read32(Menu.OFFSET.FirstItem);
     if (!p) return null;
 
     /* Circular-import-safe lookup through the global namespace. */
@@ -95,5 +114,5 @@ Setters:
     return MI ? new MI(p) : null;
   }
 
-  set firstItem(v) { this.write32(18, (v && v.ptr) || (v | 0)); }
+  set firstItem(v) { this.write32(Menu.OFFSET.FirstItem, (v && v.ptr) || (v | 0)); }
 }

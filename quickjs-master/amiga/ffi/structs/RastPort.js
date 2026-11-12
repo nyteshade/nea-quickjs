@@ -8,6 +8,19 @@
 import { Struct } from './Struct.js';
 
 export class RastPort extends Struct {
+  /* check-structs: struct RastPort */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/rastport.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    TxHeight:   58,
+    TxBaseline: 62,
+  });
+
   /* SIZE not exposed — RastPort is allocated by Intuition. */
 
   /**
@@ -39,10 +52,10 @@ Properties (read-only, graphics/rastport.h):
   }
 
   /** @returns {number} height in pixels of the current font */
-  get fontHeight()   { return this.read16(58); }
+  get fontHeight()   { return this.read16(RastPort.OFFSET.TxHeight); }
 
   /** @returns {number} pixels from the top of a line to its baseline */
-  get fontBaseline() { return this.read16(62); }
+  get fontBaseline() { return this.read16(RastPort.OFFSET.TxBaseline); }
 
   /**
    * The width of a piece of text in this RastPort's current font.

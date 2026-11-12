@@ -11,6 +11,21 @@
 import { Struct } from './Struct.js';
 
 export class TextAttr extends Struct {
+  /* check-structs: struct TextAttr */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/text.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    ta_Name:  0,
+    ta_YSize: 4,
+    ta_Style: 6,
+    ta_Flags: 7,
+  });
+
   /** @type {number} */
   static SIZE = 8;
 
@@ -39,17 +54,17 @@ Typical use:
 
   /** @returns {string|null} font name */
   get name() {
-    let p = this.read32(0);
+    let p = this.read32(TextAttr.OFFSET.ta_Name);
 
     return p ? globalThis.amiga.peekString(p, 64) : null;
   }
 
   /** @returns {number} font height in points/pixels */
-  get ySize() { return this.read16(4); }
+  get ySize() { return this.read16(TextAttr.OFFSET.ta_YSize); }
 
   /** @returns {number} TF_NORMAL/TF_UNDERLINED/TF_BOLD/TF_ITALIC bitfield */
-  get style() { return this.read8(6); }
+  get style() { return this.read8(TextAttr.OFFSET.ta_Style); }
 
   /** @returns {number} */
-  get flags() { return this.read8(7); }
+  get flags() { return this.read8(TextAttr.OFFSET.ta_Flags); }
 }

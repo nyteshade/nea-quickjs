@@ -20,6 +20,19 @@ import { IORequest } from './IORequest.js';
 import { CEnumeration } from '../CEnumeration.js';
 
 export class TimerRequest extends IORequest {
+  /* check-structs: struct timerequest */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * devices/timer.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    tv_secs:  32,   /* tr_time.tv_secs */
+    tv_micro: 36,   /* tr_time.tv_micro */
+  });
+
   /** @type {number} */
   static SIZE = 40;
 
@@ -85,12 +98,12 @@ Commands:
   }
 
   /** @returns {number} ULONG seconds */
-  get tvSecs()   { return this.read32(32); }
-  set tvSecs(v)  { this.write32(32, v | 0); }
+  get tvSecs()   { return this.read32(TimerRequest.OFFSET.tv_secs); }
+  set tvSecs(v)  { this.write32(TimerRequest.OFFSET.tv_secs, v | 0); }
 
   /** @returns {number} ULONG microseconds (0..999999) */
-  get tvMicro()  { return this.read32(36); }
-  set tvMicro(v) { this.write32(36, v | 0); }
+  get tvMicro()  { return this.read32(TimerRequest.OFFSET.tv_micro); }
+  set tvMicro(v) { this.write32(TimerRequest.OFFSET.tv_micro, v | 0); }
 
   /**
    * Fill both tv fields at once.

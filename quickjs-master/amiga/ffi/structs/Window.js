@@ -32,6 +32,29 @@ import { MsgPort } from './MsgPort.js';
 import { IntuiMessage } from './IntuiMessage.js';
 
 export class Window extends Struct {
+  /* check-structs: struct Window */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    LeftEdge:     4,
+    TopEdge:      6,
+    Width:        8,
+    Height:       10,
+    Title:        32,
+    WScreen:      46,
+    RPort:        50,
+    BorderLeft:   54,
+    BorderTop:    55,
+    BorderRight:  56,
+    BorderBottom: 57,
+    UserPort:     86,
+  });
+
   /* SIZE not exposed — Window is allocated by Intuition. */
 
   /**
@@ -59,27 +82,27 @@ Methods:
   }
 
   /** @returns {number} */
-  get leftEdge() { return this.read16(4); }
+  get leftEdge() { return this.read16(Window.OFFSET.LeftEdge); }
 
   /** @returns {number} */
-  get topEdge()  { return this.read16(6); }
+  get topEdge()  { return this.read16(Window.OFFSET.TopEdge); }
 
   /** @returns {number} */
-  get width()    { return this.read16(8); }
+  get width()    { return this.read16(Window.OFFSET.Width); }
 
   /** @returns {number} */
-  get height()   { return this.read16(10); }
+  get height()   { return this.read16(Window.OFFSET.Height); }
 
   /** @returns {string|null} */
   get title() {
-    let p = this.read32(32);
+    let p = this.read32(Window.OFFSET.Title);
 
     return p ? globalThis.amiga.peekString(p, 256) : null;
   }
 
   /** @returns {Screen|null} */
   get screen() {
-    let p = this.read32(46);
+    let p = this.read32(Window.OFFSET.WScreen);
 
     return p ? new Screen(p) : null;
   }
@@ -87,28 +110,28 @@ Methods:
   /** Width in pixels of the left-edge border (outside the usable
    *  content area). 8-bit field at struct Window offset 54.
    *  @returns {number} */
-  get borderLeft()   { return this.read8(54); }
+  get borderLeft()   { return this.read8(Window.OFFSET.BorderLeft); }
 
   /** Height of the top border (title bar area for most windows).
    *  @returns {number} */
-  get borderTop()    { return this.read8(55); }
+  get borderTop()    { return this.read8(Window.OFFSET.BorderTop); }
 
   /** Width of the right border. @returns {number} */
-  get borderRight()  { return this.read8(56); }
+  get borderRight()  { return this.read8(Window.OFFSET.BorderRight); }
 
   /** Height of the bottom border. @returns {number} */
-  get borderBottom() { return this.read8(57); }
+  get borderBottom() { return this.read8(Window.OFFSET.BorderBottom); }
 
   /** @returns {RastPort|null} */
   get rastPort() {
-    let p = this.read32(50);
+    let p = this.read32(Window.OFFSET.RPort);
 
     return p ? new RastPort(p) : null;
   }
 
   /** @returns {MsgPort|null} */
   get userPort() {
-    let p = this.read32(86);
+    let p = this.read32(Window.OFFSET.UserPort);
 
     return p ? new MsgPort(p) : null;
   }

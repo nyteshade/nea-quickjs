@@ -23,6 +23,29 @@
 import { Struct } from './Struct.js';
 
 export class MenuItem extends Struct {
+  /* check-structs: struct MenuItem */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    NextItem:      0,
+    LeftEdge:      4,
+    TopEdge:       6,
+    Width:         8,
+    Height:        10,
+    Flags:         12,
+    MutualExclude: 14,
+    ItemFill:      18,
+    SelectFill:    22,
+    Command:       26,
+    SubItem:       28,
+    NextSelect:    32,
+  });
+
   /** @type {number} */
   static SIZE = 34;
 
@@ -57,56 +80,56 @@ Flags conveniences: COMMSEQ | ITEMTEXT | ITEMENABLED is the typical
   }
 
   /** @returns {number} */
-  get nextItem()      { return this.read32(0); }
-  set nextItem(v)     { this.write32(0, v | 0); }
+  get nextItem()      { return this.read32(MenuItem.OFFSET.NextItem); }
+  set nextItem(v)     { this.write32(MenuItem.OFFSET.NextItem, v | 0); }
 
   /** @returns {number} */
-  get leftEdge()      { return this.read16(4); }
-  set leftEdge(v)     { this.write16(4, v | 0); }
+  get leftEdge()      { return this.read16(MenuItem.OFFSET.LeftEdge); }
+  set leftEdge(v)     { this.write16(MenuItem.OFFSET.LeftEdge, v | 0); }
 
   /** @returns {number} */
-  get topEdge()       { return this.read16(6); }
-  set topEdge(v)      { this.write16(6, v | 0); }
+  get topEdge()       { return this.read16(MenuItem.OFFSET.TopEdge); }
+  set topEdge(v)      { this.write16(MenuItem.OFFSET.TopEdge, v | 0); }
 
   /** @returns {number} */
-  get width()         { return this.read16(8); }
-  set width(v)        { this.write16(8, v | 0); }
+  get width()         { return this.read16(MenuItem.OFFSET.Width); }
+  set width(v)        { this.write16(MenuItem.OFFSET.Width, v | 0); }
 
   /** @returns {number} */
-  get height()        { return this.read16(10); }
-  set height(v)       { this.write16(10, v | 0); }
+  get height()        { return this.read16(MenuItem.OFFSET.Height); }
+  set height(v)       { this.write16(MenuItem.OFFSET.Height, v | 0); }
 
   /** @returns {number} */
-  get flags()         { return this.read16(12); }
-  set flags(v)        { this.write16(12, v | 0); }
+  get flags()         { return this.read16(MenuItem.OFFSET.Flags); }
+  set flags(v)        { this.write16(MenuItem.OFFSET.Flags, v | 0); }
 
   /** @returns {number} */
-  get mutualExclude() { return this.read32(14); }
-  set mutualExclude(v){ this.write32(14, v | 0); }
+  get mutualExclude() { return this.read32(MenuItem.OFFSET.MutualExclude); }
+  set mutualExclude(v){ this.write32(MenuItem.OFFSET.MutualExclude, v | 0); }
 
   /** @returns {number} APTR (Image* or IntuiText*) */
-  get itemFill()      { return this.read32(18); }
-  set itemFill(v)     { this.write32(18, (v && v.ptr) || (v | 0)); }
+  get itemFill()      { return this.read32(MenuItem.OFFSET.ItemFill); }
+  set itemFill(v)     { this.write32(MenuItem.OFFSET.ItemFill, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} APTR */
-  get selectFill()    { return this.read32(22); }
-  set selectFill(v)   { this.write32(22, (v && v.ptr) || (v | 0)); }
+  get selectFill()    { return this.read32(MenuItem.OFFSET.SelectFill); }
+  set selectFill(v)   { this.write32(MenuItem.OFFSET.SelectFill, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} BYTE — Amiga-key shortcut (ASCII) */
-  get command()       { return this.read8(26); }
-  set command(v)      { this.write8(26, v | 0); }
+  get command()       { return this.read8(MenuItem.OFFSET.Command); }
+  set command(v)      { this.write8(MenuItem.OFFSET.Command, v | 0); }
 
   /** @returns {MenuItem|null} */
   get subItem() {
-    let p = this.read32(28);
+    let p = this.read32(MenuItem.OFFSET.SubItem);
     if (!p) return null;
 
     return new MenuItem(p);
   }
 
-  set subItem(v) { this.write32(28, (v && v.ptr) || (v | 0)); }
+  set subItem(v) { this.write32(MenuItem.OFFSET.SubItem, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get nextSelect()    { return this.read16(32); }
-  set nextSelect(v)   { this.write16(32, v | 0); }
+  get nextSelect()    { return this.read16(MenuItem.OFFSET.NextSelect); }
+  set nextSelect(v)   { this.write16(MenuItem.OFFSET.NextSelect, v | 0); }
 }

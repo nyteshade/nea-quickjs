@@ -16,6 +16,26 @@
 import { Struct } from './Struct.js';
 
 export class IntuiMessage extends Struct {
+  /* check-structs: struct IntuiMessage */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * intuition/intuition.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    Class:       20,
+    Code:        24,
+    Qualifier:   26,
+    IAddress:    28,
+    MouseX:      32,
+    MouseY:      34,
+    Seconds:     36,
+    Micros:      40,
+    IDCMPWindow: 44,
+  });
+
   /** @type {number} */
   static SIZE = 52;
 
@@ -68,7 +88,7 @@ Typical use:
    * @returns {CEnumeration|number}
    */
   get class() {
-    let raw = this.read32(20);
+    let raw = this.read32(IntuiMessage.OFFSET.Class);
     let Intuition = globalThis.amiga && globalThis.amiga.Intuition;
 
     if (Intuition && Intuition.consts && Intuition.consts.from) {
@@ -95,31 +115,31 @@ Typical use:
   }
 
   /** @returns {number} same as `class` but always the raw flag */
-  get classRaw() { return this.read32(20); }
+  get classRaw() { return this.read32(IntuiMessage.OFFSET.Class); }
 
   /** @returns {number} */
-  get code()      { return this.read16(24); }
+  get code()      { return this.read16(IntuiMessage.OFFSET.Code); }
 
   /** @returns {number} */
-  get qualifier() { return this.read16(26); }
+  get qualifier() { return this.read16(IntuiMessage.OFFSET.Qualifier); }
 
   /** @returns {number} */
-  get iAddress()  { return this.read32(28); }
+  get iAddress()  { return this.read32(IntuiMessage.OFFSET.IAddress); }
 
   /** @returns {number} */
-  get mouseX()    { return IntuiMessage._signed16(this.read16(32)); }
+  get mouseX()    { return IntuiMessage._signed16(this.read16(IntuiMessage.OFFSET.MouseX)); }
 
   /** @returns {number} */
-  get mouseY()    { return IntuiMessage._signed16(this.read16(34)); }
+  get mouseY()    { return IntuiMessage._signed16(this.read16(IntuiMessage.OFFSET.MouseY)); }
 
   /** @returns {number} */
-  get seconds()   { return this.read32(36); }
+  get seconds()   { return this.read32(IntuiMessage.OFFSET.Seconds); }
 
   /** @returns {number} */
-  get micros()    { return this.read32(40); }
+  get micros()    { return this.read32(IntuiMessage.OFFSET.Micros); }
 
   /** @returns {number} */
-  get idcmpWindow() { return this.read32(44); }
+  get idcmpWindow() { return this.read32(IntuiMessage.OFFSET.IDCMPWindow); }
 
   /**
    * Reply this message back to Intuition. After calling, the message

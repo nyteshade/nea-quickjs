@@ -23,6 +23,24 @@ import { Struct } from './Struct.js';
 import { ptrOf } from '../ptrOf.js';
 
 export class IORequest extends Struct {
+  /* check-structs: struct IORequest */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * exec/io.h. Checked against the compiler's own layout of
+   * the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    mn_ReplyPort: 14,   /* io_Message.mn_ReplyPort */
+    mn_Length:    18,   /* io_Message.mn_Length */
+    io_Device:    20,
+    io_Unit:      24,
+    io_Command:   28,
+    io_Flags:     30,
+    io_Error:     31,
+  });
+
   /** @type {number} */
   static SIZE = 32;
 
@@ -58,36 +76,36 @@ See TimerRequest for a concrete specialization.`;
   }
 
   /** @returns {number} */
-  get replyPort()   { return this.read32(14); }
-  set replyPort(v)  { this.write32(14, (v && v.ptr) || (v | 0)); }
+  get replyPort()   { return this.read32(IORequest.OFFSET.mn_ReplyPort); }
+  set replyPort(v)  { this.write32(IORequest.OFFSET.mn_ReplyPort, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get messageLen()  { return this.read16(18); }
-  set messageLen(v) { this.write16(18, v | 0); }
+  get messageLen()  { return this.read16(IORequest.OFFSET.mn_Length); }
+  set messageLen(v) { this.write16(IORequest.OFFSET.mn_Length, v | 0); }
 
   /* device and unit are filled in by OpenDevice. They are writable so
    * that a second request can be pointed at a device that is already
    * open, by copying both from the request that opened it. */
 
   /** @returns {number} */
-  get device()      { return this.read32(20); }
-  set device(v)     { this.write32(20, (v && v.ptr) || (v | 0)); }
+  get device()      { return this.read32(IORequest.OFFSET.io_Device); }
+  set device(v)     { this.write32(IORequest.OFFSET.io_Device, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get unit()        { return this.read32(24); }
-  set unit(v)       { this.write32(24, (v && v.ptr) || (v | 0)); }
+  get unit()        { return this.read32(IORequest.OFFSET.io_Unit); }
+  set unit(v)       { this.write32(IORequest.OFFSET.io_Unit, (v && v.ptr) || (v | 0)); }
 
   /** @returns {number} */
-  get command()     { return this.read16(28); }
-  set command(v)    { this.write16(28, v | 0); }
+  get command()     { return this.read16(IORequest.OFFSET.io_Command); }
+  set command(v)    { this.write16(IORequest.OFFSET.io_Command, v | 0); }
 
   /** @returns {number} UBYTE */
-  get flags()       { return this.read8(30); }
-  set flags(v)      { this.write8(30, v | 0); }
+  get flags()       { return this.read8(IORequest.OFFSET.io_Flags); }
+  set flags(v)      { this.write8(IORequest.OFFSET.io_Flags, v | 0); }
 
   /** @returns {number} BYTE (may be negative for error codes) */
   get error()       {
-    let b = this.read8(31);
+    let b = this.read8(IORequest.OFFSET.io_Error);
     /* BYTE is signed; extend from 8-bit 2s-complement. */
     return b >= 0x80 ? b - 0x100 : b;
   }
