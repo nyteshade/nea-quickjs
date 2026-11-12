@@ -34,9 +34,11 @@
 
 import * as std from 'qjs:std';
 
+/* WA_InnerWidth arrived in 0.217, with the window titles this file
+ * relies on, so its presence is the test for a new enough library. */
 if (typeof Intuition !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    typeof amiga.allocString !== 'function') {
+    Intuition.consts.WA_InnerWidth === undefined) {
   print('Need quickjs.library 0.217 or later');
   std.exit(1);
 }

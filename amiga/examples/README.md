@@ -94,7 +94,7 @@ Before: 45 low, 15 medium, 1 high.
 | Example | What it is | Load | Was |
 |---|---|---|---|
 | `asl_filereq.js` | Ask for a file with the standard file requester. | 4 low | 4 low |
-| `clock_demo.js` | A window that counts the seconds since it opened. | 32 medium | 29 medium |
+| `clock_demo.js` | A window that counts the seconds since it opened. | 33 medium | 29 medium |
 | `dir_listing.js` | List a directory, the way the Dir command does. Optional arguments: `[directory=SYS:]`. | 17 low | 16 low |
 | `drawing_demo.js` | Lines, boxes and text drawn straight into a window. | 16 low | 11 low |
 | `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 22 low | 19 low |

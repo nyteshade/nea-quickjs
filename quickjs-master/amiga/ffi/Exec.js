@@ -48,6 +48,14 @@ export class Exec extends LibraryBase {
       ExecConsts.define('MEMF_REVERSE',    0x00080000);
       ExecConsts.define('MEMF_TOTAL',      0x00040000);
       ExecConsts.define('MEMF_NO_EXPUNGE', 0x80000000);
+
+      /* Break signals, dos/dos.h: SIGBREAKF_CTRL_x = 1 << SIGBREAKB_CTRL_x,
+       * with the bit numbers 12, 13, 14, 15. Add SIGBREAKF_CTRL_C to
+       * the mask given to Exec.Wait to let Ctrl-C end a wait. */
+      ExecConsts.define('SIGBREAKF_CTRL_C', 1 << 12);
+      ExecConsts.define('SIGBREAKF_CTRL_D', 1 << 13);
+      ExecConsts.define('SIGBREAKF_CTRL_E', 1 << 14);
+      ExecConsts.define('SIGBREAKF_CTRL_F', 1 << 15);
     }
   };
 

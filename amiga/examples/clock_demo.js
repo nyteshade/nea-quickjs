@@ -35,41 +35,37 @@
  *     which is why this file keeps two requests and tracks whether
  *     the tick is out (see part 2)
  *
- * Requires quickjs.library 0.217+.
+ * Requires quickjs.library 0.218+.
  * Run: qjs examples/clock_demo.js
  */
 
 import * as std from 'qjs:std';
 
+/* WA_InnerWidth arrived in 0.217, with the window titles this file
+ * relies on, so its presence is the test for a new enough library. */
 if (typeof TimerRequest !== 'function' || typeof Exec !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    typeof amiga.allocString !== 'function') {
-  print('Need quickjs.library 0.217 or later');
+    Intuition.consts.WA_InnerWidth === undefined ||
+    TimerRequest.consts === undefined) {
+  print('Need quickjs.library 0.218 or later');
   std.exit(1);
 }
 
 const C = Intuition.consts;
 
-/** Which timer.device unit to open: the one driven by the display's
- *  vertical blank, 50 Hz (PAL) or 60 Hz (NTSC), which is plenty for
- *  one-second ticks (devices/timer.h). */
-const UNIT_VBLANK = 1;
+/** timer.device's units and commands, by name (devices/timer.h):
+ *
+ *   T.UNIT_VBLANK    the unit driven by the display's vertical blank,
+ *                    50 Hz (PAL) or 60 Hz (NTSC): plenty for one-second
+ *                    ticks
+ *   T.TR_ADDREQUEST  "reply to me after this long"
+ *   T.TR_GETSYSTIME  "what time is it?" */
+const T = TimerRequest.consts;
 
-/** timer.device command: "reply to me after this long"
- *  (devices/timer.h, TR_ADDREQUEST = CMD_NONSTD = 9). */
-const TR_ADDREQUEST = 9;
-
-/** timer.device command that reads the system time into the request
- *  (devices/timer.h, TR_GETSYSTIME = CMD_NONSTD + 1 = 10). Take care
- *  with this number: 11 is TR_SETSYSTIME, which sets the clock. */
-const TR_GETSYSTIME = 10;
-
-/* IDCMP class bits, as plain numbers (intuition/intuition.h). The
- * loop reads a message's class as a raw number, and the entries of
- * Intuition.consts are enumeration objects that are only equal to
- * themselves, so the raw number has to be compared with a number. */
-const IDCMP_REFRESHWINDOW_BITS = 0x00000004;
-const IDCMP_CLOSEWINDOW_BITS   = 0x00000200;
+/** Ctrl-C in the Shell this was started from sends this signal. The
+ *  loop listens for it, so the script can be stopped even if its
+ *  window cannot be reached. */
+const breakSignal = Number(Exec.consts.SIGBREAKF_CTRL_C);
 
 /** How often the clock ticks, in seconds. */
 const TICK_SECONDS = 1;
@@ -187,7 +183,7 @@ let tickRequest = new TimerRequest();
 tickRequest.replyPort  = timerPort.ptr;
 tickRequest.messageLen = TimerRequest.SIZE;
 
-let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK, tickRequest, 0);
+let openError = Exec.OpenDevice('timer.device', T.UNIT_VBLANK, tickRequest, 0);
 
 if (openError !== 0) {
   print('OpenDevice(timer.device, UNIT_VBLANK) failed rc=' + openError);
@@ -203,12 +199,12 @@ clockRequest.messageLen = TimerRequest.SIZE;
 clockRequest.device     = tickRequest.device;
 clockRequest.unit       = tickRequest.unit;
 
-/* Each port wakes the script with its own signal bit. Waiting on both
- * bits together is what lets one loop serve the window and the
- * timer. */
+/* Each port wakes the script with its own signal bit. Waiting on all
+ * of the bits together is what lets one loop serve the window, the
+ * timer and Ctrl-C. */
 const windowSignal = window.userPort.sigMask;
 const timerSignal  = timerPort.sigMask;
-const eitherSignal = windowSignal | timerSignal;
+const anySignal    = windowSignal | timerSignal | breakSignal;
 
 
 /* ==================================================================
@@ -229,7 +225,7 @@ let tickIsOut = false;
 function scheduleTick() {
   if (tickIsOut) return;
 
-  tickRequest.command = TR_ADDREQUEST;
+  tickRequest.command = T.TR_ADDREQUEST;
   tickRequest.setTimeval(TICK_SECONDS, 0);
   Exec.SendIO(tickRequest);
   tickIsOut = true;
@@ -242,7 +238,7 @@ function scheduleTick() {
  * @returns {{secs: number, micro: number}} seconds and microseconds
  */
 function readSystemTime() {
-  clockRequest.command = TR_GETSYSTIME;
+  clockRequest.command = T.TR_GETSYSTIME;
   clockRequest.setTimeval(0, 0);
   Exec.DoIO(clockRequest);
 
@@ -330,7 +326,7 @@ function redraw() {
  *
  * window.messages() cannot be used here, because it does its own Wait
  * on the window's signal alone and would sleep through the timer. So
- * the loop calls Exec.Wait itself, on both signals, and then empties
+ * the loop calls Exec.Wait itself, on all the signals, and then empties
  * whichever port woke it.
  * ================================================================== */
 
@@ -345,18 +341,18 @@ function drainWindowPort() {
 
   while ((messagePtr = Exec.GetMsg(window.userPort)) !== 0) {
     let message      = new IntuiMessage(messagePtr);
-    let messageClass = message.classRaw;
+    let messageClass = message.class;
 
     /* Reply first: after ReplyMsg the message belongs to Intuition
      * again, which is why its class was copied out above. */
     Exec.ReplyMsg(message);
 
     switch (messageClass) {
-      case IDCMP_CLOSEWINDOW_BITS:
+      case C.IDCMP_CLOSEWINDOW:
         closing = true;
         break;
 
-      case IDCMP_REFRESHWINDOW_BITS:
+      case C.IDCMP_REFRESHWINDOW:
         Intuition.BeginRefresh(window);
         lastDrawn = null;
         redraw();
@@ -375,7 +371,9 @@ let running = true;
 
 try {
   while (running) {
-    let signals = Exec.Wait(eitherSignal);
+    let signals = Exec.Wait(anySignal);
+
+    if (signals & breakSignal) running = false;
 
     if ((signals & timerSignal) && collectTick()) {
       redraw();

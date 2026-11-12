@@ -2734,6 +2734,35 @@ class TimerRequest extends IORequest {
   static SIZE = 40;
 
   /**
+   * timer.device units and commands (devices/timer.h). Cases coerce to
+   * their numeric value, so they can be given straight to
+   * Exec.OpenDevice and to the `command` setter.
+   *
+   * The commands are written as the header writes them: counted up
+   * from CMD_NONSTD, which exec/io.h defines as 9.
+   *
+   * @example
+   * const T = TimerRequest.consts;
+   * Exec.OpenDevice('timer.device', T.UNIT_VBLANK, request, 0);
+   * request.command = T.TR_ADDREQUEST;
+   */
+  static consts = class TimerConsts extends CEnumeration {
+    static {
+      const CMD_NONSTD = 9;
+
+      TimerConsts.define('UNIT_MICROHZ',    0);
+      TimerConsts.define('UNIT_VBLANK',     1);
+      TimerConsts.define('UNIT_ECLOCK',     2);
+      TimerConsts.define('UNIT_WAITUNTIL',  3);
+      TimerConsts.define('UNIT_WAITECLOCK', 4);
+
+      TimerConsts.define('TR_ADDREQUEST', CMD_NONSTD);
+      TimerConsts.define('TR_GETSYSTIME', CMD_NONSTD + 1);
+      TimerConsts.define('TR_SETSYSTIME', CMD_NONSTD + 2);
+    }
+  };
+
+  /**
    * REPL help text.
    *
    * @returns {string}
@@ -3350,6 +3379,14 @@ class Exec extends LibraryBase {
       ExecConsts.define('MEMF_REVERSE',    0x00080000);
       ExecConsts.define('MEMF_TOTAL',      0x00040000);
       ExecConsts.define('MEMF_NO_EXPUNGE', 0x80000000);
+
+      /* Break signals, dos/dos.h: SIGBREAKF_CTRL_x = 1 << SIGBREAKB_CTRL_x,
+       * with the bit numbers 12, 13, 14, 15. Add SIGBREAKF_CTRL_C to
+       * the mask given to Exec.Wait to let Ctrl-C end a wait. */
+      ExecConsts.define('SIGBREAKF_CTRL_C', 1 << 12);
+      ExecConsts.define('SIGBREAKF_CTRL_D', 1 << 13);
+      ExecConsts.define('SIGBREAKF_CTRL_E', 1 << 14);
+      ExecConsts.define('SIGBREAKF_CTRL_F', 1 << 15);
     }
   };
 

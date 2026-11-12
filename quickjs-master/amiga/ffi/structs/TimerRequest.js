@@ -17,10 +17,40 @@
  */
 
 import { IORequest } from './IORequest.js';
+import { CEnumeration } from '../CEnumeration.js';
 
 export class TimerRequest extends IORequest {
   /** @type {number} */
   static SIZE = 40;
+
+  /**
+   * timer.device units and commands (devices/timer.h). Cases coerce to
+   * their numeric value, so they can be given straight to
+   * Exec.OpenDevice and to the `command` setter.
+   *
+   * The commands are written as the header writes them: counted up
+   * from CMD_NONSTD, which exec/io.h defines as 9.
+   *
+   * @example
+   * const T = TimerRequest.consts;
+   * Exec.OpenDevice('timer.device', T.UNIT_VBLANK, request, 0);
+   * request.command = T.TR_ADDREQUEST;
+   */
+  static consts = class TimerConsts extends CEnumeration {
+    static {
+      const CMD_NONSTD = 9;
+
+      TimerConsts.define('UNIT_MICROHZ',    0);
+      TimerConsts.define('UNIT_VBLANK',     1);
+      TimerConsts.define('UNIT_ECLOCK',     2);
+      TimerConsts.define('UNIT_WAITUNTIL',  3);
+      TimerConsts.define('UNIT_WAITECLOCK', 4);
+
+      TimerConsts.define('TR_ADDREQUEST', CMD_NONSTD);
+      TimerConsts.define('TR_GETSYSTIME', CMD_NONSTD + 1);
+      TimerConsts.define('TR_SETSYSTIME', CMD_NONSTD + 2);
+    }
+  };
 
   /**
    * REPL help text.

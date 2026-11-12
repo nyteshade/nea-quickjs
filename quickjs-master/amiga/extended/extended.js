@@ -5850,8 +5850,39 @@ _manifests.push(new LocalManifest({
                 return out;
             },
 
+            /**
+             * Refuse a tag list with a tag that is not a number. A
+             * misspelt or missing constant is `undefined`, which would
+             * otherwise be written as 0 - and 0 is TAG_DONE, so the
+             * list would silently END there and every later tag would
+             * be ignored. (A window opened that way has no title bar
+             * and no gadgets: seen with clock_demo on 0.216.)
+             *
+             * @param {Array<[*, *]>} pairs
+             * @param {string} who - the caller's name, for the message
+             * @returns {undefined}
+             * @throws {TypeError} naming the position of the bad tag
+             */
+            _checkTags(pairs, who) {
+                for (let i = 0; i < pairs.length; i++) {
+                    const pair = pairs[i];
+                    if (!Array.isArray(pair) || pair.length < 2) {
+                        throw new TypeError(who + ': entry ' + i +
+                            ' is not a [tag, data] pair');
+                    }
+                    const tag = pair[0];
+                    if (tag === undefined || tag === null ||
+                        Number.isNaN(Number(tag))) {
+                        throw new TypeError(who + ': tag ' + i + ' is ' +
+                            String(tag) + ' - a misspelt or missing ' +
+                            'constant? (the list would end here)');
+                    }
+                }
+            },
+
             makeTags(...input) {
                 const pairs = amiga._normalizeTagInput(input);
+                amiga._checkTags(pairs, 'amiga.makeTags');
                 return N.__qjs_amiga_makeTags(pairs);
             },
 
@@ -5864,6 +5895,7 @@ _manifests.push(new LocalManifest({
                         'amiga.withTags: last argument must be a callback');
                 }
                 const pairs = amiga._normalizeTagInput(input);
+                amiga._checkTags(pairs, 'amiga.withTags');
                 const ptr = N.__qjs_amiga_makeTags(pairs);
                 if (!ptr) throw new Error('amiga.withTags: allocation failed');
                 const size = (pairs.length + 1) * 8;
