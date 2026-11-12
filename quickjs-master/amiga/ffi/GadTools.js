@@ -47,12 +47,12 @@ export class GadTools extends LibraryBase {
        * on the JS side because the prefix tells you which gadget
        * kind the tag is for (it's an attribute prefix, not a
        * library prefix). */
-      GadToolsConsts.define('GT_Underscore', 0x80000036);
-      GadToolsConsts.define('GTCB_Checked',  0x800000B4);
-      GadToolsConsts.define('GTLV_Selected', 0x80000068);
-      GadToolsConsts.define('GTLV_Labels',   0x80000067);
-      GadToolsConsts.define('GTST_String',   0x80000140);
-      GadToolsConsts.define('GTIN_Number',   0x80000180);
+      GadToolsConsts.define('GT_Underscore', 0x80080040);
+      GadToolsConsts.define('GTCB_Checked',  0x80080004);
+      GadToolsConsts.define('GTLV_Selected', 0x80080036);
+      GadToolsConsts.define('GTLV_Labels',   0x80080006);
+      GadToolsConsts.define('GTST_String',   0x8008002D);
+      GadToolsConsts.define('GTIN_Number',   0x8008002F);
     }
   };
 

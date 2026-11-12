@@ -56,7 +56,7 @@ function hex(n, w) { return (n >>> 0).toString(16).padStart(w || 1, '0'); }
  *   GA_ID         GA_Dummy+16  = 0x80030010   0x8003000F is GA_GZZGadget
  *   GA_RelVerify  GA_Dummy+22  = 0x80030016   0x80030015 is GA_Immediate
  */
-const GA_ID        = 0x8003000F;
+const GA_ID        = 0x8003000F;  /* check-constants: skip - wrong (this is GA_GZZGadget; GA_ID is 0x80030010) but kept as run: the probe is a historical record */
 const GA_Text      = 0x80030009;
 const GA_RelVerify = 0x80030015;
 

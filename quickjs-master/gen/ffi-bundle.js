@@ -3376,8 +3376,8 @@ class Exec extends LibraryBase {
       ExecConsts.define('MEMF_KICK',       0x00000400);
       ExecConsts.define('MEMF_CLEAR',      0x00010000);
       ExecConsts.define('MEMF_LARGEST',    0x00020000);
-      ExecConsts.define('MEMF_REVERSE',    0x00080000);
-      ExecConsts.define('MEMF_TOTAL',      0x00040000);
+      ExecConsts.define('MEMF_REVERSE',    0x00040000);
+      ExecConsts.define('MEMF_TOTAL',      0x00080000);
       ExecConsts.define('MEMF_NO_EXPUNGE', 0x80000000);
 
       /* Break signals, dos/dos.h: SIGBREAKF_CTRL_x = 1 << SIGBREAKB_CTRL_x,
@@ -4109,12 +4109,12 @@ class GadTools extends LibraryBase {
        * on the JS side because the prefix tells you which gadget
        * kind the tag is for (it's an attribute prefix, not a
        * library prefix). */
-      GadToolsConsts.define('GT_Underscore', 0x80000036);
-      GadToolsConsts.define('GTCB_Checked',  0x800000B4);
-      GadToolsConsts.define('GTLV_Selected', 0x80000068);
-      GadToolsConsts.define('GTLV_Labels',   0x80000067);
-      GadToolsConsts.define('GTST_String',   0x80000140);
-      GadToolsConsts.define('GTIN_Number',   0x80000180);
+      GadToolsConsts.define('GT_Underscore', 0x80080040);
+      GadToolsConsts.define('GTCB_Checked',  0x80080004);
+      GadToolsConsts.define('GTLV_Selected', 0x80080036);
+      GadToolsConsts.define('GTLV_Labels',   0x80080006);
+      GadToolsConsts.define('GTST_String',   0x8008002D);
+      GadToolsConsts.define('GTIN_Number',   0x8008002F);
     }
   };
 
@@ -4305,7 +4305,6 @@ class Asl extends LibraryBase {
       AslConsts.define('ASL_FileRequest',       0);
       AslConsts.define('ASL_FontRequest',       1);
       AslConsts.define('ASL_ScreenModeRequest', 2);
-      AslConsts.define('ASL_ArexxRequest',      3);
 
       /* File-request tags (the most-used subset). */
       AslConsts.define('ASLFR_TitleText',      0x80080001);  /* ASL_TB+1  */
@@ -4505,7 +4504,7 @@ class Diskfont extends LibraryBase {
       DiskfontConsts.define('AFF_MEMORY', 0x00000001);
       DiskfontConsts.define('AFF_DISK',   0x00000002);
       DiskfontConsts.define('AFF_SCALED', 0x00000004);
-      DiskfontConsts.define('AFF_BITMAP', 0x00000100);
+      DiskfontConsts.define('AFF_BITMAP', 0x00000008);
       DiskfontConsts.define('AFF_TAGGED', 0x00010000);
     }
   };
@@ -6617,16 +6616,19 @@ class BOOPSIBase {
  * class wrappers can reference without magic numbers.
  */
 const OM = Object.freeze({
-  NEW:        1,
-  DISPOSE:    2,
-  SET:        3,
-  UPDATE:     4,
-  NOTIFY:     5,
-  GET:        6,
-  ADDMEMBER:  7,
-  REMMEMBER:  8,
-  ADDTAIL:   11,
-  REMOVE:    12,
+  /* check-constants: prefix OM_ header intuition/classusr.h
+   * Until 0.219 this table held 1..12 instead of 0x101..0x10A, so
+   * Layout.addChild / removeChild sent method 7 / 8 to the gadget. */
+  NEW:        0x101,
+  DISPOSE:    0x102,
+  SET:        0x103,
+  UPDATE:     0x108,
+  NOTIFY:     0x107,
+  GET:        0x104,
+  ADDMEMBER:  0x109,
+  REMMEMBER:  0x10A,
+  ADDTAIL:   0x105,
+  REMOVE:    0x106,
 });
 
 
@@ -6793,29 +6795,40 @@ class GadgetBase extends BOOPSIBase {
  * Tag IDs from intuition/imageclass.h. IA_Dummy = TAG_USER+0x20000.
  */
 const IA = Object.freeze({
-  Left:         0x80020001,
-  Top:          0x80020002,
-  Width:        0x80020003,
-  Height:       0x80020004,
-  FGPen:        0x80020005,
-  BGPen:        0x80020006,
-  Data:         0x80020007,
-  LineWidth:    0x80020008,
-  Height2:      0x80020009,
-  SupportID:    0x8002000A,
-  Mode:         0x8002000B,
-  Pens:         0x8002000E,
-  Resolution:   0x8002000F,
-  APattern:     0x80020010,
-  APatSize:     0x80020011,
-  Recessed:     0x80020015,
-  DoubleEmboss: 0x80020016,
-  EdgesOnly:    0x80020017,
-  Label:        0x80020019,
-  Scalable:     0x8002001A,
-  FrameType:    0x8002001B,
-  Translucent:  0x8002001C,
-  InBorder:     0x8002001D,
+  /* check-constants: prefix IA_ header intuition/imageclass.h
+   * Until 0.219 four names here did not exist in the header (Height2,
+   * SupportID, Translucent, InBorder) and three values were wrong. */
+  Left:            0x80020001,
+  Top:             0x80020002,
+  Width:           0x80020003,
+  Height:          0x80020004,
+  FGPen:           0x80020005,
+  BGPen:           0x80020006,
+  Data:            0x80020007,
+  LineWidth:       0x80020008,
+  ShadowPen:       0x80020009,
+  HighlightPen:    0x8002000A,
+  Pens:            0x8002000E,
+  Resolution:      0x8002000F,
+  APattern:        0x80020010,
+  APatSize:        0x80020011,
+  Mode:            0x80020012,
+  Font:            0x80020013,
+  Outline:         0x80020014,
+  Recessed:        0x80020015,
+  DoubleEmboss:    0x80020016,
+  EdgesOnly:       0x80020017,
+  SupportsDisable: 0x8002001A,
+  FrameType:       0x8002001B,
+  Underscore:      0x8002001C,
+  Scalable:        0x8002001D,
+  ActivateKey:     0x8002001E,
+  Screen:          0x8002001F,
+  Precision:       0x80020020,
+  Orientation:     0x80020023,
+  Label:           0x80020028,
+  EraseBackground: 0x8002002D,
+  LabelPen:        0x80020038,
 });
 
 /**
@@ -7054,8 +7067,8 @@ const BevelStyle = Object.freeze({
   DROPBOX:     5,  /* BVS_DROPBOX    drop box area                     */
   /* The header's names for the two separators are the wrong way
    * round and it says so; these are named for what they draw. */
-  VERTICAL_BAR:   6,  /* BVS_SBAR_HORIZ  separator in a horizontal group */
-  HORIZONTAL_BAR: 7,  /* BVS_SBAR_VERT   separator in a vertical group   */
+  VERTICAL_BAR:   6,   /* check-constants: is BVS_SBAR_HORIZ */  /* BVS_SBAR_HORIZ  separator in a horizontal group */
+  HORIZONTAL_BAR: 7,   /* check-constants: is BVS_SBAR_VERT */  /* BVS_SBAR_VERT   separator in a vertical group   */
   BOX:         8,  /* BVS_BOX        thin black border                 */
   STANDARD:   11,  /* BVS_STANDARD   as BUTTON, never XEN              */
   CONTAINER:  12,  /* BVS_CONTAINER  scroller container (V47)          */
@@ -7386,7 +7399,7 @@ const BUTTON = Object.freeze({
   TextPen:      0x84000005,
   FillPen:      0x84000006,
   FillTextPen:  0x84000007,
-  BgPen:        0x84000008,
+  BgPen:        0x84000008,   /* check-constants: is BUTTON_BackgroundPen */
   Current:      0x84000009,
   BevelStyle:   0x8400000D,
   Transparent:  0x8400000F,
@@ -7412,10 +7425,10 @@ class Button extends GadgetBase {
     pushButton:     { tagID: BUTTON.PushButton,   type: 'bool' },
     /** BUTTON_RenderImage (= GA_Image, 0x8003000A): image drawn in
      *  the button instead of text, e.g. a DrawList or Glyph. */
-    image:          { tagID: 0x8003000A,          type: 'ptr'  },
+    image:          { tagID: 0x8003000A,          type: 'ptr'  },   /* check-constants: is GA_Image */
     /** BUTTON_SelectImage (= GA_SelectRender, 0x8003000C): image
      *  drawn while the button is pressed. */
-    selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },
+    selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },   /* check-constants: is GA_SelectRender */
     glyph:          { tagID: BUTTON.Glyph,        type: 'ptr'  },
     textPen:        { tagID: BUTTON.TextPen,      type: 'uint32' },
     fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
@@ -9430,6 +9443,11 @@ EventKind.define('SPEEDBAR_CLICK', {
 
 
 const GETFILE = Object.freeze({
+  /* check-constants: prefix GETFILE_ header gadgets/getfile.h
+   * The header counts in DECIMAL (GETFILE_Dummy+10 ... +23). Until
+   * 0.219 everything from FilterFunc on was wrong, and four names did
+   * not exist in the header (NoIcons, ImageHook, ModalRequest,
+   * NegativeText, PositiveText). */
   TitleText:      0x85060001,
   LeftEdge:       0x85060002,
   TopEdge:        0x85060003,
@@ -9444,14 +9462,15 @@ const GETFILE = Object.freeze({
   DoMultiSelect:  0x8506000C,
   DoPatterns:     0x8506000D,
   DrawersOnly:    0x8506000E,
-  NoIcons:        0x8506000F,
+  FilterFunc:     0x8506000F,
   RejectIcons:    0x85060010,
-  ImageHook:      0x85060011,
-  FilterFunc:     0x85060012,
+  RejectPattern:  0x85060011,
+  AcceptPattern:  0x85060012,
   FilterDrawers:  0x85060013,
-  ModalRequest:   0x85060014,
-  NegativeText:   0x85060015,
-  PositiveText:   0x85060016,
+  Filelist:       0x85060014,
+  LBNodeStructs:  0x85060015,
+  ReadOnly:       0x85060016,
+  FilePartOnly:   0x85060017,
 });
 
 /**
@@ -9476,11 +9495,16 @@ class GetFile extends GadgetBase {
     doMultiSelect:  { tagID: GETFILE.DoMultiSelect,  type: 'bool' },
     doPatterns:     { tagID: GETFILE.DoPatterns,     type: 'bool' },
     drawersOnly:    { tagID: GETFILE.DrawersOnly,    type: 'bool' },
-    noIcons:        { tagID: GETFILE.NoIcons,        type: 'bool' },
     rejectIcons:    { tagID: GETFILE.RejectIcons,    type: 'bool' },
-    modalRequest:   { tagID: GETFILE.ModalRequest,   type: 'bool' },
-    negativeText:   { tagID: GETFILE.NegativeText,   type: 'string-owned' },
-    positiveText:   { tagID: GETFILE.PositiveText,   type: 'string-owned' },
+    rejectPattern:  { tagID: GETFILE.RejectPattern,  type: 'string-owned' },
+    acceptPattern:  { tagID: GETFILE.AcceptPattern,  type: 'string-owned' },
+    filterDrawers:  { tagID: GETFILE.FilterDrawers,  type: 'bool' },
+    readOnly:       { tagID: GETFILE.ReadOnly,       type: 'bool' },
+    filePartOnly:   { tagID: GETFILE.FilePartOnly,   type: 'bool' },
+    /* noIcons, modalRequest, negativeText and positiveText were removed
+     * in 0.219: gadgets/getfile.h has no such attributes, and the tags
+     * they sent belonged to FilterFunc, Filelist, LBNodeStructs and
+     * ReadOnly. Use rejectIcons to hide .info files. */
   };
 
   constructor(init) {
@@ -9627,20 +9651,20 @@ const GETSCREENMODE = Object.freeze({
   DisplayDepth:    0x85041009,   /* +9 */
   OverscanType:    0x8504100A,   /* +10 */
   AutoScroll:      0x8504100B,   /* +11 */
-  DoWidth:         0x8504100C,   /* +12 */
-  DoHeight:        0x8504100D,   /* +13 */
-  DoDepth:         0x8504100E,   /* +14 */
-  DoOverscanType:  0x8504100F,   /* +15 */
-  DoAutoScroll:    0x85041010,   /* +16 */
-  FilterFunc:      0x85041011,   /* +17 */
-  MinWidth:        0x85041012,   /* +18 */
-  MaxWidth:        0x85041013,   /* +19 */
-  MinHeight:       0x85041014,   /* +20 */
-  MaxHeight:       0x85041015,   /* +21 */
-  MinDepth:        0x85041016,   /* +22 */
-  MaxDepth:        0x85041017,   /* +23 */
-  PropertyFlags:   0x85041018,   /* +24 */
-  PropertyMask:    0x85041019,   /* +25 */
+  DoWidth:         0x8504100F,   /* +12 */
+  DoHeight:        0x85041010,   /* +13 */
+  DoDepth:         0x85041011,   /* +14 */
+  DoOverscanType:  0x85041012,   /* +15 */
+  DoAutoScroll:    0x85041013,   /* +16 */
+  FilterFunc:      0x8504101C,   /* +17 */
+  MinWidth:        0x85041016,   /* +18 */
+  MaxWidth:        0x85041017,   /* +19 */
+  MinHeight:       0x85041018,   /* +20 */
+  MaxHeight:       0x85041019,   /* +21 */
+  MinDepth:        0x8504101A,   /* +22 */
+  MaxDepth:        0x8504101B,   /* +23 */
+  PropertyFlags:   0x85041014,   /* +24 */
+  PropertyMask:    0x85041015,   /* +25 */
 });
 
 /**
@@ -9951,6 +9975,7 @@ class TextEditor extends GadgetBase {
    * NOT 0x85026000+0x24. Earlier Fina notes had this wrong.
    */
   static METHOD = Object.freeze({
+    /* check-constants: prefix GM_TEXTEDITOR_ header gadgets/texteditor.h */
     ARexxCmd:   0x00045023,   /* GP_TEXTEDITOR_ARexxCmd   { ULONG; GadgetInfo*; STRPTR } */
     ClearText:  0x00045024,   /* GP_TEXTEDITOR_ClearText  { ULONG; GadgetInfo* } */
     ExportText: 0x00045025,
@@ -10659,8 +10684,13 @@ const GRAD = Object.freeze({
   SkipVal:    0x85000003,
   KnobPixels: 0x85000004,
   PenArray:   0x85000005,
-  Orientation:0x85000006,
 });
+
+/** A gradient slider is a prop gadget: its direction is PGA_Freedom
+ *  (intuition/gadgetclass.h), LORIENT_HORIZ or LORIENT_VERT. Until
+ *  0.219 `orientation` sent GRAD_Dummy+6, which the header does not
+ *  define. */
+const PGA_Freedom = 0x80031001;
 
 /**
  * gradientslider.gadget — gradient slider.
@@ -10682,7 +10712,7 @@ class GradientSlider extends GadgetBase {
     skipVal:    { tagID: GRAD.SkipVal,     type: 'int32' },
     knobPixels: { tagID: GRAD.KnobPixels,  type: 'int32' },
     penArray:   { tagID: GRAD.PenArray,    type: 'ptr' },
-    orientation:{ tagID: GRAD.Orientation, type: 'uint32' },
+    orientation:{ tagID: PGA_Freedom,      type: 'uint32' },
   };
 
   constructor(init) {
@@ -10752,15 +10782,15 @@ const LAYOUT = Object.freeze({
   /* CHILD_* tags follow LAYOUT_AddChild in the OM_NEW tag list and
    * apply to the most-recent child. CHILD_Dummy = LAYOUT_Dummy + 0x100
    * = 0x85007100; layout_gc.doc tags from gadgets/layout.h:302-388. */
-  ChildMinWidth:       0x85007101,
-  ChildMinHeight:      0x85007102,
-  ChildMaxWidth:       0x85007103,
-  ChildMaxHeight:      0x85007104,
-  ChildWeightedWidth:  0x85007105,
-  ChildWeightedHeight: 0x85007106,
-  ChildNominalSize:    0x8500710B,  /* CHILD_Dummy + 11 */
-  ChildLabel:          0x8500710C,
-  ChildNoDispose:      0x8500710D,
+  ChildMinWidth:       0x85007101,   /* check-constants: is CHILD_MinWidth */
+  ChildMinHeight:      0x85007102,   /* check-constants: is CHILD_MinHeight */
+  ChildMaxWidth:       0x85007103,   /* check-constants: is CHILD_MaxWidth */
+  ChildMaxHeight:      0x85007104,   /* check-constants: is CHILD_MaxHeight */
+  ChildWeightedWidth:  0x85007105,   /* check-constants: is CHILD_WeightedWidth */
+  ChildWeightedHeight: 0x85007106,   /* check-constants: is CHILD_WeightedHeight */
+  ChildNominalSize:    0x8500710B,   /* check-constants: is CHILD_NominalSize */  /* CHILD_Dummy + 11 */
+  ChildLabel:          0x8500710C,   /* check-constants: is CHILD_Label */
+  ChildNoDispose:      0x8500710D,   /* check-constants: is CHILD_NoDispose */
   /* LAYOUT_ModifyChild — OM_SET-time tag that tells layout.gadget the
    * subsequent tags in the taglist apply to the named child object.
    * Used by BOOPSIBase.set() when forwarding an image child's attr
@@ -11351,22 +11381,28 @@ const WINDOW = Object.freeze({
   LockWidth:     0x8502500B,
   LockHeight:    0x8502500C,
   Position:      0x8502500E,
-  NestedEvents:  0x8502502D,
 });
 
 /**
- * WINDOW_Position values for quick placement.
+ * WINDOW_Position values: where a Reaction window opens
+ * (classes/window.h, WPOS_*).
  *
- *   POS_TOPLEFT      0  — upper-left of screen
- *   POS_CENTERSCREEN 1  — center of screen
- *   POS_CENTERWINDOW 2  — center of parent window (for child wins)
- *   POS_MOUSEPOINTER 3  — at current mouse coords
+ * Until 0.219 this table was typed from memory and only CENTERSCREEN
+ * was right: TOPLEFT was 0 (not a position), CENTERWINDOW was 2 (which
+ * is "centre under the mouse") and MOUSEPOINTER was 3 (which is "top
+ * left").
  */
 const WindowPosition = Object.freeze({
-  TOPLEFT:      0,
-  CENTERSCREEN: 1,
-  CENTERWINDOW: 2,
-  MOUSEPOINTER: 3,
+  /* check-constants: prefix WPOS_ header classes/window.h */
+  CENTERSCREEN: 1,   /* centred on the screen */
+  CENTERMOUSE:  2,   /* centred under the mouse pointer */
+  TOPLEFT:      3,   /* top left of the screen */
+  CENTERWINDOW: 4,   /* centred in another window (WINDOW_RefWindow) */
+  FULLSCREEN:   5,   /* top left, filling the visible part of the screen */
+  ENTIRESCREEN: 6,   /* top left, filling the whole screen */
+
+  /** @deprecated the old name for CENTERMOUSE */
+  MOUSEPOINTER: 2,   /* check-constants: is WPOS_CENTERMOUSE */
 });
 
 const WM_HANDLEINPUT = 0x570001;
@@ -11447,7 +11483,8 @@ class ReactionWindow extends BOOPSIBase {
     activate:      { tagID: WINDOW.Activate,type: 'bool'   },
     lockWidth:     { tagID: WINDOW.LockWidth, type: 'bool' },
     lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
-    nestedEvents:  { tagID: WINDOW.NestedEvents, type: 'bool' },
+    /* nestedEvents was removed in 0.219: classes/window.h has no such
+     * attribute, and the tag it sent was WINDOW_Application. */
     userData:      { tagID: WINDOW.UserData, type: 'uint32' },
 
     /* Read-only; populated by window.class after open(). */
@@ -11977,8 +12014,8 @@ const REQ = Object.freeze({
 /** REQ_Type values. */
 const RequesterType = Object.freeze({
   INFO:     0,
-  STRING:   1,
-  INTEGER:  2,
+  STRING:   2,
+  INTEGER:  1,
   PROGRESS: 3,
 });
 
@@ -11989,13 +12026,15 @@ const RequesterImage = Object.freeze({
   WARNING: 2,
   ERROR:   3,
   QUESTION:4,
-  INSERT:  5,
+  INSERTDISK: 5,
+
+  /** @deprecated the old name for INSERTDISK */
+  INSERT:  5,   /* check-constants: is REQIMAGE_INSERTDISK */
 });
 
 /* Method IDs (classes/requester.h). Like WM_*, these are plain
  * integers, not tag offsets. */
-const RM_OPENREQ  = 0x450001;
-const RM_CLOSEREQ = 0x450002;
+const RM_OPENREQ  = 0x650001;
 
 /**
  * requester.class — modal requester (info / string / integer / progress).
@@ -12042,13 +12081,16 @@ class Requester extends BOOPSIBase {
   }
 
   /**
-   * Close a non-modal requester. For modal types openReq blocks until
-   * the user clicks a gadget or the timeout fires.
+   * Does nothing; kept so existing scripts still run. A requester
+   * closes itself when the user answers it, and openReq() returns the
+   * answer. Until 0.219 this sent a method numbered 0x450002, which
+   * classes/requester.h does not define (RM_OPENREQ is the class's
+   * only method).
    *
+   * @deprecated
    * @returns {undefined}
    */
   closeReq() {
-    this.doMethod(RM_CLOSEREQ);
   }
 }
 

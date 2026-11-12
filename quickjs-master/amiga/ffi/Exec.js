@@ -45,8 +45,8 @@ export class Exec extends LibraryBase {
       ExecConsts.define('MEMF_KICK',       0x00000400);
       ExecConsts.define('MEMF_CLEAR',      0x00010000);
       ExecConsts.define('MEMF_LARGEST',    0x00020000);
-      ExecConsts.define('MEMF_REVERSE',    0x00080000);
-      ExecConsts.define('MEMF_TOTAL',      0x00040000);
+      ExecConsts.define('MEMF_REVERSE',    0x00040000);
+      ExecConsts.define('MEMF_TOTAL',      0x00080000);
       ExecConsts.define('MEMF_NO_EXPUNGE', 0x80000000);
 
       /* Break signals, dos/dos.h: SIGBREAKF_CTRL_x = 1 << SIGBREAKB_CTRL_x,

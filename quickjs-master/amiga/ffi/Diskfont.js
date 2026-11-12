@@ -43,7 +43,7 @@ export class Diskfont extends LibraryBase {
       DiskfontConsts.define('AFF_MEMORY', 0x00000001);
       DiskfontConsts.define('AFF_DISK',   0x00000002);
       DiskfontConsts.define('AFF_SCALED', 0x00000004);
-      DiskfontConsts.define('AFF_BITMAP', 0x00000100);
+      DiskfontConsts.define('AFF_BITMAP', 0x00000008);
       DiskfontConsts.define('AFF_TAGGED', 0x00010000);
     }
   };

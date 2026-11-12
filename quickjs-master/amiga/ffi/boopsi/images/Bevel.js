@@ -51,8 +51,8 @@ export const BevelStyle = Object.freeze({
   DROPBOX:     5,  /* BVS_DROPBOX    drop box area                     */
   /* The header's names for the two separators are the wrong way
    * round and it says so; these are named for what they draw. */
-  VERTICAL_BAR:   6,  /* BVS_SBAR_HORIZ  separator in a horizontal group */
-  HORIZONTAL_BAR: 7,  /* BVS_SBAR_VERT   separator in a vertical group   */
+  VERTICAL_BAR:   6,   /* check-constants: is BVS_SBAR_HORIZ */  /* BVS_SBAR_HORIZ  separator in a horizontal group */
+  HORIZONTAL_BAR: 7,   /* check-constants: is BVS_SBAR_VERT */  /* BVS_SBAR_VERT   separator in a vertical group   */
   BOX:         8,  /* BVS_BOX        thin black border                 */
   STANDARD:   11,  /* BVS_STANDARD   as BUTTON, never XEN              */
   CONTAINER:  12,  /* BVS_CONTAINER  scroller container (V47)          */

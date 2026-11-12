@@ -30,8 +30,8 @@ const REQ = Object.freeze({
 /** REQ_Type values. */
 export const RequesterType = Object.freeze({
   INFO:     0,
-  STRING:   1,
-  INTEGER:  2,
+  STRING:   2,
+  INTEGER:  1,
   PROGRESS: 3,
 });
 
@@ -42,13 +42,15 @@ export const RequesterImage = Object.freeze({
   WARNING: 2,
   ERROR:   3,
   QUESTION:4,
-  INSERT:  5,
+  INSERTDISK: 5,
+
+  /** @deprecated the old name for INSERTDISK */
+  INSERT:  5,   /* check-constants: is REQIMAGE_INSERTDISK */
 });
 
 /* Method IDs (classes/requester.h). Like WM_*, these are plain
  * integers, not tag offsets. */
-const RM_OPENREQ  = 0x450001;
-const RM_CLOSEREQ = 0x450002;
+const RM_OPENREQ  = 0x650001;
 
 /**
  * requester.class — modal requester (info / string / integer / progress).
@@ -95,12 +97,15 @@ export class Requester extends BOOPSIBase {
   }
 
   /**
-   * Close a non-modal requester. For modal types openReq blocks until
-   * the user clicks a gadget or the timeout fires.
+   * Does nothing; kept so existing scripts still run. A requester
+   * closes itself when the user answers it, and openReq() returns the
+   * answer. Until 0.219 this sent a method numbered 0x450002, which
+   * classes/requester.h does not define (RM_OPENREQ is the class's
+   * only method).
    *
+   * @deprecated
    * @returns {undefined}
    */
   closeReq() {
-    this.doMethod(RM_CLOSEREQ);
   }
 }

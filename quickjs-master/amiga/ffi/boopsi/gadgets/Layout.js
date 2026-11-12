@@ -52,15 +52,15 @@ const LAYOUT = Object.freeze({
   /* CHILD_* tags follow LAYOUT_AddChild in the OM_NEW tag list and
    * apply to the most-recent child. CHILD_Dummy = LAYOUT_Dummy + 0x100
    * = 0x85007100; layout_gc.doc tags from gadgets/layout.h:302-388. */
-  ChildMinWidth:       0x85007101,
-  ChildMinHeight:      0x85007102,
-  ChildMaxWidth:       0x85007103,
-  ChildMaxHeight:      0x85007104,
-  ChildWeightedWidth:  0x85007105,
-  ChildWeightedHeight: 0x85007106,
-  ChildNominalSize:    0x8500710B,  /* CHILD_Dummy + 11 */
-  ChildLabel:          0x8500710C,
-  ChildNoDispose:      0x8500710D,
+  ChildMinWidth:       0x85007101,   /* check-constants: is CHILD_MinWidth */
+  ChildMinHeight:      0x85007102,   /* check-constants: is CHILD_MinHeight */
+  ChildMaxWidth:       0x85007103,   /* check-constants: is CHILD_MaxWidth */
+  ChildMaxHeight:      0x85007104,   /* check-constants: is CHILD_MaxHeight */
+  ChildWeightedWidth:  0x85007105,   /* check-constants: is CHILD_WeightedWidth */
+  ChildWeightedHeight: 0x85007106,   /* check-constants: is CHILD_WeightedHeight */
+  ChildNominalSize:    0x8500710B,   /* check-constants: is CHILD_NominalSize */  /* CHILD_Dummy + 11 */
+  ChildLabel:          0x8500710C,   /* check-constants: is CHILD_Label */
+  ChildNoDispose:      0x8500710D,   /* check-constants: is CHILD_NoDispose */
   /* LAYOUT_ModifyChild — OM_SET-time tag that tells layout.gadget the
    * subsequent tags in the taglist apply to the named child object.
    * Used by BOOPSIBase.set() when forwarding an image child's attr

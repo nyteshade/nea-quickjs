@@ -15,8 +15,13 @@ const GRAD = Object.freeze({
   SkipVal:    0x85000003,
   KnobPixels: 0x85000004,
   PenArray:   0x85000005,
-  Orientation:0x85000006,
 });
+
+/** A gradient slider is a prop gadget: its direction is PGA_Freedom
+ *  (intuition/gadgetclass.h), LORIENT_HORIZ or LORIENT_VERT. Until
+ *  0.219 `orientation` sent GRAD_Dummy+6, which the header does not
+ *  define. */
+const PGA_Freedom = 0x80031001;
 
 /**
  * gradientslider.gadget — gradient slider.
@@ -38,7 +43,7 @@ export class GradientSlider extends GadgetBase {
     skipVal:    { tagID: GRAD.SkipVal,     type: 'int32' },
     knobPixels: { tagID: GRAD.KnobPixels,  type: 'int32' },
     penArray:   { tagID: GRAD.PenArray,    type: 'ptr' },
-    orientation:{ tagID: GRAD.Orientation, type: 'uint32' },
+    orientation:{ tagID: PGA_Freedom,      type: 'uint32' },
   };
 
   constructor(init) {

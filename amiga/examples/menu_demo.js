@@ -85,8 +85,8 @@ const LABEL_FRONT_PEN = 1;
 const LABEL_BACK_PEN  = 0;
 
 /** Where a label sits inside its item, in pixels. */
-const LABEL_LEFT = 1;
-const LABEL_TOP  = 1;
+const LABEL_X = 1;
+const LABEL_Y  = 1;
 
 /** Size of an item when the description does not give one, in
  *  pixels. */
@@ -115,7 +115,7 @@ function makeLabel(label, leftEdge) {
     backPen:  LABEL_BACK_PEN,
     drawMode: JAM1,
     leftEdge: leftEdge || 0,
-    topEdge:  LABEL_TOP,
+    topEdge:  LABEL_Y,
     text:     label,
   });
 }
@@ -136,7 +136,7 @@ function makeLabel(label, leftEdge) {
  * @returns {{item: MenuItem, label: IntuiText}}
  */
 function makeItem(description) {
-  let label = makeLabel(description.label, LABEL_LEFT);
+  let label = makeLabel(description.label, LABEL_X);
   let item  = new MenuItem();
 
   item.leftEdge = description.leftEdge || 0;

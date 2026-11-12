@@ -83,6 +83,7 @@ export class TextEditor extends GadgetBase {
    * NOT 0x85026000+0x24. Earlier Fina notes had this wrong.
    */
   static METHOD = Object.freeze({
+    /* check-constants: prefix GM_TEXTEDITOR_ header gadgets/texteditor.h */
     ARexxCmd:   0x00045023,   /* GP_TEXTEDITOR_ARexxCmd   { ULONG; GadgetInfo*; STRPTR } */
     ClearText:  0x00045024,   /* GP_TEXTEDITOR_ClearText  { ULONG; GadgetInfo* } */
     ExportText: 0x00045025,

@@ -887,14 +887,17 @@ export class BOOPSIBase {
  * class wrappers can reference without magic numbers.
  */
 export const OM = Object.freeze({
-  NEW:        1,
-  DISPOSE:    2,
-  SET:        3,
-  UPDATE:     4,
-  NOTIFY:     5,
-  GET:        6,
-  ADDMEMBER:  7,
-  REMMEMBER:  8,
-  ADDTAIL:   11,
-  REMOVE:    12,
+  /* check-constants: prefix OM_ header intuition/classusr.h
+   * Until 0.219 this table held 1..12 instead of 0x101..0x10A, so
+   * Layout.addChild / removeChild sent method 7 / 8 to the gadget. */
+  NEW:        0x101,
+  DISPOSE:    0x102,
+  SET:        0x103,
+  UPDATE:     0x108,
+  NOTIFY:     0x107,
+  GET:        0x104,
+  ADDMEMBER:  0x109,
+  REMMEMBER:  0x10A,
+  ADDTAIL:   0x105,
+  REMOVE:    0x106,
 });

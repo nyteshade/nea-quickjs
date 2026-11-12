@@ -50,7 +50,6 @@ export class Asl extends LibraryBase {
       AslConsts.define('ASL_FileRequest',       0);
       AslConsts.define('ASL_FontRequest',       1);
       AslConsts.define('ASL_ScreenModeRequest', 2);
-      AslConsts.define('ASL_ArexxRequest',      3);
 
       /* File-request tags (the most-used subset). */
       AslConsts.define('ASLFR_TitleText',      0x80080001);  /* ASL_TB+1  */

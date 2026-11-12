@@ -6004,8 +6004,8 @@ _manifests.push(new LocalManifest({
                 MEMF_KICK:       0x00000400,
                 MEMF_CLEAR:      0x00010000,
                 MEMF_LARGEST:    0x00020000,
-                MEMF_REVERSE:    0x00080000,
-                MEMF_TOTAL:      0x00040000,
+                MEMF_REVERSE:    0x00040000,
+                MEMF_TOTAL:      0x00080000,
                 MEMF_NO_EXPUNGE: 0x80000000,
 
                 lvo: LVOS.exec,
@@ -6094,9 +6094,9 @@ _manifests.push(new LocalManifest({
             /* ---------- gadtools ---------- */
             gadtools: {
                 /* GadTools tag constants */
-                GT_Underscore: 0x80000036,
-                GTCB_Checked:  0x800000B4, GTLV_Selected: 0x80000068,
-                GTST_String:   0x80000140, GTIN_Number:   0x80000180,
+                GT_Underscore: 0x80080040,
+                GTCB_Checked:  0x80080004, GTLV_Selected: 0x80080036,
+                GTST_String:   0x8008002D, GTIN_Number:   0x8008002F,
 
                 /* gadget kinds */
                 GENERIC_KIND:  0, BUTTON_KIND: 1, CHECKBOX_KIND: 2,

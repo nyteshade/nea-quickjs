@@ -69,22 +69,28 @@ const WINDOW = Object.freeze({
   LockWidth:     0x8502500B,
   LockHeight:    0x8502500C,
   Position:      0x8502500E,
-  NestedEvents:  0x8502502D,
 });
 
 /**
- * WINDOW_Position values for quick placement.
+ * WINDOW_Position values: where a Reaction window opens
+ * (classes/window.h, WPOS_*).
  *
- *   POS_TOPLEFT      0  — upper-left of screen
- *   POS_CENTERSCREEN 1  — center of screen
- *   POS_CENTERWINDOW 2  — center of parent window (for child wins)
- *   POS_MOUSEPOINTER 3  — at current mouse coords
+ * Until 0.219 this table was typed from memory and only CENTERSCREEN
+ * was right: TOPLEFT was 0 (not a position), CENTERWINDOW was 2 (which
+ * is "centre under the mouse") and MOUSEPOINTER was 3 (which is "top
+ * left").
  */
 export const WindowPosition = Object.freeze({
-  TOPLEFT:      0,
-  CENTERSCREEN: 1,
-  CENTERWINDOW: 2,
-  MOUSEPOINTER: 3,
+  /* check-constants: prefix WPOS_ header classes/window.h */
+  CENTERSCREEN: 1,   /* centred on the screen */
+  CENTERMOUSE:  2,   /* centred under the mouse pointer */
+  TOPLEFT:      3,   /* top left of the screen */
+  CENTERWINDOW: 4,   /* centred in another window (WINDOW_RefWindow) */
+  FULLSCREEN:   5,   /* top left, filling the visible part of the screen */
+  ENTIRESCREEN: 6,   /* top left, filling the whole screen */
+
+  /** @deprecated the old name for CENTERMOUSE */
+  MOUSEPOINTER: 2,   /* check-constants: is WPOS_CENTERMOUSE */
 });
 
 const WM_HANDLEINPUT = 0x570001;
@@ -165,7 +171,8 @@ export class ReactionWindow extends BOOPSIBase {
     activate:      { tagID: WINDOW.Activate,type: 'bool'   },
     lockWidth:     { tagID: WINDOW.LockWidth, type: 'bool' },
     lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
-    nestedEvents:  { tagID: WINDOW.NestedEvents, type: 'bool' },
+    /* nestedEvents was removed in 0.219: classes/window.h has no such
+     * attribute, and the tag it sent was WINDOW_Application. */
     userData:      { tagID: WINDOW.UserData, type: 'uint32' },
 
     /* Read-only; populated by window.class after open(). */

@@ -29,20 +29,20 @@ const GETSCREENMODE = Object.freeze({
   DisplayDepth:    0x85041009,   /* +9 */
   OverscanType:    0x8504100A,   /* +10 */
   AutoScroll:      0x8504100B,   /* +11 */
-  DoWidth:         0x8504100C,   /* +12 */
-  DoHeight:        0x8504100D,   /* +13 */
-  DoDepth:         0x8504100E,   /* +14 */
-  DoOverscanType:  0x8504100F,   /* +15 */
-  DoAutoScroll:    0x85041010,   /* +16 */
-  FilterFunc:      0x85041011,   /* +17 */
-  MinWidth:        0x85041012,   /* +18 */
-  MaxWidth:        0x85041013,   /* +19 */
-  MinHeight:       0x85041014,   /* +20 */
-  MaxHeight:       0x85041015,   /* +21 */
-  MinDepth:        0x85041016,   /* +22 */
-  MaxDepth:        0x85041017,   /* +23 */
-  PropertyFlags:   0x85041018,   /* +24 */
-  PropertyMask:    0x85041019,   /* +25 */
+  DoWidth:         0x8504100F,   /* +12 */
+  DoHeight:        0x85041010,   /* +13 */
+  DoDepth:         0x85041011,   /* +14 */
+  DoOverscanType:  0x85041012,   /* +15 */
+  DoAutoScroll:    0x85041013,   /* +16 */
+  FilterFunc:      0x8504101C,   /* +17 */
+  MinWidth:        0x85041016,   /* +18 */
+  MaxWidth:        0x85041017,   /* +19 */
+  MinHeight:       0x85041018,   /* +20 */
+  MaxHeight:       0x85041019,   /* +21 */
+  MinDepth:        0x8504101A,   /* +22 */
+  MaxDepth:        0x8504101B,   /* +23 */
+  PropertyFlags:   0x85041014,   /* +24 */
+  PropertyMask:    0x85041015,   /* +25 */
 });
 
 /**

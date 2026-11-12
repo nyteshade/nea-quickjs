@@ -24,7 +24,7 @@ const BUTTON = Object.freeze({
   TextPen:      0x84000005,
   FillPen:      0x84000006,
   FillTextPen:  0x84000007,
-  BgPen:        0x84000008,
+  BgPen:        0x84000008,   /* check-constants: is BUTTON_BackgroundPen */
   Current:      0x84000009,
   BevelStyle:   0x8400000D,
   Transparent:  0x8400000F,
@@ -50,10 +50,10 @@ export class Button extends GadgetBase {
     pushButton:     { tagID: BUTTON.PushButton,   type: 'bool' },
     /** BUTTON_RenderImage (= GA_Image, 0x8003000A): image drawn in
      *  the button instead of text, e.g. a DrawList or Glyph. */
-    image:          { tagID: 0x8003000A,          type: 'ptr'  },
+    image:          { tagID: 0x8003000A,          type: 'ptr'  },   /* check-constants: is GA_Image */
     /** BUTTON_SelectImage (= GA_SelectRender, 0x8003000C): image
      *  drawn while the button is pressed. */
-    selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },
+    selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },   /* check-constants: is GA_SelectRender */
     glyph:          { tagID: BUTTON.Glyph,        type: 'ptr'  },
     textPen:        { tagID: BUTTON.TextPen,      type: 'uint32' },
     fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
