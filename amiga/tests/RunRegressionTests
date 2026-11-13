@@ -1,0 +1,35 @@
+; RunRegressionTests - run every console regression test in turn.
+;
+; From the directory that holds tests/ (the amiga/ directory of the
+; repository):
+;     execute tests/RunRegressionTests
+; Each test prints PASS and FAIL lines and ends with a count. Nothing
+; here opens a window. test_numeric_edge takes a few minutes on a slow
+; machine. If a test stops without a count, note which one and the
+; last line it printed.
+
+echo "*N--- qjs -v"
+qjs -v
+echo "*N--- test_engine_conformance"
+qjs tests/test_engine_conformance.js
+echo "*N--- test_fpu_numeric"
+qjs tests/test_fpu_numeric.js
+echo "*N--- test_compiler_regressions"
+qjs tests/test_compiler_regressions.js
+echo "*N--- test_dynamic_import"
+qjs tests/test_dynamic_import.js
+echo "*N--- test_stack_limit"
+qjs tests/test_stack_limit.js
+echo "*N--- test_ffi_lists"
+qjs tests/test_ffi_lists.js
+echo "*N--- test_led"
+qjs tests/test_led.js
+echo "*N--- test_reaction_events"
+qjs tests/test_reaction_events.js
+echo "*N--- test_persistence"
+qjs tests/test_persistence.js
+echo "*N--- test_screen_font"
+qjs tests/test_screen_font.js
+echo "*N--- test_numeric_edge (slow)"
+qjs tests/test_numeric_edge.js
+echo "*N--- done"

@@ -17,7 +17,7 @@
 # version strings. 020fpu cannot run the maths tests in this emulator.
 cd "$(dirname "$0")/.." || exit 1
 label=${1:?usage: verify-all.sh <label> [benchmark-baseline-label]}; base=${2:-}
-T="test_numeric_edge test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_led test_reaction_events test_persistence test_screen_font"
+T="test_numeric_edge test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_led test_reaction_events test_persistence test_screen_font test_engine_conformance"
 F="test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists"
 [ -d perf/out/t231 ] && perf/compare-tests.sh "t$label" amiga/libs/quickjs.020soft.library t231 | /usr/bin/grep -v '^same'
 perf/measure.sh "v$label" > /dev/null; tr '\n' ' ' < "perf/out/v$label/instr.txt"; echo
@@ -31,6 +31,10 @@ for v in 040fpu 060fpu; do
   PERF_CPU=68040 PERF_BENCH_DIR=$PWD/amiga/tests perf/measure.sh "t$label$v" amiga/libs/quickjs.$v.library $F >/dev/null 2>&1
   for t in $F; do echo "$v $t: $(/usr/bin/grep -c PASS "perf/out/t$label$v/$t.out") pass $(/usr/bin/grep -c FAIL "perf/out/t$label$v/$t.out") fail"; done
 done
+python3 scripts/check_constants.py | tail -1
+python3 scripts/check_structs.py | tail -1
+python3 scripts/check_attr_types.py 2>&1 | tail -1
+python3 scripts/check_fp_literals.py 2>&1 | tail -1
 python3 scripts/check_examples.py 2>&1 | tail -1
 python3 scripts/check_examples.py --past-open 2>&1 | tail -1
 python3 scripts/check_feature_globals.py 2>&1 | tail -1
