@@ -71,7 +71,7 @@ export class Requester extends BOOPSIBase {
     bodyText:    { tagID: REQ.BodyText,    type: 'string-owned' },
     gadgetText:  { tagID: REQ.GadgetText,  type: 'string-owned' },
     returnCode:  { tagID: REQ.ReturnCode,  type: 'uint32', readOnly: true },
-    image:       { tagID: REQ.Image,       type: 'uint32' },
+    image:       { tagID: REQ.Image,       type: 'ptr' },
     evenButtons: { tagID: REQ.EvenButtons, type: 'bool' },
     wrapBorder:  { tagID: REQ.WrapBorder,  type: 'bool' },
     timeOutSecs: { tagID: REQ.TimeOutSecs, type: 'int32' },

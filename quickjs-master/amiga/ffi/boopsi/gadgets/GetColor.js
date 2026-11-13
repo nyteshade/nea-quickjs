@@ -58,8 +58,12 @@ export class GetColor extends GadgetBase {
     hue:         { tagID: GETCOLOR.Hue,          type: 'uint32' },
     saturation:  { tagID: GETCOLOR.Saturation,   type: 'uint32' },
     brightness:  { tagID: GETCOLOR.Brightness,   type: 'uint32' },
-    rgb:         { tagID: GETCOLOR.RGB,          type: 'uint32' },
-    hsb:         { tagID: GETCOLOR.HSB,          type: 'uint32' },
+    /* A pointer to a struct ColorWheelRGB / ColorWheelHSB (three
+     * ULONGs, each a 32-bit fraction), not a 0xRRGGBB number: that is
+     * `color`. Until 0.237 these were 'uint32', which let a colour
+     * number through to be read as an address. */
+    rgb:         { tagID: GETCOLOR.RGB,          type: 'ptr' },
+    hsb:         { tagID: GETCOLOR.HSB,          type: 'ptr' },
     colorWheel:  { tagID: GETCOLOR.ColorWheel,   type: 'bool' },
     rgbSliders:  { tagID: GETCOLOR.RGBSliders,   type: 'bool' },
     hsbSliders:  { tagID: GETCOLOR.HSBSliders,   type: 'bool' },

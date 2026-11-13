@@ -63,7 +63,7 @@ export class FuelGauge extends GadgetBase {
     min:            { tagID: FUELGAUGE.Min,            type: 'int32' },
     max:            { tagID: FUELGAUGE.Max,            type: 'int32' },
     level:          { tagID: FUELGAUGE.Level,          type: 'int32' },
-    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'uint32' },
+    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'int32' },
     percent:        { tagID: FUELGAUGE.Percent,        type: 'bool' },
     ticks:          { tagID: FUELGAUGE.Ticks,          type: 'int32' },
     shortTicks:     { tagID: FUELGAUGE.ShortTicks,     type: 'int32' },
@@ -72,7 +72,7 @@ export class FuelGauge extends GadgetBase {
     percentPen:     { tagID: FUELGAUGE.PercentPen,     type: 'int32' },
     fillPen:        { tagID: FUELGAUGE.FillPen,        type: 'int32' },
     emptyPen:       { tagID: FUELGAUGE.EmptyPen,       type: 'int32' },
-    justification:  { tagID: FUELGAUGE.Justification,  type: 'uint32' },
+    justification:  { tagID: FUELGAUGE.Justification,  type: 'int32' },
   };
 
   constructor(init) {

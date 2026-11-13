@@ -65,7 +65,7 @@ export class Glyph extends ImageBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...IMAGE_ATTRS,
-    glyph:    { tagID: GLYPH.Glyph,    type: 'uint32' },
+    glyph:    { tagID: GLYPH.Glyph,    type: 'int32' },
     drawInfo: { tagID: GLYPH.DrawInfo, type: 'ptr' },
   };
 }

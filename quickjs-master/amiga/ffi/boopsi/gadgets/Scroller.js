@@ -47,7 +47,7 @@ export class Scroller extends GadgetBase {
     top:         { tagID: SCROLLER.Top,         type: 'int32' },
     visible:     { tagID: SCROLLER.Visible,     type: 'int32' },
     total:       { tagID: SCROLLER.Total,       type: 'int32' },
-    orientation: { tagID: SCROLLER.Orientation, type: 'uint32' },
+    orientation: { tagID: SCROLLER.Orientation, type: 'int32' },
     arrows:      { tagID: SCROLLER.Arrows,      type: 'bool' },   /* (BOOL) in gadgets/scroller.h */
     stretch:     { tagID: SCROLLER.Stretch,     type: 'bool' },
     arrowDelta:  { tagID: SCROLLER.ArrowDelta,  type: 'int32' },

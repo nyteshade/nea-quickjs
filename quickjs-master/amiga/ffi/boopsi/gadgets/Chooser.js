@@ -87,10 +87,10 @@ export class Chooser extends GadgetBase {
      * constructor convenience below builds one for you; otherwise you
      * can pass labelsPtr directly. */
     labelsPtr:      { tagID: CHOOSER.Labels,        type: 'ptr' },
-    active:         { tagID: CHOOSER.Active,        type: 'uint32' },
+    active:         { tagID: CHOOSER.Active,        type: 'int32' },
     autoFit:        { tagID: CHOOSER.AutoFit,       type: 'bool' },
     maxLabels:      { tagID: CHOOSER.MaxLabels,     type: 'int32' },
-    justification:  { tagID: CHOOSER.Justification, type: 'uint32' },
+    justification:  { tagID: CHOOSER.Justification, type: 'int32' },
     labelArray:     { tagID: CHOOSER.LabelArray,    type: 'ptr' },
     deactivateOnMostRawKeys: { tagID: CHOOSER.DeactivateOnMostRawKeys, type: 'bool' },
   };

@@ -122,7 +122,7 @@ export class TextEditor extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    contents:        { tagID: TEXTEDITOR.Contents,        type: 'string-owned' },
+    contents:        { tagID: TEXTEDITOR.Contents,        type: 'string-owned' },   /* check-attr-types: ok - the text: a STRPTR unless an import hook is set */
     cursorX:         { tagID: TEXTEDITOR.CursorX,         type: 'int32' },
     cursorY:         { tagID: TEXTEDITOR.CursorY,         type: 'int32' },
     readOnly:        { tagID: TEXTEDITOR.ReadOnly,        type: 'bool' },

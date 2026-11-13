@@ -64,8 +64,8 @@ export class RadioButton extends GadgetBase {
      * Do not pass manually unless you've already allocated a List. */
     labelsPtr:  { tagID: RADIOBUTTON.Labels,     type: 'ptr' },
     spacing:    { tagID: RADIOBUTTON.Spacing,    type: 'int32' },
-    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'uint32' },
-    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'uint32' },
+    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'int32' },
+    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'int32' },
   };
 
   /**

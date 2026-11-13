@@ -49,7 +49,7 @@ export class Space extends GadgetBase {
     transparent: { tagID: SPACE.Transparent, type: 'bool' },
     areaBox:     { tagID: SPACE.AreaBox,     type: 'ptr' },
     renderHook:  { tagID: SPACE.RenderHook,  type: 'ptr' },
-    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'uint32' },
+    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'int32' },
     domainBevel: { tagID: SPACE.DomainBevel, type: 'bool' },
   };
 }

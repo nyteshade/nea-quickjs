@@ -88,7 +88,7 @@ export class ClickTab extends GadgetBase {
     labelsPtr:                 { tagID: CLICKTAB.Labels,                   type: 'ptr' },
     current:                   { tagID: CLICKTAB.Current,                  type: 'int32' },
     currentNode:               { tagID: CLICKTAB.CurrentNode,              type: 'ptr' },
-    orientation:               { tagID: CLICKTAB.Orientation,              type: 'uint32' },
+    orientation:               { tagID: CLICKTAB.Orientation,              type: 'int32' },
     pageGroup:                 { tagID: CLICKTAB.PageGroup,                type: 'ptr' },
     pageGroupBackFill:         { tagID: CLICKTAB.PageGroupBackFill,        type: 'ptr' },
     pageGroupBorder:           { tagID: CLICKTAB.PageGroupBorder,          type: 'bool' },

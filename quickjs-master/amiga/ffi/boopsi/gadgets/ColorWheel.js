@@ -59,7 +59,7 @@ export class ColorWheel extends GadgetBase {
     rgb:            { tagID: WHEEL.RGB,            type: 'ptr' },
     screen:         { tagID: WHEEL.Screen,         type: 'ptr' },
     abbrv:          { tagID: WHEEL.Abbrv,          type: 'string' },
-    donation:       { tagID: WHEEL.Donation,       type: 'uint32' },
+    donation:       { tagID: WHEEL.Donation,       type: 'ptr' },
     bevelBox:       { tagID: WHEEL.BevelBox,       type: 'bool' },
     gradientSlider: { tagID: WHEEL.GradientSlider, type: 'ptr' },
     maxPens:        { tagID: WHEEL.MaxPens,        type: 'uint32' },

@@ -23,6 +23,10 @@
  *   4. The walk along an IDCMP_IDCMPUPDATE tag list finds GA_ID.
  *      Until 0.237 it looked for GA_GZZGadget's number.
  *
+ *   5. A (WORD) or (LONG) attribute reads back negative values, and a
+ *      pointer attribute takes a wrapper object. Until 0.237 thirty
+ *      attributes had a type their header does not give them.
+ *
  * What is NOT checked here, and needs an Amiga: that the classes open
  * their requesters when sent the method, and what they return.
  *
@@ -355,6 +359,46 @@ run('IDCMPUPDATE tag list: GA_ID is found', () => {
   ok(out.tags && Object.keys(out.tags).length === 1 &&
      out.tags[Number(Intuition.consts.GA_GZZGadget)] === 1,
      'any other tag is kept by number, and only those');
+});
+
+/* ------------------------------------------------------------------
+ * 5. Attribute types (scripts/check_attr_types.py checks all of them
+ *    against the headers; these are the ones whose effect shows)
+ * ------------------------------------------------------------------ */
+
+run('attribute types: signed values and pointers', () => {
+  /**
+   * What an attribute's type makes of a raw 32-bit value read back
+   * from the object.
+   *
+   * @param {function} wrapper - the wrapper class
+   * @param {string} name - the attribute
+   * @param {number} raw - the ULONG the class stored
+   * @returns {*} the decoded value
+   */
+  const decoded = (wrapper, name, raw) =>
+    B.ATTR_TYPES[wrapper.ATTRS[name].type].decode(raw);
+
+  const NONE = 0xFFFFFFFF;   /* -1 as the class stores it */
+
+  /* CHOOSER_Active and RADIOBUTTON_Selected are (WORD): -1 is "nothing
+   * chosen". As 'uint32' it read back 4294967295. */
+  ok(decoded(B.Chooser, 'active', NONE) === -1,
+     'Chooser active: -1 (nothing chosen) reads back as -1');
+  ok(decoded(B.RadioButton, 'selectedIx', NONE) === -1,
+     'RadioButton selectedIx: -1 reads back as -1');
+  ok(decoded(B.Button, 'textPen', NONE) === -1,
+     'Button textPen: -1 (the default pen) reads back as -1');
+
+  /* GETCOLOR_RGB is a struct pointer: a wrapper object must be
+   * accepted, which 'uint32' turned into 0 */
+  const encode = B.ATTR_TYPES[B.GetColor.ATTRS.rgb.type].encode;
+  ok(encode({ ptr: 0x5000 }) === 0x5000,
+     'GetColor rgb: takes an object with a ptr');
+  ok(B.ATTR_TYPES[B.Requester.ATTRS.image.type].encode({ ptr: 0x5000 })
+       === 0x5000 &&
+     B.ATTR_TYPES[B.Requester.ATTRS.image.type].encode(2) === 2,
+     'Requester image: takes an Image object or a REQIMAGE_ number');
 });
 
 print('');

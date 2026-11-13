@@ -205,7 +205,7 @@ export class ReactionWindow extends BOOPSIBase {
     lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
     /* nestedEvents was removed in 0.219: classes/window.h has no such
      * attribute, and the tag it sent was WINDOW_Application. */
-    userData:      { tagID: WINDOW.UserData, type: 'uint32' },
+    userData:      { tagID: WINDOW.UserData, type: 'uint32' },   /* check-attr-types: ok - any 32-bit value of the script, never followed */
 
     /* Read-only; populated by window.class after open(). */
     intuiWindow:   { tagID: WINDOW.Window,  type: 'ptr', readOnly: true },

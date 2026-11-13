@@ -56,15 +56,15 @@ export class Button extends GadgetBase {
      *  drawn while the button is pressed. */
     selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },   /* check-constants: is GA_SelectRender */
     glyph:          { tagID: BUTTON.Glyph,        type: 'ptr'  },
-    textPen:        { tagID: BUTTON.TextPen,      type: 'uint32' },
-    fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
-    fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'uint32' },
-    bgPen:          { tagID: BUTTON.BgPen,        type: 'uint32' },
+    textPen:        { tagID: BUTTON.TextPen,      type: 'int32' },
+    fillPen:        { tagID: BUTTON.FillPen,      type: 'int32' },
+    fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'int32' },
+    bgPen:          { tagID: BUTTON.BgPen,        type: 'int32' },
     current:        { tagID: BUTTON.Current,      type: 'int32' },   /* (LONG) which item of BUTTON_Array is current */
-    bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'uint32' },
+    bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'int32' },
     transparent:    { tagID: BUTTON.Transparent,  type: 'bool' },
-    justification:  { tagID: BUTTON.Justification,type: 'uint32' },
-    softStyle:      { tagID: BUTTON.SoftStyle,    type: 'uint32' },
+    justification:  { tagID: BUTTON.Justification,type: 'int32' },
+    softStyle:      { tagID: BUTTON.SoftStyle,    type: 'int32' },
   };
 
   /**
