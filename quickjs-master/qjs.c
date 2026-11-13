@@ -49,6 +49,31 @@ extern int amiga_force_color;
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
 
+/* The stack qjs gives itself when the Shell's is smaller.
+ *
+ * vbcc's start-up code reads the variable __stack: if the stack the
+ * program was started with is smaller than that many bytes, it
+ * allocates a block of that size, moves to it with exec's StackSwap()
+ * before main() runs, and moves back and frees it on exit. A Shell
+ * whose Stack setting is already larger is left alone.
+ *
+ * The trade-off is memory against depth. A JavaScript call costs about
+ * 770 bytes of stack and 16 KB is kept free at the bottom, so:
+ *      64 KB (the old required minimum)   about   60 nested calls
+ *     512 KB                              about  640
+ *       1 MB (what the engine assumes elsewhere)  1300
+ * The block is taken from free memory for as long as qjs runs, on top
+ * of roughly 1.7 MB for the library, so on a 2 MB machine 512 KB may
+ * not be there. To change the size, change this one number (or build
+ * with -DQJS_OWN_STACK_SIZE=n); 0 turns the feature off and goes back
+ * to asking the user to type "Stack 65536". */
+#ifndef QJS_OWN_STACK_SIZE
+#define QJS_OWN_STACK_SIZE (512UL * 1024UL)
+#endif
+#if QJS_OWN_STACK_SIZE > 0
+unsigned long __stack = QJS_OWN_STACK_SIZE;
+#endif
+
 #ifdef QJS_USE_LIBRARY
 /* When using the library, quickjs-libc functions are inside
  * quickjs.library. Route all calls through bridge trampolines. */
