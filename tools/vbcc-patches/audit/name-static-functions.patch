@@ -1,0 +1,11 @@
+--- a/src/vbcc/machines/m68k/machine.c	2026-11-13 01:35:10
++++ b/src/vbcc/machines/m68k/machine.c	2026-11-13 01:37:24
+@@ -955,7 +955,7 @@
+       if(GAS){
+         emit(f,"\t.align\t4\n%s%ld:\n",labprefix,zm2l(v->offset));
+       }else{
+-        emit(f,"\tcnop\t0,4\n%s%ld\n",labprefix,zm2l(v->offset));
++        emit(f,"\tcnop\t0,4\n; FUNC %s\n%s%ld\n",v->identifier,labprefix,zm2l(v->offset));
+       }
+     }      
+     if(stack_check&&!(v->tattr&AMIINTERRUPT)){

@@ -1,0 +1,106 @@
+--- a/vbcc/supp.c	2026-01-11 11:42:09
++++ b/vbcc/supp.c	2026-11-13 01:35:11
+@@ -399,7 +399,33 @@
+   else
+     last_ic=p->prev;
+   insert_IC(after,p);
++}
++/*  Deferred IC frees: remove_IC() can run from add_IC() peepholes
++    while parser-level statement handlers (for/while/do in
++    statements.c) still hold saved IC cursors into the list. Freeing
++    the node immediately leaves those cursors dangling — the
++    mic->line/mic->file tagging walks then read freed memory, a
++    layout-dependent SIGSEGV (observed in for_statement on large
++    inputs). Instead the unlinked node is kept alive — its own
++    next/prev still point at its former neighbours, so a stale
++    cursor walks back into the live list — and the memory is
++    released in bulk at end of function via flush_deferred_ICs().  */
++static IC **ic_graveyard;
++static int ic_graveyard_cnt,ic_graveyard_max;
++void defer_free_IC(IC *p)
++{
++  if(ic_graveyard_cnt>=ic_graveyard_max){
++    ic_graveyard_max=ic_graveyard_max?2*ic_graveyard_max:64;
++    ic_graveyard=myrealloc(ic_graveyard,ic_graveyard_max*sizeof(IC *));
++  }
++  ic_graveyard[ic_graveyard_cnt++]=p;
+ }
++void flush_deferred_ICs(void)
++{
++  int i;
++  for(i=0;i<ic_graveyard_cnt;i++) free(ic_graveyard[i]);
++  ic_graveyard_cnt=0;
++}
+ void remove_IC(IC *p)
+ /*  Entfernt IC p aus Liste. */
+ {
+@@ -408,7 +434,7 @@
+   if(p->q1.am) free(p->q1.am);
+   if(p->q2.am) free(p->q2.am);
+   if(p->z.am) free(p->z.am);
+-  free(p);
++  defer_free_IC(p);
+ }
+ void freetyp(type *p)
+ /* Gibt eine Typ-Liste frei, aber keine struct_declaration oder so. */
+--- a/vbcc/supp.h	2026-01-11 11:42:09
++++ b/vbcc/supp.h	2026-11-13 01:35:11
+@@ -746,6 +746,8 @@
+ #define bvclear(dest,len) memset(dest,0,len)
+ #define bvsetall(dest,len) memset(dest,-1,len)
+ extern void remove_IC(IC *);
++extern void defer_free_IC(IC *);
++extern void flush_deferred_ICs(void);
+ extern IC *clone_ic(IC *);
+ extern IC *new_IC(void);
+ extern Var *new_var(void);
+--- a/vbcc/ic.c	2026-01-11 11:42:09
++++ b/vbcc/ic.c	2026-11-13 01:35:11
+@@ -475,7 +475,9 @@
+ 		      last_ic->prev->code++;
+                     last_ic->prev->typf=last_ic->typf;
+                     last_ic=last_ic->prev;
+-		    free(last_ic->next);
++		    /* defer the free: parser-level cursors may still
++		       point at this bra (see remove_IC in supp.c) */
++		    defer_free_IC(last_ic->next);
+                     last_ic->next=new;new->prev=last_ic;
+                     last_ic=new;
+                     return;
+@@ -2683,7 +2685,7 @@
+ 	gval.vmax=szof(p->left->ntyp->next);
+ 	eval_const(&gval,MAXINT);
+ 	if(ln=get_pof2(vumax)){
+-	  /* Division immer ohne Rest, daher shift m�glich */
++	  /* Division immer ohne Rest, daher shift m�glich */
+ 	  /* TODO: Haben wir Targets ohne arith. shift right? */
+ 	  gval.vmax=l2zm(ln-1);
+ 	  eval_const(&gval,MAXINT);
+--- a/vbcc/main.c	2026-01-11 11:42:09
++++ b/vbcc/main.c	2026-11-13 01:35:11
+@@ -427,6 +427,9 @@
+       do_clist_calls(cl->other);
+     cl=cl->next;
+   }
++  /* release ICs whose free was deferred by remove_IC()/add_IC()
++     peepholes — no parser cursors can survive past this point */
++  flush_deferred_ICs();
+ }
+ void do_function(Var *v)
+ {
+--- a/vbcc/parse_expr.c	2026-01-11 11:42:09
++++ b/vbcc/parse_expr.c	2026-11-13 02:18:02
+@@ -10,6 +10,13 @@
+ np new_node(void)
+ {
+   np p=mymalloc(NODES);
++  /* Clear the whole node. type_expression2() tests val.vumax of an
++     ADDRESS node to decide whether "*&x" may be replaced by "x", and
++     nothing ever stores there: with only the fields below set, that
++     test read whatever malloc() returned, and the generated code
++     (correct either way, but different) depended on the heap's
++     history. Seen in quickjs.c's JS_CallInternal at -O=1. */
++  memset(p,0,NODES);
+   p->flags=0;
+   p->lvalue=0;
+   p->sidefx=0;
