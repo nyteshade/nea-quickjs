@@ -12,6 +12,15 @@ engine faster on 68020-68060. The ranked plan and its tasks are in Fina
   under vamos (`hook.c` + `prof.py`), with reporting scripts.
 - `bench/` - the console benchmarks, plus `edge.js` and `modchk.js`,
   whose output must not change.
+- `int64cmp/` - checks the library's 64-bit integer helpers (multiply,
+  divide, modulo, shifts, conversions to and from double) against
+  vc.lib and against exact values, for all six variants. Rerun with
+  `PERF_VM=<dir with libs/mathieeedoubbas.library> perf/int64cmp/run.sh`
+  after any change to `library/vbcc/sharedlib_int64*`; it must report
+  `0 wrong` for every `ours.out`.
+- `mathcheck/` - compiles the FPU variants' floor/ceil/trunc/round/
+  fmod/ldexp/frexp/pow replacements for this machine and compares them
+  with the host libm: `perf/mathcheck/run.sh`, must end with `0 wrong`.
 
 The scripts under `prototype/` and `tools/` still carry the absolute
 scratch paths they were written with; `measure.sh` here is the
