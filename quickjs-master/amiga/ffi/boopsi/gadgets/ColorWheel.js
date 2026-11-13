@@ -11,7 +11,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const WHEEL = Object.freeze({
   /* check-constants: prefix WHEEL_ header gadgets/colorwheel.h */
@@ -77,7 +77,7 @@ export class ColorWheel extends GadgetBase {
 }
 
 EventKind.define('COLORWHEEL_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/colorwheel.gadget',

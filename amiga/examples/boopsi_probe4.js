@@ -56,9 +56,10 @@ function hex(n, w) { return (n >>> 0).toString(16).padStart(w || 1, '0'); }
 /* ~0L, from intuition/icclass.h: send notifications to the IDCMP port. */
 const ICTARGET_IDCMP = 0xFFFFFFFF;
 /* IDCMP classes, from intuition/intuition.h. */
-const IDCMP_GADGET_DOWN  = 0x00000020;
-const IDCMP_GADGET_UP    = 0x00000040;
+const IDCMP_GADGET_DOWN = 0x00000020; /* check-constants: is IDCMP_GADGETDOWN */
+const IDCMP_GADGET_UP   = 0x00000040; /* check-constants: is IDCMP_GADGETUP */
 const IDCMP_IDCMPUPDATE  = 0x00800000;
+const IDCMP_CLOSEWINDOW  = 0x00000200;
 
 /**
  * Name an IDCMP class. The values are the IDCMP_* flags of
@@ -69,17 +70,28 @@ const IDCMP_IDCMPUPDATE  = 0x00800000;
  */
 function idcmpName(idcmpClass) {
   switch (idcmpClass >>> 0) {
-    case 0x00000004: return 'REFRESH_WINDOW';
-    case 0x00000020: return 'GADGET_DOWN';
-    case 0x00000040: return 'GADGET_UP';
-    case 0x00000200: return 'CLOSE_WINDOW';
-    case 0x00000400: return 'RAW_KEY';
-    case 0x00040000: return 'ACTIVE_WINDOW';
-    case 0x00080000: return 'INACTIVE_WINDOW';
-    case 0x00200000: return 'VANILLA_KEY';
-    case 0x00800000: return 'IDCMPUPDATE';
-    case 0x02000000: return 'CHANGE_WINDOW';
-    case 0x04000000: return 'GADGET_HELP';
+    case 0x00000004:   /* check-constants: is IDCMP_REFRESHWINDOW */
+      return 'REFRESH_WINDOW';
+    case 0x00000020:   /* check-constants: is IDCMP_GADGETDOWN */
+      return 'GADGET_DOWN';
+    case 0x00000040:   /* check-constants: is IDCMP_GADGETUP */
+      return 'GADGET_UP';
+    case 0x00000200:   /* check-constants: is IDCMP_CLOSEWINDOW */
+      return 'CLOSE_WINDOW';
+    case 0x00000400:   /* check-constants: is IDCMP_RAWKEY */
+      return 'RAW_KEY';
+    case 0x00040000:   /* check-constants: is IDCMP_ACTIVEWINDOW */
+      return 'ACTIVE_WINDOW';
+    case 0x00080000:   /* check-constants: is IDCMP_INACTIVEWINDOW */
+      return 'INACTIVE_WINDOW';
+    case 0x00200000:   /* check-constants: is IDCMP_VANILLAKEY */
+      return 'VANILLA_KEY';
+    case 0x00800000:   /* check-constants: is IDCMP_IDCMPUPDATE */
+      return 'IDCMPUPDATE';
+    case 0x02000000:   /* check-constants: is IDCMP_CHANGEWINDOW */
+      return 'CHANGE_WINDOW';
+    case 0x04000000:   /* check-constants: is IDCMP_GADGETHELP */
+      return 'GADGET_HELP';
     default:         return '?';
   }
 }
@@ -103,14 +115,22 @@ function idcmpName(idcmpClass) {
  */
 function tagName(tag) {
   switch (tag >>> 0) {
-    case 0x8003000F: return 'GA_ID';
-    case 0x80030015: return 'GA_RelVerify';
-    case 0x80040001: return 'ICA_TARGET';
-    case 0x80040002: return 'ICA_MAP';
-    case 0x85007017: return 'LAYOUT_RelVerify';
-    case 0x85007018: return 'LAYOUT_RelCode';
-    case 0x85007019: return 'LAYOUT_RelAddress';
-    case 0x85007021: return 'LAYOUT_TabVerify';
+    case 0x8003000F:   /* check-constants: skip - as typed; see above */
+      return 'GA_ID';
+    case 0x80030015:   /* check-constants: skip - as typed; see above */
+      return 'GA_RelVerify';
+    case 0x80040001:   /* check-constants: is ICA_TARGET */
+      return 'ICA_TARGET';
+    case 0x80040002:   /* check-constants: is ICA_MAP */
+      return 'ICA_MAP';
+    case 0x85007017:   /* check-constants: is LAYOUT_RelVerify */
+      return 'LAYOUT_RelVerify';
+    case 0x85007018:   /* check-constants: is LAYOUT_RelCode */
+      return 'LAYOUT_RelCode';
+    case 0x85007019:   /* check-constants: skip - as typed; see above */
+      return 'LAYOUT_RelAddress';
+    case 0x85007021:   /* check-constants: is LAYOUT_TabVerify */
+      return 'LAYOUT_TabVerify';
     case 0:          return 'TAG_END';
     case 1:          return 'TAG_IGNORE';
     case 2:          return 'TAG_MORE';
@@ -231,7 +251,7 @@ while (!done && waits < 300) {
 
     amiga.Exec.ReplyMsg(raw);
 
-    if (cls === 0x00000200) { done = true; break; }   /* CLOSE_WINDOW */
+    if (cls === IDCMP_CLOSEWINDOW) { done = true; break; }
   }
 
   if (drainedThisWait === 0) {

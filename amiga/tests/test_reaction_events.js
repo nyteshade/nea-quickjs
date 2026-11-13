@@ -16,10 +16,17 @@
  *      reads an attribute its wrapper really has, and the value turns
  *      up under the documented names.
  *
+ *   3. new Class(pointer) wraps an existing object for every class.
+ *      Until 0.237 Layout, Page, Virtual and Window ignored the
+ *      pointer and created a new object.
+ *
+ *   4. The walk along an IDCMP_IDCMPUPDATE tag list finds GA_ID.
+ *      Until 0.237 it looked for GA_GZZGadget's number.
+ *
  * What is NOT checked here, and needs an Amiga: that the classes open
  * their requesters when sent the method, and what they return.
  *
- * Opens no window. Needs quickjs.library 0.232+.
+ * Opens no window. Needs quickjs.library 0.237+.
  * Run: qjs tests/test_reaction_events.js
  */
 
@@ -261,6 +268,93 @@ run('event.attrs: the names an event carries', () => {
   let button = attrsFor('gadgets/button.gadget', 1);
   ok(Object.keys(button.attrs).length === 0 && button.asked.length === 0,
      'button: nothing is asked and nothing is set');
+});
+
+/* ------------------------------------------------------------------
+ * 3. new Class(pointer) wraps
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every wrapper class on amiga.boopsi, by name: the classes, gadgets
+ * and images.
+ *
+ * @returns {Object<string, function>}
+ */
+function everyWrapper() {
+  return { ...B.classes, ...B.gadgets, ...B.images };
+}
+
+run('new Class(pointer): every class wraps, none creates', () => {
+  /* Creating would open the class library, which is not there under
+   * vamos and throws; on an Amiga it would make a second object. So a
+   * wrapper that comes back holding the pointer has created nothing. */
+  const wrappers = everyWrapper();
+  const names = Object.keys(wrappers).sort();
+
+  ok(names.length >= 35, names.length + ' wrapper classes found');
+
+  for (const name of names) {
+    let wrapped = null, message = '';
+
+    try { wrapped = new wrappers[name](FAKE_GADGET); }
+    catch (error) { message = ' (threw: ' + error.message + ')'; }
+
+    ok(wrapped !== null && wrapped.ptr === FAKE_GADGET &&
+       wrapped._wrappingOnly === true,
+       name + ' wraps the pointer' + message);
+  }
+});
+
+run('new Layout / Page / Window (pointer): what the wrapper is', () => {
+  for (const name of ['Layout', 'Page', 'Virtual']) {
+    const group = new B[name](FAKE_GADGET);
+
+    ok(group instanceof B.Layout && Array.isArray(group._children) &&
+       group._children.length === 0,
+       name + ': a ' + name + ' with no JS-side children');
+  }
+
+  withStandInDispatcher(() => {
+    const window = new B.Window(FAKE_GADGET);
+
+    ok(window.intuiWindow === null, 'Window: not known to be open');
+
+    /* dispose() of a wrapper must leave the owner's window alone */
+    sent = null;
+    window._intuiWindow = { ptr: FAKE_WINDOW };   /* as after open() */
+    window.dispose();
+    ok(sent === null, 'Window: dispose() of a wrapper sends no WM_CLOSE');
+    ok(window.ptr === 0 && window.intuiWindow === null,
+       'Window: the wrapper itself is finished');
+  });
+});
+
+/* ------------------------------------------------------------------
+ * 4. The tag list of an IDCMP_IDCMPUPDATE message
+ * ------------------------------------------------------------------ */
+
+run('IDCMPUPDATE tag list: GA_ID is found', () => {
+  /* Until 0.237 the walk looked for 0x8003000F, which is GA_GZZGadget,
+   * so the gadget's ID was filed under attrs and the event had no
+   * source. The list here is a real one in memory, built from the
+   * checked tables. */
+  const GADGET_ID = 7;
+  const pairs = [
+    [Number(Intuition.consts.GA_GZZGadget), 1],
+    [B.GA.ID, GADGET_ID],
+    [Number(Intuition.consts.ICA_TARGET), 0x1234],
+  ];
+  const tags = amiga.makeTags(pairs);
+  const out = {};
+
+  try { B.Window._walkUpdateTags(tags, out); }
+  finally { amiga.freeMem(tags, (pairs.length + 1) * 8); }
+
+  ok(out.id === GADGET_ID, 'out.id is the GA_ID value (got ' + out.id + ')');
+  ok(out.icaTarget === 0x1234, 'out.icaTarget is the ICA_TARGET value');
+  ok(out.tags && Object.keys(out.tags).length === 1 &&
+     out.tags[Number(Intuition.consts.GA_GZZGadget)] === 1,
+     'any other tag is kept by number, and only those');
 });
 
 print('');

@@ -106,7 +106,7 @@ export function buildNodeList(spec) {
   try {
     for (let index = 0; index < spec.count; index++) {
       const described = spec.describe(index, keep);
-      const regs = { a0: 0 };
+      const regs = { a0: 0 };   /* check-constants: skip - no tag list: a null pointer */
 
       if (described.d0 !== undefined) {
         regs.d0 = described.d0;

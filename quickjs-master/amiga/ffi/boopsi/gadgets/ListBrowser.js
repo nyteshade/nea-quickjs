@@ -28,7 +28,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal LISTBROWSER_* tag IDs (gadgets/listbrowser.h). */
@@ -146,8 +146,8 @@ export const LBFLG = Object.freeze({
 });
 
 /** listbrowser_lib LVO offsets used by _buildLabelList. */
-const LISTBROWSER_LVO_ALLOC_NODE = -36;
-const LISTBROWSER_LVO_FREE_NODE  = -42;
+const LISTBROWSER_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocListBrowserNodeA */
+const LISTBROWSER_LVO_FREE_NODE  = -42;   /* check-constants: is FreeListBrowserNode */
 
 /**
  * listbrowser.gadget — scrollable columnar list.
@@ -245,7 +245,7 @@ export class ListBrowser extends GadgetBase {
       freeLvo:  LISTBROWSER_LVO_FREE_NODE,
       count:    labels.length,
       describe: (index, keep) => ({
-        d0:    1,
+        d0:    1,   /* check-constants: skip - a count: one column */
         pairs: [
           [LBNCA.CopyText, 1],
           [LBNCA.Text,     keep.string(labels[index])],
@@ -266,7 +266,7 @@ export class ListBrowser extends GadgetBase {
 }
 
 EventKind.define('LIST_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/listbrowser.gadget',

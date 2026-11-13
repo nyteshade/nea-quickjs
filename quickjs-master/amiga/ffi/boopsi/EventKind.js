@@ -36,6 +36,7 @@ import { CEnumeration } from '../CEnumeration.js';
  * a corresponding EventKind registered below.
  */
 export const IDCMP = Object.freeze({
+  /* check-constants: prefix IDCMP_ header intuition/intuition.h */
   SIZE_VERIFY:      0x00000001,
   NEW_SIZE:         0x00000002,
   REFRESH_WINDOW:   0x00000004,
@@ -323,7 +324,7 @@ export class EventKind extends CEnumeration {
      * (fromIdcmp walks `from === 'intuition'` only). attrs.sigMask on
      * the event is the bitmask of extra signals that actually fired. */
     EventKind.define('SIGNAL', {
-      idcmp: 0,
+      idcmp: 0,   /* check-constants: skip - no IDCMP class: synthetic */
       rich:  { hasId: false, hasCode: false, hasCoords: false,
                hasSource: false, hasPressed: false },
       from:  'exec',

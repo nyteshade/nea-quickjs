@@ -13,7 +13,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal GETFONT_* tag IDs (gadgets/getfont.h). */
 const GETFONT = Object.freeze({
@@ -103,7 +103,7 @@ export class GetFont extends GadgetBase {
 }
 
 EventKind.define('FONT_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getfont.gadget',

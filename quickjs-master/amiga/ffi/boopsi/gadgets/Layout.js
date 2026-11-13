@@ -86,7 +86,7 @@ const LAYOUT = Object.freeze({
  *   LAYOUT_VERTICAL   = 1
  */
 export const LayoutOrient = Object.freeze({
-  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
+  /* check-constants: prefix LAYOUT_ header gadgets/layout.h */
   HORIZONTAL: 0,
   VERTICAL:   1,
 });
@@ -126,7 +126,9 @@ export class Layout extends GadgetBase {
    */
   static RethinkLayout(layoutPtr, winPtr, reqPtr, refresh) {
     this.ensureClass();
-    return globalThis.amiga.call(this._libBase, -48, {
+    return globalThis.amiga.call(
+      this._libBase, -48,   /* check-constants: is RethinkLayout */
+      {
       a0: (layoutPtr && typeof layoutPtr === 'object')
             ? (layoutPtr.ptr | 0) : (layoutPtr | 0),
       a1: (winPtr && typeof winPtr === 'object' && 'ptr' in winPtr)
@@ -134,7 +136,7 @@ export class Layout extends GadgetBase {
       a2: (reqPtr && typeof reqPtr === 'object' && 'ptr' in reqPtr)
             ? (reqPtr.ptr | 0) : (reqPtr | 0),
       d0: refresh ? 1 : 0,
-    });
+      });
   }
 
   /**
@@ -209,9 +211,15 @@ export class Layout extends GadgetBase {
    * the layout.gadget handles member-insertion when it sees the
    * LAYOUT_AddChild tags during NewObject.
    *
-   * @param {object|number} init
+   * A number is the pointer of an existing layout.gadget object to
+   * wrap: nothing is created, and it has no JS-side children. Until
+   * 0.237 the number was ignored and a new, empty layout was created.
+   *
+   * @param {object|number} init - attributes, or a pointer to wrap
    */
   constructor(init) {
+    if (typeof init === 'number') { super(init); return; }
+
     /* Normalize the input object without mutating the caller's copy. */
     let rawInit = (init && typeof init === 'object') ? { ...init } : {};
 

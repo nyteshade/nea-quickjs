@@ -14,7 +14,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal DATEBROWSER_* tag IDs (gadgets/datebrowser.h). */
 const DATEBROWSER = Object.freeze({
@@ -65,7 +65,7 @@ export class DateBrowser extends GadgetBase {
 }
 
 EventKind.define('DATE_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/datebrowser.gadget',

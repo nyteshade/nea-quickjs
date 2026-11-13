@@ -15,7 +15,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal CHOOSER_* tag IDs (gadgets/chooser.h). */
@@ -60,8 +60,8 @@ export const CNA = Object.freeze({
 });
 
 /** chooser_lib LVO offsets used by _buildLabelList. */
-const CHOOSER_LVO_ALLOC_NODE = -36;
-const CHOOSER_LVO_FREE_NODE  = -42;
+const CHOOSER_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocChooserNodeA */
+const CHOOSER_LVO_FREE_NODE  = -42;   /* check-constants: is FreeChooserNode */
 
 /**
  * chooser.gadget — dropdown / popup selector.
@@ -166,7 +166,7 @@ export class Chooser extends GadgetBase {
 }
 
 EventKind.define('CHOOSER_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/chooser.gadget',

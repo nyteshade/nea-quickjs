@@ -24,7 +24,7 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { Label } from '../images/Label.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal SPEEDBAR_* tag IDs (gadgets/speedbar.h). */
@@ -99,8 +99,8 @@ export const SpeedBarHighlight = Object.freeze({
 });
 
 /** speedbar_lib LVO offsets used by _buildButtonList. */
-const SPEEDBAR_LVO_ALLOC_NODE = -36;
-const SPEEDBAR_LVO_FREE_NODE  = -42;
+const SPEEDBAR_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocSpeedButtonNodeA */
+const SPEEDBAR_LVO_FREE_NODE  = -42;   /* check-constants: is FreeSpeedButtonNode */
 
 /**
  * speedbar.gadget — toolbar strip.
@@ -282,7 +282,7 @@ export class SpeedBar extends GadgetBase {
 }
 
 EventKind.define('SPEEDBAR_CLICK', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/speedbar.gadget',

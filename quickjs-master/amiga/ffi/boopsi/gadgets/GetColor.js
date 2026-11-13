@@ -6,7 +6,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const GETCOLOR = Object.freeze({
   /* check-constants: prefix GETCOLOR_ header gadgets/getcolor.h */
@@ -108,7 +108,7 @@ export class GetColor extends GadgetBase {
 }
 
 EventKind.define('COLOR_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getcolor.gadget',

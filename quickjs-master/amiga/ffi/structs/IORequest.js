@@ -107,6 +107,6 @@ See TimerRequest for a concrete specialization.`;
   get error()       {
     let b = this.read8(IORequest.OFFSET.io_Error);
     /* BYTE is signed; extend from 8-bit 2s-complement. */
-    return b >= 0x80 ? b - 0x100 : b;
+    return b >= 0x80 ? b - 0x100 : b;   /* check-constants: skip - sign extension of a byte */
   }
 }

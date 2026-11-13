@@ -11,7 +11,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal PALETTE_* tag IDs (gadgets/palette.h).
  *
@@ -63,7 +63,7 @@ export class Palette extends GadgetBase {
 }
 
 EventKind.define('PALETTE_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/palette.gadget',

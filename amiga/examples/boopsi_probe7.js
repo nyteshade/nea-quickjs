@@ -58,7 +58,8 @@ function hex(n, w) { return (n >>> 0).toString(16).padStart(w || 1, '0'); }
  */
 const GA_ID        = 0x8003000F;  /* check-constants: skip - wrong (this is GA_GZZGadget; GA_ID is 0x80030010) but kept as run: the probe is a historical record */
 const GA_Text      = 0x80030009;
-const GA_RelVerify = 0x80030015;
+/* check-constants: skip - wrong (this is GA_Immediate) but kept as run */
+const GA_RelVerify = 0x80030015;   /* check-constants: skip */
 
 /* BUTTON_GetClass: the only function in FD/button_lib.fd (##bias 30). */
 const LVO_GET_CLASS = -30;

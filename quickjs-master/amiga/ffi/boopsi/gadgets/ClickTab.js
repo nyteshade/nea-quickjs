@@ -20,7 +20,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal CLICKTAB_* tag IDs (gadgets/clicktab.h). */
@@ -66,8 +66,8 @@ export const TNA = Object.freeze({
 });
 
 /** clicktab_lib LVO offsets used by _buildLabelList. */
-const CLICKTAB_LVO_ALLOC_NODE = -36;
-const CLICKTAB_LVO_FREE_NODE  = -42;
+const CLICKTAB_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocClickTabNodeA */
+const CLICKTAB_LVO_FREE_NODE  = -42;   /* check-constants: is FreeClickTabNode */
 
 /**
  * clicktab.gadget — tab switcher.
@@ -171,7 +171,7 @@ export class ClickTab extends GadgetBase {
 }
 
 EventKind.define('CLICKTAB_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/clicktab.gadget',

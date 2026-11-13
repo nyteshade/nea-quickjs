@@ -17,7 +17,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { withStruct } from '../../structs/Struct.js';
 import { ARexxCmdMessage } from './texteditor/ARexxCmdMessage.js';
 import { BlockInfoMessage } from './texteditor/BlockInfoMessage.js';
@@ -373,7 +373,7 @@ export class TextEditor extends GadgetBase {
     /* The message holds four ULONG pointers; the class stores the
      * block's corners through them. One zeroed block of four ULONGs
      * receives all of them. */
-    const ULONG_BYTES = 4;
+    const ULONG_BYTES = 4;   /* check-constants: skip - sizeof(ULONG) */
     const RESULT_BYTES = 4 * ULONG_BYTES;
 
     let result = globalThis.amiga.allocMem(RESULT_BYTES);
@@ -433,7 +433,7 @@ export class TextEditor extends GadgetBase {
 }
 
 EventKind.define('TEXT_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/texteditor.gadget',

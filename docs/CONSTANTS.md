@@ -218,6 +218,30 @@ and one line can be tied to a header name its key does not resemble:
 VERTICAL_BAR: 6,   /* check-constants: is BVS_SBAR_HORIZ */
 ```
 
+A number that stands alone in the code of a wrapper or an example,
+with no key beside it, is reported as a bare literal if it could be an
+OS value: a hex number above 0xFF that is not an all-ones mask, or a
+negative multiple of 6 from -30 down (a library vector offset). Give
+it a name in a table, or tie the line to a header name, which for a
+negative number may be a library function:
+
+```js
+this._libBase, -48,   /* check-constants: is RethinkLayout */
+```
+
+or say why it is not an OS value:
+
+```js
+return b >= 0x80 ? b - 0x100 : b;   /* check-constants: skip - sign extension of a byte */
+```
+
+In `quickjs-master/amiga/ffi` nothing is unverified: every number is
+checked or carries such a note. Keep it so.
+
+The wrappers are bundled into one scope, so two files cannot both say
+`const ICA_TARGET = ...`. Put a file's own copies in a table whose
+keys are the header names (`UPDATE` in `boopsi/classes/Window.js`).
+
 `--fix FILE` rewrites each wrong value in a file to the header's.
 `--unverified` lists the numbers it could not tie to anything; look
 through those when adding a table, because a table whose names match

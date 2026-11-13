@@ -10,11 +10,8 @@
  *   WA_*        — intuition/intuition.h, 0x80000063 base
  *   WINDOW_*    — classes/window.h, 0x85025000 base
  *
- * Method IDs (classes/window.h:293-308) — BOOPSI method IDs live in
- * their own integer namespace and are NOT offsets of WINDOW_Dummy:
- *   WM_HANDLEINPUT = 0x570001
- *   WM_OPEN        = 0x570002
- *   WM_CLOSE       = 0x570003
+ * Method IDs (classes/window.h, WM_*) live in their own integer
+ * namespace and are NOT offsets of WINDOW_Dummy.
  *
  * Event surface: open() returns the Window wrapper itself (so the
  * user can chain); events() + eventsAsync() + .on() iterate over
@@ -94,6 +91,33 @@ export const WindowPosition = Object.freeze({
 
   /** @deprecated the old name for CENTERMOUSE */
   MOUSEPOINTER: 2,   /* check-constants: is WPOS_CENTERMOUSE */
+});
+
+/* What an IDCMP_IDCMPUPDATE message can carry in its tag list, and the
+ * tags that steer a walk along any tag list. Each name is the header's
+ * own (utility/tagitem.h, intuition/gadgetclass.h, intuition/icclass.h,
+ * gadgets/layout.h, intuition/intuition.h), so
+ * scripts/check_constants.py compares every value.
+ *
+ * Until 0.237 these were typed where they were used, where the check
+ * could not see them, and GA_ID was typed as 0x8003000F. That is
+ * GA_GZZGadget: _translateMessage() never gave an IDCMPUPDATE event
+ * its source. (events() goes through WM_HANDLEINPUT and was not
+ * affected.)
+ *
+ * A table, not separate constants: the wrappers are bundled into one
+ * scope, where a second `const ICA_TARGET` would be an error. */
+const UPDATE = Object.freeze({
+  TAG_END:           0,
+  TAG_IGNORE:        1,
+  TAG_MORE:          2,
+  TAG_SKIP:          3,
+  GA_ID:             0x80030010,
+  ICA_TARGET:        0x80040001,
+  LAYOUT_RelVerify:  0x85007017,
+  LAYOUT_RelCode:    0x85007018,
+  LAYOUT_TabVerify:  0x85007021,
+  IDCMP_IDCMPUPDATE: 0x00800000,
 });
 
 const WM_HANDLEINPUT = 0x570001;
@@ -188,7 +212,29 @@ export class ReactionWindow extends BOOPSIBase {
     sigMask:       { tagID: WINDOW.SigMask, type: 'uint32', readOnly: true },
   };
 
+  /**
+   * Create a window object, or wrap an existing one.
+   *
+   * A number is the pointer of an existing window.class object to
+   * wrap: nothing is created, and dispose() neither closes nor frees
+   * it, because the wrapper does not own it. To use the window's
+   * events, call open() first: WM_OPEN does nothing to a window that
+   * is already open and returns its struct Window (window_cl.doc).
+   * Until 0.237 the number was ignored and a new window object was
+   * created.
+   *
+   * @param {object|number} init - attributes, or a pointer to wrap
+   */
   constructor(init) {
+    if (typeof init === 'number') {
+      super(init);
+      /** @type {Window|null} (struct Window wrapper) */
+      this._intuiWindow = null;
+      /** @type {number} */
+      this._codeBuf = 0;
+      return;
+    }
+
     /* Default WA_IDCMP to a sensible Reaction set. WM_HANDLEINPUT
      * decodes IntuiMessages into WMHI_* return codes, but it can only
      * see classes the user actually requested via WA_IDCMP — without
@@ -303,7 +349,7 @@ export class ReactionWindow extends BOOPSIBase {
 
     /* Safety cap — Reaction tag lists are short (< 32 items), but
      * bail out if something is corrupt to avoid a runaway loop. */
-    const MAX_TAGS = 256;
+    const MAX_TAGS = 256;   /* check-constants: skip - our own loop bound */
     let p = tagListPtr;
     let i = 0;
 
@@ -311,33 +357,33 @@ export class ReactionWindow extends BOOPSIBase {
       let tag  = peek(p);
       let data = peek(p + 4);
 
-      /* TAG_END = 0 */
-      if (tag === 0) break;
+      if (tag === UPDATE.TAG_END) break;
 
-      /* TAG_IGNORE = 1 — skip this slot */
-      if (tag === 1) continue;
+      /* skip this slot */
+      if (tag === UPDATE.TAG_IGNORE) continue;
 
-      /* TAG_MORE = 2 — ti_Data points to continuation TagList. */
-      if (tag === 2) { p = (data >>> 0) - 8; continue; }
+      /* ti_Data points to the continuation of the list */
+      if (tag === UPDATE.TAG_MORE) { p = (data >>> 0) - 8; continue; }
 
-      /* TAG_SKIP = 3 — skip ti_Data more items */
-      if (tag === 3) { p += (data | 0) * 8; continue; }
+      /* skip ti_Data more items */
+      if (tag === UPDATE.TAG_SKIP) { p += (data | 0) * 8; continue; }
 
-      /* GA_ID = 0x8003000F */
-      if (tag === 0x8003000F) { out.id = data >>> 0; continue; }
+      if (tag === UPDATE.GA_ID) { out.id = data >>> 0; continue; }
 
-      /* ICA_TARGET = 0x80040001 (ICA_Dummy = TAG_USER+0x40000, +1) */
-      if (tag === 0x80040001) { out.icaTarget = data >>> 0; continue; }
+      if (tag === UPDATE.ICA_TARGET) { out.icaTarget = data >>> 0; continue; }
 
-      /* LAYOUT_RelVerify = 0x85007017 — marker: this IDCMPUPDATE is
-       * a gadgetup broadcast from layout.gadget. */
-      if (tag === 0x85007017) { out.layoutRelVerify = data >>> 0; continue; }
+      /* marker: this IDCMPUPDATE is a gadgetup broadcast from
+       * layout.gadget */
+      if (tag === UPDATE.LAYOUT_RelVerify) {
+        out.layoutRelVerify = data >>> 0;
+        continue;
+      }
 
-      /* LAYOUT_RelCode = 0x85007018 — the child's release code. */
-      if (tag === 0x85007018) { out.code = data >>> 0; continue; }
+      /* the child's release code */
+      if (tag === UPDATE.LAYOUT_RelCode) { out.code = data >>> 0; continue; }
 
-      /* LAYOUT_TabVerify = 0x85007021 — whether the release was via tab. */
-      if (tag === 0x85007021) { out.tabVerify = data >>> 0; continue; }
+      /* whether the release was via tab */
+      if (tag === UPDATE.LAYOUT_TabVerify) { out.tabVerify = data >>> 0; continue; }
 
       /* Anything else — record by tag ID for class-specific parsing. */
       if (!out.tags) out.tags = {};
@@ -368,11 +414,11 @@ export class ReactionWindow extends BOOPSIBase {
       raw:      msg,
     };
 
-    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iAddress TagList, pull GA_ID,
+    /* IDCMP_IDCMPUPDATE: walk iAddress TagList, pull GA_ID,
      * resolve source from JS-side child registry, upgrade event.kind
      * to the most specific class-level case (BUTTON_CLICK,
      * CHECKBOX_TOGGLE, ...) if any is registered. */
-    if (cls === 0x00800000 && msg.iAddress) {
+    if (cls === UPDATE.IDCMP_IDCMPUPDATE && msg.iAddress) {
       let parsed = {};
       ReactionWindow._walkUpdateTags(msg.iAddress, parsed);
 
@@ -667,7 +713,7 @@ export class ReactionWindow extends BOOPSIBase {
             source: null,
             sourceId: null,
             attrs: { sigMask: extraFired },
-            raw: { waitReturned: got, classRaw: 0 },
+            raw: { waitReturned: got, classRaw: 0 },   /* check-constants: skip - no IDCMP class: a signal */
           };
           this._fire(event);
           yield event;
@@ -685,7 +731,12 @@ export class ReactionWindow extends BOOPSIBase {
    */
   dispose() {
     if (this._disposed) return;
-    this.close();
+
+    /* A wrapper round somebody else's object leaves their window as
+     * it is; this._intuiWindow is dropped with the wrapper. */
+    if (this._wrappingOnly) this._intuiWindow = null;
+    else this.close();
+
     if (this._codeBuf) {
       globalThis.amiga.freeMem(this._codeBuf, 2);
       this._codeBuf = 0;

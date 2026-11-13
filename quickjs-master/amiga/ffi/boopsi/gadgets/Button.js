@@ -14,7 +14,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal BUTTON_* tag IDs (gadgets/button.h) */
 const BUTTON = Object.freeze({
@@ -89,7 +89,7 @@ export class Button extends GadgetBase {
  * Window event pump looks up this case when it sees IDCMP_IDCMPUPDATE
  * carrying a GA_ID whose owner is a Button. */
 EventKind.define('BUTTON_CLICK', {
-  idcmp: 0x00800000,  /* IDCMP_IDCMPUPDATE — correct value per intuition.h:887 */
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/button.gadget',

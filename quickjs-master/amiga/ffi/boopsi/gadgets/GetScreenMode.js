@@ -14,7 +14,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal GETSCREENMODE_* tag IDs (gadgets/getscreenmode.h). */
 const GETSCREENMODE = Object.freeze({
@@ -128,7 +128,7 @@ export class GetScreenMode extends GadgetBase {
 }
 
 EventKind.define('SCREENMODE_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getscreenmode.gadget',
