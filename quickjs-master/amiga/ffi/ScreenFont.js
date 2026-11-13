@@ -59,6 +59,8 @@ Properties:
                          distance as one pixel down (1 = square)
   screenWidth   {number} the screen's width in pixels
   screenHeight  {number} the screen's height in pixels
+  drawInfo      {number} the screen's struct DrawInfo pointer, for
+                         classes that want one (SYSIA_DrawInfo)
 
 Methods:
   widthOf(text) {number} pixel width of text in this font
@@ -154,6 +156,17 @@ Typical use:
 
     Graphics.InitRastPort(this._rastPortPtr);
     Graphics.SetFont(this._rastPortPtr, this._fontPtr);
+  }
+
+  /**
+   * The screen's struct DrawInfo, as a pointer: its pens, font and
+   * resolution. Classes that draw in the screen's style ask for it
+   * (sysiclass needs it as SYSIA_DrawInfo). 0 after close().
+   *
+   * @returns {number}
+   */
+  get drawInfo() {
+    return this._drawInfoPtr;
   }
 
   /**

@@ -233,7 +233,7 @@ export class ReactionWindow extends BOOPSIBase {
     let winPtr = this.doMethod(WM_OPEN);
 
     if (!winPtr) {
-      throw new Error('Window.open: WM_OPEN returned 0 — ' +
+      throw new Error('Window.open: WM_OPEN returned 0 - ' +
         'likely missing WA_Flags bit, bad screen, or out of memory');
     }
 
@@ -616,7 +616,7 @@ export class ReactionWindow extends BOOPSIBase {
     let winSig = this.get('sigMask') >>> 0;
     if (!winSig) {
       throw new Error(
-        'Window.events: WINDOW_SigMask returned 0 — window not properly opened'
+        'Window.events: WINDOW_SigMask returned 0 - window not properly opened'
       );
     }
 

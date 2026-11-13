@@ -71,7 +71,7 @@ Fields (read+write):
                                {string|number} (setter, owning if str)
   nextText                     {number}
 
-Methods: free() — releases struct + owned text allocation.`;
+Methods: free() - releases struct + owned text allocation.`;
   }
 
   /**

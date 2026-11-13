@@ -251,7 +251,7 @@ export class BOOPSIBase {
 
       if (!raw) {
         throw new Error(
-          this.constructor.name + ': NewObjectA returned 0 — ' +
+          this.constructor.name + ': NewObjectA returned 0 - ' +
           'class ' + this.constructor._classLibName +
           ' rejected the tag list'
         );
