@@ -47,6 +47,18 @@ How it works:
      a 32-bit field is reported). `static SIZE = n` is compared with
      sizeof.
 
+  5. Every other file of the wrappers (the library wrappers, the
+     BOOPSI classes) is searched for the same thing done by hand:
+     `amiga.peekN(pointer + 4)` or `amiga.pokeN(pointer + OFFSET, ...)`.
+     An address with something added to it is a field of a struct, and
+     belongs in a wrapper with a checked table. Where it really is an
+     element of a plain array, say so on that line or the one above:
+
+         /* check-structs: a ULONG array */
+
+Files with a marker are checked wherever they are under
+quickjs-master/amiga/ffi; a struct wrapper need not live in structs/.
+
 Needs vbcc: set VBCC, or have it at ~/vbcc.
 """
 import glob
@@ -58,7 +70,8 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEADERS = os.path.join(ROOT, 'sdks', 'NDK3.2R4', 'Include_H')
-STRUCTS = os.path.join(ROOT, 'quickjs-master', 'amiga', 'ffi', 'structs')
+FFI = os.path.join(ROOT, 'quickjs-master', 'amiga', 'ffi')
+STRUCTS = os.path.join(FFI, 'structs')
 VBCC = os.environ.get('VBCC', os.path.expanduser('~/vbcc'))
 
 SKIP_HEADER_DIRS = {'inline', 'pragma', 'pragmas', 'proto', 'clib'}
@@ -309,6 +322,33 @@ def check_file(path, declarations, verbose):
     return struct, problems, notes
 
 
+RAW_ACCESS = re.compile(r'\bamiga\.(peek|poke)(8|16|32)\(\s*([^,)]*\+[^,)]*)')
+RAW_ALLOWED = re.compile(r'check-structs:')
+
+
+def check_raw_offsets(path):
+    """Problems for hand-computed field addresses in one file."""
+    with open(path, encoding='utf-8') as handle:
+        lines = handle.read().split('\n')
+    rel = os.path.relpath(path, ROOT)
+    problems = []
+    if os.path.basename(path) == 'Struct.js':
+        return []                # the base class: where offsets are added
+    for index, line in enumerate(lines):
+        match = RAW_ACCESS.search(COMMENT.sub(' ', line))
+        if not match:
+            continue
+        # the statement may be wrapped, with the note on its last line
+        near = ' '.join(lines[max(0, index - 1):index + 2])
+        if RAW_ALLOWED.search(near):
+            continue
+        problems.append('%s:%d: %s%s(%s) adds an offset by hand; use a '
+                        'struct wrapper with a checked OFFSET table'
+                        % (rel, index + 1, match.group(1), match.group(2),
+                           match.group(3).strip()))
+    return problems
+
+
 def main(argv):
     verbose = '--verbose' in argv
     declarations = Declarations()
@@ -324,9 +364,19 @@ def main(argv):
         return 0
 
     files = [a for a in argv if not a.startswith('--')]
-    if not files:
+    everything = not files
+    if everything:
         files = sorted(glob.glob(os.path.join(STRUCTS, '*.js')))
         files = [f for f in files if os.path.basename(f) != 'Struct.js']
+        # struct wrappers that live beside the class that uses them
+        for path in sorted(glob.glob(os.path.join(FFI, '**', '*.js'),
+                                     recursive=True)):
+            if path in files or os.path.dirname(path) == STRUCTS:
+                continue
+            with open(path, encoding='utf-8') as handle:
+                if MARKER.search(handle.read().split('*/', 1)[-1]) and \
+                        TABLE.search(open(path, encoding='utf-8').read()):
+                    files.append(path)
 
     bad = 0
     for path in files:
@@ -336,6 +386,13 @@ def main(argv):
         for problem in problems:
             print(problem)
         bad += len(problems)
+
+    if everything:
+        for path in sorted(glob.glob(os.path.join(FFI, '**', '*.js'),
+                                     recursive=True)):
+            for problem in check_raw_offsets(path):
+                print(problem)
+                bad += 1
 
     print()
     print('%d files, %d problem(s)' % (len(files), bad))

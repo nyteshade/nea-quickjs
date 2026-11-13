@@ -245,6 +245,26 @@ rules. It checks each entry, that every `readN`/`writeN` uses the
 table, that N matches the field's size, and `static SIZE` against
 `sizeof`.
 
+A wrapper need not live in `structs/`: any file under
+`quickjs-master/amiga/ffi` with the marker and a table is checked. The
+message structs of TextEditor's methods, for instance, are in
+`boopsi/gadgets/texteditor/`, one per file.
+
+The script also searches every other wrapper file for an offset added
+by hand, `amiga.peek32(pointer + 4)`, and reports it: that is a field
+of some struct, and belongs in a wrapper with a table. Where the code
+really steps through a plain array, say so on that line or the one
+above it:
+
+```js
+/* check-structs: a ULONG array (the method's arguments) */
+globalThis.amiga.poke32(msg + 4 + i * 4, args[i] | 0);
+```
+
+Exec lists are built and walked in one place, `structs/ExecList.js`
+(`amiga.exec.List`, with `amiga.exec.Node`); the Reaction gadgets that
+take a list of labels all go through `boopsi/NodeList.js`.
+
 To see a layout:
 
 ```sh

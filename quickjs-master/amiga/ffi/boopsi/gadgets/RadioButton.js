@@ -24,6 +24,7 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
+import { buildNodeList } from '../NodeList.js';
 
 /** @internal RADIOBUTTON_* tag IDs (gadgets/radiobutton.h). */
 const RADIOBUTTON = Object.freeze({
@@ -97,93 +98,32 @@ export class RadioButton extends GadgetBase {
   }
 
   /**
-   * @internal
-   * Allocate an RBNA node per label, link into a struct List, return
-   * { listPtr, freeAll }. The list's lifetime is tied to the owning
-   * RadioButton's dispose.
+   * Build the RADIOBUTTON_Labels list: one AllocRadioButtonNodeA node
+   * per label, each with RBNA_Label. The gadget keeps pointers to the
+   * list and the strings, so all of it lives until dispose().
    *
+   * @internal
    * @param   {string[]} labels
-   * @returns {{listPtr: number, freeAll: Function}}
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
    */
   static _buildLabelList(labels) {
-    /* Ensure the class library is open so we can reach its LVOs. */
     RadioButton.ensureClass();
-    const libBase = RadioButton._libBase;
-    if (!libBase) {
+    if (!RadioButton._libBase) {
       throw new Error('RadioButton: class library base not cached');
     }
 
-    /* Allocate a standard exec List header: 14 bytes, 16 for padding. */
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('RadioButton: allocMem list failed');
-
-    /* NewList() inline: lh_Head = &lh_Tail; lh_Tail = NULL; lh_TailPred = &lh_Head. */
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);  /* lh_Head = &lh_Tail */
-    globalThis.amiga.poke32(listPtr + 4, 0);            /* lh_Tail */
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);  /* lh_TailPred = &lh_Head */
-
-    const nodes = [];          /* { nodePtr, labelPtr, labelBytes } */
-    const labelAllocs = [];    /* [strPtr, strBytes] for cleanup */
-
-    for (let lbl of labels) {
-      const s = String(lbl);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      /* Build a two-tag array: [RBNA_Label, sP], [TAG_END, 0].
-       * Use makeTags in pair-array form. */
-      const tags = globalThis.amiga.makeTags([[RBNA.Label, sP]]);
-      if (!tags) throw new Error('RadioButton: makeTags failed');
-
-      /* Call AllocRadioButtonNodeA(columns=1, tags=tags).
-       * LVO -36. Returns Node* in D0, which amiga.call forwards. */
-      const nodePtr = globalThis.amiga.call(libBase, LVO_ALLOC_NODE, {
-        d0: 1,
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 16);
-
-      if (!nodePtr) {
-        /* Roll back partial allocs. */
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('RadioButton: AllocRadioButtonNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr, labelPtr: sP, labelBytes: sB });
-    }
-
-    /* Link each node at the tail. AddTail equivalent:
-     *   pred = list->lh_TailPred;
-     *   node->ln_Succ = &list->lh_Tail;       (+0 inside node = ln_Succ)
-     *   node->ln_Pred = pred;                 (+4 inside node = ln_Pred)
-     *   pred->ln_Succ = node;
-     *   list->lh_TailPred = node;
-     */
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);      /* lh_TailPred */
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);    /* ln_Succ = &lh_Tail */
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);           /* ln_Pred = old pred */
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);    /* pred->ln_Succ = node */
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);    /* lh_TailPred = node */
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'RadioButton',
+      libBase:  RadioButton._libBase,
+      /* AllocRadioButtonNodeA(d0 columns, a0 tags) */
+      allocLvo: LVO_ALLOC_NODE,
+      freeLvo:  LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        d0:    1,
+        pairs: [[RBNA.Label, keep.string(labels[index])]],
+      }),
+    });
   }
 
   /**

@@ -25,6 +25,7 @@
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { Label } from '../images/Label.js';
 import { EventKind } from '../EventKind.js';
+import { buildNodeList } from '../NodeList.js';
 
 /** @internal SPEEDBAR_* tag IDs (gadgets/speedbar.h). */
 const SPEEDBAR = Object.freeze({
@@ -166,151 +167,87 @@ export class SpeedBar extends GadgetBase {
   }
 
   /**
-   * Build a struct List of speedbar nodes from an array of strings or
-   * per-button option objects.
+   * Build the SPEEDBAR_Buttons list from an array of strings or
+   * per-button option objects: one AllocSpeedButtonNodeA node each.
+   * Everything a node points at lives until dispose().
    *
    * @internal
    * @param {(string|object)[]} buttons
-   * @returns {{listPtr: number, freeAll: function(): void}}
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
    */
   static _buildButtonList(buttons) {
     SpeedBar.ensureClass();
-    const libBase = SpeedBar._libBase;
-    if (!libBase) throw new Error('SpeedBar: class library base not cached');
-
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('SpeedBar: allocMem list failed');
-
-    /* Initialise an empty exec struct List (16 bytes):
-     *   +0  lh_Head     -> &lh_Tail (which sits at +4 — empty marker)
-     *   +4  lh_Tail     -> NULL
-     *   +8  lh_TailPred -> &lh_Head
-     *   +12 lh_Type/Pad
-     */
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];
-    const labelAllocs = [];
-    const ownedLabels = [];
-
-    /* Tag-pair budget per node: at most 11 SBNA_* attrs + TAG_END.
-     * makeTags emits 8 bytes per pair plus 8 for the TAG_END terminator,
-     * so a 12-pair buffer would be 96 bytes. We only ever feed makeTags
-     * the pairs that are actually present, but the freeMem call below
-     * needs a stable size; computed per-call from pairs.length. */
-
-    try {
-      for (let i = 0; i < buttons.length; i++) {
-        const raw = buttons[i];
-        const opts = (typeof raw === 'string') ? { text: raw }
-                   : (raw && typeof raw === 'object') ? raw
-                   : {};
-
-        let imagePtr = SpeedBar._resolveImagePtr(opts.image);
-
-        /* If text is supplied without an image, build an internal
-         * label.image and use its .ptr as SBNA_Image. The Label is
-         * tracked in ownedLabels[] for disposal alongside the node. */
-        if (!imagePtr && typeof opts.text === 'string' && opts.text.length > 0) {
-          const lbl = new Label({ text: opts.text });
-          ownedLabels.push(lbl);
-          imagePtr = lbl.ptr;
-        }
-
-        const selImagePtr = SpeedBar._resolveImagePtr(opts.selImage);
-
-        /* Stage the SBNA_Text string into a Reaction-owned buffer.
-         * SpeedBar copies the string at OM_NEW per V45 semantics, but
-         * we keep ownership through the gadget's lifetime to be safe.
-         * Both `text` and `image` are passed when both are supplied —
-         * V45 renders the text below the image. */
-        let textPtr = 0;
-        if (typeof opts.text === 'string' && opts.text.length > 0) {
-          const sB = opts.text.length + 1;
-          textPtr = globalThis.amiga.allocMem(sB);
-          if (!textPtr) throw new Error('SpeedBar: allocMem text failed');
-          globalThis.amiga.pokeString(textPtr, opts.text);
-          labelAllocs.push([textPtr, sB]);
-        }
-
-        const pairs = [];
-        if (imagePtr)                            pairs.push([SBNA.Image,     imagePtr]);
-        if (selImagePtr)                         pairs.push([SBNA.SelImage,  selImagePtr]);
-        if (textPtr)                             pairs.push([SBNA.Text,      textPtr]);
-        if (opts.help !== undefined) {
-          const helpPtr = SpeedBar._stageString(opts.help, labelAllocs);
-          if (helpPtr)                           pairs.push([SBNA.Help,      helpPtr]);
-        }
-        if (opts.enabled !== undefined)          pairs.push([SBNA.Enabled,   opts.enabled ? 1 : 0]);
-        if (opts.disabled !== undefined)         pairs.push([SBNA.Disabled,  opts.disabled ? 1 : 0]);
-        if (opts.highlight !== undefined)        pairs.push([SBNA.Highlight, opts.highlight | 0]);
-        if (opts.spacing !== undefined)          pairs.push([SBNA.Spacing,   opts.spacing | 0]);
-        if (opts.toggle !== undefined)           pairs.push([SBNA.Toggle,    opts.toggle ? 1 : 0]);
-        if (opts.selected !== undefined)         pairs.push([SBNA.Selected,  opts.selected ? 1 : 0]);
-        if (opts.mxGroup !== undefined)          pairs.push([SBNA.MXGroup,   opts.mxGroup | 0]);
-
-        const tagBytes = (pairs.length + 1) * 8;
-        const tags = globalThis.amiga.makeTags(pairs);
-        if (!tags) throw new Error('SpeedBar: makeTags failed');
-
-        /* AllocSpeedButtonNodeA(ordinal, tags). d0=index (ordinal),
-         * a0=tags. Each button gets a stable ordinal id for SPEEDBAR
-         * event dispatch via SPEEDBAR_Selected. */
-        const nodePtr = globalThis.amiga.call(libBase, SPEEDBAR_LVO_ALLOC_NODE, {
-          d0: i,
-          a0: tags,
-        });
-        globalThis.amiga.freeMem(tags, tagBytes);
-
-        if (!nodePtr) throw new Error('SpeedBar: AllocSpeedButtonNodeA returned 0');
-
-        nodes.push({ nodePtr });
-      }
-
-      /* Link nodes into the list AddTail-style. */
-      for (let n of nodes) {
-        const pred = globalThis.amiga.peek32(listPtr + 8);
-        globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-        globalThis.amiga.poke32(n.nodePtr + 4, pred);
-        globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-        globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-      }
-    }
-    catch (e) {
-      /* Partial-failure cleanup, reverse order. */
-      for (let n of nodes) {
-        try { globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr }); }
-        catch (_) { /* best effort */ }
-      }
-      for (let lbl of ownedLabels) { try { lbl.dispose(); } catch (_) {} }
-      for (let [p, b] of labelAllocs) {
-        try { globalThis.amiga.freeMem(p, b); } catch (_) {}
-      }
-      try { globalThis.amiga.freeMem(listPtr, LIST_BYTES); } catch (_) {}
-      throw e;
+    if (!SpeedBar._libBase) {
+      throw new Error('SpeedBar: class library base not cached');
     }
 
-    return {
-      listPtr,
-      freeAll() {
-        /* Free nodes first — they reference the Label's Image*. */
-        for (let n of nodes) {
-          try { globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr }); }
-          catch (_) { /* best effort */ }
-        }
-        /* Then dispose any auto-built Labels. */
-        for (let lbl of ownedLabels) {
-          try { lbl.dispose(); } catch (_) {}
-        }
-        for (let [p, b] of labelAllocs) {
-          try { globalThis.amiga.freeMem(p, b); } catch (_) {}
-        }
-        try { globalThis.amiga.freeMem(listPtr, LIST_BYTES); } catch (_) {}
-      },
-    };
+    return buildNodeList({
+      owner:    'SpeedBar',
+      libBase:  SpeedBar._libBase,
+      /* AllocSpeedButtonNodeA(d0 ordinal, a0 tags): the ordinal is
+       * what SPEEDBAR_Selected reports when the button is clicked. */
+      allocLvo: SPEEDBAR_LVO_ALLOC_NODE,
+      freeLvo:  SPEEDBAR_LVO_FREE_NODE,
+      count:    buttons.length,
+      describe: (index, keep) => ({
+        d0:    index,
+        pairs: SpeedBar._nodePairs(buttons[index], keep),
+      }),
+    });
+  }
+
+  /**
+   * The SBNA_* tag pairs for one button.
+   *
+   * @internal
+   * @param {string|object} raw - a label, or the button's options
+   *   (text, image, selImage, help, enabled, disabled, highlight,
+   *   spacing, toggle, selected, mxGroup)
+   * @param {object} keep - the list's keeper (see buildNodeList)
+   * @returns {Array<[number, number]>}
+   */
+  static _nodePairs(raw, keep) {
+    const opts = (typeof raw === 'string') ? { text: raw }
+               : (raw && typeof raw === 'object') ? raw
+               : {};
+    const hasText = typeof opts.text === 'string' && opts.text.length > 0;
+
+    let imagePtr = SpeedBar._resolveImagePtr(opts.image);
+
+    /* Text without an image: make a label.image of the text and use
+     * that as SBNA_Image. It is disposed once the nodes, which point
+     * at it, have been freed. */
+    if (!imagePtr && hasText) {
+      const label = new Label({ text: opts.text });
+
+      keep.afterNodes(() => label.dispose());
+      imagePtr = label.ptr;
+    }
+
+    const selImagePtr = SpeedBar._resolveImagePtr(opts.selImage);
+    const pairs = [];
+
+    if (imagePtr)    pairs.push([SBNA.Image,    imagePtr]);
+    if (selImagePtr) pairs.push([SBNA.SelImage, selImagePtr]);
+
+    /* SBNA_Text is passed along with the image when both are given
+     * (V45 draws the text below the image). The class is documented
+     * to copy the string; ours is kept until dispose() regardless. */
+    if (hasText)     pairs.push([SBNA.Text, keep.string(opts.text)]);
+
+    if (typeof opts.help === 'string' && opts.help.length > 0) {
+      pairs.push([SBNA.Help, keep.string(opts.help)]);
+    }
+
+    if (opts.enabled !== undefined)   pairs.push([SBNA.Enabled,   opts.enabled ? 1 : 0]);
+    if (opts.disabled !== undefined)  pairs.push([SBNA.Disabled,  opts.disabled ? 1 : 0]);
+    if (opts.highlight !== undefined) pairs.push([SBNA.Highlight, opts.highlight | 0]);
+    if (opts.spacing !== undefined)   pairs.push([SBNA.Spacing,   opts.spacing | 0]);
+    if (opts.toggle !== undefined)    pairs.push([SBNA.Toggle,    opts.toggle ? 1 : 0]);
+    if (opts.selected !== undefined)  pairs.push([SBNA.Selected,  opts.selected ? 1 : 0]);
+    if (opts.mxGroup !== undefined)   pairs.push([SBNA.MXGroup,   opts.mxGroup | 0]);
+
+    return pairs;
   }
 
   /**
@@ -327,25 +264,6 @@ export class SpeedBar extends GadgetBase {
     if (typeof v === 'number') return v;
     if (typeof v === 'object' && typeof v.ptr === 'number') return v.ptr;
     return 0;
-  }
-
-  /**
-   * Allocate a NUL-terminated copy of `s` and track it in `track[]`.
-   * Returns 0 if `s` isn't a non-empty string.
-   *
-   * @internal
-   * @param {string} s
-   * @param {Array<[number, number]>} track
-   * @returns {number}
-   */
-  static _stageString(s, track) {
-    if (typeof s !== 'string' || s.length === 0) return 0;
-    const sB = s.length + 1;
-    const sP = globalThis.amiga.allocMem(sB);
-    if (!sP) return 0;
-    globalThis.amiga.pokeString(sP, s);
-    track.push([sP, sB]);
-    return sP;
   }
 
   dispose() {

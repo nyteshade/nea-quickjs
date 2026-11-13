@@ -69,6 +69,8 @@ import { ViewPort } from './structs/ViewPort.js';
 import { FileInfoBlock } from './structs/FileInfoBlock.js';
 import { InputEvent } from './structs/InputEvent.js';
 import { IORequest } from './structs/IORequest.js';
+import { ExecList } from './structs/ExecList.js';
+import { ExecNode } from './structs/ExecNode.js';
 import { TimerRequest } from './structs/TimerRequest.js';
 import { makeTags, withTags } from './structs/TagItem.js';
 
@@ -111,7 +113,10 @@ const structsByLib = {
     DrawInfo, Menu, MenuItem, IntuiText,
   },
   graphics:  { RastPort, TextAttr, BitMap, ColorMap, ViewPort },
-  exec:      { MsgPort, IORequest },
+  /* List and Node are reached as amiga.exec.List / amiga.exec.Node
+   * only: as globals those two names would be too easily taken for
+   * something else. */
+  exec:      { MsgPort, IORequest, List: ExecList, Node: ExecNode },
   dos:       { FileInfoBlock },
   /* timer.device / inputevent.device live under "devices" in the
    * NDK; mirror that. */

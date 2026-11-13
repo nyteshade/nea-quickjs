@@ -56,10 +56,15 @@ ORDER = [
     'LibraryBase.js',
     # Struct base
     'structs/Struct.js',
+    'structs/ExecNode.js',
+    'structs/ExecList.js',     # needs ExecNode
     # Leaf structs (no inter-struct deps)
     'structs/MsgPort.js',
     'structs/IntuiMessage.js',
     'structs/TextAttr.js',
+    'structs/TextFont.js',
+    'structs/FileRequester.js',
+    'structs/DrawListEntry.js',
     'structs/Image.js',
     'structs/Gadget.js',
     'structs/RastPort.js',
@@ -95,6 +100,7 @@ ORDER = [
     'boopsi/BOOPSIBase.js',        # root class; ATTRS table driver
     'boopsi/GadgetBase.js',        # extends BOOPSIBase; GA_* attrs
     'boopsi/ImageBase.js',         # extends BOOPSIBase; IA_* attrs
+    'boopsi/NodeList.js',          # label lists; needs ExecList
     # Images — pure imageclass subclasses, simplest to load first.
     'boopsi/images/Label.js',
     'boopsi/images/Led.js',
@@ -122,6 +128,14 @@ ORDER = [
     'boopsi/gadgets/GetScreenMode.js',
     'boopsi/gadgets/GetColor.js',
     'boopsi/gadgets/DateBrowser.js',
+    # the messages of TextEditor's methods, one struct each
+    'boopsi/gadgets/texteditor/ARexxCmdMessage.js',
+    'boopsi/gadgets/texteditor/BlockInfoMessage.js',
+    'boopsi/gadgets/texteditor/ClearTextMessage.js',
+    'boopsi/gadgets/texteditor/ExportTextMessage.js',
+    'boopsi/gadgets/texteditor/InsertTextMessage.js',
+    'boopsi/gadgets/texteditor/MarkTextMessage.js',
+    'boopsi/gadgets/texteditor/SearchMessage.js',
     'boopsi/gadgets/TextEditor.js',
     'boopsi/gadgets/SketchBoard.js',
     'boopsi/gadgets/TapeDeck.js',

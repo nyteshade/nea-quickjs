@@ -108,10 +108,7 @@ Methods: free() — releases struct + owned text allocation.`;
    */
   free() {
     if (this._textAlloc) {
-      globalThis.amiga.freeMem(
-        this._textAlloc.ptr,
-        this._textAlloc.size
-      );
+      this._textAlloc.free();
       this._textAlloc = null;
     }
 
@@ -146,10 +143,7 @@ Methods: free() — releases struct + owned text allocation.`;
    */
   set text(value) {
     if (this._textAlloc) {
-      globalThis.amiga.freeMem(
-        this._textAlloc.ptr,
-        this._textAlloc.size
-      );
+      this._textAlloc.free();
       this._textAlloc = null;
     }
 
@@ -159,14 +153,10 @@ Methods: free() — releases struct + owned text allocation.`;
     }
 
     if (typeof value === 'string') {
-      let bytes = value.length + 1;
-      let p = globalThis.amiga.allocMem(bytes);
-
-      if (!p) throw new Error('IntuiText.text: allocMem failed');
-
-      globalThis.amiga.pokeString(p, value);
-      this.write32(IntuiText.OFFSET.IText, p);
-      this._textAlloc = { ptr: p, size: bytes };
+      /* Intuition reads IText every time the text is drawn, so the
+       * copy lives until the next assignment or free(). */
+      this._textAlloc = globalThis.amiga.allocString(value);
+      this.write32(IntuiText.OFFSET.IText, this._textAlloc.ptr);
       return;
     }
 

@@ -111,6 +111,6 @@ Typical use (raw-FFI escape hatch, wrapper pending):
 
     if (!p || index < 0 || index >= this.numPens) return 0;
 
-    return globalThis.amiga.peek16(p + index * 2);
+    return globalThis.amiga.peek16(p + index * 2);  /* check-structs: a UWORD array */
   }
 }

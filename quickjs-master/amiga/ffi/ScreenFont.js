@@ -36,17 +36,8 @@
 import { Intuition } from './Intuition.js';
 import { Graphics } from './Graphics.js';
 import { DrawInfo } from './structs/DrawInfo.js';
-
-/** sizeof(struct RastPort), graphics/rastport.h. */
-const RASTPORT_SIZE = 100;
-
-/** MEMF_PUBLIC | MEMF_CLEAR, exec/memory.h. */
-const MEMF_PUBLIC_CLEAR = 0x00010001;
-
-/** Offsets into struct TextFont, graphics/text.h. */
-const TF_YSIZE    = 20;
-const TF_XSIZE    = 24;
-const TF_BASELINE = 26;
+import { RastPort } from './structs/RastPort.js';
+import { TextFont } from './structs/TextFont.js';
 
 export class ScreenFont {
   /**
@@ -130,14 +121,16 @@ Typical use:
     /** @type {number} struct TextFont pointer, owned by the screen */
     this._fontPtr = drawInfo.font;
 
+    let font = new TextFont(this._fontPtr);
+
     /** @type {number} pixels in one line of text */
-    this.height = globalThis.amiga.peek16(this._fontPtr + TF_YSIZE);
+    this.height = font.ySize;
 
     /** @type {number} the font's nominal character width */
-    this.nominalWidth = globalThis.amiga.peek16(this._fontPtr + TF_XSIZE);
+    this.nominalWidth = font.xSize;
 
     /** @type {number} pixels from the top of a line to its baseline */
-    this.baseline = globalThis.amiga.peek16(this._fontPtr + TF_BASELINE);
+    this.baseline = font.baseline;
 
     /* dri_Resolution is the size of one pixel, in ticks. On a 640x256
      * screen a pixel is half as wide as it is tall (22 x 44), so it
@@ -151,8 +144,8 @@ Typical use:
       ? ticksDown / ticksAcross
       : 1;
 
-    this._rastPortPtr = globalThis.amiga.allocMem(RASTPORT_SIZE,
-                                                  MEMF_PUBLIC_CLEAR);
+    /* amiga.allocMem gives public, zero-filled memory by default. */
+    this._rastPortPtr = globalThis.amiga.allocMem(RastPort.SIZE);
 
     if (!this._rastPortPtr) {
       this.close();
@@ -180,18 +173,9 @@ Typical use:
     text = String(text);
     if (text.length === 0) return 0;
 
-    let bytes  = text.length + 1;
-    let buffer = globalThis.amiga.allocMem(bytes, MEMF_PUBLIC_CLEAR);
-
-    if (!buffer) throw new Error('ScreenFont: out of memory');
-
-    try {
-      globalThis.amiga.pokeString(buffer, text);
-      return Graphics.TextLength(this._rastPortPtr, buffer, text.length);
-    }
-    finally {
-      globalThis.amiga.freeMem(buffer, bytes);
-    }
+    /* TextLength() measures during the call and keeps nothing. */
+    return globalThis.amiga.withString(text, (pointer) =>
+      Graphics.TextLength(this._rastPortPtr, pointer, text.length));
   }
 
   /**
@@ -216,7 +200,7 @@ Typical use:
    */
   close() {
     if (this._rastPortPtr) {
-      globalThis.amiga.freeMem(this._rastPortPtr, RASTPORT_SIZE);
+      globalThis.amiga.freeMem(this._rastPortPtr, RastPort.SIZE);
       this._rastPortPtr = 0;
     }
 

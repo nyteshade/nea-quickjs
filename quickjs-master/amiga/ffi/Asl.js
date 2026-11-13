@@ -15,6 +15,7 @@
 import { LibraryBase } from './LibraryBase.js';
 import { CEnumeration } from './CEnumeration.js';
 import { ptrOf } from './ptrOf.js';
+import { FileRequester } from './structs/FileRequester.js';
 
 /**
  * asl.library — standard Amiga requester provider (file/font/
@@ -256,20 +257,19 @@ export class Asl extends LibraryBase {
   }
 
   /**
-   * Convenience — one call that allocates, runs the requester, and
-   * frees cleanly. Returns a {ok, drawer, file, path} object for
-   * file requesters, or {ok, requester} for other types.
+   * Convenience — one call that allocates a file requester, shows
+   * it, reads the answer and frees it.
    *
-   * File-request layout (struct FileRequester after a successful
-   * AslRequest, from NDK3.2R4 libraries/asl.h:61):
-   *   +0   fr_Reserved0[4]
-   *   +4   fr_File   (STRPTR)  — contents of File gadget
-   *   +8   fr_Drawer (STRPTR)  — contents of Drawer gadget
-   *   +22  fr_LeftEdge (WORD)
-   *   ... fr_NumArgs / fr_ArgList for multi-select
+   * The requester is freed before this returns, so the result holds
+   * strings, not pointers. (Until 0.231 it also carried `requester`,
+   * the address of the struct that had just been freed; reading
+   * through it read freed memory. It is now always 0 and will be
+   * removed.)
    *
    * @param {Array<[number, number]>} pairs — ASLFR_* tag pairs
    * @returns {{ok: boolean, drawer: string|null, file: string|null, path: string|null, requester: number}}
+   *   ok is false if the user cancelled or the requester could not be
+   *   made; path is drawer and file joined as AmigaDOS would
    */
   static openFileRequest(pairs) {
     let req = this.AllocAslRequestTags(this.consts.ASL_FileRequest,
@@ -285,20 +285,14 @@ export class Asl extends LibraryBase {
 
       if (!ok) {
         return { ok: false, drawer: null, file: null, path: null,
-                 requester: req };
+                 requester: 0 };
       }
 
-      /* Per NDK 3.2 layout: fr_File is at +4, fr_Drawer at +8. */
-      let filePtr   = globalThis.amiga.peek32(req + 4);
-      let drawerPtr = globalThis.amiga.peek32(req + 8);
-
-      let drawer = drawerPtr
-        ? globalThis.amiga.peekString(drawerPtr, 512)
-        : null;
-
-      let file = filePtr
-        ? globalThis.amiga.peekString(filePtr, 256)
-        : null;
+      /* Copy the answer out now: the strings belong to the requester
+       * and go with it in the finally below. */
+      let answer = new FileRequester(req);
+      let drawer = answer.drawer;
+      let file   = answer.file;
 
       let path = null;
 
@@ -313,7 +307,7 @@ export class Asl extends LibraryBase {
         path = drawer + sep + file;
       }
 
-      return { ok: true, drawer, file, path, requester: req };
+      return { ok: true, drawer, file, path, requester: 0 };
     }
 
     finally {

@@ -21,6 +21,7 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
+import { buildNodeList } from '../NodeList.js';
 
 /** @internal CLICKTAB_* tag IDs (gadgets/clicktab.h). */
 const CLICKTAB = Object.freeze({
@@ -124,73 +125,34 @@ export class ClickTab extends GadgetBase {
     this._ownedLabels = ownedLabels;
   }
 
-  /** @internal See RadioButton._buildLabelList for list-layout mechanics. */
+  /**
+   * Build the CLICKTAB_Labels list: one AllocClickTabNodeA node per
+   * label, with TNA_Text and TNA_Number (the tab's index, which is
+   * what CLICKTAB_Current reports). Everything lives until dispose().
+   *
+   * @internal
+   * @param   {string[]} labels
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
+   */
   static _buildLabelList(labels) {
     ClickTab.ensureClass();
-    const libBase = ClickTab._libBase;
-    if (!libBase) throw new Error('ClickTab: class library base not cached');
-
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('ClickTab: allocMem list failed');
-
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];
-    const labelAllocs = [];
-
-    for (let i = 0; i < labels.length; i++) {
-      const s = String(labels[i]);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      /* TNA_Text + TNA_Number = index. Number is documented as a
-       * stable per-tab id useful for CLICKTAB_Current lookup. */
-      const tags = globalThis.amiga.makeTags([
-        [TNA.Text,   sP],
-        [TNA.Number, i],
-      ]);
-      if (!tags) throw new Error('ClickTab: makeTags failed');
-
-      const nodePtr = globalThis.amiga.call(libBase, CLICKTAB_LVO_ALLOC_NODE, {
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 24);  /* 3 tag items × 8 bytes */
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CLICKTAB_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('ClickTab: AllocClickTabNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr });
+    if (!ClickTab._libBase) {
+      throw new Error('ClickTab: class library base not cached');
     }
 
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CLICKTAB_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'ClickTab',
+      libBase:  ClickTab._libBase,
+      allocLvo: CLICKTAB_LVO_ALLOC_NODE,  /* AllocClickTabNodeA(a0 tags) */
+      freeLvo:  CLICKTAB_LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        pairs: [
+          [TNA.Text,   keep.string(labels[index])],
+          [TNA.Number, index],
+        ],
+      }),
+    });
   }
 
   dispose() {
