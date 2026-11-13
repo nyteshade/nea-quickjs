@@ -54,6 +54,16 @@
  * and features this engine version lacks (the RegExp v flag, RegExp
  * modifiers, duplicate named groups, Atomics, Uint8Array base64).
  *
+ * The sweep goes on in five more files of the same kind, written for
+ * the build after 0.238, each with its own list of the faults it
+ * found: test_engine_scope.js (parameter defaults, functions in
+ * blocks, eval, with), test_engine_iterators.js (closing of
+ * iterators, for await, Array.fromAsync), test_engine_objects.js
+ * (frozen arrays, sort, order of evaluation, Proxy traps),
+ * test_engine_builtins.js (JSON, structuredClone, Error, Date,
+ * String) and test_engine_host.js (lazy globals, recursion limit,
+ * WeakRef). They are separate files so that each stays readable.
+ *
  * The file is long because it is a table: one line per question. It
  * is generated; to add a case, add it to the table by hand in the same
  * form, with the answer Node.js gives.

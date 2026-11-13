@@ -1460,15 +1460,209 @@ defineFeature({
     name:        'structured-clone',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'structuredClone() deep-clone primitive (JSON round-trip for now)',
+    description: 'structuredClone(): the HTML structured clone algorithm in JavaScript',
     globals:     ['structuredClone'],
     standard:    true,
     install() {
-        /* Simple JSON-based clone.  Loses Dates, Maps, Sets, typed
-         * arrays, undefined values.  Future: swap to qjs:bjson round-
-         * trip for fidelity (bjson handles all JS types natively) but
-         * that requires async-aware apply() — defer to Phase D util. */
-        globalThis.structuredClone = (v) => JSON.parse(JSON.stringify(v));
+        /* The structured clone algorithm of the HTML standard, written
+         * out: primitives, the wrapper objects, Date, RegExp,
+         * ArrayBuffer (copied, or moved when it is in options.transfer),
+         * typed arrays and DataView, Map, Set, the Error types, arrays
+         * (holes and extra properties kept) and plain objects, with
+         * cycles and shared references preserved. Functions, symbols
+         * and objects with hidden state it cannot copy (WeakMap,
+         * WeakSet, WeakRef, Promise, FinalizationRegistry, generators)
+         * throw a DataCloneError DOMException.
+         *
+         * Until 0.238 this was JSON.parse(JSON.stringify(v)): a cycle
+         * threw TypeError, a shared object became two, Date became a
+         * string, Map, Set and typed arrays became {}, -0 became 0,
+         * NaN became null, undefined values vanished and
+         * structuredClone(undefined) threw SyntaxError.
+         *
+         * Not done: a Proxy is cloned as the plain object it shows
+         * (JavaScript cannot tell a proxy; other engines throw), and
+         * Blob / File are cloned as plain objects.
+         *
+         * The work is done with a queue, not by recursion, because the
+         * machine stack allows only a few hundred nested calls. A getter
+         * of a nested object therefore runs after the getters of the
+         * object that holds it, not between them. */
+        const getTag = Object.prototype.toString;
+        const typedArrayProto = Object.getPrototypeOf(Uint8Array.prototype);
+        const typedArrayTag = Object.getOwnPropertyDescriptor(typedArrayProto, Symbol.toStringTag).get;
+        const errorNames = ['Error', 'EvalError', 'RangeError', 'ReferenceError', 'SyntaxError', 'TypeError', 'URIError'];
+        const uncloneable = [WeakMap, WeakSet, WeakRef, Promise, FinalizationRegistry];
+
+        /**
+         * Make the exception the algorithm throws for a value it cannot copy.
+         * @param {string} what description of the value
+         * @returns {DOMException} a DataCloneError
+         */
+        function dataCloneError(what) {
+            return new DOMException(what + ' could not be cloned', 'DataCloneError');
+        }
+
+        /**
+         * Copy an ArrayBuffer, keeping it resizable if it was.
+         * @param {ArrayBuffer} buffer the buffer to copy
+         * @returns {ArrayBuffer} a new buffer with the same bytes
+         */
+        function copyBuffer(buffer) {
+            let copy;
+            if (buffer.resizable) {
+                copy = new ArrayBuffer(buffer.byteLength, { maxByteLength: buffer.maxByteLength });
+                new Uint8Array(copy).set(new Uint8Array(buffer));
+                return copy;
+            }
+            return buffer.slice(0);
+        }
+
+        /**
+         * Clone one value. Containers are created empty, remembered in
+         * `seen` and put on `queue`; their contents are filled in by
+         * the loop of structuredClone().
+         * @param {*} value the value to clone
+         * @param {Map<object, object>} seen clones made so far, by original
+         * @param {Array<{from: object, to: object, kind: string}>} queue containers still to fill
+         * @param {Set<ArrayBuffer>} transfer buffers to move instead of copy
+         * @returns {*} the clone
+         */
+        function make(value, seen, queue, transfer) {
+            let copy, kind, tag, name, i, offset, length;
+
+            if (typeof value === 'function') throw dataCloneError('A function');
+            if (typeof value === 'symbol') throw dataCloneError('A symbol');
+            if (typeof value !== 'object' || value === null) return value;
+            if (seen.has(value)) return seen.get(value);
+
+            for (i = 0; i < uncloneable.length; i++) {
+                if (value instanceof uncloneable[i])
+                    throw dataCloneError('#<' + uncloneable[i].name + '>');
+            }
+
+            kind = '';
+            tag = typedArrayTag.call(value);
+            if (tag !== undefined) {
+                /* a typed array: the same view on the clone of its buffer
+                   (measured first: a transfer detaches the original) */
+                offset = value.byteOffset;
+                length = value.length;
+                copy = make(value.buffer, seen, queue, transfer);
+                copy = new globalThis[tag](copy, offset, length);
+            } else if (value instanceof ArrayBuffer) {
+                if (value.detached) throw dataCloneError('A detached ArrayBuffer');
+                copy = transfer.has(value) ? value.transfer() : copyBuffer(value);
+            } else if (typeof SharedArrayBuffer === 'function' && value instanceof SharedArrayBuffer) {
+                copy = value;
+            } else if (value instanceof DataView) {
+                offset = value.byteOffset;
+                length = value.byteLength;
+                copy = make(value.buffer, seen, queue, transfer);
+                copy = new DataView(copy, offset, length);
+            } else if (value instanceof Date) {
+                copy = new Date(Date.prototype.getTime.call(value));
+            } else if (value instanceof RegExp) {
+                copy = new RegExp(value.source, value.flags);
+            } else if (value instanceof Boolean) {
+                copy = new Boolean(Boolean.prototype.valueOf.call(value));
+            } else if (value instanceof Number) {
+                copy = new Number(Number.prototype.valueOf.call(value));
+            } else if (value instanceof String) {
+                copy = new String(String.prototype.valueOf.call(value));
+            } else if (value instanceof BigInt) {
+                copy = Object(BigInt.prototype.valueOf.call(value));
+            } else if (value instanceof Map) {
+                copy = new Map();
+                kind = 'map';
+            } else if (value instanceof Set) {
+                copy = new Set();
+                kind = 'set';
+            } else if (value instanceof Error) {
+                /* name, message, stack and cause travel; nothing else */
+                name = String(value.name);
+                if (errorNames.indexOf(name) < 0) name = 'Error';
+                copy = Object.create(globalThis[name].prototype);
+                Error.captureStackTrace(copy);
+                if (Object.prototype.hasOwnProperty.call(value, 'message'))
+                    Object.defineProperty(copy, 'message', { value: String(value.message), writable: true, configurable: true });
+                Object.defineProperty(copy, 'stack', { value: String(value.stack), writable: true, configurable: true });
+                kind = 'error';
+            } else if (Array.isArray(value)) {
+                copy = new Array(value.length);
+                kind = 'object';
+            } else {
+                tag = getTag.call(value);
+                if (tag === '[object Generator]' || tag === '[object AsyncGenerator]')
+                    throw dataCloneError('#<' + tag.slice(8, -1) + '>');
+                copy = {};
+                kind = 'object';
+            }
+
+            seen.set(value, copy);
+            if (kind) queue.push({ from: value, to: copy, kind: kind });
+            return copy;
+        }
+
+        /**
+         * Deep-copy a value with the structured clone algorithm.
+         * @param {*} value the value to clone
+         * @param {{transfer?: Iterable<ArrayBuffer>}} [options] buffers
+         *        listed in `transfer` are moved to the clone and detached
+         *        in the original
+         * @returns {*} the clone
+         * @throws {DOMException} DataCloneError for a function, a symbol
+         *         or an object that cannot be copied
+         */
+        globalThis.structuredClone = function structuredClone(value, options) {
+            const seen = new Map();
+            const queue = [];
+            const transfer = new Set();
+            let result, item, keys, i, entry;
+
+            if (arguments.length === 0)
+                throw new TypeError("structuredClone: 1 argument required, but only 0 present");
+            if (options !== undefined && options !== null && options.transfer !== undefined) {
+                for (entry of options.transfer) {
+                    if (!(entry instanceof ArrayBuffer) || transfer.has(entry))
+                        throw dataCloneError('Value in the transfer list');
+                    if (entry.detached)
+                        throw dataCloneError('A detached ArrayBuffer');
+                    transfer.add(entry);
+                }
+            }
+
+            result = make(value, seen, queue, transfer);
+            while (queue.length > 0) {
+                item = queue.pop();
+                if (item.kind === 'map') {
+                    for (entry of Array.from(Map.prototype.entries.call(item.from)))
+                        item.to.set(make(entry[0], seen, queue, transfer), make(entry[1], seen, queue, transfer));
+                } else if (item.kind === 'set') {
+                    for (entry of Array.from(Set.prototype.values.call(item.from)))
+                        item.to.add(make(entry, seen, queue, transfer));
+                } else if (item.kind === 'error') {
+                    if (Object.prototype.hasOwnProperty.call(item.from, 'cause'))
+                        Object.defineProperty(item.to, 'cause', { value: make(item.from.cause, seen, queue, transfer), writable: true, configurable: true });
+                } else {
+                    /* own enumerable string keys; defineProperty so that a
+                       key called __proto__ is a property and not the prototype */
+                    keys = Object.keys(item.from);
+                    for (i = 0; i < keys.length; i++) {
+                        Object.defineProperty(item.to, keys[i], {
+                            value: make(item.from[keys[i]], seen, queue, transfer),
+                            writable: true, enumerable: true, configurable: true,
+                        });
+                    }
+                }
+            }
+            /* a buffer in the transfer list is detached even when the
+               value did not contain it */
+            for (entry of transfer) {
+                if (!entry.detached) entry.transfer();
+            }
+            return result;
+        };
     },
 });
 

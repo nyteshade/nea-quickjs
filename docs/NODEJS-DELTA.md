@@ -327,7 +327,7 @@ Extends `Uint8Array` so all TypedArray methods work alongside Node methods.
 | `TextEncoder`, `TextDecoder` | ✓ | `text-encoding` manifest — utf-8 + latin1 |
 | `AbortController`, `AbortSignal` | ✓ | `abort` manifest — not yet wired into fetch |
 | `queueMicrotask(fn)` | ✓ | `queue-microtask` manifest |
-| `structuredClone(v)` | ◐ | `structured-clone` manifest — JSON round-trip (loses Date/Map/Set) |
+| `structuredClone(v, { transfer })` | ✓ | `structured-clone` manifest — the structured clone algorithm: cycles, shared references, Date, RegExp, Map, Set, typed arrays, ArrayBuffer (with transfer), Error types; `DataCloneError` for functions and symbols. A Proxy is cloned as the object it shows; Blob and File become plain objects |
 | `crypto.subtle.digest`, `crypto.getRandomValues` | ○ | planned — E-tier via AmiSSL |
 | `Blob`, `File` | ✓ | 0.116 — pure-JS, Uint8Array-backed; `.arrayBuffer()` / `.text()` / `.bytes()` / `.slice()`; no `.stream()` (no WHATWG ReadableStream) |
 | `FormData` | ✓ | 0.117 — pure-JS, Blob-aware; append/set/get/getAll/has/delete/entries/keys/values/forEach; fetch multipart wire encoding is future work |
@@ -457,6 +457,19 @@ FPU library for everything but its ten `Date` checks, where the
 emulator stops on an FPU addressing mode it does not implement; those
 ten need a real Amiga.
 
+The sweep was extended after 0.238 into five more files of the same
+kind, about 900 cases, each a table of sources with the answer
+Node.js 26 gives (or, where a comment says so, the answer the
+specification requires and V8 does not give):
+
+| File | What it asks |
+|---|---|
+| `test_engine_scope.js` | parameters with default values, functions declared in blocks, `eval`, `Function()`, `with`, labels, global declarations |
+| `test_engine_iterators.js` | when an iterator is closed and whether `return()` is awaited: for-of, for-await, destructuring, spread, `yield*`, `Array.from`, `Array.fromAsync`, the Iterator helpers |
+| `test_engine_objects.js` | frozen and sealed arrays under every mutating method, `sort`, typed arrays over a resized or detached buffer, the order of evaluation of assignments, destructuring, spread, templates and Proxy traps |
+| `test_engine_builtins.js` | JSON, `structuredClone`, Error and `cause`, Date at the extremes, `normalize`, the `toLocale` functions |
+| `test_engine_host.js` | the globals loaded on first use, the recursion limit, WeakRef and FinalizationRegistry (expected values recorded from the library, not from Node.js) |
+
 **By design — will stay different**
 
 | Behaviour | What happens here | Why |
@@ -467,7 +480,17 @@ ten need a real Amiga.
 | `std.printf` / `std.sprintf` with a very large precision | `%f` takes at most 101 digits after the point from the value (`%e`: 101 significant digits); digits asked for beyond that print as `0`, and the precision is capped at 400. Otherwise the conversions print what a C library prints, exact ties rounded to even (`%.0f` of 2.5 is `2`, unlike `toFixed`). | The digits come from the engine's `js_dtoa`; see `library/vbcc/sharedlib_printf.c`. |
 | `std.tmpfile`, `std.popen`, `os.realpath`, `os.symlink` and the other POSIX process calls | Not present. | No equivalent on AmigaOS, or not implemented; see "Process Model" in docs/AMIGA-CHANGES.md. |
 | File dates before 1978 (`os.utimes`) | Stored as 1 January 1978. | AmigaOS datestamps start there. |
-| Recursion depth | A few hundred nested calls with the 512 KB stack the CLI gives itself (about 650 under emulation with 1.5 MB), then a catchable `RangeError`. Node.js allows about 10 000. | The interpreter recurses on the machine stack; see `amiga/tests/test_stack_limit.js`. |
+| Recursion depth | A few hundred nested calls with the 512 KB stack the CLI gives itself (about 650 under emulation with 1.5 MB), then a catchable `RangeError`. Node.js allows about 10 000. | The interpreter recurses on the machine stack; see `amiga/tests/test_stack_limit.js`. Every kind of call was checked (`test_engine_host.js`): the error can be caught, the engine works afterwards, memory does not grow. There is no tail-call elimination (nor in V8). |
+| Time zone | None. Local time is the Amiga clock read as UTC: `getTimezoneOffset()` is `0` for every date, there is no daylight saving time, and `getHours()` equals `getUTCHours()`. `Date.parse` and `toISOString` are exact over the whole range (years -271821 to 275760). | AmigaOS keeps local time and has no time zone database (`localtime_r` in `library/vbcc/sharedlib_time.c`). |
+| `error.stack` | The frames only: `    at name (file:line:column)` per line. There is no first line `Name: message` as in V8, so `err.stack.split('\n')[0]` is a frame. `Error.stackTraceLimit` is an accessor property, not a data property. | Upstream format. Print `String(err)` and then `err.stack`. `Error.captureStackTrace` and `Error.prepareStackTrace` work as in V8. |
+| Locale | There is no `Intl` and no locale data. `localeCompare` compares the normalised strings by code unit and ignores its locale and options arguments (`'a'.localeCompare('B')` is `1`, in Node.js `-1`). `toLocaleUpperCase` / `toLocaleLowerCase` ignore the locale. `Number`, `BigInt` and `Date` `toLocaleString` use one format: no digit grouping, `06/07/2021, 08:09:10 AM`. | The tables would not fit. `String.prototype.normalize` (all four forms) and the full Unicode case mappings are present. |
+| When a WeakRef target or a FinalizationRegistry target is collected | An object that is not part of a cycle is freed the moment its last reference goes (and, for a WeakRef, the job that created or dereferenced it has ended); a cycle is freed by the next collection (`std.gc()` forces one). A FinalizationRegistry callback runs as a job soon after. In V8 the time is unpredictable. | The engine counts references. |
+| A `Proxy` used as the scope object of `with` | `has` is called once per reference; the specification asks again before the read and before the write. | One opcode resolves and uses the binding. Only a logging `has` trap can tell. |
+| `for (k in proxy)` | `getPrototypeOf` is called before `ownKeys`. | The specification does not fix the order. |
+| `structuredClone(proxy)` | Clones the object the proxy shows. V8 throws `DataCloneError`. | JavaScript cannot tell that an object is a proxy. |
+| `Date.parse` of a string that is not ISO 8601 or a `toString` / `toUTCString` form | Implementation-defined, and different from V8 for malformed input: `'2020-00-01'` and `'Thu, 32 Jan 1970 00:00:00 GMT'` parse here and are `NaN` in V8; `'2020-01-01t00:00:00z'` (lower case) is `NaN` here; a year `0001` is the year 1 here and 2001 in V8. | ECMAScript only specifies the three formats. |
+| `(function () {}).caller` | `undefined`; in V8 `null`. | Not in the specification. |
+| Where the specification and V8 disagree, this engine follows the specification | An iterator whose `next()` threw is **not** closed by `Object.fromEntries`, `Iterator.concat` or `Array.fromAsync` (V8 calls `return()`). `Array.fromAsync` constructs the result before it fetches the iterator. In `with (o) { x = (delete o.x, 5) }` the assignment goes to `o`. `{ function f() {} { function f() {} } }` does not copy the inner `f` to the function scope. A direct `eval` in a default parameter value that declares `var arguments` is a `SyntaxError`. | Each is marked in the test files with the clause that requires it. One exception, on purpose: `Object.freeze([1]).sort()` does not throw, as in V8 (the specification's `Set` would), while `Object.freeze([1, 2]).sort()` throws in both. |
 
 **Not in this engine version**
 
@@ -475,17 +498,29 @@ Constructing these throws `SyntaxError`, or the property is missing:
 the RegExp `v` flag (set notation), RegExp modifiers `(?i:...)`,
 duplicate named capture groups, the legacy statics `RegExp.$1` /
 `RegExp.lastMatch`, `Atomics` and `SharedArrayBuffer`,
-`Uint8Array.fromBase64` / `toBase64` / `toHex`.
+`Uint8Array.fromBase64` / `toBase64` / `toHex`, `Intl`, `Temporal`
+(and `Date.prototype.toTemporalInstant`), `JSON.rawJSON` /
+`JSON.isRawJSON` and the third argument of a `JSON.parse` reviver,
+`SuppressedError`, `DisposableStack` and the `using` declaration.
 
 **Known wrong answers, not yet fixed** (all come from the upstream
 engine and are the same on every machine)
 
 | Behaviour | Here | Node.js |
 |---|---|---|
-| A closure in a parameter default sees later assignments to the parameter: `function f(a, g = () => a) { a = 2; return g(); } f(1)` | `1` | `2` |
-| An exception thrown out of a `for await` body | the iterator's `return()` is called but not awaited | awaited before the exception continues |
-| `Object.freeze([1, 2]).sort()` on an array that is already in order | returns the array | `TypeError` |
 | A rejected dynamic `import()` of a missing file | settles one turn of the microtask queue earlier | later |
+| `` `${sym}${f()}` `` where `sym` is a Symbol | `f()` is called, then `TypeError` | `TypeError` before `f()` is called |
+
+The Symbol case is left as it is on purpose: an exact answer needs a
+conversion to string after every substitution of every template
+literal, which the interpreter would pay for on each one, to change
+only what else happens before an error that is thrown either way.
+
+(The three wrong answers listed here for 0.237 -- a closure in a
+parameter default, an exception out of a `for await` body, `sort` on a
+frozen array that is already in order -- are fixed, together with
+about twenty more that the extended sweep found; the headers of the
+test files above name each one.)
 
 ---
 
