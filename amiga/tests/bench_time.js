@@ -26,8 +26,16 @@
  *   - the current directory is writable
  *   - nothing else is busy on the machine; with an emulator, JIT off
  *     gives figures closest to real hardware
- *   - the first run after a cold boot also loads quickjs.library from
- *     disk; that first start-up time is reported separately
+ *
+ * What this cannot show, because it is itself a qjs program:
+ *   - the cost of loading quickjs.library from disk: by the time this
+ *     script runs, the library is already in memory
+ *   - true start-up time: each timed run is launched from this script,
+ *     which adds the Shell's cost of starting a program
+ * For those use the native command: `avail flush`, then
+ * `timeit qjs -e 1` (see tools/timeit/timeit.c). The throughput loops
+ * are unaffected: they are timed by reading the system clock around
+ * the work.
  *
  * Works with quickjs.library 0.208 and later.
  * Run: qjs tests/bench_time.js <label>      e.g.  qjs tests/bench_time.js 0.228
