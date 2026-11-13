@@ -40,7 +40,14 @@
 
   delete globalThis.__qjs_loadBundle;
 
-  if (typeof loadBundle !== 'function' || LAZY_NAMES === null) {
+  /* The native that makes one accessor; extended.js uses it too and
+   * leaves it for this file to remove. */
+  const defineLazy = globalThis.__qjs_defineLazy;
+
+  delete globalThis.__qjs_defineLazy;
+
+  if (typeof loadBundle !== 'function' || typeof defineLazy !== 'function' ||
+      LAZY_NAMES === null) {
     return;
   }
 
@@ -111,7 +118,40 @@
   }
 
   /**
-   * Put a load-on-first-use accessor at object[key].
+   * Called by an accessor when it is read: load the bundle, then
+   * answer with what it put there.
+   *
+   * @param {number} group - the bundle that defines the real value
+   * @param {object} object - the object the accessor is on
+   * @param {string} key - the property name
+   * @returns {*} the real value
+   */
+  function onLazyGet(group, object, key) {
+    ensureLoaded(group);
+
+    return object[key];
+  }
+
+  /**
+   * Called by an accessor when it is assigned: the name becomes a
+   * plain value.
+   *
+   * @param {number} group - the bundle the accessor stood for
+   * @param {object} object - the object the accessor is on
+   * @param {string} key - the property name
+   * @param {*} value - what the script assigned
+   * @returns {undefined}
+   */
+  function onLazySet(group, object, key, value) {
+    Object.defineProperty(object, key, {
+      value, writable: true, enumerable: true, configurable: true,
+    });
+  }
+
+  /**
+   * Put a load-on-first-use accessor at object[key]. The accessor is
+   * made by the native __qjs_defineLazy, which is far cheaper than
+   * building one here out of closures.
    *
    * @param {number} group - the bundle that defines the real value
    * @param {object} object - globalThis, amiga or one of amiga's tables
@@ -123,39 +163,18 @@
       return;
     }
 
-    /**
-     * Load the bundle, then answer with what it put here.
-     *
-     * @returns {*} the real value
-     */
-    const getter = function () {
-      ensureLoaded(group);
-
-      return object[key];
-    };
-
-    /**
-     * Assigning to the name replaces the accessor with a plain value.
-     *
-     * @param {*} value - what the script assigned
-     * @returns {undefined}
-     */
-    const setter = function (value) {
-      Object.defineProperty(object, key, {
-        value, writable: true, enumerable: true, configurable: true,
-      });
-    };
-
-    Object.defineProperty(object, key, {
-      get: getter, set: setter, enumerable: true, configurable: true,
-    });
+    const getter = defineLazy(object, key, group, onLazyGet, onLazySet);
 
     installed[group].push([object, key, getter]);
   }
 
+  /* Indexed loops: this runs on every start, and for-of costs several
+   * times as much through the iterator protocol. */
   for (let group = 0; group < state.length; group++) {
-    for (const name of LAZY_NAMES.globals[group]) {
-      installLazy(group, globalThis, name);
+    const names = LAZY_NAMES.globals[group];
+
+    for (let index = 0; index < names.length; index++) {
+      installLazy(group, globalThis, names[index]);
     }
   }
 

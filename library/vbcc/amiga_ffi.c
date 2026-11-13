@@ -649,6 +649,101 @@ static JSValue qjs_load_extended_feature(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
+/* __qjs_defineLazy(object, key, tag, onGet, onSet) - put an accessor at
+ * object[key] that calls back into JavaScript:
+ *   reading it      returns onGet(tag, object, key)
+ *   assigning to it calls   onSet(tag, object, key, value)
+ * Returns the getter function, so the caller can later tell whether
+ * the property is still this accessor.
+ *
+ * It exists because the load-on-first-use machinery (extended.js for
+ * its features, amiga/ffi/lazy.js for the FFI bundles) puts well over
+ * a hundred of these in place every time qjs starts. Written in
+ * JavaScript each one was two closures, a descriptor object and a
+ * defineProperty call, about 28,000 68k instructions (measured at
+ * 0.229); here it is two small native function objects. */
+#define LAZY_CALLBACK 0
+#define LAZY_TAG      1
+#define LAZY_OBJECT   2
+#define LAZY_KEY      3
+#define LAZY_DATA     4
+
+static JSValue qjs_lazy_get(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv, int magic,
+                            JSValueConst *data)
+{
+    JSValueConst arguments[3];
+
+    arguments[0] = data[LAZY_TAG];
+    arguments[1] = data[LAZY_OBJECT];
+    arguments[2] = data[LAZY_KEY];
+
+    return JS_Call(ctx, data[LAZY_CALLBACK], JS_UNDEFINED, 3, arguments);
+}
+
+static JSValue qjs_lazy_set(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv, int magic,
+                            JSValueConst *data)
+{
+    JSValueConst arguments[4];
+
+    arguments[0] = data[LAZY_TAG];
+    arguments[1] = data[LAZY_OBJECT];
+    arguments[2] = data[LAZY_KEY];
+    arguments[3] = argc > 0 ? argv[0] : JS_UNDEFINED;
+
+    return JS_Call(ctx, data[LAZY_CALLBACK], JS_UNDEFINED, 4, arguments);
+}
+
+static JSValue qjs_define_lazy(JSContext *ctx, JSValueConst this_val,
+                               int argc, JSValueConst *argv)
+{
+    JSValueConst data[LAZY_DATA];
+    JSValue getter, setter;
+    JSAtom atom;
+    int status;
+
+    if (argc < 5 || !JS_IsObject(argv[0]) ||
+        !JS_IsFunction(ctx, argv[3]) || !JS_IsFunction(ctx, argv[4]))
+        return JS_ThrowTypeError(ctx,
+            "__qjs_defineLazy(object, key, tag, onGet, onSet)");
+
+    atom = JS_ValueToAtom(ctx, argv[1]);
+    if (atom == JS_ATOM_NULL)
+        return JS_EXCEPTION;
+
+    data[LAZY_TAG]    = argv[2];
+    data[LAZY_OBJECT] = argv[0];
+    data[LAZY_KEY]    = argv[1];
+
+    data[LAZY_CALLBACK] = argv[3];
+    getter = JS_NewCFunctionData(ctx, qjs_lazy_get, 0, 0, LAZY_DATA, data);
+
+    data[LAZY_CALLBACK] = argv[4];
+    setter = JS_NewCFunctionData(ctx, qjs_lazy_set, 1, 0, LAZY_DATA, data);
+
+    if (JS_IsException(getter) || JS_IsException(setter)) {
+        JS_FreeValue(ctx, getter);
+        JS_FreeValue(ctx, setter);
+        JS_FreeAtom(ctx, atom);
+        return JS_EXCEPTION;
+    }
+
+    /* JS_DefinePropertyGetSet takes over the two references it is
+     * given; one more of the getter is kept to return. */
+    status = JS_DefinePropertyGetSet(ctx, argv[0], atom,
+                                     JS_DupValue(ctx, getter), setter,
+                                     JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
+    JS_FreeAtom(ctx, atom);
+
+    if (status < 0) {
+        JS_FreeValue(ctx, getter);
+        return JS_EXCEPTION;
+    }
+
+    return getter;
+}
+
 /* __qjs_memoryUsage() - what this runtime has allocated, as counted by
  * the engine (JS_ComputeMemoryUsage). Sizes are bytes. Used by
  * process.memoryUsage() in extended.js, and by the perf/ scripts to
@@ -699,6 +794,8 @@ void qjs_install_amiga_ffi_global(JSContext *ctx)
 
     fn = JS_NewCFunction(ctx, qjs_load_extended_feature, "__qjs_loadFeature",    1);
     JS_SetPropertyStr(ctx, global, "__qjs_loadFeature", fn);
+    fn = JS_NewCFunction(ctx, qjs_define_lazy,       "__qjs_defineLazy",         5);
+    JS_SetPropertyStr(ctx, global, "__qjs_defineLazy", fn);
     fn = JS_NewCFunction(ctx, qjs_memory_usage,      "__qjs_memoryUsage",        0);
     JS_SetPropertyStr(ctx, global, "__qjs_memoryUsage", fn);
     fn = JS_NewCFunction(ctx, qjs_load_ffi_bundle,   "__qjs_loadBundle",         1);

@@ -665,6 +665,54 @@ long QJS_EvalBuf_impl(
     JSValue val;
     int ret;
 
+    /* QJS_EVAL_AUTO_MODULE (bit 14, ours, not an engine flag): the
+     * caller does not know whether the source is a module. The engine's
+     * own answer to that, JS_DetectModule, builds a whole second runtime
+     * and compiles the source there as a module to see whether it
+     * parses, after which the caller compiles it again: on a 68k that
+     * doubled the cost of starting every script. Here the trial compile
+     * is done in this context and its result is used. Same rule as
+     * JS_DetectModule: source that compiles as a module is a module. */
+    if (eval_flags & 0x4000) {
+        eval_flags &= ~0x4000;
+
+        val = JS_Eval(ctx, input, (size_t)input_len, filename,
+                      (eval_flags & ~0x03) | 1 | 0x20);
+        if (!JS_IsException(val)) {
+            JS_ResolveModule(ctx, val);
+            val = JS_EvalFunction(ctx, val);
+            val = js_std_await(ctx, val);
+            ret = JS_IsException(val) ? -1 : 0;
+            JS_FreeValue(ctx, val);
+            return ret;
+        }
+
+        {
+            /* It did not compile as a module. A module whose import
+             * cannot be loaded is still a module, and that is its
+             * error; anything else means: evaluate it as a script. */
+            extern JSValue JS_Throw(JSContext *ctx, JSValue obj);
+            extern void JS_FreeCString(JSContext *ctx, const char *ptr);
+            extern char *strstr(const char *, const char *);
+            JSValue exception = JS_GetException(ctx);
+            const char *message = JS_ToCStringLen2(ctx, NULL, exception, 0);
+            int failed_import =
+                message && strstr(message, "could not load module") != NULL;
+
+            if (message)
+                JS_FreeCString(ctx, message);
+            else
+                JS_FreeValue(ctx, JS_GetException(ctx));
+
+            if (failed_import) {
+                JS_Throw(ctx, exception);
+                return -1;
+            }
+
+            JS_FreeValue(ctx, exception);
+        }
+    }
+
     /* For modules: compile, resolve, then execute. For scripts: direct eval. */
     if ((eval_flags & 0x03) == 1) {
         /* JS_EVAL_TYPE_MODULE: compile, resolve, execute. JS_EvalFunction
@@ -697,14 +745,21 @@ long QJS_EvalBuf_impl(
 
 /* QJS_SetModuleLoader_impl — sets up the standard module loader.
  * Called from assembly, no __reg. */
-extern void *js_module_loader;
+/* js_module_loader is a FUNCTION in quickjs-libc.c. Until 0.229 it was
+ * declared here as `extern void *js_module_loader;`, a variable, so
+ * `(void *)js_module_loader` read the first four bytes of the
+ * function's code (0x4fefffdc, a LEA instruction) and installed that
+ * as the loader's address: the first import of a file jumped into
+ * nowhere. Importing qjs:std and qjs:os never called the loader, which
+ * is why it went unnoticed. */
+extern void js_module_loader(void);
 extern int js_module_set_import_meta(void *ctx, JSValue func_val,
                                      int use_realpath, int is_main);
 
 void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
 {
     JS_SetModuleLoaderFunc(rt, NULL,
-        (void *)js_module_loader, NULL);
+        (void *)&js_module_loader, NULL);
 }
 
 /* QJS_InstallExtended_impl — runs precompiled extended.js bytecode.

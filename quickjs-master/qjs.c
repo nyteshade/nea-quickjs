@@ -39,7 +39,7 @@
 #ifdef __VBCC__
 /* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
  * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
-#define AMIGA_PORT_VERSION "0.229"
+#define AMIGA_PORT_VERSION "0.230"
 #define AMIGA_PORT_DATE    "12.11.2026"
 #define AMIGA_PORT_DATE_US "11/12/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
@@ -290,6 +290,18 @@ static int eval_file(JSContext *ctx, const char *filename, int module)
         exit(1);
     }
 
+#ifdef QJS_USE_LIBRARY
+    /* Whether the file is a module is decided by the library while it
+     * compiles it (QJS_EVAL_AUTO_MODULE, bit 14 of the flags; see
+     * QJS_EvalBuf_impl). JS_DetectModule would build a second runtime
+     * and compile the file twice. Needs quickjs.library 0.230. */
+    if (module < 0 && !js__has_suffix(filename, ".mjs"))
+        eval_flags = JS_EVAL_TYPE_GLOBAL | 0x4000;
+    else if (module)
+        eval_flags = JS_EVAL_TYPE_MODULE;
+    else
+        eval_flags = JS_EVAL_TYPE_GLOBAL;
+#else
     if (module < 0) {
         module = (js__has_suffix(filename, ".mjs") ||
                   JS_DetectModule((const char *)buf, buf_len));
@@ -298,6 +310,7 @@ static int eval_file(JSContext *ctx, const char *filename, int module)
         eval_flags = JS_EVAL_TYPE_MODULE;
     else
         eval_flags = JS_EVAL_TYPE_GLOBAL;
+#endif
     ret = eval_buf(ctx, buf, buf_len, filename, eval_flags);
     js_free(ctx, buf);
     return ret;

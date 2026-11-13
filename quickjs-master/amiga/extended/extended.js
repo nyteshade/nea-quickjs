@@ -4,9 +4,9 @@
  * Loaded at CLI startup unless --no-extensions (or -nox) is passed.
  * Default on Amiga: enabled.  Amiga users expect the full experience.
  *
- * Organized as a collection of feature modules, each with a manifest
- * object declaring its metadata and an install() function.  The
- * manifests are exposed via globalThis.qjs.modules for introspection.
+ * Organized as a collection of features, each declaring its metadata
+ * and an install() function. They are described by
+ * globalThis.qjs.modules for introspection.
  *
  * THIS IS A SINGLE-BUNDLE FILE.  Runtime-loaded third-party plugins
  * (from LIBS:quickjs/modules/, a future phase) follow a different,
@@ -20,11 +20,10 @@
  * bytecode blob per feature and compiles them into gen/extended.c),
  * then rebuild the library (make -C library/vbcc variants).
  *
- * A feature is applied on first use of one of the globals its
- * manifest lists, so `globals` must name every global install()
- * creates, and install() must be the manifest's last member. An
- * install() body may use the module-level `std`, `os` and
- * `nativeMemoryUsage`; see SHARED in the script to add another.
+ * A feature is applied on first use of one of the globals it lists;
+ * see "Features" below for the rules. An install() body may use the
+ * module-level `std`, `os` and `nativeMemoryUsage`; see SHARED in the
+ * script to add another.
  */
 
 import * as std from 'qjs:std';
@@ -63,65 +62,46 @@ if (typeof globalThis.__qjs_now_ms_str === 'function') {
 }
 
 /* ==========================================================
- * LocalManifest -- lightweight manifest for built-ins.
+ * Features
  *
- * Third-party plugins use the richer Manifest class from
- * qjs:modules (when runtime plugin loading is wired up in
- * Phase C1).  For built-ins we just need the metadata +
- * install() hook; reversibility is unnecessary because
- * built-ins install once at startup and never unload.
+ * Each feature below is one call of the form
+ *
+ *     defineFeature({
+ *         name:        'url',
+ *         tier:        'pure-js',
+ *         provider:    'nea-port',
+ *         description: '...',
+ *         globals:     ['URL', 'URLSearchParams'],
+ *         requires:    ['text-encoding'],
+ *         install() {
+ *             ...
+ *         },
+ *     });
+ *
+ * defineFeature is not a function that exists at run time. The build
+ * script, scripts/bundle_extended.py, reads these blocks and turns
+ * them into three things:
+ *
+ *   - one line of the _features table in the start-up module: the
+ *     name, the globals and the requires, which is all that is needed
+ *     to apply the feature on first use
+ *   - one bytecode blob holding the install() body
+ *   - one entry of the registry blob, holding everything except
+ *     install(), read only when qjs.modules.list() or .get() is called
+ *
+ * So nothing in a block runs at start-up. Rules the script relies on:
+ * install() is the last member; `globals` names every global install()
+ * creates or replaces, written 'console.error' for a member of an
+ * existing global; name, globals and requires are plain literals; no
+ * code sits between blocks.
  * ========================================================== */
-
-class LocalManifest {
-    constructor(opts) {
-        this.name        = opts.name;
-        this.tier        = opts.tier;
-        this.provider    = opts.provider;
-        this.version     = opts.version ?? '1.0.0';
-        this.description = opts.description ?? '';
-        this.requires    = opts.requires ?? [];
-        this.globals     = opts.globals ?? [];
-        this.exports     = opts.exports ?? [];
-        this.standard    = opts.standard ?? false;
-        this._install    = opts.install;
-        this._applied    = false;
-        /* Set while the feature waits to be applied on first use; see
-         * "Apply features" at the end of this file. */
-        this._accessors  = null;   /* [key, getter, original descriptor] */
-        this._overrides  = null;   /* Map: key -> value a script assigned */
-        this._whenApplied = null;  /* callbacks to run once applied */
-    }
-
-    apply() {
-        if (this._applied) return;
-        if (this._install) this._install();
-        this._applied = true;
-    }
-
-    toJSON() {
-        return {
-            name:        this.name,
-            tier:        this.tier,
-            provider:    this.provider,
-            version:     this.version,
-            description: this.description,
-            requires:    this.requires,
-            globals:     this.globals,
-            exports:     this.exports,
-            standard:    this.standard,
-            applied:     this._applied,
-        };
-    }
-}
-
-const _manifests = [];
 
 /* ==========================================================
  * Feature: console.* expansion
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'console-ext',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -129,7 +109,8 @@ _manifests.push(new LocalManifest({
     globals:     ['console.error', 'console.warn', 'console.info',
                   'console.debug', 'console.assert', 'console.dir',
                   'console.table', 'console.time', 'console.timeEnd',
-                  'console.group', 'console.groupEnd', 'console.trace'],
+                  'console.group', 'console.groupEnd', 'console.trace',
+                  'console.timeLog', 'console.count', 'console.countReset'],
     standard:    true,
     install() {
         const orig_log = globalThis.console.log;
@@ -255,14 +236,14 @@ _manifests.push(new LocalManifest({
             _counts.delete(label);
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: globalThis.process  (Node.js compatibility)
  * Tier: pure-js    Provider: nea-port
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'process',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -357,7 +338,7 @@ _manifests.push(new LocalManifest({
          */
         globalThis.process.memoryUsage.rss = () => globalThis.process.memoryUsage().rss;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: performance  (web High Resolution Time — Node ≥16 bundles this)
@@ -374,7 +355,7 @@ _manifests.push(new LocalManifest({
  * an empty array.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'performance',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -469,7 +450,7 @@ _manifests.push(new LocalManifest({
             return mark.startTime;
         }
     },
-}));
+});
 
 /* ==========================================================
  * Feature: global timers — setTimeout/setInterval/clearTimeout/
@@ -481,7 +462,7 @@ _manifests.push(new LocalManifest({
  * scope here so `setTimeout(fn, ms)` just works.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'global-timers',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -498,14 +479,14 @@ _manifests.push(new LocalManifest({
         if (typeof globalThis.clearInterval !== 'function')
             globalThis.clearInterval = os.clearInterval;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: queueMicrotask  (polyfill if missing)
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'queue-microtask',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -524,14 +505,14 @@ _manifests.push(new LocalManifest({
             });
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: TextEncoder / TextDecoder
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'text-encoding',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -651,14 +632,14 @@ _manifests.push(new LocalManifest({
         globalThis.TextEncoder = TextEncoder;
         globalThis.TextDecoder = TextDecoder;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: URL and URLSearchParams  (WHATWG subset)
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'url',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -983,7 +964,7 @@ _manifests.push(new LocalManifest({
         globalThis.URL = URL;
         globalThis.URLSearchParams = URLSearchParams;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: node url module (globalThis.url)
@@ -1002,7 +983,7 @@ _manifests.push(new LocalManifest({
  * itself is re-exported as a property so `url.URL` also works.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'node-url-module',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -1172,7 +1153,7 @@ _manifests.push(new LocalManifest({
             domainToUnicode(domain) { return String(domain); },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: EventTarget + Event (WHATWG — Node ≥14.5)
@@ -1189,7 +1170,7 @@ _manifests.push(new LocalManifest({
  * Its addEventListener shape is already compatible with user code.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'event-target',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -1318,14 +1299,14 @@ _manifests.push(new LocalManifest({
         globalThis.Event = Event;
         globalThis.CustomEvent = CustomEvent;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: AbortController / AbortSignal
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'abort',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -1416,7 +1397,7 @@ _manifests.push(new LocalManifest({
         globalThis.AbortSignal = AbortSignal;
         globalThis.AbortController = AbortController;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: fetch + AbortSignal integration
@@ -1433,7 +1414,7 @@ _manifests.push(new LocalManifest({
  * the caller's await stops waiting, error propagates normally.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'fetch-abort',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -1488,14 +1469,14 @@ _manifests.push(new LocalManifest({
             });
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: structuredClone
  * Tier: pure-js    Provider: nea-port    Standard: web
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'structured-clone',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -1509,7 +1490,7 @@ _manifests.push(new LocalManifest({
          * that requires async-aware apply() — defer to Phase D util. */
         globalThis.structuredClone = (v) => JSON.parse(JSON.stringify(v));
     },
-}));
+});
 
 /* ==========================================================
  * Feature: path module (AmigaOS-aware)
@@ -1519,7 +1500,7 @@ _manifests.push(new LocalManifest({
  * in Phase C1.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'path',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -1682,7 +1663,7 @@ _manifests.push(new LocalManifest({
             join, normalize, resolve, relative, parse, format,
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: Buffer  (Node.js subset)
@@ -1707,7 +1688,7 @@ _manifests.push(new LocalManifest({
  * so they land in exec pool memory on AmigaOS.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'buffer',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -2362,7 +2343,7 @@ _manifests.push(new LocalManifest({
 
         globalThis.Buffer = Buffer;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: Blob + File (WHATWG — Node ≥18 bundles these too)
@@ -2375,7 +2356,7 @@ _manifests.push(new LocalManifest({
  * need chunked reads can `.arrayBuffer()` + slice manually.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'blob',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -2487,7 +2468,7 @@ _manifests.push(new LocalManifest({
         globalThis.Blob = Blob;
         globalThis.File = File;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: FormData (WHATWG — Node ≥18 bundles this too)
@@ -2498,7 +2479,7 @@ _manifests.push(new LocalManifest({
  * format (that's fetch's multipart/form-data encoder's job).
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'form-data',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -2588,7 +2569,7 @@ _manifests.push(new LocalManifest({
 
         globalThis.FormData = FormData;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: EventEmitter  (Node.js API subset)
@@ -2603,7 +2584,7 @@ _manifests.push(new LocalManifest({
  * handler don't affect the current emit (Node semantics).
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'event-emitter',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -2876,7 +2857,7 @@ _manifests.push(new LocalManifest({
             },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: util  (Node.js subset: format, inspect, promisify, types)
@@ -2890,7 +2871,7 @@ _manifests.push(new LocalManifest({
  * (a hand-rolled stub registry that just returns the same object).
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'util',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3254,7 +3235,7 @@ _manifests.push(new LocalManifest({
             },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: fs.promises  (Node.js subset over qjs:os)
@@ -3269,7 +3250,7 @@ _manifests.push(new LocalManifest({
  * globalThis.fsPromises for ergonomics.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'fs-promises',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3494,7 +3475,7 @@ _manifests.push(new LocalManifest({
         globalThis.fs.constants = fsConstants;
         globalThis.fsPromises = fsp;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: fs sync namespace (readFileSync / writeFileSync / ...)
@@ -3509,7 +3490,7 @@ _manifests.push(new LocalManifest({
  * in fs.promises exist for API-shape compatibility, not real async.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'fs-sync',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3701,14 +3682,14 @@ _manifests.push(new LocalManifest({
             realpathSync,
         });
     },
-}));
+});
 
 /* ==========================================================
  * Feature: assert  (Node assert module — tiny subset)
  * Tier: pure-js    Provider: nea-port    Standard: node
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'assert',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3843,14 +3824,14 @@ _manifests.push(new LocalManifest({
 
         globalThis.assert = assertFn;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: timers.promises  (Node modern async sleep API)
  * Tier: pure-js    Provider: nea-port    Standard: node
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'timers-promises',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3884,7 +3865,7 @@ _manifests.push(new LocalManifest({
         };
         globalThis.timers = { promises: timersP };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: process.stdout / stderr / stdin (Writables + Readable)
@@ -3897,7 +3878,7 @@ _manifests.push(new LocalManifest({
  * shape for compat.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'process-stdio',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3958,7 +3939,7 @@ _manifests.push(new LocalManifest({
             pause() {},
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: path.posix / path.win32 aliases (Node compat)
@@ -3972,7 +3953,7 @@ _manifests.push(new LocalManifest({
  * which are the 95% case.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'path-aliases',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -3985,7 +3966,7 @@ _manifests.push(new LocalManifest({
             globalThis.path.win32 = globalThis.path;
         }
     },
-}));
+});
 
 /* ==========================================================
  * Feature: querystring  (Node legacy query-string parser)
@@ -3997,7 +3978,7 @@ _manifests.push(new LocalManifest({
  * in value component, = for empty value).
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'querystring',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4056,7 +4037,7 @@ _manifests.push(new LocalManifest({
             encode: stringify,
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: string_decoder  (Node incremental UTF-8 decoder)
@@ -4067,7 +4048,7 @@ _manifests.push(new LocalManifest({
  * Used by readline, fs streams, net protocols. Tiny surface.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'string-decoder',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4155,7 +4136,7 @@ _manifests.push(new LocalManifest({
         }
         globalThis.StringDecoder = StringDecoder;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: stream  (Node.js subset — Readable, Writable)
@@ -4173,7 +4154,7 @@ _manifests.push(new LocalManifest({
  * deferred. Extending EventEmitter comes for free (we require it).
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'stream',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4343,7 +4324,7 @@ _manifests.push(new LocalManifest({
             },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: child_process  (Node.js subset over qjs:child_process)
@@ -4364,7 +4345,7 @@ _manifests.push(new LocalManifest({
  * no practical difference.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'child-process',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4409,7 +4390,7 @@ _manifests.push(new LocalManifest({
             execSync(cmd, opts) { return nativeSync(String(cmd)); },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: crypto.subtle.digest + getRandomValues (WebCrypto subset)
@@ -4429,7 +4410,7 @@ _manifests.push(new LocalManifest({
  * for IDs, session tokens, nonces.  Document in NODEJS-DELTA.md.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'crypto',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4740,7 +4721,7 @@ _manifests.push(new LocalManifest({
             return s;
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: Node os module (globalThis.nodeOs)
@@ -4752,7 +4733,7 @@ _manifests.push(new LocalManifest({
  * `require('os')` / `require('node:os')` returns it.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'node-os',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4821,7 +4802,7 @@ _manifests.push(new LocalManifest({
             setPriority() { /* no-op */ },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: require stub (Node CommonJS — built-ins only)
@@ -4835,7 +4816,7 @@ _manifests.push(new LocalManifest({
  * bundler.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'node-require',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -4896,7 +4877,7 @@ _manifests.push(new LocalManifest({
         require.extensions = Object.create(null);
         globalThis.require = require;
     },
-}));
+});
 
 /* ==========================================================
  * Feature: readline  (Node readline + readline/promises subset)
@@ -4915,7 +4896,7 @@ _manifests.push(new LocalManifest({
  * signature from old Node.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'readline',
     tier:        'pure-js',
     provider:    'nea-port',
@@ -5107,7 +5088,7 @@ _manifests.push(new LocalManifest({
             },
         };
     },
-}));
+});
 
 /* ==========================================================
  * Feature: Q1 Amiga FFI (globalThis.amiga)
@@ -5128,7 +5109,7 @@ _manifests.push(new LocalManifest({
  * feature is off entirely when running against an older library.
  * ========================================================== */
 
-_manifests.push(new LocalManifest({
+defineFeature({
     name:        'amiga-ffi',
     tier:        'native-backed',
     provider:    'nea-port',
@@ -6166,44 +6147,41 @@ _manifests.push(new LocalManifest({
          * node-require feature itself, which reads globalThis.amiga when
          * it is called. */
     },
-}));
+});
 
 /* ==========================================================
- * Apply features, most of them on first use; expose registry
+ * Apply features on first use; expose the registry
  *
  * Applying every feature at start-up cost about 570 KB of heap and
  * nine tenths of qjs's start-up time, for a script that may use none
- * of them (measured at 0.227). So a feature whose globals are plain
- * names (URL, Buffer, process, amiga, ...) is not applied here. Each
- * of its globals gets an accessor instead; the first read of one
- * applies the feature, which puts the real values in their place.
+ * of them (measured at 0.227). So no feature is applied here. Each of
+ * a feature's globals gets an accessor; the first read of one applies
+ * the feature (after the features it requires), which puts the real
+ * values in place of the accessors.
  *
- * Three kinds of feature:
- *   lazy      has globals, all plain names: applied on first use
- *   follower  has no globals of its own and requires another feature,
- *             which it extends (fs-sync adds to fs): applied straight
- *             after the feature it follows
- *   eager     everything else (console.* methods): applied now
+ * A feature with no globals of its own extends the feature it
+ * requires (fs-sync adds to fs) and is applied straight after it.
  *
- * A feature that requires others applies them first, as before.
+ * _features is written by scripts/bundle_extended.py just above this
+ * comment: one record per feature, in source order, with
+ *   name, globals, requires   from the feature's block
+ *   index                     which install() blob to load
  * ========================================================== */
 
-/** Features that are applied at start-up although they could wait. */
-const EAGER_FEATURES = new Set([
-    /* a five-line guard around a native that already exists */
-    'queue-microtask',
-]);
+/* The native that creates one accessor; left in globalThis for the FFI
+ * stub (amiga/ffi/lazy.js), which runs next and removes it. */
+const _defineLazy = globalThis.__qjs_defineLazy;
 
 /**
  * Report a feature that failed to apply, as start-up always has.
  *
- * @param {LocalManifest} manifest - the feature
+ * @param {object} feature - the feature record
  * @param {Error} error - what its install() threw
  * @returns {undefined}
  */
-function _reportApplyFailure(manifest, error) {
+function _reportApplyFailure(feature, error) {
     try {
-        std.err.puts(`extended.js: failed to apply '${manifest.name}': ${error.message}\n`);
+        std.err.puts(`extended.js: failed to apply '${feature.name}': ${error.message}\n`);
     }
     catch (_) {
         /* nowhere to report to */
@@ -6213,180 +6191,226 @@ function _reportApplyFailure(manifest, error) {
 /**
  * Find a feature by name.
  *
- * @param {string} name - the manifest's name
- * @returns {LocalManifest|undefined}
+ * @param {string} name - the feature's name
+ * @returns {object|undefined} its record
  */
-function _findManifest(name) {
-    return _manifests.find((manifest) => manifest.name === name);
-}
+function _findFeature(name) {
+    for (const feature of _features) {
+        if (feature.name === name) return feature;
+    }
 
-/**
- * Whether a feature waits for first use.
- *
- * @param {LocalManifest} manifest - the feature
- * @returns {boolean}
- */
-function _isLazy(manifest) {
-    return manifest.globals.length > 0 &&
-           !EAGER_FEATURES.has(manifest.name) &&
-           manifest.globals.every((name) => !name.includes('.'));
-}
-
-/**
- * Whether a feature only extends the feature it requires.
- *
- * @param {LocalManifest} manifest - the feature
- * @returns {boolean}
- */
-function _isFollower(manifest) {
-    return manifest.globals.length === 0 && manifest.requires.length > 0 &&
-           _isLazy(_findManifest(manifest.requires[0]));
+    return undefined;
 }
 
 /**
  * Apply a feature now: the features it requires first, then itself,
- * then its followers. Does nothing if it is applied or being applied.
+ * then the features that extend it. Does nothing if it is applied or
+ * being applied.
  *
- * @param {LocalManifest} manifest - the feature
+ * @param {object} feature - the feature record
  * @returns {undefined}
  */
-function _applyManifest(manifest) {
-    if (manifest._applied || manifest._applying) {
+function _applyFeature(feature) {
+    if (feature.applied || feature.applying) {
         return;
     }
 
-    manifest._applying = true;
+    feature.applying = true;
 
-    for (const required of manifest.requires) {
-        const dependency = _findManifest(required);
+    for (const required of feature.requires) {
+        const dependency = _findFeature(required);
 
         if (!dependency) {
-            _reportApplyFailure(manifest,
-                new Error(`missing dep '${required}'`));
+            _reportApplyFailure(feature, new Error(`missing dep '${required}'`));
             continue;
         }
 
-        _applyManifest(dependency);
+        _applyFeature(dependency);
     }
 
     /* Take the accessors away and put back what they replaced (a
      * native fetch, say), so install() finds the globals as it would
      * have at start-up. */
-    for (const [key, getter, original] of manifest._accessors || []) {
-        const current = Object.getOwnPropertyDescriptor(globalThis, key);
+    for (const [object, key, getter, original] of feature.accessors || []) {
+        const current = Object.getOwnPropertyDescriptor(object, key);
 
         if (current && current.get === getter) {
             if (original) {
-                Object.defineProperty(globalThis, key, original);
+                Object.defineProperty(object, key, original);
             }
             else {
-                delete globalThis[key];
+                delete object[key];
             }
         }
     }
 
-    manifest._accessors = null;
+    feature.accessors = null;
 
     try {
-        manifest.apply();
+        _loadFeature(feature, feature.index);
     }
     catch (error) {
-        manifest._applied = true;       /* do not try again on every read */
-        _reportApplyFailure(manifest, error);
+        _reportApplyFailure(feature, error);
     }
+
+    feature.applied = true;
 
     /* A value a script assigned to one of the names before the feature
      * was applied stays the value, as it would have had it been
      * assigned after start-up. */
-    for (const [key, value] of manifest._overrides || []) {
-        globalThis[key] = value;
+    for (const [object, key, value] of feature.overrides || []) {
+        object[key] = value;
     }
 
-    manifest._overrides = null;
-    manifest._applying  = false;
+    feature.overrides = null;
+    feature.applying  = false;
 
-    for (const callback of manifest._whenApplied || []) {
+    for (const callback of feature.whenApplied || []) {
         callback();
     }
 
-    manifest._whenApplied = null;
+    feature.whenApplied = null;
 
-    for (const other of _manifests) {
-        if (other.requires[0] === manifest.name && _isFollower(other)) {
-            _applyManifest(other);
+    for (const other of _features) {
+        if (other.globals.length === 0 && other.requires[0] === feature.name) {
+            _applyFeature(other);
         }
     }
 }
 
 /**
- * Put an apply-on-first-use accessor at globalThis[key].
+ * Called by an accessor when its global is read: apply the feature,
+ * then answer with what it defined.
  *
- * @param {LocalManifest} manifest - the feature that defines the global
- * @param {string} key - the global's name
- * @returns {undefined}
+ * @param {number} index - the feature's index
+ * @param {object} object - the object the accessor is on
+ * @param {string} key - the property name
+ * @returns {*} the real value
  */
-function _installLazyGlobal(manifest, key) {
-    const original = Object.getOwnPropertyDescriptor(globalThis, key);
+function _onLazyGet(index, object, key) {
+    _applyFeature(_features[index]);
 
-    /**
-     * Apply the feature, then answer with what it defined.
-     *
-     * @returns {*} the real value
-     */
-    const getter = function () {
-        _applyManifest(manifest);
-
-        return globalThis[key];
-    };
-
-    /**
-     * Assigning to the name makes it a plain value at once, and keeps
-     * that value when the feature is applied later.
-     *
-     * @param {*} value - what the script assigned
-     * @returns {undefined}
-     */
-    const setter = function (value) {
-        if (!manifest._applied) {
-            manifest._overrides = manifest._overrides || new Map();
-            manifest._overrides.set(key, value);
-        }
-
-        Object.defineProperty(globalThis, key, {
-            value, writable: true, enumerable: true, configurable: true,
-        });
-    };
-
-    Object.defineProperty(globalThis, key, {
-        get: getter, set: setter, enumerable: true, configurable: true,
-    });
-
-    manifest._accessors = manifest._accessors || [];
-    manifest._accessors.push([key, getter, original]);
+    return object[key];
 }
 
-for (const manifest of _manifests) {
-    if (_isLazy(manifest)) {
-        for (const key of manifest.globals) {
-            _installLazyGlobal(manifest, key);
-        }
+/**
+ * Called by an accessor when its global is assigned: the name becomes
+ * a plain value at once, and keeps that value when the feature is
+ * applied later.
+ *
+ * @param {number} index - the feature's index
+ * @param {object} object - the object the accessor is on
+ * @param {string} key - the property name
+ * @param {*} value - what the script assigned
+ * @returns {undefined}
+ */
+function _onLazySet(index, object, key, value) {
+    const feature = _features[index];
+
+    if (!feature.applied) {
+        feature.overrides = feature.overrides || [];
+        feature.overrides.push([object, key, value]);
     }
-    else if (!_isFollower(manifest)) {
-        _applyManifest(manifest);
+
+    Object.defineProperty(object, key, {
+        value, writable: true, enumerable: true, configurable: true,
+    });
+}
+
+/* Indexed loops and no destructuring here: this runs on every start,
+ * and for-of costs several times as much through the iterator
+ * protocol. */
+for (let featureIndex = 0; featureIndex < _features.length; featureIndex++) {
+    const feature = _features[featureIndex];
+    const globals = feature.globals;
+
+    if (globals.length === 0) {
+        /* extends another feature, or (none today) stands alone */
+        if (feature.requires.length === 0) _applyFeature(feature);
+
+        continue;
     }
+
+    const accessors = [];
+
+    for (let globalIndex = 0; globalIndex < globals.length; globalIndex++) {
+        /* 'URL' is a property of globalThis, 'console.error' one of
+         * globalThis.console */
+        const name = globals[globalIndex];
+        const dot  = name.indexOf('.');
+        const object = dot < 0 ? globalThis
+                               : globalThis[name.substring(0, dot)];
+        const key    = dot < 0 ? name : name.substring(dot + 1);
+
+        /* what the accessor replaces, if anything: a native fetch, the
+         * console.log that qjs:std installed */
+        const original = (key in object)
+            ? Object.getOwnPropertyDescriptor(object, key) : undefined;
+
+        const getter = _defineLazy(object, key, featureIndex,
+                                   _onLazyGet, _onLazySet);
+
+        accessors.push([object, key, getter, original]);
+    }
+
+    feature.accessors = accessors;
 }
 
 /* Introspection registry */
+let _registry = null;
+
+/**
+ * The full description of every feature (tier, provider, description,
+ * exports, ...), read from its own blob the first time it is wanted.
+ *
+ * @returns {Array<object>} one entry per feature, in source order
+ */
+function _describeFeatures() {
+    if (_registry === null) {
+        _registry = _loadRegistry();
+    }
+
+    return _registry.map((entry, index) => ({
+        name:        entry.name,
+        tier:        entry.tier,
+        provider:    entry.provider,
+        version:     entry.version ?? '1.0.0',
+        description: entry.description ?? '',
+        requires:    entry.requires ?? [],
+        globals:     entry.globals ?? [],
+        exports:     entry.exports ?? [],
+        standard:    entry.standard ?? false,
+        applied:     _features[index].applied,
+    }));
+}
+
 globalThis.qjs = globalThis.qjs || {};
 globalThis.qjs.extended = true;
 globalThis.qjs.version  = '0.66';
 globalThis.qjs.modules  = {
-    list: () => _manifests.map(m => m.toJSON()),
-    get:  (name) => {
-        const m = _manifests.find(m => m.name === name);
-        return m ? m.toJSON() : undefined;
-    },
-    has:  (name) => _manifests.some(m => m.name === name),
+    /**
+     * Describe every feature.
+     *
+     * @returns {Array<object>} name, tier, provider, version,
+     *   description, requires, globals, exports, standard, applied
+     */
+    list: () => _describeFeatures(),
+
+    /**
+     * Describe one feature.
+     *
+     * @param {string} name - the feature's name
+     * @returns {object|undefined}
+     */
+    get: (name) => _describeFeatures().find((entry) => entry.name === name),
+
+    /**
+     * Whether a feature of that name exists.
+     *
+     * @param {string} name - the feature's name
+     * @returns {boolean}
+     */
+    has: (name) => _findFeature(name) !== undefined,
 
     /**
      * Apply a feature now instead of on first use.
@@ -6395,11 +6419,11 @@ globalThis.qjs.modules  = {
      * @returns {boolean} false if there is no such feature
      */
     apply(name) {
-        const manifest = _findManifest(name);
+        const feature = _findFeature(name);
 
-        if (!manifest) return false;
+        if (!feature) return false;
 
-        _applyManifest(manifest);
+        _applyFeature(feature);
 
         return true;
     },
@@ -6410,8 +6434,8 @@ globalThis.qjs.modules  = {
      * @returns {undefined}
      */
     applyAll() {
-        for (const manifest of _manifests) {
-            _applyManifest(manifest);
+        for (const feature of _features) {
+            _applyFeature(feature);
         }
     },
 
@@ -6424,16 +6448,16 @@ globalThis.qjs.modules  = {
      * @returns {boolean} false if there is no such feature
      */
     whenApplied(name, callback) {
-        const manifest = _findManifest(name);
+        const feature = _findFeature(name);
 
-        if (!manifest) return false;
+        if (!feature) return false;
 
-        if (manifest._applied) {
+        if (feature.applied) {
             callback();
         }
         else {
-            manifest._whenApplied = manifest._whenApplied || [];
-            manifest._whenApplied.push(callback);
+            feature.whenApplied = feature.whenApplied || [];
+            feature.whenApplied.push(callback);
         }
 
         return true;
