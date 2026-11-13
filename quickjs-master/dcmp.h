@@ -28,7 +28,11 @@
 #ifndef DCMP_H
 #define DCMP_H
 
-#if defined(__VBCC__) && !defined(__M68881) && !defined(__M68882)
+/* QJS_DCMP_PLAIN: the qjs CLI. It does no JavaScript arithmetic (the
+ * engine is in the library) and does not link qjs_dcmp; the inline
+ * helpers it inherits from cutils.h compile to the plain operators. */
+#if defined(__VBCC__) && !defined(__M68881) && !defined(__M68882) && \
+    !defined(QJS_DCMP_PLAIN)
 
 /* Three-way comparison with a fourth answer.
  * Returns -1 if a < b, 0 if a == b (+0 and -0 are equal), 1 if a > b,
