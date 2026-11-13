@@ -15,7 +15,7 @@ verify behavior on the target, not simulate it on the host.
 | `tests/test_events.js`      | EventEmitter: on/once/off, prepend, error semantics, introspection, meta-events, mutation-during-emit |
 | `tests/test_util.js`        | util.format, util.inspect, util.promisify, util.callbackify, util.types.* |
 | `tests/test_fs.js`          | fs.promises: readFile/writeFile/appendFile, stat, access, unlink over `T:` |
-| `tests/test_engine_conformance.js` | The engine against Node.js: BigInt, number formatting, language features, Unicode strings, RegExp, typed arrays, `for await`, closures across GC, timer order (389 checks; see docs/NODEJS-DELTA.md, "The engine itself") |
+| `tests/test_engine_conformance.js` | The engine against Node.js: BigInt, number formatting, language features, Unicode strings, RegExp, typed arrays, `for await`, closures across GC, timer order (462 checks; see docs/NODEJS-DELTA.md, "The engine itself") |
 
 Last known-good baselines (library revision 0.083):
 

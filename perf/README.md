@@ -21,6 +21,8 @@ engine faster on 68020-68060. The ranked plan and its tasks are in Fina
 - `mathcheck/` - compiles the FPU variants' floor/ceil/trunc/round/
   fmod/ldexp/frexp/pow replacements for this machine and compares them
   with the host libm: `perf/mathcheck/run.sh`, must end with `0 wrong`.
+  The same script checks the library's snprintf (`sharedlib_printf.c`)
+  against the host's over 8000 conversions (`printfcheck.c`).
 
 The scripts under `prototype/` and `tools/` still carry the absolute
 scratch paths they were written with; `measure.sh` here is the

@@ -21,4 +21,10 @@ cc -O1 -ffp-contract=off -DQJS_HOST_TEST -o "$OUT/hostcheck" "$HERE/hostcheck.c"
 # The soft-float variants' primitives (exp, log, sin, atan, sqrt ...),
 # library/vbcc/sharedlib_math_prim.c, against libm: see primcheck.c.
 cc -O1 -ffp-contract=off -DQJS_HOST_TEST -o "$OUT/primcheck" "$HERE/primcheck.c" -lm || exit 1
-"$OUT/primcheck"
+"$OUT/primcheck" || exit 1
+# The library's snprintf, library/vbcc/sharedlib_printf.c (its digits
+# come from quickjs-master/dtoa.c), against the host's: see printfcheck.c.
+ROOT=$HERE/../..
+cc -O1 -DQJS_HOST_TEST -w -I"$ROOT/quickjs-master" -I"$ROOT/library/vbcc" -o "$OUT/printfcheck" \
+   "$HERE/printfcheck.c" "$ROOT/library/vbcc/sharedlib_printf.c" "$ROOT/quickjs-master/dtoa.c" -lm || exit 1
+"$OUT/printfcheck"
