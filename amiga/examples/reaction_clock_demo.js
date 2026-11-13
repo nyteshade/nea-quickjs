@@ -135,15 +135,23 @@ let window = new Window({
  *   T.TR_ADDREQUEST  "reply to me after this long" */
 const T = TimerRequest.consts;
 
+/* std.exit() ends the script on the spot, so each way out below first
+ * gives back what has been made so far. The window object exists by
+ * now (though it is not open), and with it every gadget in it. */
 if (!T) {
   print('Need quickjs.library 0.218 or later');
+  window.dispose();
   std.exit(1);
 }
 
 let Exec = amiga.Exec;
 
 let portPointer = Exec.CreateMsgPort();
-if (!portPointer) { print('CreateMsgPort failed'); std.exit(1); }
+if (!portPointer) {
+  print('CreateMsgPort failed');
+  window.dispose();
+  std.exit(1);
+}
 let port = new MsgPort(portPointer);
 
 let timerRequest = new TimerRequest();
@@ -156,6 +164,7 @@ if (openError !== 0) {
   print('OpenDevice(timer.device, UNIT_VBLANK) rc=' + openError);
   Exec.DeleteMsgPort(portPointer);
   timerRequest.free();
+  window.dispose();
   std.exit(1);
 }
 
