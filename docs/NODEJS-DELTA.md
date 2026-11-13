@@ -445,6 +445,50 @@ Won't find these in Node but useful enough to ship:
 
 ---
 
+## The engine itself
+
+Everything above is about libraries. This section is about the
+language: where the JavaScript engine in `quickjs.library` answers
+differently from Node.js (V8), found by the sweep behind
+`amiga/tests/test_engine_conformance.js` (0.237). That test holds
+several hundred expressions with the answers Node.js 26 gives. Under
+emulation (vamos) it passes on the 020 soft library, and on the 040
+FPU library for everything but its ten `Date` checks, where the
+emulator stops on an FPU addressing mode it does not implement; those
+ten need a real Amiga.
+
+**By design — will stay different**
+
+| Behaviour | What happens here | Why |
+|---|---|---|
+| `Number.prototype.toString(radix)` for a radix that is not a power of two | Prints the shortest digit string that reads back as the same number: `(1e21).toString(36)` is `5v1j4f4ds7a000`. | ECMAScript leaves these digits to the implementation. V8 prints `5v1j4f4ds7c000`, which is a different number (it is 111104 too large and does not convert back to 1e21; ours is 17792 too large and does). Radix 2, 4, 8, 16, 32 and 10 agree with V8 digit for digit. Do not compare such strings with ones made by Node.js; compare the numbers. |
+| `file.readAsString(max_size)`, `file.read()` in `qjs:std` | `max_size` counts **bytes** of the file; the bytes read are then decoded as UTF-8. A character whose bytes straddle the limit is cut in two and neither half comes back as that character. | Identical to upstream QuickJS (`quickjs-libc.c`), where the manual says "`max_size` bytes". For text that is not plain ASCII read the whole file (`readAsString()`), read lines (`getline()`), or read bytes into a buffer and decode once at the end. |
+| `os.Worker` | Not present (`typeof os.Worker === "undefined"`). | Upstream implements it with pthreads, a pipe per direction and one `JSRuntime` per thread. The build defines `JS_HAVE_THREADS 0` for vbcc (`cutils.h`), so the constructor is not compiled in. The library's own `QJS_Worker*` vectors are a C-level primitive used by `fetch` and `child_process`, not a JS API. |
+| `std.printf` / `std.sprintf` with a very large precision | `%f` takes at most 101 digits after the point from the value (`%e`: 101 significant digits); digits asked for beyond that print as `0`, and the precision is capped at 400. Otherwise the conversions print what a C library prints, exact ties rounded to even (`%.0f` of 2.5 is `2`, unlike `toFixed`). | The digits come from the engine's `js_dtoa`; see `library/vbcc/sharedlib_printf.c`. |
+| `std.tmpfile`, `std.popen`, `os.realpath`, `os.symlink` and the other POSIX process calls | Not present. | No equivalent on AmigaOS, or not implemented; see "Process Model" in docs/AMIGA-CHANGES.md. |
+| File dates before 1978 (`os.utimes`) | Stored as 1 January 1978. | AmigaOS datestamps start there. |
+| Recursion depth | A few hundred nested calls with the 512 KB stack the CLI gives itself (about 650 under emulation with 1.5 MB), then a catchable `RangeError`. Node.js allows about 10 000. | The interpreter recurses on the machine stack; see `amiga/tests/test_stack_limit.js`. |
+
+**Not in this engine version**
+
+Constructing these throws `SyntaxError`, or the property is missing:
+the RegExp `v` flag (set notation), RegExp modifiers `(?i:...)`,
+duplicate named capture groups, the legacy statics `RegExp.$1` /
+`RegExp.lastMatch`, `Atomics` and `SharedArrayBuffer`,
+`Uint8Array.fromBase64` / `toBase64` / `toHex`.
+
+**Known wrong answers, not yet fixed** (all come from the upstream
+engine and are the same on every machine)
+
+| Behaviour | Here | Node.js |
+|---|---|---|
+| A closure in a parameter default sees later assignments to the parameter: `function f(a, g = () => a) { a = 2; return g(); } f(1)` | `1` | `2` |
+| An exception thrown out of a `for await` body | the iterator's `return()` is called but not awaited | awaited before the exception continues |
+| `Object.freeze([1, 2]).sort()` on an array that is already in order | returns the array | `TypeError` |
+| A rejected dynamic `import()` of a missing file | settles one turn of the microtask queue earlier | later |
+
+---
+
 ## Keeping this document current
 
 This is a *living* accounting. Update it in the same commit that lands or

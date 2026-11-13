@@ -435,6 +435,12 @@ typedef struct JSStackFrame {
     /* only used in generators. Current stack pointer value. NULL if
        the function is running. */
     JSValue *cur_sp;
+    /* NULL for a frame on the C stack. For the heap frame of an async
+       function, generator or async generator: the GC object that owns
+       the frame (the JSAsyncFunctionData, or the generator object).
+       A closure variable that still lives in such a frame keeps the
+       owner alive through its JSVarRef; see get_var_ref(). */
+    struct JSGCObjectHeader *gc_owner;
 } JSStackFrame;
 
 typedef enum {
@@ -1511,6 +1517,33 @@ static void add_gc_object(JSRuntime *rt, JSGCObjectHeader *h,
                           JSGCObjectTypeEnum type);
 static void remove_gc_object(JSGCObjectHeader *h);
 static void js_async_function_free0(JSRuntime *rt, JSAsyncFunctionData *s);
+static void js_async_function_free(JSRuntime *rt, JSAsyncFunctionData *s);
+
+/* The owner of the heap frame an attached variable reference points
+   into, or NULL when the variable is in a frame on the C stack. */
+static inline JSGCObjectHeader *var_ref_frame_owner(const JSVarRef *var_ref)
+{
+    return var_ref->val.vstk.stack_frame->gc_owner;
+}
+
+/* True if 'var_ref' is in the GC object list and the collector has to
+   follow it: a detached reference owns its value, an attached one into
+   a heap frame holds a reference to the frame's owner. An attached
+   reference into a C stack frame is neither. */
+static inline bool var_ref_is_gc_object(const JSVarRef *var_ref)
+{
+    return var_ref->hdr.vflags.is_detached ||
+        var_ref_frame_owner(var_ref) != NULL;
+}
+
+/* Drop the reference a JSVarRef held to the owner of a heap frame. */
+static void free_frame_owner(JSRuntime *rt, JSGCObjectHeader *owner)
+{
+    if (owner->gc_obj_type == JS_GC_OBJ_TYPE_ASYNC_FUNCTION)
+        js_async_function_free(rt, (JSAsyncFunctionData *)owner);
+    else
+        JS_FreeValueRT(rt, JS_MKPTR(JS_TAG_OBJECT, owner));
+}
 static JSValue js_instantiate_prototype(JSContext *ctx, JSObject *p, JSAtom atom, void *opaque);
 static JSValue js_module_ns_autoinit(JSContext *ctx, JSObject *p, JSAtom atom,
                                  void *opaque);
@@ -6568,8 +6601,17 @@ static void free_var_ref(JSRuntime *rt, JSVarRef *var_ref)
                 remove_gc_object(&var_ref->hdr.header);
             } else {
                 JSStackFrame *sf = var_ref->val.vstk.stack_frame;
+                JSGCObjectHeader *owner = sf->gc_owner;
                 assert(sf->var_refs[var_ref->val.vstk.var_ref_idx] == var_ref);
                 sf->var_refs[var_ref->val.vstk.var_ref_idx] = NULL;
+                if (owner) {
+                    /* last, and after the reference is gone: this may
+                       free the frame */
+                    remove_gc_object(&var_ref->hdr.header);
+                    js_free_rt(rt, var_ref);
+                    free_frame_owner(rt, owner);
+                    return;
+                }
             }
             js_free_rt(rt, var_ref);
         }
@@ -6668,7 +6710,7 @@ static void js_bytecode_function_mark(JSRuntime *rt, JSValueConst val,
         if (var_refs) {
             for(i = 0; i < b->closure_var_count; i++) {
                 JSVarRef *var_ref = var_refs[i];
-                if (var_ref && var_ref->hdr.vflags.is_detached) {
+                if (var_ref && var_ref_is_gc_object(var_ref)) {
                     mark_func(rt, &var_ref->hdr.header);
                 }
             }
@@ -6951,7 +6993,7 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
                             if (pr->u.getset.setter)
                                 mark_func(rt, &pr->u.getset.setter->ob1.header);
                         } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_VARREF) {
-                            if (pr->u.var_ref->hdr.vflags.is_detached) {
+                            if (var_ref_is_gc_object(pr->u.var_ref)) {
                                 /* Note: the tag does not matter
                                    provided it is a GC object */
                                 mark_func(rt, &pr->u.var_ref->hdr.header);
@@ -6993,9 +7035,17 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
     case JS_GC_OBJ_TYPE_VAR_REF:
         {
             JSVarRef *var_ref = (JSVarRef *)gp;
-            /* only detached variable referenced are taken into account */
-            assert(var_ref->hdr.vflags.is_detached);
-            JS_MarkValue(rt, *var_ref->pvalue, mark_func);
+            if (var_ref->hdr.vflags.is_detached) {
+                JS_MarkValue(rt, *var_ref->pvalue, mark_func);
+            } else {
+                /* attached to the heap frame of an async function or
+                   generator: it holds a reference to the frame's
+                   owner, which marks the value itself */
+                JSGCObjectHeader *owner = var_ref_frame_owner(var_ref);
+                assert(owner != NULL);
+                if (owner)
+                    mark_func(rt, owner);
+            }
         }
         break;
     case JS_GC_OBJ_TYPE_ASYNC_FUNCTION:
@@ -13004,10 +13054,14 @@ static int js_bigint_float64_cmp(JSContext *ctx, const JSBigInt *a,
         /* compute f so that 2^f <= abs(a) < 2^(f+1) */
         a_mant = js_bigint_get_mant_exp(ctx, &f, a);
         if (f != e) {
+            /* a and b have the same sign here and different
+               magnitudes: for negative values the larger magnitude is
+               the smaller number. Upstream returned -1/1 regardless of
+               sign, so -1n < -0.5 and -(2n**64n) < -1 were false. */
             if (f < e)
-                return -1;
+                return 2 * a_sign - 1;
             else
-                return 1;
+                return 1 - 2 * a_sign;
         } else {
             mant = (mant | ((uint64_t)1 << 52)) << 11; /* align to a_mant */
             if (a_mant < mant)
@@ -16304,7 +16358,7 @@ static void js_mapped_arguments_mark(JSRuntime *rt, JSValueConst val,
         int i;
         if (var_refs) {
             for(i = 0; i < p->u.array.count; i++) {
-                if (var_refs[i] && var_refs[i]->hdr.vflags.is_detached)
+                if (var_refs[i] && var_ref_is_gc_object(var_refs[i]))
                     mark_func(rt, &var_refs[i]->hdr.header);
             }
         }
@@ -16966,8 +17020,21 @@ static __exception int JS_CopyDataProperties(JSContext *ctx,
     JSPropertyDescriptor desc;
     bool is_enumerable;
 
-    if (JS_VALUE_GET_TAG(source) != JS_TAG_OBJECT)
+    if (JS_VALUE_GET_TAG(source) != JS_TAG_OBJECT) {
+        /* CopyDataProperties starts with ToObject(source). A string is
+           the one primitive whose wrapper has own enumerable
+           properties (its characters), so {...'ab'} is {0:'a',1:'b'}.
+           Upstream skipped every primitive and gave {}. */
+        if (JS_IsString(source)) {
+            JSValue obj = JS_ToObject(ctx, source);
+            if (JS_IsException(obj))
+                return -1;
+            ret = JS_CopyDataProperties(ctx, target, obj, excluded, setprop);
+            JS_FreeValue(ctx, obj);
+            return ret;
+        }
         return 0;
+    }
 
     if (JS_VALUE_GET_TAG(excluded) == JS_TAG_OBJECT)
         pexcl = JS_VALUE_GET_OBJ(excluded);
@@ -17091,6 +17158,20 @@ static JSVarRef *get_var_ref(JSContext *ctx, JSStackFrame *sf, int var_idx,
         var_ref->val.vstk.stack_frame = sf;
         sf->var_refs[var_ref_idx] = var_ref;
         var_ref->pvalue = pvalue;
+        if (sf->gc_owner) {
+            /* The variable is in the heap frame of an async function
+               or generator, which outlives this call. The reference
+               must keep that frame alive and the collector must see
+               it doing so. Without this a suspended async function
+               reachable only through a closure over one of its locals
+                   let done; const p = new Promise(r => { done = r; });
+                   setTimeout(() => done(), 100); await p;
+               was freed as an unreachable cycle by the next collection
+               and the closure was left with a freed function (a crash
+               or "not a function" when the timer fired). */
+            sf->gc_owner->ref_count++;
+            add_gc_object(ctx->rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+        }
         return var_ref;
     } else {
         /* Variable is not captured (e.g., from eval closures on uncaptured vars).
@@ -17336,11 +17417,19 @@ static int js_op_define_class(JSContext *ctx, JSValue *sp,
 
 static void close_var_ref(JSRuntime *rt, JSVarRef *var_ref)
 {
+    /* read before val.value overwrites val.vstk */
+    JSGCObjectHeader *owner = var_ref_frame_owner(var_ref);
+
     var_ref->val.value = js_dup(*var_ref->pvalue);
     var_ref->pvalue = &var_ref->val.value;
     /* the reference is no longer to a local variable */
     var_ref->hdr.vflags.is_detached = true;
-    add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+    if (owner) {
+        /* already a GC object; it no longer needs the frame */
+        free_frame_owner(rt, owner);
+    } else {
+        add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+    }
 }
 
 static void close_var_refs(JSRuntime *rt, JSStackFrame *sf)
@@ -17750,6 +17839,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     stack_buf = var_buf + b->var_count;
     sf->var_refs = (JSVarRef **)(stack_buf + b->stack_size);
     sf->var_ref_count = b->var_ref_count;
+    sf->gc_owner = NULL; /* a frame on the C stack */
     for(i = 0; i < b->var_ref_count; i++)
         sf->var_refs[i] = NULL;
     sp = stack_buf;
@@ -20843,6 +20933,7 @@ static __exception int async_func_init(JSContext *ctx, JSAsyncFunctionState *s,
     size_t alloc_size;
 
     sf = &s->frame;
+    sf->gc_owner = NULL; /* set by async_func_set_gc_owner() */
     p = JS_VALUE_GET_OBJ(func_obj);
     b = p->u.func.function_bytecode;
     sf->is_strict_mode = b->is_strict_mode;
@@ -20870,6 +20961,29 @@ static __exception int async_func_init(JSContext *ctx, JSAsyncFunctionState *s,
     for(i = argc; i < n; i++)
         sf->arg_buf[i] = JS_UNDEFINED;
     return 0;
+}
+
+/* Name the GC object that owns the heap frame of 's'. From then on a
+   closure variable of the frame holds a reference to 'owner' for as
+   long as it is attached. Variable references made before the owner
+   existed (a generator runs its parameter initialisers before its
+   object is created) are brought under the same rule here. */
+static void async_func_set_gc_owner(JSRuntime *rt, JSAsyncFunctionState *s,
+                                    JSGCObjectHeader *owner)
+{
+    JSStackFrame *sf = &s->frame;
+    int i;
+
+    sf->gc_owner = owner;
+    if (!sf->arg_buf)
+        return;
+    for(i = 0; i < sf->var_ref_count; i++) {
+        JSVarRef *var_ref = sf->var_refs[i];
+        if (var_ref) {
+            owner->ref_count++;
+            add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+        }
+    }
 }
 
 static void async_func_mark(JSRuntime *rt, JSAsyncFunctionState *s,
@@ -21097,6 +21211,8 @@ static JSValue js_call_generator_function(JSContext *ctx, JSValueConst func_obj,
     if (JS_IsException(obj))
         goto fail;
     JS_SetOpaqueInternal(obj, s);
+    async_func_set_gc_owner(ctx->rt, &s->func_state,
+                            &JS_VALUE_GET_OBJ(obj)->ob1.header);
     return obj;
  fail:
     free_generator_stack_rt(ctx->rt, s);
@@ -21296,6 +21412,7 @@ static JSValue js_async_function_call(JSContext *ctx, JSValueConst func_obj,
         return JS_EXCEPTION;
     }
     s->is_active = true;
+    async_func_set_gc_owner(ctx->rt, &s->func_state, &s->header);
 
     if (!js_async_function_resume(ctx, s))
         goto fail;
@@ -21743,6 +21860,8 @@ static JSValue js_async_generator_function_call(JSContext *ctx,
         goto fail;
     s->generator = JS_VALUE_GET_OBJ(obj);
     JS_SetOpaqueInternal(obj, s);
+    async_func_set_gc_owner(ctx->rt, &s->func_state,
+                            &JS_VALUE_GET_OBJ(obj)->ob1.header);
     return obj;
  fail:
     js_async_generator_free(ctx->rt, s);
@@ -21868,6 +21987,7 @@ typedef struct BlockEnv {
     int scope_level;
     uint8_t has_iterator : 1;
     uint8_t is_regular_stmt : 1; /* i.e. not a loop statement */
+    uint8_t is_async_iterator : 1; /* has_iterator of a for await loop */
 } BlockEnv;
 
 typedef struct JSGlobalVar {
@@ -28179,6 +28299,41 @@ static void push_break_entry(JSFunctionDef *fd, BlockEnv *be,
     be->scope_level = fd->scope_level;
     be->has_iterator = false;
     be->is_regular_stmt = false;
+    be->is_async_iterator = false;
+}
+
+/* Leaving a 'for await' loop early (break, continue to an outer loop,
+   return): AsyncIteratorClose. Call the iterator's return() if it has
+   one, await what it returns, and require an object.
+   On entry the stack ends with the iterator object; everything is
+   consumed. The catch offset of the loop must already be gone, so an
+   exception from return() or a rejection propagates outwards.
+
+   Upstream closed these loops with OP_iterator_close, which calls
+   return() and carries on without waiting: the 'finally' block of an
+   async generator was still running while the code after the loop
+   ran. (An exception thrown out of the loop body still closes the
+   iterator that way; unwinding cannot await.) */
+static void emit_async_iterator_close(JSParseState *s)
+{
+    int label_no_return, label_end;
+
+    /* stack: iter_obj */
+    emit_op(s, OP_get_field2);
+    emit_atom(s, JS_ATOM_return);
+    /* stack: iter_obj return_func */
+    emit_op(s, OP_dup);
+    emit_op(s, OP_is_undefined_or_null);
+    label_no_return = emit_goto(s, OP_if_true, -1);
+    emit_op(s, OP_call_method);
+    emit_u16(s, 0);
+    emit_op(s, OP_await);
+    emit_op(s, OP_iterator_check_object);
+    label_end = emit_goto(s, OP_goto, -1);
+    emit_label(s, label_no_return);
+    emit_op(s, OP_drop);
+    emit_label(s, label_end);
+    emit_op(s, OP_drop);
 }
 
 static void pop_break_entry(JSFunctionDef *fd)
@@ -28214,7 +28369,14 @@ static __exception int emit_break(JSParseState *s, JSAtom name, int is_cont)
         }
         i = 0;
         if (top->has_iterator) {
-            emit_op(s, OP_iterator_close);
+            if (top->is_async_iterator) {
+                /* stack: iter_obj next catch_offset */
+                emit_op(s, OP_drop);
+                emit_op(s, OP_drop);
+                emit_async_iterator_close(s);
+            } else {
+                emit_op(s, OP_iterator_close);
+            }
             i += 3;
         }
         for(; i < top->drop_count; i++)
@@ -28268,25 +28430,14 @@ static void emit_return(JSParseState *s, bool hasval)
             emit_op(s, OP_nip_catch);
             /* stack: iter_obj next ret_val */
             if (top->has_iterator) {
-                if (s->cur_func->func_kind == JS_FUNC_ASYNC_GENERATOR) {
-                    int label_next, label_next2;
+                /* The kind of loop decides, not the kind of function:
+                   upstream awaited return() for every loop of an async
+                   generator and for no loop of an async function. */
+                if (top->is_async_iterator) {
                     emit_op(s, OP_nip); /* next */
                     emit_op(s, OP_swap);
-                    emit_op(s, OP_get_field2);
-                    emit_atom(s, JS_ATOM_return);
-                    /* stack: iter_obj return_func */
-                    emit_op(s, OP_dup);
-                    emit_op(s, OP_is_undefined_or_null);
-                    label_next = emit_goto(s, OP_if_true, -1);
-                    emit_op(s, OP_call_method);
-                    emit_u16(s, 0);
-                    emit_op(s, OP_iterator_check_object);
-                    emit_op(s, OP_await);
-                    label_next2 = emit_goto(s, OP_goto, -1);
-                    emit_label(s, label_next);
-                    emit_op(s, OP_drop);
-                    emit_label(s, label_next2);
-                    emit_op(s, OP_drop);
+                    /* stack: ret_val iter_obj */
+                    emit_async_iterator_close(s);
                 } else {
                     emit_op(s, OP_rot3r);
                     emit_op(s, OP_undefined); /* dummy catch offset */
@@ -28655,6 +28806,7 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
            that a yield in the expression does not try to close a
            not-yet-created iterator */
         break_entry.has_iterator = true;
+        break_entry.is_async_iterator = is_async;
         break_entry.drop_count += 2;
         if (is_async)
             emit_op(s, OP_for_await_of_start);
@@ -28720,12 +28872,29 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
     /* drop the undefined value from for_xx_next */
     emit_op(s, OP_drop);
 
-    emit_label(s, label_break);
-    if (is_for_of) {
-        /* close and drop enum_rec */
-        emit_op(s, OP_iterator_close);
-    } else {
+    if (is_for_of && is_async) {
+        /* The iterator said it is done: it must not be closed (upstream
+           called return() here as well, which cancels a stream that
+           has just ended normally). Only 'break' reaches label_break. */
+        int label_done;
+        emit_op(s, OP_drop); /* catch_offset */
+        emit_op(s, OP_drop); /* next */
+        emit_op(s, OP_drop); /* iter_obj */
+        label_done = emit_goto(s, OP_goto, -1);
+        emit_label(s, label_break);
+        /* stack: iter_obj next catch_offset */
         emit_op(s, OP_drop);
+        emit_op(s, OP_drop);
+        emit_async_iterator_close(s);
+        emit_label(s, label_done);
+    } else {
+        emit_label(s, label_break);
+        if (is_for_of) {
+            /* close and drop enum_rec */
+            emit_op(s, OP_iterator_close);
+        } else {
+            emit_op(s, OP_drop);
+        }
     }
     pop_break_entry(s->cur_func);
     pop_scope(s);
@@ -44935,6 +45104,31 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
         return JS_UNDEFINED;
     }
 
+    if (magic == GEN_MAGIC_RETURN) {
+        /* helper.return() closes the underlying iterator, and closing
+           an iterator that has no 'return' method (every built-in
+           array, string, Map and Set iterator) means doing nothing.
+           The code below calls the method without looking, so
+           [1,2,3].values().filter(f).take(1).toArray() threw "not a
+           function" when take() closed the filter helper. */
+        JSValue method = JS_GetProperty(ctx, it->obj, JS_ATOM_return);
+        if (JS_IsException(method))
+            return JS_EXCEPTION;
+        if (JS_IsUndefined(method) || JS_IsNull(method)) {
+            int err = 0;
+            if (!JS_IsUndefined(it->inner)) {
+                /* flatMap: the iterator of the current inner value */
+                err = JS_IteratorClose(ctx, it->inner, false);
+                JS_FreeValue(ctx, it->inner);
+                it->inner = JS_UNDEFINED;
+            }
+            it->done = 1;
+            *pdone = true;
+            return err ? JS_EXCEPTION : JS_UNDEFINED;
+        }
+        JS_FreeValue(ctx, method);
+    }
+
     it->executing = 1;
 
     switch (it->kind) {
@@ -56283,6 +56477,43 @@ static JSValue js_bigint_asUintN(JSContext *ctx,
     if (bits == 0) {
         JS_FreeValue(ctx, a);
         res = __JS_NewShortBigInt(ctx, 0);
+    } else if (!asIntN && (JS_VALUE_GET_TAG(a) != JS_TAG_SHORT_BIG_INT ||
+                           JS_VALUE_GET_SHORT_BIG_INT(a) < 0)) {
+        /* asUintN of anything but a non-negative short BigInt.
+           The result is the low 'bits' bits of the two's complement
+           value read as an unsigned number, so a negative operand
+           grows (asUintN(64, -1n) is 2^64-1) and a result whose top
+           bit is set needs one more limb of zeros to stay positive.
+           The upstream code returned the operand unchanged when it
+           already fitted in 'bits' bits and stored the truncated limbs
+           without that extra limb, so negative operands came back
+           negative and e.g. asUintN(32, 0x1ffffffffn) came back -1n. */
+        JSBigIntBuf buf;
+        JSBigInt *r, *p = JS_ToBigIntBuf(ctx, &buf, a);
+        int neg = js_bigint_sign(p);
+        if (!neg && bits >= (uint64_t)p->len * JS_LIMB_BITS) {
+            res = a;
+        } else {
+            int len, i;
+            if (bits / JS_LIMB_BITS + 1 > JS_BIGINT_MAX_SIZE) {
+                JS_FreeValue(ctx, a);
+                return JS_ThrowRangeError(ctx, "BigInt is too large to allocate");
+            }
+            len = (int)(bits / JS_LIMB_BITS) + 1;
+            r = js_bigint_new(ctx, len);
+            if (!r) {
+                JS_FreeValue(ctx, a);
+                return JS_EXCEPTION;
+            }
+            for(i = 0; i < len; i++)
+                r->tab[i] = i < p->len ? p->tab[i] : (js_limb_t)-neg;
+            /* the top limb holds the bits % JS_LIMB_BITS highest bits
+               of the result and zeros above them */
+            r->tab[len - 1] &= ((js_limb_t)1 << (int)(bits % JS_LIMB_BITS)) - 1;
+            r = js_bigint_normalize(ctx, r);
+            JS_FreeValue(ctx, a);
+            res = JS_CompactBigInt(ctx, r);
+        }
     } else if (JS_VALUE_GET_TAG(a) == JS_TAG_SHORT_BIG_INT) {
         /* fast case */
         if (bits >= JS_SHORT_BIG_INT_BITS) {
@@ -61900,6 +62131,38 @@ static void js_print_value(JSPrintValueState *s, JSValueConst val)
         break;
     case JS_TAG_MODULE:
         js_pv_puts(s, "[module]");
+        break;
+    case JS_TAG_SHORT_BIG_INT:
+        js_pv_printf(s, "%dn", (int)JS_VALUE_GET_SHORT_BIG_INT(val));
+        break;
+    case JS_TAG_BIG_INT:
+        /* Decimal digits and the literal's 'n' suffix, as node prints
+           it. Without a context (or memory) for the conversion the
+           limbs are dumped in hexadecimal instead. */
+        {
+            JSBigInt *bp = JS_VALUE_GET_PTR(val);
+            const char *cstr = NULL;
+            int i;
+            if (s->ctx) {
+                JSValue bs = js_bigint_to_string(s->ctx, val);
+                if (JS_IsException(bs)) {
+                    JS_FreeValue(s->ctx, JS_GetException(s->ctx));
+                } else {
+                    cstr = JS_ToCString(s->ctx, bs);
+                    JS_FreeValue(s->ctx, bs);
+                }
+            }
+            if (cstr) {
+                js_pv_puts(s, cstr);
+                js_pv_putc(s, 'n');
+                JS_FreeCString(s->ctx, cstr);
+            } else {
+                js_pv_puts(s, "[BigInt 0x");
+                for (i = bp->len - 1; i >= 0; i--)
+                    js_pv_printf(s, "%08x", (unsigned int)bp->tab[i]);
+                js_pv_putc(s, ']');
+            }
+        }
         break;
     default:
         js_pv_printf(s, "[tag %d]", tag);
