@@ -55,6 +55,11 @@ const KEY = {
     shiftDown: '\x1b[S',
     help: '\x1b[?~',
     f1: '\x1b[0~',
+    /* sent by the console itself, not by a key (RKRM Devices, console
+     * chapter): Right-Amiga-V with ConClip running, and a window bounds
+     * report arriving late */
+    pasteRequest: '\x1b[0 v',
+    boundsReport: '\x1b[1;1;30;77 r',
 };
 
 /**
@@ -298,6 +303,8 @@ class ReferenceEditor {
         case KEY.shiftDown:
         case KEY.help:
         case KEY.f1:
+        case KEY.pasteRequest:
+        case KEY.boundsReport:
             break;      /* keys with no editing function change nothing */
         default:
             this.text = text.slice(0, cursor) + key + text.slice(cursor);
@@ -383,10 +390,11 @@ const SCENARIOS = [
         ],
     },
     {
-        name: 'Amiga shifted cursor keys, Help and F1 do not insert letters',
+        name: 'Amiga shifted cursor keys, Help, F1 and console reports do not insert letters',
         keys: [
             ...type('alpha beta'), KEY.shiftLeft, KEY.shiftRight, KEY.help,
-            KEY.f1, KEY.shiftUp, KEY.shiftDown, KEY.shiftLeft, KEY.shiftLeft,
+            KEY.f1, KEY.shiftUp, KEY.shiftDown, KEY.pasteRequest,
+            KEY.boundsReport, KEY.shiftLeft, KEY.shiftLeft,
             '_', KEY.enter,
         ],
     },
