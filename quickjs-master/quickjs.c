@@ -21987,6 +21987,7 @@ typedef struct BlockEnv {
     int scope_level;
     uint8_t has_iterator : 1;
     uint8_t is_regular_stmt : 1; /* i.e. not a loop statement */
+    uint8_t is_async_iterator : 1; /* has_iterator of a for await loop */
 } BlockEnv;
 
 typedef struct JSGlobalVar {
@@ -28298,6 +28299,41 @@ static void push_break_entry(JSFunctionDef *fd, BlockEnv *be,
     be->scope_level = fd->scope_level;
     be->has_iterator = false;
     be->is_regular_stmt = false;
+    be->is_async_iterator = false;
+}
+
+/* Leaving a 'for await' loop early (break, continue to an outer loop,
+   return): AsyncIteratorClose. Call the iterator's return() if it has
+   one, await what it returns, and require an object.
+   On entry the stack ends with the iterator object; everything is
+   consumed. The catch offset of the loop must already be gone, so an
+   exception from return() or a rejection propagates outwards.
+
+   Upstream closed these loops with OP_iterator_close, which calls
+   return() and carries on without waiting: the 'finally' block of an
+   async generator was still running while the code after the loop
+   ran. (An exception thrown out of the loop body still closes the
+   iterator that way; unwinding cannot await.) */
+static void emit_async_iterator_close(JSParseState *s)
+{
+    int label_no_return, label_end;
+
+    /* stack: iter_obj */
+    emit_op(s, OP_get_field2);
+    emit_atom(s, JS_ATOM_return);
+    /* stack: iter_obj return_func */
+    emit_op(s, OP_dup);
+    emit_op(s, OP_is_undefined_or_null);
+    label_no_return = emit_goto(s, OP_if_true, -1);
+    emit_op(s, OP_call_method);
+    emit_u16(s, 0);
+    emit_op(s, OP_await);
+    emit_op(s, OP_iterator_check_object);
+    label_end = emit_goto(s, OP_goto, -1);
+    emit_label(s, label_no_return);
+    emit_op(s, OP_drop);
+    emit_label(s, label_end);
+    emit_op(s, OP_drop);
 }
 
 static void pop_break_entry(JSFunctionDef *fd)
@@ -28333,7 +28369,14 @@ static __exception int emit_break(JSParseState *s, JSAtom name, int is_cont)
         }
         i = 0;
         if (top->has_iterator) {
-            emit_op(s, OP_iterator_close);
+            if (top->is_async_iterator) {
+                /* stack: iter_obj next catch_offset */
+                emit_op(s, OP_drop);
+                emit_op(s, OP_drop);
+                emit_async_iterator_close(s);
+            } else {
+                emit_op(s, OP_iterator_close);
+            }
             i += 3;
         }
         for(; i < top->drop_count; i++)
@@ -28387,25 +28430,14 @@ static void emit_return(JSParseState *s, bool hasval)
             emit_op(s, OP_nip_catch);
             /* stack: iter_obj next ret_val */
             if (top->has_iterator) {
-                if (s->cur_func->func_kind == JS_FUNC_ASYNC_GENERATOR) {
-                    int label_next, label_next2;
+                /* The kind of loop decides, not the kind of function:
+                   upstream awaited return() for every loop of an async
+                   generator and for no loop of an async function. */
+                if (top->is_async_iterator) {
                     emit_op(s, OP_nip); /* next */
                     emit_op(s, OP_swap);
-                    emit_op(s, OP_get_field2);
-                    emit_atom(s, JS_ATOM_return);
-                    /* stack: iter_obj return_func */
-                    emit_op(s, OP_dup);
-                    emit_op(s, OP_is_undefined_or_null);
-                    label_next = emit_goto(s, OP_if_true, -1);
-                    emit_op(s, OP_call_method);
-                    emit_u16(s, 0);
-                    emit_op(s, OP_iterator_check_object);
-                    emit_op(s, OP_await);
-                    label_next2 = emit_goto(s, OP_goto, -1);
-                    emit_label(s, label_next);
-                    emit_op(s, OP_drop);
-                    emit_label(s, label_next2);
-                    emit_op(s, OP_drop);
+                    /* stack: ret_val iter_obj */
+                    emit_async_iterator_close(s);
                 } else {
                     emit_op(s, OP_rot3r);
                     emit_op(s, OP_undefined); /* dummy catch offset */
@@ -28774,6 +28806,7 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
            that a yield in the expression does not try to close a
            not-yet-created iterator */
         break_entry.has_iterator = true;
+        break_entry.is_async_iterator = is_async;
         break_entry.drop_count += 2;
         if (is_async)
             emit_op(s, OP_for_await_of_start);
@@ -28839,12 +28872,29 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
     /* drop the undefined value from for_xx_next */
     emit_op(s, OP_drop);
 
-    emit_label(s, label_break);
-    if (is_for_of) {
-        /* close and drop enum_rec */
-        emit_op(s, OP_iterator_close);
-    } else {
+    if (is_for_of && is_async) {
+        /* The iterator said it is done: it must not be closed (upstream
+           called return() here as well, which cancels a stream that
+           has just ended normally). Only 'break' reaches label_break. */
+        int label_done;
+        emit_op(s, OP_drop); /* catch_offset */
+        emit_op(s, OP_drop); /* next */
+        emit_op(s, OP_drop); /* iter_obj */
+        label_done = emit_goto(s, OP_goto, -1);
+        emit_label(s, label_break);
+        /* stack: iter_obj next catch_offset */
         emit_op(s, OP_drop);
+        emit_op(s, OP_drop);
+        emit_async_iterator_close(s);
+        emit_label(s, label_done);
+    } else {
+        emit_label(s, label_break);
+        if (is_for_of) {
+            /* close and drop enum_rec */
+            emit_op(s, OP_iterator_close);
+        } else {
+            emit_op(s, OP_drop);
+        }
     }
     pop_break_entry(s->cur_func);
     pop_scope(s);
