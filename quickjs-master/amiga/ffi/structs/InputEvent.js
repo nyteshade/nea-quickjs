@@ -63,12 +63,12 @@ Fields (read+write on primitives):
   micros     {number} TimeStamp micros  at +18
 
 IECLASS_* codes (UBYTE):
-  0  NULL          — empty/reset event
-  1  RAWKEY        — keyboard raw key code
-  2  RAWMOUSE      — mouse movement / buttons
-  3  EVENT         — generic system event
-  4  POINTERPOS    — absolute pointer coord
-  5  TIMER         — VBL tick`;
+  0  NULL          - empty/reset event
+  1  RAWKEY        - keyboard raw key code
+  2  RAWMOUSE      - mouse movement / buttons
+  3  EVENT         - generic system event
+  4  POINTERPOS    - absolute pointer coord
+  5  TIMER         - VBL tick`;
   }
 
   /** @returns {number} */

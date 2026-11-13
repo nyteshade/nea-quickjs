@@ -4,15 +4,13 @@
  *   +---------------------------+
  *   | Reaction LED              |
  *   +---------------------------+
- *   |         00 00 00          |
+ *   |         00 00 42          |
  *   | [   Reset   ] [   Quit  ] |
  *   +---------------------------+
  *
  * A window opens showing six seven-segment digits drawn by led.image,
- * all zero. Reset writes zeros to the display again; Quit or the close
- * gadget ends the demo. The counter does not advance in this version:
- * the loop sleeps until the window has an event and nothing wakes it
- * to count, so the digits stay at zero. A port of the NDK's LED.c.
+ * counting the seconds since it opened. Reset starts again from zero;
+ * Quit or the close gadget ends the demo. After the NDK's LED.c.
  *
  * Assumptions:
  *   - opens on the default public screen (Workbench), centred
@@ -21,58 +19,38 @@
  *   - an inside of 260 x 80 pixels is enough for the digits and both
  *     buttons
  *   - a led.image can be given to a layout directly as a child
- *   - led.image keeps the pointer it is given rather than copying the
- *     digits, so the buffer has to stay allocated until the window is
- *     disposed
- *   - setting the image's `values` again is enough to make it redraw
- *   - amiga.allocMem returns zeroed memory, and does not fail
+ *   - the count moves on Intuition's tick (IDCMP_INTUITICKS), which
+ *     arrives about ten times a second and only while this window is
+ *     the active one. Click in another window and the display stands
+ *     still; it catches up at the next tick, because the count is
+ *     taken from the clock (Date.now()), not from the number of ticks
  *
- * Requires quickjs.library 0.148+.
+ * Requires quickjs.library 0.232+ (Led took only a pointer before,
+ * and did not repaint).
  * Run: qjs examples/led_demo.js
  */
 
 const { Window, Layout, Button, Led, EventKind, IDCMP,
-        WindowPosition } = amiga.boopsi;
+        IDCMP_REACTION_DEFAULT, WindowPosition } = amiga.boopsi;
 
 /** Gadget IDs: how an event says which gadget it came from. */
 const ID = { RESET: 1, QUIT: 2 };
 
-/** The display has this many pairs of digits. */
-const PAIR_COUNT  = 3;
-const DIGIT_COUNT = 6;
+/** The display has this many pairs of digits: six digits. */
+const PAIR_COUNT = 3;
 
-/** Size of the buffer the digits live in, in bytes. */
-const DIGIT_BUFFER_BYTES = 8;
+/** Milliseconds in a second: Date.now() counts milliseconds. */
+const MS_PER_SECOND = 1000;
 
-/**
- * Write a number into the digit buffer, one byte per decimal digit,
- * most significant first.
- *
- * FIXME: images/led.h describes LED_Values as an array of WORDs, one
- * per pair, not a byte per digit. It makes no difference while every
- * digit is zero. Kept as it has always been in this example and
- * reported, not changed.
- *
- * @param {number} buffer - address of at least DIGIT_COUNT bytes
- * @param {number} value - a whole number, 0 to 999999
- * @returns {undefined}
- */
-function writeDigits(buffer, value) {
-  let rest = value;
-
-  for (let index = DIGIT_COUNT - 1; index >= 0; index--) {
-    amiga.poke8(buffer + index, rest % 10);
-    rest = Math.floor(rest / 10);
-  }
-}
-
-/** The number on the display. */
+/** The number on the display: whole seconds since `startedMs`. */
 let counter = 0;
 
-let digitBuffer = amiga.allocMem(DIGIT_BUFFER_BYTES);
-writeDigits(digitBuffer, 0);
+/** The clock when the count last started from zero, in milliseconds. */
+let startedMs = Date.now();
 
-let display = new Led({ pairs: PAIR_COUNT, values: digitBuffer });
+/* An LED display is given one number per PAIR of digits, each 0 to 99.
+ * Led.pairsOf(1234, 3) is [0, 12, 34], shown as 00 12 34. */
+let display = new Led({ values: Led.pairsOf(counter, PAIR_COUNT) });
 
 let resetButton = new Button({ id: ID.RESET, text: '_Reset' });
 let quitButton  = new Button({ id: ID.QUIT,  text: '_Quit'  });
@@ -86,7 +64,9 @@ let window = new Window({
   dragBar:     true,
   depthGadget: true,
   activate:    true,
-  idcmp: IDCMP.CLOSE_WINDOW | IDCMP.REFRESH_WINDOW | IDCMP.IDCMPUPDATE,
+  /* The usual Reaction events do not include the tick, so it is asked
+   * for as well. The ticks are what move the count on. */
+  idcmp: IDCMP_REACTION_DEFAULT | IDCMP.INTUITICKS,
 
   layout: new Layout({
     orientation: 'vertical',
@@ -106,21 +86,35 @@ let window = new Window({
 });
 
 /**
- * Put the counter back to zero and show it.
+ * Show the seconds that have passed since the count started, if that
+ * is not what the display already shows.
+ *
+ * @param {number} nowMs - the clock, in milliseconds
+ * @returns {undefined}
+ */
+function showCount(nowMs) {
+  let seconds = Math.floor((nowMs - startedMs) / MS_PER_SECOND);
+
+  if (seconds === counter) return;
+
+  counter = seconds;
+  display.setValues(Led.pairsOf(counter, PAIR_COUNT));
+}
+
+/**
+ * Start counting from zero again.
  *
  * @returns {undefined}
  */
 function resetCounter() {
+  startedMs = Date.now();
   counter = 0;
-  writeDigits(digitBuffer, counter);
-
-  /* The image does not notice the buffer changing under it. Handing
-   * it the same pointer again makes it draw the new digits. */
-  display.set({ values: digitBuffer });
+  display.setValues(Led.pairsOf(counter, PAIR_COUNT));
 }
 
 window.open();
-print('Counter starts; click Reset to zero it, Quit to exit.');
+startedMs = Date.now();
+print('Counting seconds; click Reset to start again, Quit to exit.');
 
 try {
   for (let event of window.events()) {
@@ -130,11 +124,13 @@ try {
       if (event.sourceId === ID.QUIT)  break;
       if (event.sourceId === ID.RESET) resetCounter();
     }
+
+    if (event.kind === EventKind.INTUITICKS) showCount(Date.now());
   }
 }
 finally {
+  /* The display goes with the window, and its values with it. */
   window.dispose();
-  amiga.freeMem(digitBuffer, DIGIT_BUFFER_BYTES);
 }
 
 print('Bye.');

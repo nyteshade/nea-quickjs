@@ -27,22 +27,21 @@
  *   - an image the running system does not have (the last four are
  *     new in OS 3.2) cannot be made; it is skipped and only its label
  *     is drawn
- *   - no SYSIA_DrawInfo is passed, so sysiclass is left to choose
- *     pens and sizes without knowing the screen
+ *   - the images are made for the default public screen, whose
+ *     DrawInfo they are given, and shown in a window on that screen
  *   - pen 1 shows against the window background, for the labels
  *
- * Requires quickjs.library 0.225+.
+ * Requires quickjs.library 0.232+ (ScreenFont.drawInfo arrived then).
  * Run: qjs examples/sysi_gallery.js
  */
 
 import * as std from 'qjs:std';
 
-/* The sysiclass constants arrived in 0.221. (ScreenFont.screenWidth,
- * 0.225, is checked further down, once there is a ScreenFont.) */
+/* The newest thing this script uses is ScreenFont.drawInfo, 0.232. */
 if (typeof Intuition !== 'function' ||
-    !('SYSIA_Which' in Intuition.consts) ||
-    typeof amiga.ScreenFont !== 'function') {
-  print('Need quickjs.library 0.225 or later');
+    typeof amiga.ScreenFont !== 'function' ||
+    !('drawInfo' in amiga.ScreenFont.prototype)) {
+  print('Need quickjs.library 0.232 or later');
   std.exit(1);
 }
 
@@ -82,11 +81,16 @@ const GALLERY = [
  * with Intuition.DisposeObject.
  *
  * @param {number} which - an image name from GALLERY
+ * @param {number} drawInfo - the screen's struct DrawInfo. sysiclass
+ *   "requires this attribute in order to generate the correct image"
+ *   (ROM Kernel Reference Manual, the class's SYSIA_DrawInfo): it
+ *   holds the screen's pens, font and resolution.
  * @returns {Image|null} the image, or null if it could not be made
  */
-function makeSysImage(which) {
+function makeSysImage(which, drawInfo) {
   return Intuition.NewObjectTags('sysiclass', [
-    [C.SYSIA_Which, which],                /* which system image */
+    [C.SYSIA_Which,    which],             /* which system image */
+    [C.SYSIA_DrawInfo, drawInfo],          /* drawn for which screen */
     /* The size class for a medium-resolution screen such as a 640 x
      * 256 Workbench; the others are SYSISIZE_LOWRES and _HIRES. */
     [C.SYSIA_Size,  C.SYSISIZE_MEDRES],
@@ -100,33 +104,25 @@ function makeSysImage(which) {
  * Nothing here is a fixed number of pixels. A cell has to hold the
  * tallest image with the widest label under it, and neither is known
  * until the images exist and the screen's font has been measured. So
- * the images are made first, then measured, then the window is opened
- * at the size the grid needs.
+ * the screen is locked first, the images are made for it and
+ * measured, and then the window is opened at the size the grid needs.
  * ================================================================== */
 
 const { ScreenFont } = amiga;
 
+/* ScreenFont locks the screen and reads its font and its DrawInfo, so
+ * text can be measured, and images made, before any window exists. */
+let screenFont = new ScreenFont();
+
 /** One entry per GALLERY entry, in the same order: the image, or null
  *  where it could not be made. A failure still takes up a slot, so
  *  this stays in step with GALLERY. */
-let images = GALLERY.map(([label, which]) => makeSysImage(which) || null);
+let images = GALLERY.map(([label, which]) =>
+  makeSysImage(which, screenFont.drawInfo) || null);
 
 /** What is written under each image. */
 let labels = GALLERY.map(([label, which]) =>
   label + ' (' + Number(which) + ')');
-
-/* ScreenFont locks the screen and reads its font, so text can be
- * measured before any window exists. */
-let screenFont = new ScreenFont();
-
-if (screenFont.screenWidth === undefined) {
-  print('Need quickjs.library 0.225 or later');
-  screenFont.close();
-  for (let image of images) {
-    if (image) Intuition.DisposeObject(image);
-  }
-  std.exit(1);
-}
 
 /** One line of text, in pixels. */
 const LINE = screenFont.height;

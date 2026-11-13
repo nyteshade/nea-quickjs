@@ -99,7 +99,7 @@ let aboutPage = new Layout({
   children: [
     new Label({ text: 'tabs_demo.js' }),
     new Label({ text: 'Reaction OO layer demo' }),
-    new Label({ text: 'quickjs.library 0.156+' }),
+    new Label({ text: 'quickjs.library 0.157+' }),
     new Slider({
       id: ID.SLIDER, min: 0, max: 100, level: 75,
       orientation: 'horizontal', ticks: 11,

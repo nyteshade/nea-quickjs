@@ -65,9 +65,6 @@ const { Window, Layout, Button, StringGadget, TextEditor,
 /** The file Save writes and Load reads. */
 const NOTES_PATH = 'RAM:notes.txt';
 
-/** How much of the file is read at a time, in characters. */
-const READ_CHUNK = 4096;
-
 /**
  * Write the notes file, replacing whatever was there.
  *
@@ -92,11 +89,10 @@ function readNotes() {
   let file = std.open(NOTES_PATH, 'r');
   if (!file) return null;
 
-  let text = '';
-  let chunk;
-  while ((chunk = file.readAsString(READ_CHUNK)).length > 0) {
-    text += chunk;
-  }
+  /* With no size, readAsString() reads to the end of the file.
+   * (Reading a fixed number of bytes at a time can cut an accented
+   * letter, which is two bytes in the file, in half.) */
+  let text = file.readAsString();
 
   file.close();
   return text;

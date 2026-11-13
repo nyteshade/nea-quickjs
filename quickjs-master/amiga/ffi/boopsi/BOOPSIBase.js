@@ -138,13 +138,14 @@ export class BOOPSIBase {
     if (this._publicClassID) {
       /* Never freed: the name must outlive every instance, and the
        * class stays registered for as long as the library is open. */
-      let bytes = this._publicClassID.length + 1;
-      let idPtr = globalThis.amiga.allocMem(bytes);
-      if (!idPtr) {
-        globalThis.amiga.closeLibrary(base);
-        throw new Error(this.name + ': allocMem failed for class name');
+      let idPtr;
+      try {
+        idPtr = globalThis.amiga.allocString(this._publicClassID).ptr;
       }
-      globalThis.amiga.pokeString(idPtr, this._publicClassID);
+      catch (error) {
+        globalThis.amiga.closeLibrary(base);
+        throw error;
+      }
       this._libBase    = base;
       this._classIDPtr = idPtr;
       return 0;
@@ -250,7 +251,7 @@ export class BOOPSIBase {
 
       if (!raw) {
         throw new Error(
-          this.constructor.name + ': NewObjectA returned 0 — ' +
+          this.constructor.name + ': NewObjectA returned 0 - ' +
           'class ' + this.constructor._classLibName +
           ' rejected the tag list'
         );
@@ -315,12 +316,12 @@ export class BOOPSIBase {
 
       if (desc.type === 'string-owned') {
         if (typeof value === 'string') {
-          let bytes = value.length + 1;
-          let p = globalThis.amiga.allocMem(bytes);
-          if (!p) throw new Error('allocMem failed for ' + key);
-          globalThis.amiga.pokeString(p, value);
-          this._ownedStrings.push({ ptr: p, size: bytes });
-          tagValue = p;
+          /* The class keeps the pointer (it does not copy a title or
+           * a label), so the string lives until dispose(), where
+           * _ownedStrings is freed. */
+          let holder = globalThis.amiga.allocString(value);
+          this._ownedStrings.push(holder);
+          tagValue = holder.ptr;
         }
 
         else {
@@ -488,6 +489,7 @@ export class BOOPSIBase {
       globalThis.amiga.poke32(msg, methodID | 0);
 
       for (let i = 0; i < args.length; i++) {
+        /* check-structs: a ULONG array (the method's arguments) */
         globalThis.amiga.poke32(msg + 4 + i * 4, args[i] | 0);
       }
 

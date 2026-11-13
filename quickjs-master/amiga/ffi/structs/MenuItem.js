@@ -71,7 +71,7 @@ Fields (getter+setter on each):
   mutualExclude {number}   LONG exclusion bitmask
   itemFill      {number}   APTR to Image* or IntuiText*
   selectFill    {number}   APTR for highlight
-  command       {number}   BYTE — single-char Amiga-key shortcut
+  command       {number}   BYTE - single-char Amiga-key shortcut
   subItem       {MenuItem|null} submenu ptr, or null
   nextSelect    {number}   UWORD
 

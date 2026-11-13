@@ -159,18 +159,8 @@ export class Exec extends LibraryBase {
   static _withName(name, fn) {
     if (typeof name !== 'string') return fn(ptrOf(name));
 
-    let bytes  = name.length + 1;
-    let buffer = globalThis.amiga.allocMem(bytes);
-
-    if (!buffer) throw new Error('Exec: out of memory for a name');
-
-    try {
-      globalThis.amiga.pokeString(buffer, name);
-      return fn(buffer);
-    }
-    finally {
-      globalThis.amiga.freeMem(buffer, bytes);
-    }
+    /* exec reads the name during the call and keeps no pointer to it. */
+    return globalThis.amiga.withString(name, fn);
   }
 
   /**

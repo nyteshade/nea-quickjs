@@ -68,7 +68,7 @@ where:
   ptr - REQUIRED: an existing struct Window pointer returned by
         Intuition.OpenWindow / Intuition.OpenWindowTags /
         Intuition.OpenWindowTagList. You cannot allocate a Window
-        from scratch — only Intuition may.
+        from scratch - only Intuition may.
 
 Fields (read-only getters): leftEdge, topEdge, width, height, title,
   screen, rastPort, userPort.

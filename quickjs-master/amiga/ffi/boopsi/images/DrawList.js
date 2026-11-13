@@ -14,6 +14,7 @@
  */
 
 import { ImageBase, IMAGE_ATTRS } from '../ImageBase.js';
+import { DrawListEntry } from '../../structs/DrawListEntry.js';
 
 /** @internal DRAWLIST_* tag IDs (images/drawlist.h). */
 const DRAWLIST = Object.freeze({
@@ -45,9 +46,6 @@ export const DrawOp = Object.freeze({
   AFILL:    10,  /* DLST_AFILL    - AreaEnd: fill the outline so far */
   LINESIZE: 14,  /* DLST_LINESIZE - line thickness in the pen field  */
 });
-
-/** @internal sizeof(struct DrawList): WORD, UWORD x4, WORD. */
-const DRAWLIST_ENTRY_BYTES = 12;
 
 /**
  * drawlist.image - scalable vector glyph.
@@ -81,19 +79,20 @@ export class DrawList extends ImageBase {
    *   owns it and must freeMem(ptr, size)
    */
   static packDirectives(list) {
-    let size = (list.length + 1) * DRAWLIST_ENTRY_BYTES;
+    let size = (list.length + 1) * DrawListEntry.SIZE;
     let ptr = globalThis.amiga.allocMem(size);
     if (!ptr) throw new Error('DrawList: allocMem failed for directives');
 
     for (let i = 0; i <= list.length; i++) {
       let d = (i < list.length) ? list[i] : [DrawOp.END, 0, 0, 0, 0, 0];
-      let at = ptr + i * DRAWLIST_ENTRY_BYTES;
-      globalThis.amiga.poke16(at + 0,  d[0] | 0);
-      globalThis.amiga.poke16(at + 2,  d[1] | 0);
-      globalThis.amiga.poke16(at + 4,  d[2] | 0);
-      globalThis.amiga.poke16(at + 6,  d[3] | 0);
-      globalThis.amiga.poke16(at + 8,  d[4] | 0);
-      globalThis.amiga.poke16(at + 10, (d[5] === undefined) ? 1 : (d[5] | 0));
+      let entry = new DrawListEntry(ptr + i * DrawListEntry.SIZE);
+
+      entry.directive = d[0] | 0;
+      entry.x1  = d[1] | 0;
+      entry.y1  = d[2] | 0;
+      entry.x2  = d[3] | 0;
+      entry.y2  = d[4] | 0;
+      entry.pen = (d[5] === undefined) ? 1 : (d[5] | 0);
     }
     return { ptr, size };
   }

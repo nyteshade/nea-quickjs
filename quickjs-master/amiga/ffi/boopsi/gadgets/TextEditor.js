@@ -18,6 +18,14 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
+import { withStruct } from '../../structs/Struct.js';
+import { ARexxCmdMessage } from './texteditor/ARexxCmdMessage.js';
+import { BlockInfoMessage } from './texteditor/BlockInfoMessage.js';
+import { ClearTextMessage } from './texteditor/ClearTextMessage.js';
+import { ExportTextMessage } from './texteditor/ExportTextMessage.js';
+import { InsertTextMessage } from './texteditor/InsertTextMessage.js';
+import { MarkTextMessage } from './texteditor/MarkTextMessage.js';
+import { SearchMessage } from './texteditor/SearchMessage.js';
 
 /** @internal GA_TEXTEDITOR_* tag IDs (gadgets/texteditor.h). */
 const TEXTEDITOR = Object.freeze({
@@ -141,6 +149,41 @@ export class TextEditor extends GadgetBase {
   };
 
   /**
+   * Send one of the class's methods. Every GM_TEXTEDITOR_ message
+   * starts { MethodID; GadgetInfo *GInfo; } and must go through
+   * DoGadgetMethodA, which fills GInfo from the window: the class
+   * needs it to draw. (A plain DoMethodA left GInfo NULL and locked up
+   * keyboard input on the editor: reported at 0.176.)
+   *
+   * @internal
+   * @param {string} who - the calling method's name, for the error
+   * @param {function(new: Struct)} Message - the message's wrapper
+   *   class, from ./texteditor/
+   * @param {number} methodID - TextEditor.METHOD.*
+   * @param {function(Struct): undefined} [fill] - sets the message's
+   *   other fields
+   * @returns {number} what the class returned
+   * @throws {Error} if the editor's window is not open
+   */
+  _send(who, Message, methodID, fill) {
+    let winPtr = this._findWindowPtr();
+
+    if (!winPtr) {
+      throw new Error('TextEditor.' + who + ': window not open');
+    }
+
+    return withStruct(Message, (message) => {
+      message.methodID = methodID;
+
+      if (fill) fill(message);
+
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, message.ptr
+      );
+    });
+  }
+
+  /**
    * Empty the editor's contents. GA_TEXTEDITOR_Contents is OM_NEW-only
    * on OS3.2 — SetAttrs at runtime silently no-ops. Runtime mutation
    * is via GM_TEXTEDITOR_ClearText (struct GP_TEXTEDITOR_ClearText
@@ -154,25 +197,8 @@ export class TextEditor extends GadgetBase {
    * @returns {number} class dispatcher result
    */
   clearText() {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.clearText: window not open');
-    }
-    /* Build GP_TEXTEDITOR_ClearText: { ULONG MethodID; GadgetInfo*; }
-     * — 8 bytes. DoGadgetMethodA writes the GInfo slot. */
-    const MSG_BYTES = 8;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.clearText: allocMem failed');
-    try {
-      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ClearText);
-      globalThis.amiga.poke32(msg + 4, 0);  /* GInfo — filled by LVO */
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-    }
+    return this._send('clearText', ClearTextMessage,
+                      TextEditor.METHOD.ClearText);
   }
 
   /**
@@ -189,36 +215,15 @@ export class TextEditor extends GadgetBase {
    */
   insertText(text, pos) {
     if (pos === undefined) pos = TextEditor.InsertPos.CURSOR;
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.insertText: window not open');
-    }
-    let s = String(text == null ? '' : text);
-    let strBytes = s.length + 1;
-    let strBuf = globalThis.amiga.allocMem(strBytes);
-    if (!strBuf) throw new Error('TextEditor.insertText: allocMem(str) failed');
-    /* Build GP_TEXTEDITOR_InsertText: { MethodID; GInfo*; STRPTR; LONG pos; }
-     * — 16 bytes. */
-    const MSG_BYTES = 16;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) {
-      globalThis.amiga.freeMem(strBuf, strBytes);
-      throw new Error('TextEditor.insertText: allocMem(msg) failed');
-    }
-    try {
-      globalThis.amiga.pokeString(strBuf, s);
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.InsertText);
-      globalThis.amiga.poke32(msg + 4,  0);             /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  strBuf);        /* STRPTR text */
-      globalThis.amiga.poke32(msg + 12, pos | 0);       /* LONG pos */
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(strBuf, strBytes);
-    }
+
+    /* The class copies the text into its own buffer, so the C string
+     * is only needed for the length of the call. */
+    return globalThis.amiga.withString(text, (pointer) =>
+      this._send('insertText', InsertTextMessage,
+                 TextEditor.METHOD.InsertText, (message) => {
+                   message.text = pointer;
+                   message.pos  = pos | 0;
+                 }));
   }
 
   /**
@@ -236,32 +241,18 @@ export class TextEditor extends GadgetBase {
    * @returns {string} current editor text
    */
   exportText() {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.exportText: window not open');
-    }
-    const MSG_BYTES = 8;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.exportText: allocMem failed');
-    let textPtr = 0;
+    let textPtr = this._send('exportText', ExportTextMessage,
+                             TextEditor.METHOD.ExportText) | 0;
+
+    if (!textPtr) return '';
+
+    /* The class allocated the text with AllocVec; it is ours to free. */
     try {
-      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ExportText);
-      globalThis.amiga.poke32(msg + 4, 0);  /* GInfo */
-      textPtr = globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      ) | 0;
-      if (!textPtr) return '';
       return globalThis.amiga.peekString(textPtr);
     }
     finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      /* The class allocates the exported text via AllocVec; free it
-       * with exec.library FreeVec (LVO -690, a1=mem). Routed through
-       * Exec.call which lazy-opens exec.library. */
-      if (textPtr) {
-        try { globalThis.amiga.Exec.call(-690, { a1: textPtr }); }
-        catch (e) { /* leak rather than crash; small and bounded */ }
-      }
+      try { globalThis.amiga.Exec.FreeVec(textPtr); }
+      catch (e) { /* leak rather than crash; small and bounded */ }
     }
   }
 
@@ -300,34 +291,12 @@ export class TextEditor extends GadgetBase {
    * @returns {number} class dispatcher result (command-specific)
    */
   arexxCmd(cmd) {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.arexxCmd: window not open');
-    }
-    let s = String(cmd == null ? '' : cmd);
-    let strBytes = s.length + 1;
-    let strBuf = globalThis.amiga.allocMem(strBytes);
-    if (!strBuf) throw new Error('TextEditor.arexxCmd: allocMem(str) failed');
-    /* GP_TEXTEDITOR_ARexxCmd: { MethodID; GInfo*; STRPTR } — 12 bytes */
-    const MSG_BYTES = 12;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) {
-      globalThis.amiga.freeMem(strBuf, strBytes);
-      throw new Error('TextEditor.arexxCmd: allocMem(msg) failed');
-    }
-    try {
-      globalThis.amiga.pokeString(strBuf, s);
-      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ARexxCmd);
-      globalThis.amiga.poke32(msg + 4, 0);       /* GInfo — filled by LVO */
-      globalThis.amiga.poke32(msg + 8, strBuf);  /* STRPTR command */
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(strBuf, strBytes);
-    }
+    /* The command is parsed during the call; nothing keeps the string. */
+    return globalThis.amiga.withString(cmd, (pointer) =>
+      this._send('arexxCmd', ARexxCmdMessage,
+                 TextEditor.METHOD.ARexxCmd, (message) => {
+                   message.command = pointer;
+                 }));
   }
 
   /**
@@ -384,28 +353,13 @@ export class TextEditor extends GadgetBase {
    * @returns {number}
    */
   markText(startX, startY, stopX, stopY) {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.markText: window not open');
-    }
-    /* GP_TEXTEDITOR_MarkText: { MethodID; GInfo*; ULONG x4 } — 24 bytes */
-    const MSG_BYTES = 24;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.markText: allocMem failed');
-    try {
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.MarkText);
-      globalThis.amiga.poke32(msg + 4,  0);            /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  startX >>> 0);
-      globalThis.amiga.poke32(msg + 12, startY >>> 0);
-      globalThis.amiga.poke32(msg + 16, stopX  >>> 0);
-      globalThis.amiga.poke32(msg + 20, stopY  >>> 0);
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-    }
+    return this._send('markText', MarkTextMessage,
+                      TextEditor.METHOD.MarkText, (message) => {
+                        message.startX = startX >>> 0;
+                        message.startY = startY >>> 0;
+                        message.stopX  = stopX  >>> 0;
+                        message.stopY  = stopY  >>> 0;
+                      });
   }
 
   /**
@@ -416,45 +370,45 @@ export class TextEditor extends GadgetBase {
    *             stopX: number, stopY: number}}
    */
   blockInfo() {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.blockInfo: window not open');
-    }
-    /* GP_TEXTEDITOR_BlockInfo: { MethodID; GInfo*; ULONG* x4 } — 24
-     * bytes of message + 16 bytes of result slots the pointers aim at. */
-    const MSG_BYTES = 24, RES_BYTES = 16;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.blockInfo: allocMem(msg) failed');
-    let res = globalThis.amiga.allocMem(RES_BYTES);
-    if (!res) {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      throw new Error('TextEditor.blockInfo: allocMem(res) failed');
-    }
+    /* The message holds four ULONG pointers; the class stores the
+     * block's corners through them. One zeroed block of four ULONGs
+     * receives all of them. */
+    const ULONG_BYTES = 4;
+    const RESULT_BYTES = 4 * ULONG_BYTES;
+
+    let result = globalThis.amiga.allocMem(RESULT_BYTES);
+
+    if (!result) throw new Error('TextEditor.blockInfo: allocMem failed');
+
+    /**
+     * One of the four results.
+     *
+     * @param {number} index - 0 startX, 1 startY, 2 stopX, 3 stopY
+     * @returns {number}
+     */
+    let read = (index) => globalThis.amiga.peek32(
+      result + index * ULONG_BYTES);   /* check-structs: a ULONG array */
+
     try {
-      globalThis.amiga.poke32(res + 0, 0);
-      globalThis.amiga.poke32(res + 4, 0);
-      globalThis.amiga.poke32(res + 8, 0);
-      globalThis.amiga.poke32(res + 12, 0);
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.BlockInfo);
-      globalThis.amiga.poke32(msg + 4,  0);          /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  res + 0);    /* &startx */
-      globalThis.amiga.poke32(msg + 12, res + 4);    /* &starty */
-      globalThis.amiga.poke32(msg + 16, res + 8);    /* &stopx  */
-      globalThis.amiga.poke32(msg + 20, res + 12);   /* &stopy  */
-      let marked = globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      ) | 0;
+      let marked = this._send('blockInfo', BlockInfoMessage,
+                              TextEditor.METHOD.BlockInfo, (message) => {
+                                message.startX = result;
+                                message.startY = result + ULONG_BYTES;
+                                message.stopX  = result + 2 * ULONG_BYTES;
+                                message.stopY  = result + 3 * ULONG_BYTES;
+                              }) | 0;
+
       if (!marked) return null;
+
       return {
-        startX: globalThis.amiga.peek32(res + 0),
-        startY: globalThis.amiga.peek32(res + 4),
-        stopX:  globalThis.amiga.peek32(res + 8),
-        stopY:  globalThis.amiga.peek32(res + 12),
+        startX: read(0),
+        startY: read(1),
+        stopX:  read(2),
+        stopY:  read(3),
       };
     }
     finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(res, RES_BYTES);
+      globalThis.amiga.freeMem(result, RESULT_BYTES);
     }
   }
 
@@ -468,35 +422,13 @@ export class TextEditor extends GadgetBase {
    * @returns {boolean} true when found
    */
   search(needle, flags) {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.search: window not open');
-    }
-    let s = String(needle == null ? '' : needle);
-    let strBytes = s.length + 1;
-    let strBuf = globalThis.amiga.allocMem(strBytes);
-    if (!strBuf) throw new Error('TextEditor.search: allocMem(str) failed');
-    /* GP_TEXTEDITOR_Search: { MethodID; GInfo*; STRPTR; ULONG } — 16 bytes */
-    const MSG_BYTES = 16;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) {
-      globalThis.amiga.freeMem(strBuf, strBytes);
-      throw new Error('TextEditor.search: allocMem(msg) failed');
-    }
-    try {
-      globalThis.amiga.pokeString(strBuf, s);
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.Search);
-      globalThis.amiga.poke32(msg + 4,  0);                 /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  strBuf);            /* STRPTR */
-      globalThis.amiga.poke32(msg + 12, (flags || 0) >>> 0);/* ULONG flags */
-      return !!(globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      ) | 0);
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(strBuf, strBytes);
-    }
+    /* The needle is read during the call; nothing keeps the string. */
+    return !!(globalThis.amiga.withString(needle, (pointer) =>
+      this._send('search', SearchMessage,
+                 TextEditor.METHOD.Search, (message) => {
+                   message.string = pointer;
+                   message.flags  = (flags || 0) >>> 0;
+                 })) | 0);
   }
 }
 

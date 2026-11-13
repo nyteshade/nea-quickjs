@@ -59,7 +59,7 @@ where:
 
 Fields:
   replyPort   {number} MsgPort* ptr at +14 (mn_ReplyPort)
-  messageLen  {number} UWORD at +18 (mn_Length — struct byte size)
+  messageLen  {number} UWORD at +18 (mn_Length - struct byte size)
   device      {number} Device* ptr at +20
   unit        {number} Unit* ptr at +24
   command     {number} UWORD at +28

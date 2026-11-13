@@ -82,7 +82,7 @@ Fields (inherits IORequest + adds):
   setTimeval(secs, micro)     convenience setter
 
 Typical use:
-  // open timer.device first (not wrapped yet — use raw FFI).
+  // open timer.device first (not wrapped yet - use raw FFI).
   let tr = new TimerRequest();
   tr.replyPort  = port.ptr;
   tr.messageLen = TimerRequest.SIZE;

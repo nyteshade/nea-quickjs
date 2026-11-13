@@ -70,29 +70,48 @@ const ARITHMETIC = {
   '/': (held, shown) => (shown === 0 ? NaN : held / shown),
 };
 
-/** The most characters the display holds. Anything longer is cut off
- *  at the right. */
+/** The most characters the display holds. A result that needs more
+ *  is shown in scientific notation; typing stops when it is full. */
 const DISPLAY_CHARS = 16;
 
 /** How many significant digits a result with a fraction is shown to. */
 const RESULT_DIGITS = 12;
 
 /**
- * Turn a result into the text for the display.
+ * Turn a result into the text for the display. The text always fits
+ * the display: a number too long to write out is given in scientific
+ * notation (1.2345e+21) with as many digits as there is room for,
+ * never cut off.
  *
  * @param {number} value
- * @returns {string}
+ * @returns {string} at most DISPLAY_CHARS characters
  */
 function formatNumber(value) {
   if (Number.isNaN(value))     return 'Error';
   if (!Number.isFinite(value)) return 'Inf';
-  if (Number.isInteger(value)) return String(value);
 
-  /* A fraction: fixed precision, then drop the zeros it ends with. */
-  let text = value.toPrecision(RESULT_DIGITS);
-  if (text.indexOf('.') >= 0) {
-    text = text.replace(/0+$/, '').replace(/\.$/, '');
+  let text;
+
+  if (Number.isInteger(value)) {
+    text = String(value);
   }
+  else {
+    /* A fraction: fixed precision, then drop the zeros it ends with. */
+    text = value.toPrecision(RESULT_DIGITS);
+    if (text.indexOf('.') >= 0 && text.indexOf('e') < 0) {
+      text = text.replace(/0+$/, '').replace(/\.$/, '');
+    }
+  }
+
+  if (text.length <= DISPLAY_CHARS) return text;
+
+  /* Too long. Scientific notation, dropping digits until it fits;
+   * with no digits after the point ("1e+21") it always does. */
+  for (let digits = RESULT_DIGITS - 1; digits >= 0; digits--) {
+    text = value.toExponential(digits);
+    if (text.length <= DISPLAY_CHARS) break;
+  }
+
   return text;
 }
 
@@ -110,6 +129,11 @@ class Calculator {
 
     /** @type {number} the first number, or the running result */
     this.held = 0;
+
+    /** @type {number} the number the display stands for while it
+     *  shows a result. The text may be rounded to fit; sums go on
+     *  with this, not with the text. */
+    this.shownValue = 0;
 
     /** @type {boolean} true when the next digit starts a new number
      *  rather than adding to the one on the display */
@@ -134,6 +158,7 @@ class Calculator {
    */
   clear() {
     this.held = 0;
+    this.shownValue = 0;
     this.pending = null;
     this.startsNumber = true;
     this._show('0');
@@ -157,6 +182,9 @@ class Calculator {
     /* A number has only one decimal point. */
     if (digit === '.' && this.display.indexOf('.') >= 0) return;
 
+    /* The display is full: the key does nothing. */
+    if (this.display.length >= DISPLAY_CHARS) return;
+
     this._show(this.display + digit);
   }
 
@@ -168,24 +196,32 @@ class Calculator {
    * @returns {undefined}
    */
   _operator(operator) {
-    let shown  = parseFloat(this.display);
+    /* While the display shows a result (nothing typed since), the
+     * second number is that result itself, not its text: the text of
+     * a long result is rounded, and reading it back would change the
+     * number. (It used to be cut off at 16 characters, and the cut
+     * text became the next operand.) */
+    let shown  = this.startsNumber ? this.shownValue
+                                   : parseFloat(this.display);
     let result = this.pending ? ARITHMETIC[this.pending](this.held, shown)
                               : shown;
 
     this.held = result;
+    this.shownValue = result;
     this.pending = (operator === '=' ? null : operator);
     this.startsNumber = true;
     this._show(formatNumber(result));
   }
 
   /**
-   * Put text on the display, cut to the display's width.
+   * Put text on the display. Callers pass text that fits: a typed
+   * number stops growing when the display is full, and formatNumber()
+   * never returns more than DISPLAY_CHARS characters.
    *
    * @param {string} text
    * @returns {undefined}
    */
   _show(text) {
-    if (text.length > DISPLAY_CHARS) text = text.substring(0, DISPLAY_CHARS);
     this.display = text;
   }
 }

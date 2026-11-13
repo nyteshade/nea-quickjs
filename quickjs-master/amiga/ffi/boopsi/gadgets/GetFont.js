@@ -31,6 +31,12 @@ const GETFONT = Object.freeze({
   Width:          0x8504000B,   /* +11 */
 });
 
+/** @internal getfont.gadget's own methods (gadgets/getfont.h). */
+const GFONT = Object.freeze({
+  /* check-constants: prefix GFONT_ header gadgets/getfont.h */
+  REQUEST: 0x600001,
+});
+
 /**
  * getfont.gadget — pop-up font requester.
  *
@@ -57,6 +63,10 @@ export class GetFont extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -79,13 +89,16 @@ export class GetFont extends GadgetBase {
    * Demos should filter for textAttr being non-null before treating
    * the event as a real pick — empty-state clicks have textAttr=0.
    *
-   * @param {number} winStructPtr — struct Window * (NOT the wrapper).
-   *                                Use `win.intuiWindow.ptr` from a
-   *                                ReactionWindow.
-   * @returns {number} method dispatcher result
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer (`win.intuiWindow.ptr`). Omit it for the window the
+   *   gadget is in.
+   * @returns {number} what the class returned: non-zero if a font was
+   *   chosen
+   * @throws {Error} if there is no open window
    */
-  request(winStructPtr) {
-    return this.doMethod(0x600001, winStructPtr | 0);
+  request(window) {
+    return this._sendRequest('GetFont.request', GFONT.REQUEST, window);
   }
 }
 

@@ -21,14 +21,15 @@
  *   - an inside of 260 x 100 pixels is enough for the label and both
  *     buttons in the screen's font
  *
- * Requires quickjs.library 0.139+.
+ * Requires quickjs.library 0.156+ (the classes arrived in 0.139, but
+ * a button click only became a BUTTON_CLICK event in 0.156).
  * Run: qjs examples/react_hello.js
  */
 
 import * as std from 'qjs:std';
 
 if (!amiga.boopsi || !amiga.boopsi.Window) {
-  print('Reaction Phase B not installed - need quickjs.library 0.139+');
+  print('Reaction classes not installed - need quickjs.library 0.156+');
   std.exit(1);
 }
 

@@ -36,7 +36,7 @@ where:
   ptr - REQUIRED: an existing BOOPSI image pointer returned by
         Intuition.NewObjectTags('frameiclass'/'sysiclass'/etc, ...).
         You cannot allocate a BOOPSI image from scratch via this
-        wrapper — use NewObjectTags and let it wrap the return.
+        wrapper - use NewObjectTags and let it wrap the return.
 
 Fields (read-only getters):
   leftEdge  {number} WORD, +0

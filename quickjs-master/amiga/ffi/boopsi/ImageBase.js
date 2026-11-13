@@ -87,4 +87,47 @@ export class ImageBase extends BOOPSIBase {
 
   get height() { return this.get('height'); }
   set height(v){ this.set({ height: v }); }
+
+  /**
+   * Draw the image again where it already is, in the open window it
+   * belongs to. Changing an image's attributes does not repaint it;
+   * the NDK's Examples/LED.c shows the way to do that, and this is
+   * it:
+   *
+   *     SetAttrs(image, ...);
+   *     DrawImageState(window->RPort, image, 0, 0, IDS_NORMAL, drawInfo);
+   *
+   * The offsets are 0 because the layout has already put the image's
+   * position in the window into the image itself.
+   *
+   * Only right for an image that paints its whole box, as led.image
+   * does; one that draws just its text (label.image) would leave the
+   * old text showing through.
+   *
+   * @returns {boolean} false if the image is not in an open window,
+   *   in which case nothing was drawn (it is drawn when the window
+   *   opens)
+   */
+  redraw() {
+    let windowPointer = this.ptr ? this._findWindowPtr() : 0;
+
+    if (!windowPointer) return false;
+
+    const Intuition = globalThis.amiga.Intuition;
+    let window   = new globalThis.amiga.intuition.Window(windowPointer);
+    let screen   = window.screen;
+    let drawInfo = Intuition.GetScreenDrawInfo(screen);
+
+    if (!drawInfo) return false;
+
+    try {
+      Intuition.DrawImageState(window.rastPort, this.ptr, 0, 0,
+                               Intuition.consts.IDS_NORMAL, drawInfo);
+    }
+    finally {
+      Intuition.FreeScreenDrawInfo(screen, drawInfo);
+    }
+
+    return true;
+  }
 }

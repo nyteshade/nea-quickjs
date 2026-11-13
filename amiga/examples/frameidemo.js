@@ -99,10 +99,13 @@ if (!window) {
   std.exit(1);
 }
 
-print('Window open - close-gadget or CTRL-C to exit.');
+print('Window open - click its close gadget to exit.');
 
-/** Every frame object made, in the order made, so that each can be
- *  redrawn on a refresh and disposed of at the end. */
+/** Every frame object made, with the grid cell it belongs in, so that
+ *  each can be redrawn in its own place on a refresh and disposed of
+ *  at the end. A frame that could not be made is simply not here.
+ *
+ *  @type {Array<{frame: object, column: number, row: number}>} */
 let frames = [];
 
 
@@ -119,7 +122,7 @@ try {
 
       if (!frame) continue;
 
-      frames.push(frame);
+      frames.push({ frame, column: frameType, row: recessed });
       drawFrame(window, frame, frameType, recessed);
     }
   }
@@ -131,17 +134,8 @@ try {
     if (message.class === C.IDCMP_REFRESHWINDOW) {
       Intuition.BeginRefresh(window);
 
-      /* Assumes every frame was made: frames[] is then in grid order,
-       * left to right and top row first. */
-      let cellCount = RECESSED_STATES * FRAME_TYPE_COUNT;
-
-      for (let cell = 0; cell < cellCount; cell++) {
-        let column = cell % FRAME_TYPE_COUNT;
-        let row    = Math.floor(cell / FRAME_TYPE_COUNT);
-
-        if (frames[cell]) {
-          drawFrame(window, frames[cell], column, row);
-        }
+      for (let made of frames) {
+        drawFrame(window, made.frame, made.column, made.row);
       }
 
       Intuition.EndRefresh(window, true);
@@ -149,8 +143,8 @@ try {
   }
 }
 finally {
-  for (let frame of frames) {
-    Intuition.DisposeObject(frame);
+  for (let made of frames) {
+    Intuition.DisposeObject(made.frame);
   }
 
   window.close();

@@ -58,7 +58,7 @@ To describe a font of your own, allocate the name and point at it:
   attr.free(); name.free();
 
 Typical use:
-  screen.font.name, screen.font.ySize — live view of the screen's
+  screen.font.name, screen.font.ySize - live view of the screen's
   font TextAttr. Do NOT write to system-owned instances.`;
   }
 

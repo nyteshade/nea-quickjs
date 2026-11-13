@@ -7,13 +7,15 @@
  *   | [ Pick Screen Mode... ] [   Quit   ] |
  *   +--------------------------------------+
  *
- * Click "Pick Screen Mode..." to open the screen-mode requester, which
- * also lets you set width, height and depth. Once a mode has been
- * chosen, its display ID and size are printed on the Shell.
+ * Click "Pick Screen Mode...", or the mode display itself, to open
+ * the screen-mode requester, which also lets you set width, height and
+ * depth. When it closes, the mode the gadget now holds is printed on
+ * the Shell, with a note saying whether it was chosen or the requester
+ * was cancelled.
  *
  * As with getfont_demo.js, the gadget only displays the current
  * choice. It does not open the requester by itself: the program has to
- * ask it to, which is what the button and `request()` are for.
+ * ask it to, which is what `request()` is for.
  *
  * Assumptions:
  *   - the window opens on the default public screen (normally
@@ -22,13 +24,15 @@
  *     and window.class are in SYS:Classes, as AmigaOS 3.2 installs them
  *   - the gadget reports a click on its display even when no mode has
  *     been chosen. That was observed, not documented
- *   - a display ID of 0 means "nothing chosen yet". 0 is also the ID
- *     of the plain low-resolution mode, so choosing that mode prints
- *     nothing
+ *   - request() returns non-zero when a mode was chosen and 0 when the
+ *     requester was cancelled. getfile.gadget's autodoc and the NDK's
+ *     GetColor example say so for those two gadgets; nothing says it
+ *     for this one, which is why the mode is printed either way
  *   - window.class reports gadget clicks even though the `idcmp:` mask
  *     below asks only for close, refresh and attribute updates
  *
- * Requires quickjs.library 0.170+.
+ * Requires quickjs.library 0.232+ (request() takes the window object
+ * or nothing from then on).
  * Run: qjs examples/getscreenmode_demo.js
  */
 
@@ -51,6 +55,25 @@ let modeDisplay = new GetScreenMode({
   doHeight: true,
   doDepth:  true,
 });
+
+/**
+ * Open the requester, wait for the user, and print the mode the gadget
+ * holds afterwards.
+ *
+ * Whether a mode was chosen is what request() returns. The display ID
+ * cannot tell: 0 is a real mode (plain low resolution), not "none".
+ *
+ * @returns {undefined}
+ */
+function pickMode() {
+  let chosen = modeDisplay.request();
+
+  print((chosen ? 'Chosen: ' : 'Cancelled; the mode is still: ') +
+        'DisplayID=0x' + modeDisplay.get('displayID').toString(HEXADECIMAL) +
+        '  ' + modeDisplay.get('displayWidth') +
+        'x'  + modeDisplay.get('displayHeight') +
+        'x'  + modeDisplay.get('displayDepth'));
+}
 
 let pickButton = new Button({ id: ID.PICK, text: 'Pick _Screen Mode...' });
 let quitButton = new Button({ id: ID.QUIT, text: '_Quit' });
@@ -98,27 +121,11 @@ try {
     if (event.kind === EventKind.BUTTON_CLICK) {
       if (event.sourceId === ID.QUIT) break;
 
-      if (event.sourceId === ID.PICK) {
-        /* The requester wants the real Intuition window, not the
-         * JavaScript object wrapped around it. */
-        modeDisplay.request(window.intuiWindow.ptr);
-      }
+      if (event.sourceId === ID.PICK) pickMode();
     }
 
-    if (event.kind === EventKind.SCREENMODE_SELECTED) {
-
-      /* This event arrives on every click of the mode display, whether
-       * or not anything has been chosen yet. A display ID of 0 is
-       * taken to mean nothing has. */
-      let displayID = modeDisplay.get('displayID');
-
-      if (displayID) {
-        print('DisplayID=0x' + displayID.toString(HEXADECIMAL) +
-              '  ' + modeDisplay.get('displayWidth') +
-              'x'  + modeDisplay.get('displayHeight') +
-              'x'  + modeDisplay.get('displayDepth'));
-      }
-    }
+    /* A click on the mode display itself: treat it like the button. */
+    if (event.kind === EventKind.SCREENMODE_SELECTED) pickMode();
   }
 }
 finally {

@@ -41,6 +41,12 @@ const GETFILE = Object.freeze({
   FilePartOnly:   0x85060017,
 });
 
+/** @internal getfile.gadget's own methods (gadgets/getfile.h). */
+const GFILE = Object.freeze({
+  /* check-constants: prefix GFILE_ header gadgets/getfile.h */
+  REQUEST: 0x620001,
+});
+
 /**
  * getfile.gadget — file-requester popup button.
  *
@@ -76,9 +82,41 @@ export class GetFile extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
+  }
+
+  /**
+   * Open the file requester and wait for the user. The gadget does
+   * not do this by itself when clicked: gadgets/getfile.h says the
+   * GFILE_REQUEST method "should be called whenever you want to open
+   * the requester", and gives the macro gfRequestFile(obj, win) for
+   * it. The usual place is the handler of the gadget's own
+   * FILE_SELECTED event, which arrives when the gadget is clicked:
+   *
+   *   if (event.kind === EventKind.FILE_SELECTED &&
+   *       fileChooser.request()) {
+   *     print(fileChooser.get('fullFile'));
+   *   }
+   *
+   * (Until 0.231 this wrapper had no such method, so a GetFile could
+   * be clicked but never showed a requester.)
+   *
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer. Omit it for the window the gadget is in.
+   * @returns {boolean} true if a file was chosen. The autodoc notes
+   *   that the method returns 0 when the file field was left empty,
+   *   even if the user pressed OK, unless drawersOnly is set.
+   * @throws {Error} if there is no open window
+   */
+  request(window) {
+    return this._sendRequest('GetFile.request', GFILE.REQUEST, window) !== 0;
   }
 }
 
