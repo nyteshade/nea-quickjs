@@ -8,7 +8,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const SCROLLER = Object.freeze({
   /* check-constants: prefix SCROLLER_ header gadgets/scroller.h */
@@ -47,7 +47,7 @@ export class Scroller extends GadgetBase {
     top:         { tagID: SCROLLER.Top,         type: 'int32' },
     visible:     { tagID: SCROLLER.Visible,     type: 'int32' },
     total:       { tagID: SCROLLER.Total,       type: 'int32' },
-    orientation: { tagID: SCROLLER.Orientation, type: 'uint32' },
+    orientation: { tagID: SCROLLER.Orientation, type: 'int32' },
     arrows:      { tagID: SCROLLER.Arrows,      type: 'bool' },   /* (BOOL) in gadgets/scroller.h */
     stretch:     { tagID: SCROLLER.Stretch,     type: 'bool' },
     arrowDelta:  { tagID: SCROLLER.ArrowDelta,  type: 'int32' },
@@ -70,7 +70,7 @@ export class Scroller extends GadgetBase {
 }
 
 EventKind.define('SCROLLER_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/scroller.gadget',

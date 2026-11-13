@@ -20,37 +20,42 @@
  * The file has three parts:
  *
  *   1. BUILDING MENUS  - labels, items and menus, and freeing them.
- *   2. THE WINDOW      - the window and the two menus put on it.
+ *   2. THE WINDOW      - the two menus, and the window they go on.
  *   3. THE LOOP        - menu picks in, lines on the Shell out.
  *
  * Assumptions:
  *   - opens on the default public screen (Workbench), which is at
- *     least 520 x 220 pixels
- *   - the screen font is about 8 pixels high: item positions and sizes
- *     are fixed numbers, not measured from the font
+ *     least 520 x 220 pixels and not a low-resolution one (the room
+ *     left for checkmarks and shortcuts is the header's CHECKWIDTH
+ *     and COMMWIDTH, which are for a screen 640 or more across)
+ *   - menus are drawn in the screen's font, so the items are sized
+ *     and placed by measuring that font
  *   - pens 0 and 1 are the menu background and text colours
  *   - the Menu and MenuItem structs must outlive the menu strip, so
  *     the strip is cleared before anything is freed
  *
- * Requires quickjs.library 0.221+.
+ * Requires quickjs.library 0.237+ (CHECKWIDTH and COMMWIDTH arrived
+ * then).
  * Run: qjs examples/menu_demo.js
  */
 
 import * as std from 'qjs:std';
 
-/* The menu flags and Intuition.MENUNUM arrived in 0.221; their
- * presence is the test for a new enough library. */
+/* The newest thing this script uses is Intuition.consts.CHECKWIDTH,
+ * which arrived in 0.237. */
 if (typeof Intuition !== 'function' ||
+    typeof amiga.ScreenFont !== 'function' ||
     typeof amiga.intuition.Menu !== 'function' ||
     typeof amiga.intuition.IntuiText !== 'function' ||
-    !('CHECKIT' in Intuition.consts) ||
+    !('CHECKWIDTH' in Intuition.consts) ||
     typeof Intuition.MENUNUM !== 'function') {
-  print('Need quickjs.library 0.221 or later');
+  print('Need quickjs.library 0.237 or later');
   std.exit(1);
 }
 
 const C = Intuition.consts;
 
+const { ScreenFont } = amiga;
 const { Menu, MenuItem, IntuiText } = amiga.intuition;
 
 
@@ -91,22 +96,68 @@ const JAM1 = Graphics.consts.JAM1;
 const LABEL_FRONT_PEN = 1;
 const LABEL_BACK_PEN  = 0;
 
-/** Where a label sits inside its item, in pixels. */
+/* Intuition draws menus in the screen's font and lays nothing out:
+ * every item's position and size is ours to give, in pixels. The user
+ * chooses that font, so the sizes are measured, not fixed. ScreenFont
+ * reads the font before any window exists. */
+let screenFont = new ScreenFont();
+
+/** Where a label sits inside its item: a pixel of space all round. */
 const LABEL_X = 1;
-const LABEL_Y  = 1;
+const LABEL_Y = 1;
 
-/** Size of an item when the description does not give one, in
- *  pixels. */
-const DEFAULT_ITEM_WIDTH  = 120;
-const DEFAULT_ITEM_HEIGHT = 10;
+/** Height of each item in a menu, and the distance from the top of
+ *  one item to the top of the next. With an 8-pixel font these are
+ *  the customary 10 and 11. */
+const ITEM_HEIGHT = screenFont.height + 2 * LABEL_Y;
+const ITEM_PITCH  = ITEM_HEIGHT + 1;
 
-/** Height of each item in a menu and the distance from the top of one
- *  item to the top of the next, in pixels. */
-const ITEM_HEIGHT = 10;
-const ITEM_PITCH  = 11;
+/** Room Intuition needs inside an item (intuition/intuition.h): on
+ *  the left for the checkmark of an item that has one, and on the
+ *  right for the Amiga-key symbol of an item with a shortcut, which
+ *  is followed by the shortcut's letter. */
+const CHECK_ROOM    = Number(C.CHECKWIDTH);
+const SHORTCUT_ROOM = Number(C.COMMWIDTH) + screenFont.nominalWidth;
 
-/** Width of a menu's title in the menu bar, in pixels. */
-const MENU_TITLE_WIDTH = 80;
+/** Space after the longest label, and after a menu's title in the
+ *  menu bar: one character. */
+const LABEL_GAP = screenFont.nominalWidth;
+
+/**
+ * How wide an item has to be to hold its label and whatever Intuition
+ * draws beside it.
+ *
+ * @param {object} description - as for makeItem
+ * @returns {number} pixels
+ */
+function widthNeeded(description) {
+  return labelLeft(description) + screenFont.widthOf(description.label)
+       + LABEL_GAP
+       + (description.command ? SHORTCUT_ROOM : 0);
+}
+
+/**
+ * Where an item's label starts. A checkable item keeps its label
+ * clear of the checkmark, which Intuition draws at the item's left
+ * edge; until 0.237 this script started every label at the edge, so
+ * the mark was drawn over the first letters of the Options items.
+ *
+ * @param {object} description - as for makeItem
+ * @returns {number} pixels from the item's left edge
+ */
+function labelLeft(description) {
+  return description.checkable ? CHECK_ROOM : LABEL_X;
+}
+
+/**
+ * How wide a menu's title is in the menu bar.
+ *
+ * @param {string} title
+ * @returns {number} pixels
+ */
+function titleWidth(title) {
+  return screenFont.widthOf(title) + 2 * LABEL_GAP;
+}
 
 /**
  * Build the IntuiText for one menu-item label. The IntuiText owns a
@@ -134,8 +185,10 @@ function makeLabel(label, leftEdge) {
  * @param {string}  description.label - visible text
  * @param {number}  [description.leftEdge=0] - x inside the menu, pixels
  * @param {number}  [description.topEdge=0] - y inside the menu, pixels
- * @param {number}  [description.width=120] - pixels
- * @param {number}  [description.height=10] - pixels
+ * @param {number}  [description.width] - pixels; what the label needs
+ *   when left out
+ * @param {number}  [description.height] - pixels; ITEM_HEIGHT when
+ *   left out
  * @param {number}  [description.command] - character code of the
  *   Amiga-key shortcut; leave out for none
  * @param {boolean} [description.checkable] - true for a checkmark item
@@ -143,13 +196,13 @@ function makeLabel(label, leftEdge) {
  * @returns {{item: MenuItem, label: IntuiText}}
  */
 function makeItem(description) {
-  let label = makeLabel(description.label, LABEL_X);
+  let label = makeLabel(description.label, labelLeft(description));
   let item  = new MenuItem();
 
   item.leftEdge = description.leftEdge || 0;
   item.topEdge  = description.topEdge  || 0;
-  item.width    = description.width    || DEFAULT_ITEM_WIDTH;
-  item.height   = description.height   || DEFAULT_ITEM_HEIGHT;
+  item.width    = description.width    || widthNeeded(description);
+  item.height   = description.height   || ITEM_HEIGHT;
 
   let flags = ITEMENABLED | HIGHCOMP | ITEMTEXT;
 
@@ -169,12 +222,13 @@ function makeItem(description) {
 
 /**
  * Build a Menu and its items, stacked one under another and linked
- * together. Everything returned must be released with freeMenu().
+ * together. Every item is as wide as the widest needs to be.
+ * Everything returned must be released with freeMenu().
  *
  * @param {string} title - the word in the menu bar
  * @param {number} leftEdge - x position in the menu bar, in pixels
  * @param {Array<object>} descriptions - one per item, as for makeItem;
- *   topEdge and height are filled in when left out
+ *   topEdge, width and height are filled in when left out
  * @returns {{menu: Menu,
  *            titleAlloc: {ptr: number, size: number},
  *            items: Array<{item: MenuItem, label: IntuiText}>}}
@@ -183,10 +237,12 @@ function makeMenu(title, leftEdge, descriptions) {
   let menu  = new Menu();
   let items = [];
   let top   = 0;
+  let width = Math.max(...descriptions.map(widthNeeded));
 
   for (let description of descriptions) {
     let { item, label } = makeItem({
       topEdge: top,
+      width:   width,
       height:  ITEM_HEIGHT,
       ...description,
     });
@@ -210,7 +266,7 @@ function makeMenu(title, leftEdge, descriptions) {
 
   menu.leftEdge  = leftEdge;
   menu.topEdge   = 0;
-  menu.width     = MENU_TITLE_WIDTH;
+  menu.width     = titleWidth(title);
   menu.height    = 0;                       /* Intuition works it out */
   menu.flags     = MENUENABLED;
   menu.menuName  = titlePtr;
@@ -249,19 +305,20 @@ function freeMenu(built) {
 /* ==================================================================
  * 2. THE WINDOW
  *
- * The window, the two menus, and the three Intuition calls that have
+ * The two menus, the window, and the three Intuition calls that have
  * no wrapper method yet and so are made through amiga.call().
+ *
+ * The menus are built first. They need no window, and if one cannot
+ * be built there is then no window to leave open.
  * ================================================================== */
 
 /** Where the things the loop looks for sit in the menu strip. */
 const PROJECT_MENU_NUMBER = 0;
 const QUIT_ITEM_NUMBER    = 2;
 
-/** Where the Options menu starts in the menu bar, in pixels. */
-const OPTIONS_MENU_LEFT = 80;
-
-/** Width of every item in both menus, in pixels. */
-const ITEM_WIDTH = 140;
+/** Where the Options menu starts in the menu bar: straight after the
+ *  Project menu's title. */
+const OPTIONS_MENU_LEFT = titleWidth('Project');
 
 /**
  * The character code of a shortcut key.
@@ -273,38 +330,67 @@ function shortcut(key) {
   return key.charCodeAt(0);
 }
 
-let window = Intuition.OpenWindowTags([
-  [C.WA_Left,   40],
-  [C.WA_Top,    40],
-  [C.WA_Width,  480],
-  [C.WA_Height, 180],
-  [C.WA_Title,  'Menu Demo - press right-Amiga + Q to quit'],
-  [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
-              | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
-  [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_MENUPICK
-              | C.IDCMP_REFRESHWINDOW],
-]);
+let projectMenu = null;
+let optionsMenu = null;
+let window      = null;
+
+/**
+ * Free whatever of the two menus has been built, and unlock the
+ * screen if it is still locked.
+ *
+ * @returns {undefined}
+ */
+function freeMenus() {
+  if (optionsMenu) freeMenu(optionsMenu);
+  if (projectMenu) freeMenu(projectMenu);
+
+  optionsMenu = null;
+  projectMenu = null;
+  screenFont.close();
+}
+
+try {
+  projectMenu = makeMenu('Project', 0, [
+    { label: 'Open...', command: shortcut('O') },
+    { label: 'Save',    command: shortcut('S') },
+    { label: 'Quit',    command: shortcut('Q') },
+  ]);
+
+  optionsMenu = makeMenu('Options', OPTIONS_MENU_LEFT, [
+    { label: 'Auto-save',    checkable: true, checked: true },
+    { label: 'Verbose logs', checkable: true, checked: false },
+  ]);
+
+  /* The strip is the Project menu followed by the Options menu. */
+  projectMenu.menu.nextMenu = optionsMenu.menu.ptr;
+
+  /* The window draws nothing of its own, so it asks to hear only
+   * about its close gadget and its menus. */
+  window = Intuition.OpenWindowTags([
+    [C.WA_Left,   40],
+    [C.WA_Top,    40],
+    [C.WA_Width,  480],
+    [C.WA_Height, 180],
+    [C.WA_Title,  'Menu Demo - press right-Amiga + Q to quit'],
+    [C.WA_Flags,  C.WFLG_DRAGBAR | C.WFLG_DEPTHGADGET
+                | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
+    [C.WA_IDCMP,  C.IDCMP_CLOSEWINDOW | C.IDCMP_MENUPICK],
+  ]);
+}
+catch (error) {
+  freeMenus();
+  throw error;
+}
+
+/* The window keeps the screen open from here on, and everything has
+ * been measured, so the lock that ScreenFont holds can go. */
+screenFont.close();
 
 if (!window) {
   print('OpenWindowTags failed');
+  freeMenus();
   std.exit(1);
 }
-
-let projectMenu = makeMenu('Project', 0, [
-  { label: 'Open...', width: ITEM_WIDTH, command: shortcut('O') },
-  { label: 'Save',    width: ITEM_WIDTH, command: shortcut('S') },
-  { label: 'Quit',    width: ITEM_WIDTH, command: shortcut('Q') },
-]);
-
-let optionsMenu = makeMenu('Options', OPTIONS_MENU_LEFT, [
-  { label: 'Auto-save',    width: ITEM_WIDTH, checkable: true,
-    checked: true },
-  { label: 'Verbose logs', width: ITEM_WIDTH, checkable: true,
-    checked: false },
-]);
-
-/* The strip is the Project menu followed by the Options menu. */
-projectMenu.menu.nextMenu = optionsMenu.menu.ptr;
 
 /**
  * Put the menu strip on the window.
@@ -398,8 +484,7 @@ try {
 finally {
   clearMenuStrip();
   window.close();
-  freeMenu(optionsMenu);
-  freeMenu(projectMenu);
+  freeMenus();
 }
 
 print('Clean exit.');

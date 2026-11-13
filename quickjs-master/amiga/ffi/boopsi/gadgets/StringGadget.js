@@ -10,7 +10,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS, GA } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal STRINGA_* tag IDs.
  *
@@ -152,7 +152,7 @@ export class StringGadget extends GadgetBase {
 }
 
 EventKind.define('STRING_CHANGED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/string.gadget',

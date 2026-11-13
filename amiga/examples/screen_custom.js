@@ -21,20 +21,23 @@
  *     mode; no mode is asked for
  *   - pens 1, 2 and 3 of the new screen's default palette are visible
  *     against pen 0, the background
- *   - the window draws in the new screen's font, and is sized and
- *     laid out from that font's height
+ *   - the screen is opened without naming a font, so it and the
+ *     window on it both use the system default font; the window is
+ *     sized and laid out by measuring that font on the screen
+ *   - the contents fit a screen 320 pixels across in that font. If
+ *     they do not, the window cannot open and the script says so
  *
- * Requires quickjs.library 0.217+.
+ * Requires quickjs.library 0.237+ (Screen.rastPort arrived then).
  * Run: qjs examples/screen_custom.js
  */
 
 import * as std from 'qjs:std';
 
-/* WA_InnerWidth arrived in 0.217, with RastPort.fontHeight and window
- * titles; its presence is the test for a new enough library. */
+/* The newest thing this script uses is Screen.rastPort, 0.237. */
 if (typeof Intuition !== 'function' ||
-    !('WA_InnerWidth' in Intuition.consts)) {
-  print('Need quickjs.library 0.217 or later');
+    typeof amiga.intuition.Screen !== 'function' ||
+    !('rastPort' in amiga.intuition.Screen.prototype)) {
+  print('Need quickjs.library 0.237 or later');
   std.exit(1);
 }
 
@@ -47,6 +50,14 @@ const SCREEN_DEPTH = 2;
 
 /** The pens used, by what each is used for. */
 const PEN = { TEXT: 1, FILL: 2, OUTLINE: 3 };
+
+/** The two lines of text. */
+const GREETING  = 'Hello from a custom screen!';
+const HINT_TEXT = 'Close to exit.';
+
+/** The least the contents may be across, in pixels, so that the boxes
+ *  have some length even in a narrow font. */
+const LEAST_CONTENT_WIDTH = 160;
 
 /**
  * Open the custom screen.
@@ -72,7 +83,7 @@ function openCustomScreen() {
  * @returns {Window|null} the window, or null if it could not be opened
  */
 function openWindowOnScreen(screen) {
-  let layout = layoutFor(screen.font.ySize);
+  let layout = layoutFor(screen.rastPort);
 
   /* WA_InnerWidth and WA_InnerHeight give the size inside the
    * borders; Intuition adds the title bar and borders itself. */
@@ -92,14 +103,11 @@ function openWindowOnScreen(screen) {
   ]);
 }
 
-/** How wide the contents are, in pixels. The screen is only 320
- *  across, so this is a fixed number that fits it. */
-const CONTENT_WIDTH = 250;
-
 /**
- * Where everything goes, worked out from the height of one line of
- * text. All positions are in pixels from the top left corner of the
- * area INSIDE the window's borders:
+ * Where everything goes, worked out from the font: the height of one
+ * line of text and the width of the longer of the two lines. All
+ * positions are in pixels from the top left corner of the area INSIDE
+ * the window's borders:
  *
  *   a line of text
  *   a filled box, two lines high and half as wide as the contents
@@ -108,22 +116,32 @@ const CONTENT_WIDTH = 250;
  *
  * with half a line between each and around the outside.
  *
- * @param {number} line - height of one line of text, in pixels
+ * The font is taken from a RastPort: the screen's own before the
+ * window is open, the window's afterwards. They hold the same font
+ * (see Assumptions), so both give the same layout.
+ *
+ * @param {RastPort} rastPort - a RastPort holding the font
  * @returns {{margin: number, line: number, fillTop: number,
  *            outlineTop: number, boxHeight: number, hintTop: number,
- *            innerWidth: number, innerHeight: number}}
+ *            contentWidth: number, innerWidth: number,
+ *            innerHeight: number}}
  */
-function layoutFor(line) {
+function layoutFor(rastPort) {
+  let line      = rastPort.fontHeight;
   let margin    = Math.round(line / 2);
   let boxHeight = 2 * line;
+
+  let contentWidth = Math.max(LEAST_CONTENT_WIDTH,
+                              rastPort.textWidth(GREETING),
+                              rastPort.textWidth(HINT_TEXT));
 
   let fillTop    = margin + line + margin;
   let outlineTop = fillTop + boxHeight + margin;
   let hintTop    = outlineTop + boxHeight + margin;
 
   return {
-    margin, line, fillTop, outlineTop, boxHeight, hintTop,
-    innerWidth:  CONTENT_WIDTH + 2 * margin,
+    margin, line, fillTop, outlineTop, boxHeight, hintTop, contentWidth,
+    innerWidth:  contentWidth + 2 * margin,
     innerHeight: hintTop + line + margin,
   };
 }
@@ -141,27 +159,27 @@ function layoutFor(line) {
  */
 function paint(window) {
   let rastPort = window.rastPort;
-  let layout   = layoutFor(rastPort.fontHeight);
+  let layout   = layoutFor(rastPort);
 
+  /* The last pixel of the contents is one short of their width. */
   let left     = window.borderLeft + layout.margin;
   let top      = window.borderTop;
-  let right    = left + CONTENT_WIDTH;
+  let right    = left + layout.contentWidth - 1;
   let baseline = rastPort.fontBaseline;
 
   /* text() puts the BASELINE of the text at the y it is given. */
   rastPort.setColor(PEN.TEXT);
-  rastPort.text(left, top + layout.margin + baseline,
-                'Hello from a custom screen!');
+  rastPort.text(left, top + layout.margin + baseline, GREETING);
 
   rastPort.setColor(PEN.FILL);
   rastPort.rectFill(left, top + layout.fillTop,
-                    left + Math.round(CONTENT_WIDTH / 2),
-                    top + layout.fillTop + layout.boxHeight);
+                    left + Math.round(layout.contentWidth / 2),
+                    top + layout.fillTop + layout.boxHeight - 1);
 
   /* The outlined box: four lines, each starting where the last
    * ended. */
   let outlineTop    = top + layout.outlineTop;
-  let outlineBottom = outlineTop + layout.boxHeight;
+  let outlineBottom = outlineTop + layout.boxHeight - 1;
 
   rastPort.setColor(PEN.OUTLINE);
   rastPort.move(left,  outlineTop);
@@ -171,7 +189,7 @@ function paint(window) {
   rastPort.draw(left,  outlineTop);
 
   rastPort.setColor(PEN.TEXT);
-  rastPort.text(left, top + layout.hintTop + baseline, 'Close to exit.');
+  rastPort.text(left, top + layout.hintTop + baseline, HINT_TEXT);
 }
 
 let screen = openCustomScreen();

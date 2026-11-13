@@ -277,7 +277,7 @@ export class Asl extends LibraryBase {
 
     if (!req) {
       return { ok: false, drawer: null, file: null, path: null,
-               requester: 0 };
+               requester: 0 };   /* check-constants: skip - no requester: a null pointer */
     }
 
     try {
@@ -285,7 +285,7 @@ export class Asl extends LibraryBase {
 
       if (!ok) {
         return { ok: false, drawer: null, file: null, path: null,
-                 requester: 0 };
+                 requester: 0 };   /* check-constants: skip - no requester: a null pointer */
       }
 
       /* Copy the answer out now: the strings belong to the requester
@@ -307,7 +307,7 @@ export class Asl extends LibraryBase {
         path = drawer + sep + file;
       }
 
-      return { ok: true, drawer, file, path, requester: 0 };
+      return { ok: true, drawer, file, path, requester: 0 };   /* check-constants: skip - no requester: a null pointer */
     }
 
     finally {

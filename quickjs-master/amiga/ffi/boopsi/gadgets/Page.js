@@ -61,7 +61,7 @@ export class Page extends Layout {
    *  NDK3.2R4/FD/layout_lib.fd (bias 30; LAYOUT_GetClass at -30,
    *  ActivateLayoutGadget -36, FlushLayoutDomainCache -42, RethinkLayout -48,
    *  LayoutLimits -54, PAGE_GetClass at -60). */
-  static _classLibLvo = -60;
+  static _classLibLvo = -60;   /* check-constants: is PAGE_GetClass */
 
   /** Cached class pointer + base, distinct from the Layout class
    *  pointer because Page._libBase shares the layout.gadget OpenLibrary
@@ -85,9 +85,15 @@ export class Page extends Layout {
    * Construct a Page. Like Layout, accepts a `children: []` array,
    * but each child is added via PAGE_Add instead of LAYOUT_AddChild.
    *
-   * @param {object} init
+   * A number is the pointer of an existing page object to wrap:
+   * nothing is created. Until 0.237 the number was ignored and a new,
+   * empty page group was created.
+   *
+   * @param {object|number} init - attributes, or a pointer to wrap
    */
   constructor(init) {
+    if (typeof init === 'number') { super(init); return; }
+
     let raw = (init && typeof init === 'object') ? { ...init } : {};
     let children = raw.children;
     delete raw.children;

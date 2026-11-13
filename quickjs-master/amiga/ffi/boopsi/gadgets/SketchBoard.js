@@ -11,7 +11,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const SGA = Object.freeze({
   /* check-constants: prefix SGA_ header gadgets/sketchboard.h */
@@ -97,7 +97,7 @@ export class SketchBoard extends GadgetBase {
 }
 
 EventKind.define('SKETCH_UPDATE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: true },
   from:  'gadgets/sketchboard.gadget',

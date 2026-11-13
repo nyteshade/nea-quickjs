@@ -8,7 +8,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const GETFILE = Object.freeze({
   /* check-constants: prefix GETFILE_ header gadgets/getfile.h
@@ -121,7 +121,7 @@ export class GetFile extends GadgetBase {
 }
 
 EventKind.define('FILE_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getfile.gadget',

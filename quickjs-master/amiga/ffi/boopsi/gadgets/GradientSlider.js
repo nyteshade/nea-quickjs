@@ -7,7 +7,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const GRAD = Object.freeze({
   /* check-constants: prefix GRAD_ header gadgets/gradientslider.h */
@@ -59,7 +59,7 @@ export class GradientSlider extends GadgetBase {
 }
 
 EventKind.define('GRADIENT_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/gradientslider.gadget',

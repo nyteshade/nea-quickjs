@@ -157,13 +157,14 @@ number, naming its position.
 
 ## Part 2: maintaining them
 
-Three scripts, all in `scripts/`. Run the two checks before every
-build; both exit non-zero when something is wrong.
+Four scripts, all in `scripts/`. Run the checks before every build;
+each exits non-zero when something is wrong.
 
 ```sh
 python3 scripts/check_constants.py     # values against the headers
 python3 scripts/check_structs.py       # offsets against the compiler
 python3 scripts/gen_consts.py --check  # are the generated tables current?
+python3 scripts/check_attr_types.py    # Reaction attribute types
 ```
 
 ### `gen_consts.py` writes the `consts` tables
@@ -217,6 +218,30 @@ and one line can be tied to a header name its key does not resemble:
 ```js
 VERTICAL_BAR: 6,   /* check-constants: is BVS_SBAR_HORIZ */
 ```
+
+A number that stands alone in the code of a wrapper or an example,
+with no key beside it, is reported as a bare literal if it could be an
+OS value: a hex number above 0xFF that is not an all-ones mask, or a
+negative multiple of 6 from -30 down (a library vector offset). Give
+it a name in a table, or tie the line to a header name, which for a
+negative number may be a library function:
+
+```js
+this._libBase, -48,   /* check-constants: is RethinkLayout */
+```
+
+or say why it is not an OS value:
+
+```js
+return b >= 0x80 ? b - 0x100 : b;   /* check-constants: skip - sign extension of a byte */
+```
+
+In `quickjs-master/amiga/ffi` nothing is unverified: every number is
+checked or carries such a note. Keep it so.
+
+The wrappers are bundled into one scope, so two files cannot both say
+`const ICA_TARGET = ...`. Put a file's own copies in a table whose
+keys are the header names (`UPDATE` in `boopsi/classes/Window.js`).
 
 `--fix FILE` rewrites each wrong value in a file to the header's.
 `--unverified` lists the numbers it could not tie to anything; look
@@ -273,6 +298,41 @@ python3 scripts/check_structs.py --layout Window
 
 To add a field to a wrapper: find it in the layout, add the line to
 `OFFSET`, add the getter, run the check.
+
+### `check_attr_types.py` checks the type of every Reaction attribute
+
+`check_constants.py` proves that an attribute's `tagID` is the right
+number. Its `type` (`'bool'`, `'int32'`, `'uint32'`, `'string'`,
+`'string-owned'`, `'ptr'`, `'enum'`) decides how a JavaScript value is
+turned into the tag's 32 bits and back, and a wrong one is just as
+quiet: a string becomes 0, -1 reads back as 4294967295, a pointer
+becomes 1.
+
+The headers give each attribute's C type in a bracket at the start of
+the comment after its `#define`, and the autodocs give it after the
+name:
+
+```c
+#define CHOOSER_Active  (CHOOSER_Dummy+5)
+    /* (WORD) Index of the active label. */
+```
+
+The script reads both and requires the wrapper's type to suit:
+`(BOOL)` is `'bool'`, a string pointer is one of the string types, any
+other pointer is `'ptr'`, a signed type is `'int32'` (never `'uint32'`),
+an unsigned one is `'uint32'` or `'int32'`. Where the header and the
+autodoc disagree, either will do. It also checks that each wrapper
+calls its class library's own `XXX_GetClass` vector.
+
+When the documentation is wrong or the wrapper knows better, say why on
+the line:
+
+```js
+selected: { tagID: SPEEDBAR.Selected, type: 'int32' },   /* check-attr-types: ok - the header says (STRPTR) of a "node number" */
+```
+
+`--untyped` lists the attributes no source gives a type for (most of
+the `WA_` window tags); those rest on a person having read the manual.
 
 ### What these found
 

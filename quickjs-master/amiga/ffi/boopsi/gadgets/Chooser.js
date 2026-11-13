@@ -15,7 +15,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal CHOOSER_* tag IDs (gadgets/chooser.h). */
@@ -60,8 +60,8 @@ export const CNA = Object.freeze({
 });
 
 /** chooser_lib LVO offsets used by _buildLabelList. */
-const CHOOSER_LVO_ALLOC_NODE = -36;
-const CHOOSER_LVO_FREE_NODE  = -42;
+const CHOOSER_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocChooserNodeA */
+const CHOOSER_LVO_FREE_NODE  = -42;   /* check-constants: is FreeChooserNode */
 
 /**
  * chooser.gadget — dropdown / popup selector.
@@ -87,10 +87,10 @@ export class Chooser extends GadgetBase {
      * constructor convenience below builds one for you; otherwise you
      * can pass labelsPtr directly. */
     labelsPtr:      { tagID: CHOOSER.Labels,        type: 'ptr' },
-    active:         { tagID: CHOOSER.Active,        type: 'uint32' },
+    active:         { tagID: CHOOSER.Active,        type: 'int32' },
     autoFit:        { tagID: CHOOSER.AutoFit,       type: 'bool' },
     maxLabels:      { tagID: CHOOSER.MaxLabels,     type: 'int32' },
-    justification:  { tagID: CHOOSER.Justification, type: 'uint32' },
+    justification:  { tagID: CHOOSER.Justification, type: 'int32' },
     labelArray:     { tagID: CHOOSER.LabelArray,    type: 'ptr' },
     deactivateOnMostRawKeys: { tagID: CHOOSER.DeactivateOnMostRawKeys, type: 'bool' },
   };
@@ -166,7 +166,7 @@ export class Chooser extends GadgetBase {
 }
 
 EventKind.define('CHOOSER_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/chooser.gadget',

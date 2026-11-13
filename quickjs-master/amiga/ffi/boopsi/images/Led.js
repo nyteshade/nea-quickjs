@@ -24,10 +24,10 @@ const LED = Object.freeze({
 });
 
 /** Size of one entry of the LED_Values array: a WORD. */
-const WORD_BYTES = 2;
+const WORD_BYTES = 2;   /* check-constants: skip - sizeof(WORD) */
 
 /** The largest number of pairs a led.image shows (images/led.h). */
-const MAX_PAIRS = 8;
+const MAX_PAIRS = 8;   /* check-constants: skip - our own limit */
 
 /**
  * led.image - a row of seven-segment digits, in pairs.
@@ -82,7 +82,7 @@ export class Led extends ImageBase {
    * @returns {number[]} pairCount values, each 0 to 99
    */
   static pairsOf(value, pairCount) {
-    const PAIR_MODULUS = 100;       /* two decimal digits */
+    const PAIR_MODULUS = 100;   /* check-constants: skip - two decimal digits */
     let rest  = Math.max(0, Math.floor(Number(value) || 0));
     let pairs = [];
 

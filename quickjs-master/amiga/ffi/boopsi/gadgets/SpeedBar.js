@@ -24,7 +24,7 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { Label } from '../images/Label.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal SPEEDBAR_* tag IDs (gadgets/speedbar.h). */
@@ -99,8 +99,8 @@ export const SpeedBarHighlight = Object.freeze({
 });
 
 /** speedbar_lib LVO offsets used by _buildButtonList. */
-const SPEEDBAR_LVO_ALLOC_NODE = -36;
-const SPEEDBAR_LVO_FREE_NODE  = -42;
+const SPEEDBAR_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocSpeedButtonNodeA */
+const SPEEDBAR_LVO_FREE_NODE  = -42;   /* check-constants: is FreeSpeedButtonNode */
 
 /**
  * speedbar.gadget — toolbar strip.
@@ -126,15 +126,15 @@ export class SpeedBar extends GadgetBase {
   static ATTRS = {
     ...GADGET_ATTRS,
     buttonsPtr:   { tagID: SPEEDBAR.Buttons,      type: 'ptr' },
-    orientation:  { tagID: SPEEDBAR.Orientation,  type: 'uint32' },
+    orientation:  { tagID: SPEEDBAR.Orientation,  type: 'int32' },
     background:   { tagID: SPEEDBAR.Background,   type: 'uint32' },   /* (UWORD) a pen number */
     strumBar:     { tagID: SPEEDBAR.StrumBar,     type: 'bool' },
     top:          { tagID: SPEEDBAR.Top,          type: 'int32' },
     visible:      { tagID: SPEEDBAR.Visible,      type: 'int32' },
     total:        { tagID: SPEEDBAR.Total,        type: 'int32' },
     help:         { tagID: SPEEDBAR.Help,         type: 'string-owned' },   /* (STRPTR) help text; was bool until 0.224 */
-    bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'uint32' },
-    selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },
+    bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'int32' },
+    selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },   /* check-attr-types: ok - the header says (STRPTR) of a "node number" */
     selectedNode: { tagID: SPEEDBAR.SelectedNode, type: 'ptr' },
     evenSize:     { tagID: SPEEDBAR.EvenSize,     type: 'bool' },
     font:         { tagID: SPEEDBAR.Font,         type: 'ptr' },
@@ -282,7 +282,7 @@ export class SpeedBar extends GadgetBase {
 }
 
 EventKind.define('SPEEDBAR_CLICK', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/speedbar.gadget',

@@ -61,6 +61,10 @@ MANIFEST = [
           'CHECKED', 'ISDRAWN', 'HIGHITEM', 'MENUTOGGLED']),
         ('Menu numbers: "nothing chosen" values', 'intuition/intuition.h',
          ['MENUNULL', 'NOMENU', 'NOITEM', 'NOSUB']),
+        ('Menu item layout: pixels to leave for the checkmark (left) and '
+         'the Amiga-key shortcut (right); LOW for a low-resolution screen',
+         'intuition/intuition.h',
+         ['CHECKWIDTH', 'COMMWIDTH', 'LOWCHECKWIDTH', 'LOWCOMMWIDTH']),
         ('Gadget flags, activation and types', 'intuition/intuition.h',
          ['re:GFLG_\\w+', 're:GACT_\\w+', 're:GTYP_\\w+']),
         ('Screen types', 'intuition/screens.h',

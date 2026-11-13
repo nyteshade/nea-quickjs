@@ -100,7 +100,7 @@ export const GADGET_ATTRS = Object.freeze({
   id:          { tagID: GA.ID,        type: 'uint32' },
   disabled:    { tagID: GA.Disabled,  type: 'bool'   },
   selected:    { tagID: GA.Selected,  type: 'bool'   },
-  userData:    { tagID: GA.UserData,  type: 'uint32' },
+  userData:    { tagID: GA.UserData,  type: 'uint32' },   /* check-attr-types: ok - any 32-bit value of the script, never followed */
   text:        { tagID: GA.Text,      type: 'string-owned' },
   gadgetHelp:  { tagID: GA.GadgetHelp, type: 'bool'  },
   tabCycle:    { tagID: GA.TabCycle,  type: 'bool'   },

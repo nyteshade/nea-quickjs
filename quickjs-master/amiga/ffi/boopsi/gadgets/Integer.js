@@ -7,7 +7,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const INTEGER = Object.freeze({
   /* check-constants: prefix INTEGER_ header gadgets/integer.h */
@@ -54,7 +54,7 @@ export class Integer extends GadgetBase {
 }
 
 EventKind.define('INTEGER_CHANGED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/integer.gadget',

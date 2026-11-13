@@ -27,6 +27,18 @@
  *     └─ sets ptr = 0, _disposed = true
  */
 
+/* Tags and methods of other classes that this file sends itself. Each
+ * is the header's own name, so scripts/check_constants.py compares it
+ * with gadgets/layout.h and classes/window.h. A table, not separate
+ * constants: the wrappers are bundled into one scope, where the same
+ * `const` name in two files would be an error. */
+const SENT = Object.freeze({
+  LAYOUT_ModifyChild: 0x85007016,
+  CHILD_ReplaceImage: 0x85007008,   /* LAYOUT_Dummy+8, not CHILD_Dummy */
+  WM_NEWPREFS:        0x570004,
+  WM_RETHINK:         0x570006,
+});
+
 /**
  * Attribute-type codec registry. Per-class ATTRS tables reference
  * these to decide how a JS value becomes a ULONG tag value (and
@@ -70,8 +82,11 @@ export class BOOPSIBase {
   /** @type {string} — subclasses override */
   static _classLibName = '';
 
-  /** @type {number} — LVO of XXX_GetClass in the backing library (NDK convention = -30) */
-  static _classLibLvo = -30;
+  /** @type {number} — LVO of XXX_GetClass in the backing library.
+   *  -30 is the first vector of every Reaction class library; button's
+   *  stands for them all on this line, and scripts/check_attr_types.py
+   *  checks each wrapper's own class against its pragma file. */
+  static _classLibLvo = -30;   /* check-constants: is BUTTON_GetClass */
 
   /** @type {number} — cached pointer returned by the class library's GetClass; 0 until ensureClass() */
   static _classPtr = 0;
@@ -363,7 +378,7 @@ export class BOOPSIBase {
    */
   _pairsToTags(pairs) {
     if (!pairs || pairs.length === 0) {
-      return { ptr: 0, bytes: 0 };
+      return { ptr: 0, bytes: 0 };   /* check-constants: skip - nothing allocated */
     }
     let ptr = globalThis.amiga.makeTags(pairs);
     let bytes = (pairs.length + 1) * 8;
@@ -729,9 +744,9 @@ export class BOOPSIBase {
 
     /* Image children need CHILD_ReplaceImage, NOT CHILD_ReplaceObject.
      * gadgets/layout.h:
-     *   #define LAYOUT_ModifyChild  (LAYOUT_Dummy+22) = 0x85007016
-     *   #define CHILD_ReplaceObject (CHILD_Dummy+7)   = 0x85007107
-     *   #define CHILD_ReplaceImage  (LAYOUT_Dummy+8)  = 0x85007008
+     *   #define LAYOUT_ModifyChild  (LAYOUT_Dummy+22)
+     *   #define CHILD_ReplaceObject (CHILD_Dummy+7)
+     *   #define CHILD_ReplaceImage  (LAYOUT_Dummy+8)
      *
      * CHILD_ReplaceObject installs the new child as a gadget and
      * calls GM_RENDER on it — fine for a Button→CheckBox swap
@@ -745,8 +760,8 @@ export class BOOPSIBase {
      * set() gates on kind === 'image'), so we always use
      * CHILD_ReplaceImage here. */
     let replaceTags = this._pairsToTags([
-      [0x85007016, this.ptr],    /* LAYOUT_ModifyChild */
-      [0x85007008, newPtr],      /* CHILD_ReplaceImage */
+      [SENT.LAYOUT_ModifyChild, this.ptr],
+      [SENT.CHILD_ReplaceImage, newPtr],
     ]);
 
     try {
@@ -771,8 +786,8 @@ export class BOOPSIBase {
      *       DoMethod(winobj, WM_NEWPREFS);
      * WM_RETHINK returns 0 when it had nothing to do; in that case
      * fall back to WM_NEWPREFS which forces a full refresh. */
-    let r = winObj.doMethod(0x570006 /* WM_RETHINK */);
-    if (r === 0) winObj.doMethod(0x570004 /* WM_NEWPREFS */);
+    let r = winObj.doMethod(SENT.WM_RETHINK);
+    if (r === 0) winObj.doMethod(SENT.WM_NEWPREFS);
   }
 
   /**

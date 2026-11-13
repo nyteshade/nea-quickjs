@@ -222,7 +222,18 @@ JS_TOKEN = re.compile(
 VALUE = r"""(\(?\s*-?(?:0[xX][0-9A-Fa-f]+|\d+)(?:\s*(?:<<|>>|\+|-|\||\*)\s*(?:0[xX][0-9A-Fa-f]+|\d+))*\s*\)?)"""
 ENTRY = re.compile(r"""(?:^|[{,(\s])(['"]?)([A-Za-z_$][\w$]*)\1\s*:\s*""" + VALUE + r"""\s*(?=[,}\n/])""")
 DEFINE_CALL = re.compile(r"""\.define\(\s*['"]([A-Za-z_]\w*)['"]\s*,\s*""" + VALUE + r"""\s*[,)]""")
-CONST = re.compile(r"""^\s*(?:export\s+)?const\s+([A-Z][A-Z0-9]*_[A-Z0-9_]+)\s*=\s*""" + VALUE + r"""\s*;""")
+# `const WM_OPEN = n;` and also `const PGA_Freedom = n;`: header names are
+# not all upper case.
+CONST = re.compile(r"""^\s*(?:export\s+)?const\s+([A-Z][A-Za-z0-9]*_[A-Za-z0-9_]+)\s*=\s*""" + VALUE + r"""\s*;""")
+# A number standing alone in code, tied to nothing by its position:
+# `tag === 0x8003000F`, `amiga.call(base, -48, ...)`. Only two shapes are
+# taken for possible OS constants: a hex literal above 0xFF that is not
+# an all-ones mask, and a negative multiple of 6 from -30 down (a library
+# vector offset). Such a line needs `check-constants: is NAME` or
+# `check-constants: skip` with the reason beside it.
+BARE = re.compile(r"""(?<![\w.$])(-\s*\d+|0[xX][0-9A-Fa-f]+)\b""")
+GENERATED_BEGIN = 'consts-begin'
+GENERATED_END = 'consts-end'
 TABLE_OPEN = re.compile(r"""(?:const|let|var|static)\s+([A-Za-z_$][\w$]*)\s*=[^=;]*\{\s*$"""
                         r"""|class\s+([A-Za-z_$][\w$]*)[^{]*\{\s*$""")
 DIRECTIVE = re.compile(r'check-constants:\s*(skip|prefix\s+(\S+)(?:\s+header\s+(\S+))?)')
@@ -252,6 +263,8 @@ class Entry:
         self.key, self.value = key, value
         self.forced_prefix, self.header_hint = forced_prefix, header_hint
         self.defined = False    # came from a .define('KEY', n) call
+        self.generated = False  # lies between gen_consts.py's markers
+        self.bare = False       # a literal alone in code, with no key
         self.status = None      # 'ok' | 'mismatch' | 'unverified'
         self.header_name = None
         self.expected = None
@@ -260,6 +273,7 @@ class Entry:
 
 def read_js(path):
     """Every numeric constant entry in a JS file."""
+    bare_literals = not path.endswith('extended.js')
     with open(path, encoding='utf-8', errors='replace') as handle:
         raw_lines = handle.read().split('\n')
 
@@ -268,9 +282,15 @@ def read_js(path):
     depth = 0
     pending = None           # a directive on a comment line before a table
     in_block_comment = False
+    generated = False        # between gen_consts.py's two markers
+    in_template = False      # inside a `...` string that spans lines
 
     for number, raw in enumerate(raw_lines, 1):
         directive = DIRECTIVE.search(raw)
+        if GENERATED_BEGIN in raw:
+            generated = True
+        elif GENERATED_END in raw:
+            generated = False
 
         # Track block comments so entries inside doc comments are ignored.
         code = raw
@@ -293,6 +313,20 @@ def read_js(path):
                 stack[-1] = (stack[-1][0], stack[-1][1], directive)
             continue
 
+        # For the bare-literal search, strings are text, not code. One
+        # that closes on its own line is removed here; a template that
+        # runs on leaves a lone backquote, which opens or closes it.
+        plain = JS_TOKEN.sub('', code)
+        text_only = False        # the whole line is inside a template
+        if in_template:
+            close = plain.find('`')
+            plain = '' if close < 0 else plain[close + 1:]
+            in_template = close < 0
+            text_only = in_template
+        if '`' in plain:
+            plain = plain[:plain.index('`')]
+            in_template = True
+
         opened = TABLE_OPEN.search(code)
         line_skip = bool(directive and directive.group(1) == 'skip' and code.strip())
 
@@ -307,7 +341,7 @@ def read_js(path):
                         forced, hint = table_directive.group(2), table_directive.group(3)
             return name, forced, hint, skip
 
-        if not line_skip:
+        if not line_skip and not text_only:
             found = []
             defined_keys = set()
             for match in DEFINE_CALL.finditer(code):
@@ -333,9 +367,29 @@ def read_js(path):
                         continue
                     entry = Entry(path, number, name, key, value, forced, hint)
                     entry.defined = key in defined_keys
+                    entry.generated = generated
                     named = IS_NAME.search(raw)
                     entry.is_name = named.group(1) if named else None
                     entries.append(entry)
+
+                # Numbers on this line that no entry accounts for. Only
+                # in the FFI wrappers and the examples: extended.js is
+                # full of hex that is arithmetic (UTF-16, SHA-256).
+                if not found and bare_literals:
+                    named = IS_NAME.search(raw)
+                    for match in BARE.finditer(plain):
+                        text = match.group(1).replace(' ', '')
+                        value = int(text, 0)
+                        if text.startswith('-'):
+                            if value > -30 or value % 6:
+                                continue
+                        elif value <= 0xFF or (value & (value + 1)) == 0:
+                            continue
+                        entry = Entry(path, number, name, text, value & MASK,
+                                      None, None)
+                        entry.bare = True
+                        entry.is_name = named.group(1) if named else None
+                        entries.append(entry)
 
         for char in code:
             if char == '{':
@@ -396,9 +450,28 @@ class Matcher:
                     entry.offset_header = sorted(known.values())[0]
                 continue
             if getattr(entry, 'is_name', None):
+                # `is OpenWindow` beside a negative number names a
+                # library function: check its vector offset.
+                known = self.headers.offsets.get(entry.is_name)
+                if known and signed < 0:
+                    entry.header_name = entry.is_name
+                    if -signed in known:
+                        entry.status = 'ok'
+                        entry.offset_header = known[-signed]
+                    else:
+                        entry.status = 'mismatch'
+                        entry.expected = (-sorted(known)[0]) & MASK
+                        entry.offset_header = sorted(known.values())[0]
+                    continue
                 self._compare(entry, entry.is_name)
                 continue
-            if entry.key in self.headers.raw and ('_' in entry.key or
+            if entry.bare:
+                entry.status = 'unverified'
+                entry.note = 'a bare literal: name it, or say `is NAME` / `skip`'
+                continue
+            # Between gen_consts.py's markers every key is a header name
+            # in full, underscore or not (JAM1, TEXTPEN, SELECTDOWN).
+            if entry.key in self.headers.raw and ('_' in entry.key or entry.generated or
                     (entry.key.isupper() and len(entry.key) >= 4 and entry.defined)):
                 direct.append(entry)
             else:

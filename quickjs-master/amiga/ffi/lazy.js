@@ -41,18 +41,18 @@
     return;
   }
 
-  const NOT_LOADED = 0;
+  const NOT_LOADED = 0;   /* check-constants: skip - our own state, not an OS value */
   const LOADING    = 1;
   const LOADED     = 2;
 
-  const BOOPSI_GROUP = 1;
-  const CORE_GROUP   = 0;
+  const BOOPSI_GROUP = 1;   /* check-constants: skip - our own bundle number */
+  const CORE_GROUP   = 0;   /* check-constants: skip - our own bundle number */
 
   /** The library's tag for a group is this plus the group number. */
-  const FFI_TAG_BASE = 1000;
+  const FFI_TAG_BASE = 1000;   /* check-constants: skip - our own module tag */
 
   /** Which handler slot is this file's (extended.js has slot 0). */
-  const FFI_HANDLER_SLOT = 1;
+  const FFI_HANDLER_SLOT = 1;   /* check-constants: skip - our own slot number */
 
   /** Per group: NOT_LOADED, LOADING or LOADED. */
   const state = [NOT_LOADED, NOT_LOADED];

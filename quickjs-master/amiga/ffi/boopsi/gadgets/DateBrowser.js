@@ -14,7 +14,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal DATEBROWSER_* tag IDs (gadgets/datebrowser.h). */
 const DATEBROWSER = Object.freeze({
@@ -44,7 +44,7 @@ export class DateBrowser extends GadgetBase {
     ...GADGET_ATTRS,
     day:          { tagID: DATEBROWSER.Day,          type: 'uint32' },
     month:        { tagID: DATEBROWSER.Month,        type: 'uint32' },
-    year:         { tagID: DATEBROWSER.Year,         type: 'uint32' },
+    year:         { tagID: DATEBROWSER.Year,         type: 'int32' },
     selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'uint32' },   /* (ULONG) one bit per day of the month */
     weekDay:      { tagID: DATEBROWSER.WeekDay,      type: 'uint32' },
     firstWeekDay: { tagID: DATEBROWSER.FirstWDay,    type: 'uint32' },
@@ -65,7 +65,7 @@ export class DateBrowser extends GadgetBase {
 }
 
 EventKind.define('DATE_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/datebrowser.gadget',

@@ -7,7 +7,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal CHECKBOX_* tag IDs (gadgets/checkbox.h). */
 const CHECKBOX = Object.freeze({
@@ -51,7 +51,7 @@ export class CheckBox extends GadgetBase {
 }
 
 EventKind.define('CHECKBOX_TOGGLE', {
-  idcmp: 0x00800000,   /* IDCMP_IDCMPUPDATE */
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: true,
            hasCode: false, hasCoords: false },
   from:  'gadgets/checkbox.gadget',

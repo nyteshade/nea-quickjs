@@ -23,7 +23,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 import { buildNodeList } from '../NodeList.js';
 
 /** @internal RADIOBUTTON_* tag IDs (gadgets/radiobutton.h). */
@@ -45,8 +45,8 @@ const RBNA = Object.freeze({
 });
 
 /** exec.library list/node poke offsets used by linkNodeList. */
-const LVO_ALLOC_NODE = -36;
-const LVO_FREE_NODE  = -42;
+const LVO_ALLOC_NODE = -36;   /* check-constants: is AllocRadioButtonNodeA */
+const LVO_FREE_NODE  = -42;   /* check-constants: is FreeRadioButtonNode */
 
 /**
  * radiobutton.gadget — exclusive-select group.
@@ -64,8 +64,8 @@ export class RadioButton extends GadgetBase {
      * Do not pass manually unless you've already allocated a List. */
     labelsPtr:  { tagID: RADIOBUTTON.Labels,     type: 'ptr' },
     spacing:    { tagID: RADIOBUTTON.Spacing,    type: 'int32' },
-    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'uint32' },
-    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'uint32' },
+    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'int32' },
+    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'int32' },
   };
 
   /**
@@ -124,7 +124,7 @@ export class RadioButton extends GadgetBase {
       freeLvo:  LVO_FREE_NODE,
       count:    labels.length,
       describe: (index, keep) => ({
-        d0:    1,
+        d0:    1,   /* check-constants: skip - a count: one column */
         pairs: [[RBNA.Label, keep.string(labels[index])]],
       }),
     });
@@ -145,7 +145,7 @@ export class RadioButton extends GadgetBase {
 }
 
 EventKind.define('RADIO_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/radiobutton.gadget',

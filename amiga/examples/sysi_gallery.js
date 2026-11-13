@@ -22,8 +22,11 @@
  *
  * Assumptions:
  *   - opens on the default public screen (normally Workbench)
- *   - the window draws its labels in the screen's font; the grid is
- *     sized from that font and from the images before it opens
+ *   - the labels are drawn in the screen's font. The grid is sized
+ *     from that font and from the images before the window opens, and
+ *     the window is told to draw in it once it is open, because a
+ *     window on Workbench would otherwise draw in the system default
+ *     font
  *   - an image the running system does not have (the last four are
  *     new in OS 3.2) cannot be made; it is skipped and only its label
  *     is drawn
@@ -31,17 +34,17 @@
  *     DrawInfo they are given, and shown in a window on that screen
  *   - pen 1 shows against the window background, for the labels
  *
- * Requires quickjs.library 0.232+ (ScreenFont.drawInfo arrived then).
+ * Requires quickjs.library 0.237+ (ScreenFont.useIn arrived then).
  * Run: qjs examples/sysi_gallery.js
  */
 
 import * as std from 'qjs:std';
 
-/* The newest thing this script uses is ScreenFont.drawInfo, 0.232. */
+/* The newest thing this script uses is ScreenFont.useIn, 0.237. */
 if (typeof Intuition !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    !('drawInfo' in amiga.ScreenFont.prototype)) {
-  print('Need quickjs.library 0.232 or later');
+    typeof amiga.ScreenFont.prototype.useIn !== 'function') {
+  print('Need quickjs.library 0.237 or later');
   std.exit(1);
 }
 
@@ -222,6 +225,13 @@ try {
                      | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
     [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
   ]);
+
+  /* A window on Workbench does not start with the screen's font: its
+   * RastPort gets the system default font, which the user sets
+   * separately (intuition.doc, OpenScreenTagList, SA_SysFont). The
+   * labels were measured in the screen's font, so the window is told
+   * to draw in that one. */
+  if (window) screenFont.useIn(window);
 
   /* The window keeps the screen open from here on. */
   screenFont.close();

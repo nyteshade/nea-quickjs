@@ -75,7 +75,7 @@ print('    +34 cl_InstSize   (word)= ' + amiga.peek16(cls + 34));
 
 print('=== step 5: build minimal tag list [LABEL_Text, ptr, TAG_END] ===');
 /* LABEL_Text = LABEL_Dummy + 1, from images/label.h. */
-let LABEL_Text = 0x85006001;
+const LABEL_Text = 0x85006001;
 /* Bytes allocated for the label's text; "probe" plus its NUL fits. */
 let strBytes = 16;
 let strPtr = amiga.allocMem(strBytes);

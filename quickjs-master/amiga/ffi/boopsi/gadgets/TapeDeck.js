@@ -13,7 +13,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 const TDECK = Object.freeze({
   /* check-constants: prefix TDECK_ header gadgets/tapedeck.h */
@@ -81,7 +81,7 @@ export class TapeDeck extends GadgetBase {
 }
 
 EventKind.define('TAPEDECK_CLICK', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/tapedeck.gadget',

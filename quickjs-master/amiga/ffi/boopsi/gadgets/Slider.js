@@ -8,7 +8,7 @@
  */
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
-import { EventKind } from '../EventKind.js';
+import { EventKind, IDCMP } from '../EventKind.js';
 
 /** @internal SLIDER_* tag IDs (gadgets/slider.h). */
 const SLIDER = Object.freeze({
@@ -109,7 +109,7 @@ export class Slider extends GadgetBase {
 }
 
 EventKind.define('SLIDER_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/slider.gadget',
