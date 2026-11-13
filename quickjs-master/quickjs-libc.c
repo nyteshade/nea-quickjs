@@ -2504,8 +2504,21 @@ static BPTR amiga_raw_fh;  /* file handle put into raw mode, for cleanup */
 
 static void amiga_term_exit(void)
 {
-    if (amiga_raw_fh)
+    /* CSI 12 } is RESET RAW EVENTS for event 12, "window resized"
+     * (RKRM Devices, console chapter). repl.js asks the console for that
+     * report and cancels it when it is left by its own exits; this
+     * covers every other way out (std.exit() typed at the prompt, an
+     * error), so that the Shell is not sent reports it never asked for
+     * when its window is resized later. Resetting an event that is not
+     * set does nothing. A console's handle takes writes as well as
+     * reads, and this is the handle known to be the console. */
+    static const char csi_no_resize[] = "\x9B" "12}";
+
+    if (amiga_raw_fh) {
+        Write(amiga_raw_fh, (APTR)csi_no_resize,
+              (LONG)(sizeof(csi_no_resize) - 1));
         SetMode(amiga_raw_fh, 0);  /* 0 = cooked/line mode */
+    }
 }
 
 static JSValue js_os_ttyGetWinSize(JSContext *ctx, JSValueConst this_val,

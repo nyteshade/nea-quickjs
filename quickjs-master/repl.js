@@ -160,6 +160,23 @@ import * as bjson from "qjs:bjson";
     var term_width;
     /* current X position of the cursor in the terminal */
     var term_cursor_x = 0;
+    /* true once the Amiga console has been asked to report when its
+       window is resized (see termInit) */
+    var term_reports_resize = false;
+
+    /* The Amiga console speaks to us in the input stream as well as the
+       keyboard does (RKRM Devices, console chapter). Written with
+       ESC [ because os.read hands CSI (9B) over in that form.
+         set / reset raw events 12 = "window resized":  CSI 12 {   CSI 12 }
+         window status request:                         CSI 0 SP q
+         window bounds report, the answer:              CSI 1;1;rows;columns SP r
+         input event report, for a raw event:           CSI class;...;... |  */
+    var CONSOLE_SET_RESIZE_EVENT   = "\x1b[12{";
+    var CONSOLE_RESET_RESIZE_EVENT = "\x1b[12}";
+    var CONSOLE_STATUS_REQUEST     = "\x1b[0 q";
+    var CONSOLE_BOUNDS_REPORT      = /^\x1b\[\d+;\d+;(\d+);(\d+) r$/;
+    var CONSOLE_EVENT_REPORT       = /^\x1b\[(\d+);[\d;]*\|$/;
+    var CONSOLE_EVENT_RESIZED      = 12;
 
     function termInit() {
         var tab;
@@ -184,6 +201,16 @@ import * as bjson from "qjs:bjson";
                 if (tab)
                     term_width = tab[0];
             }
+            /* The width was read once here and never again, so after
+               the window was resized every row calculation was made for
+               the old width and a long line was redrawn in the wrong
+               place. The console can say when its window changes size:
+               ask it to, and ask for the new bounds only then (see
+               console_report). No request is sent per key. */
+            if (os.platform === "amiga") {
+                std.puts(CONSOLE_SET_RESIZE_EVENT);
+                term_reports_resize = true;
+            }
         }
 
         /* install a Ctrl-C signal handler */
@@ -192,6 +219,16 @@ import * as bjson from "qjs:bjson";
         /* install a handler to read stdin */
         term_read_buf = new Uint8Array(64);
         os.setReadHandler(term_fd, term_read_handler);
+    }
+
+    /* Undo what termInit asked of the console, so that the Shell we
+       return to is not sent resize reports it never asked for. */
+    function termRestore() {
+        if (term_reports_resize) {
+            std.puts(CONSOLE_RESET_RESIZE_EVENT);
+            std.out.flush();
+            term_reports_resize = false;
+        }
     }
 
     function sigint_handler() {
@@ -208,7 +245,38 @@ import * as bjson from "qjs:bjson";
         dbg("term_read: done processing");
     }
 
+    /* Bytes that arrived while a line was being evaluated. A paste of
+       several lines comes in one read: without this the second line was
+       edited (and drawn) while the first was still running, and thrown
+       away when its prompt appeared. They are fed to the editor once
+       the next prompt is up (readline_start). */
+    var pending_bytes = [];
+    var readline_busy = false;
+    var pending_draining = false;
+
     function handle_byte(c) {
+        /* Ctrl-C (3) is never held back: it has to be able to stop
+           a line that does not finish. */
+        if (readline_busy && c !== 3) {
+            pending_bytes.push(c);
+            return;
+        }
+        handle_byte_now(c);
+    }
+
+    function drain_pending_bytes() {
+        if (pending_draining)
+            return;     /* the loop below is already running further up */
+        pending_draining = true;
+        try {
+            while (pending_bytes.length && !readline_busy)
+                handle_byte_now(pending_bytes.shift());
+        } finally {
+            pending_draining = false;
+        }
+    }
+
+    function handle_byte_now(c) {
         if (!utf8) {
             handle_char(c);
         } else if (utf8_state !== 0 && (c >= 0x80 && c < 0xc0)) {
@@ -458,8 +526,18 @@ import * as bjson from "qjs:bjson";
         return -2;
     }
 
-    function accept_line() {
+    /* Start a new row BELOW the line being edited. A plain "\n" starts
+       it below the cursor: with the cursor on the first row of a line
+       that fills two, whatever was printed next (the result, the list
+       of completions) was written over the second row. */
+    function leave_line() {
+        move_cursor(ucs_length(cmd.substring(last_cursor_pos)));
+        last_cursor_pos = cmd.length;
         std.puts("\n");
+    }
+
+    function accept_line() {
+        leave_line();
         history_add(cmd);
         return -1;
     }
@@ -631,7 +709,8 @@ import * as bjson from "qjs:bjson";
             std.puts("\n");
             exit(0);
         } else {
-            std.puts("\n(Press Ctrl-C again to quit)\n");
+            leave_line();
+            std.puts("(Press Ctrl-C again to quit)\n");
             readline_print_prompt();
         }
     }
@@ -802,6 +881,9 @@ import * as bjson from "qjs:bjson";
             max_width += 2;
             n_cols = Math.max(1, Math.floor((term_width + 1) / max_width));
             n_rows = Math.ceil(tab.length / n_cols);
+            /* the screen still shows the line as it was before this
+               key, with the cursor at last_cursor_pos: go below that */
+            move_cursor(ucs_length(last_cmd.substring(last_cursor_pos)));
             std.puts("\n");
             /* display the sorted list column-wise */
             for (row = 0; row < n_rows; row++) {
@@ -854,6 +936,14 @@ import * as bjson from "qjs:bjson";
         "\x1b[1;5D": backward_word,         /* ^[[1;5D - ctrl-left */
         "\x1b[ @":  forward_word,           /* Amiga shift-right */
         "\x1b[ A":  backward_word,          /* Amiga shift-left */
+        /* 101-key keyboards on the Amiga (RKRM Devices, console
+           chapter, special key reports); shifted, they send 5x */
+        "\x1b[44~": beginning_of_line,      /* Amiga Home */
+        "\x1b[45~": end_of_line,            /* Amiga End */
+        "\x1b[54~": beginning_of_line,      /* Amiga shift-Home */
+        "\x1b[55~": end_of_line,            /* Amiga shift-End */
+        "\x1b[41~": history_search_backward,/* Amiga Page Up */
+        "\x1b[42~": history_search_forward, /* Amiga Page Down */
         "\x1b[1~":  beginning_of_line,      /* ^[[1~ - bol */
         "\x1b[3~":  delete_char,            /* ^[[3~ - delete */
         "\x1b[4~":  end_of_line,            /* ^[[4~ - eol */
@@ -873,7 +963,13 @@ import * as bjson from "qjs:bjson";
         "\x1bl":    downcase_word,          /* M-l - downcase_word */
         "\x1bt":    transpose_words,        /* M-t - transpose_words */
         "\x1bu":    upcase_word,            /* M-u - upcase_word */
-        "\x7f":     backward_delete_char,   /* ^? - delete */
+        /* 7F is what a Unix terminal sends for the backspace key, and
+           what the Amiga keymaps send for the Del key, whose backspace
+           key sends 08 (RKRM Libraries, keymap chapter: key 41, "Back
+           Space", is mapped to $08). On the Amiga Del therefore deleted
+           backwards, like backspace. */
+        "\x7f":     (os.platform === "amiga") ? delete_char
+                                              : backward_delete_char,
     };
 
     function dupstr(str, count) {
@@ -917,6 +1013,8 @@ import * as bjson from "qjs:bjson";
         readline_print_prompt();
         update();
         readline_state = 0;
+        readline_busy = false;
+        drain_pending_bytes();
     }
 
     function handle_char(c1) {
@@ -965,8 +1063,54 @@ import * as bjson from "qjs:bjson";
         }
     }
 
+    /* Show the line again from a fresh row, for the new width. What the
+       console did with the rows already on screen when its window
+       changed (clip them, wrap them again) differs between consoles, so
+       nothing is assumed about them: the cursor is wherever it is, the
+       next row is clean from the prompt on, and update() erases what
+       follows. */
+    function term_resized(width) {
+        var shown, old_width = term_width;
+        if (!(width > 1) || width === old_width)
+            return;
+        term_width = width;
+        shown = ucs_length(prompt) + ucs_length(last_cmd);
+        if (shown < Math.min(old_width, width)) {
+            /* the line fits one row at both widths: the screen and
+               term_cursor_x are still right */
+            return;
+        }
+        std.puts("\n");
+        readline_print_prompt();
+        update();
+    }
+
+    /* Deal with a sequence that came from the console itself, not from a
+       key. Returns true if `keys` was one. */
+    function console_report(keys) {
+        var m;
+        if ((m = CONSOLE_BOUNDS_REPORT.exec(keys))) {
+            /* also the answer to the request made at start-up, should
+               it arrive too late for os.ttyGetWinSize */
+            term_resized(parseInt(m[2], 10));
+            return true;
+        }
+        if ((m = CONSOLE_EVENT_REPORT.exec(keys))) {
+            if (parseInt(m[1], 10) === CONSOLE_EVENT_RESIZED) {
+                /* the answer comes back through this function */
+                std.puts(CONSOLE_STATUS_REQUEST);
+                std.out.flush();
+            }
+            return true;
+        }
+        return false;
+    }
+
     function handle_key(keys) {
         var fun;
+
+        if (keys.length > 2 && console_report(keys))
+            return;
 
         if (quote_flag) {
             if (ucs_length(keys) === 1)
@@ -979,9 +1123,13 @@ import * as bjson from "qjs:bjson";
             dbg("handle_key: cmd fn returned " + ret);
             switch (ret) {
             case -1:
+                /* until readline_start() shows the next prompt, what
+                   is typed or pasted waits in pending_bytes */
+                readline_busy = true;
                 readline_cb(cmd);
                 return;
             case -2:
+                readline_busy = true;
                 readline_cb(null);
                 return;
             case -3:
@@ -989,6 +1137,7 @@ import * as bjson from "qjs:bjson";
                 os.signal(os.SIGINT, null);
                 /* uninstall the stdin read handler */
                 os.setReadHandler(term_fd, null);
+                termRestore();
                 save_history();
                 return;
             }
@@ -1565,6 +1714,7 @@ import * as bjson from "qjs:bjson";
     }
 
     function exit(e) {
+        termRestore();
         save_history();
         std.exit(e);
     }

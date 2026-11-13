@@ -16,9 +16,24 @@
  *   CSI n @      insert n blanks at the cursor
  *   CSI n P      delete n characters at the cursor
  *   CSI ... m    colours and styles: accepted and ignored
+ *   CSI n;... {  set raw events: the console reports these input events
+ *   CSI n;... }  reset raw events
+ *   CSI 0 SP q   window status request; the console answers, in the
+ *                input stream, with a window bounds report
+ *                CSI 1;1;rows;columns SP r
  *
  * CSI is ESC [ or the single byte 9B. Anything else is recorded in
  * `unknown` so that a test can fail on it.
+ *
+ * What the console says back goes to the `reply` function given to the
+ * constructor, in the form the library's os.read hands it to the REPL:
+ * with CSI as ESC [.
+ *
+ * resize(columns) changes the width of the window. Rows already on
+ * screen are clipped or padded, not wrapped again; a real console may
+ * do otherwise, which is why the line editor must not rely on either.
+ * If raw event 12 (window resized) is set, an input event report is
+ * sent: CSI 12;0;0;0;0;0;0;0 |
  *
  * Printable characters overwrite (there is no insert mode). The one place
  * consoles differ is the right margin, so it is an option:
@@ -37,9 +52,17 @@ class Terminal {
     /**
      * @param {number} columns width of the window in characters
      * @param {number} rows height of the window in characters
-     * @param {{wrap?: 'immediate'|'deferred'}} [options] right-margin behaviour
+     * @param {{wrap?: 'immediate'|'deferred',
+     *          reply?: function(string): void}} [options] right-margin
+     *     behaviour, and where the console's own reports go
      */
     constructor(columns, rows, options) {
+        /** @type {function(string): void} receives reports */
+        this.reply = (options && options.reply) || (() => {});
+        /** @type {Set<number>} raw input events the console reports */
+        this.rawEvents = new Set();
+        /** @type {number} window status requests received */
+        this.statusRequests = 0;
         /** @type {number} */
         this.columns = columns;
         /** @type {number} */
@@ -82,6 +105,25 @@ class Terminal {
         } else {
             this.y++;
         }
+    }
+
+    /**
+     * Change the width of the window, as the user dragging its size
+     * gadget does.
+     * @param {number} columns the new width in characters
+     * @returns {void}
+     */
+    resize(columns) {
+        for (const row of this.grid) {
+            while (row.length < columns)
+                row.push(' ');
+            row.length = columns;
+        }
+        this.columns = columns;
+        this.x = Math.min(this.x, columns - 1);
+        this.pendingWrap = false;
+        if (this.rawEvents.has(12))
+            this.reply('\x1b[12;0;0;0;0;0;0;0|');
     }
 
     /**
@@ -154,6 +196,24 @@ class Terminal {
                 row.push(' ');
             break;
         case 'm':
+            break;
+        case '{':
+            for (const event of numbers)
+                if (!Number.isNaN(event))
+                    this.rawEvents.add(event);
+            break;
+        case '}':
+            for (const event of numbers)
+                this.rawEvents.delete(event);
+            break;
+        case 'q':
+            /* only "CSI 0 SP q" is the window status request */
+            if (parameters === '0 ') {
+                this.statusRequests++;
+                this.reply('\x1b[1;1;' + this.rows + ';' + this.columns + ' r');
+            } else {
+                this.unknown.push('CSI ' + parameters + final);
+            }
             break;
         default:
             this.unknown.push('CSI ' + parameters + final);
