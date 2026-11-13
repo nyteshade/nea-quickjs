@@ -797,6 +797,25 @@ int js_module_set_import_meta(JSContext *ctx, JSValueConst func_val,
     JS_FreeAtom(ctx, module_name_atom);
     if (!module_name)
         return -1;
+#if defined(__VBCC__)
+    /* AmigaOS: import.meta.url is "file:///" followed by the full
+     * AmigaDOS path, volume included ("file:///Work:src/main.js"), the
+     * form url.pathToFileURL() produces and url.fileURLToPath() takes
+     * back. Upstream treats any name containing ':' as already being a
+     * URL, which would turn "Work:src/main.js" into a URL with the
+     * scheme "work". When the path cannot be resolved (no such file,
+     * or a name that is not a file) the name is used as it stands. */
+    if (use_realpath && module_name[0] != '<') {
+        strcpy(buf, "file:///");
+        if (!realpath(module_name, buf + strlen(buf)))
+            js__pstrcpy(buf + 8, sizeof(buf) - 8, module_name);
+    } else if (!strchr(module_name, ':')) {
+        strcpy(buf, "file://");
+        js__pstrcat(buf, sizeof(buf), module_name);
+    } else {
+        js__pstrcpy(buf, sizeof(buf), module_name);
+    }
+#else
     if (!strchr(module_name, ':')) {
         strcpy(buf, "file://");
 #if !defined(_WIN32) && !defined(__wasi__) && !defined(__SASC) && !defined(__VBCC__)
@@ -818,6 +837,7 @@ int js_module_set_import_meta(JSContext *ctx, JSValueConst func_val,
     } else {
         js__pstrcpy(buf, sizeof(buf), module_name);
     }
+#endif
     JS_FreeCString(ctx, module_name);
 
     meta_obj = JS_GetImportMeta(ctx, m);

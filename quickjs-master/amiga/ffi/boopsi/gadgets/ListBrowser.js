@@ -29,6 +29,7 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
+import { buildNodeList } from '../NodeList.js';
 
 /** @internal LISTBROWSER_* tag IDs (gadgets/listbrowser.h). */
 const LISTBROWSER = Object.freeze({
@@ -201,6 +202,10 @@ export class ListBrowser extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
 
@@ -215,78 +220,38 @@ export class ListBrowser extends GadgetBase {
     this._ownedLabels = ownedLabels;
   }
 
-  /** @internal */
+  /**
+   * Build the LISTBROWSER_Labels list: one single-column
+   * AllocListBrowserNodeA node per label. LBNCA_CopyText makes the
+   * class copy the text, so our strings could be freed at once; they
+   * are kept until dispose() like every other gadget's, so that there
+   * is one clean-up path.
+   *
+   * @internal
+   * @param   {string[]} labels
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
+   */
   static _buildLabelList(labels) {
     ListBrowser.ensureClass();
-    const libBase = ListBrowser._libBase;
-    if (!libBase) throw new Error('ListBrowser: class library base not cached');
-
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('ListBrowser: allocMem list failed');
-
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];
-    const labelAllocs = [];
-
-    for (let lbl of labels) {
-      const s = String(lbl);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      /* LBNCA_CopyText=TRUE tells listbrowser to copy the text into
-       * its own buffer; after Alloc returns we could free sP, but we
-       * keep the same discipline as RadioButton and hold the JS side
-       * until dispose. Consistent cleanup path matters more than the
-       * few bytes saved. */
-      const tags = globalThis.amiga.makeTags([
-        [LBNCA.CopyText, 1],
-        [LBNCA.Text,     sP],
-      ]);
-      if (!tags) throw new Error('ListBrowser: makeTags failed');
-
-      /* AllocListBrowserNodeA(numcolumns=1, tags). d0=1, a0=tags. */
-      const nodePtr = globalThis.amiga.call(libBase, LISTBROWSER_LVO_ALLOC_NODE, {
-        d0: 1,
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 24);  /* 3 tag items × 8 bytes */
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LISTBROWSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('ListBrowser: AllocListBrowserNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr });
+    if (!ListBrowser._libBase) {
+      throw new Error('ListBrowser: class library base not cached');
     }
 
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LISTBROWSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'ListBrowser',
+      libBase:  ListBrowser._libBase,
+      /* AllocListBrowserNodeA(d0 columns, a0 tags) */
+      allocLvo: LISTBROWSER_LVO_ALLOC_NODE,
+      freeLvo:  LISTBROWSER_LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        d0:    1,
+        pairs: [
+          [LBNCA.CopyText, 1],
+          [LBNCA.Text,     keep.string(labels[index])],
+        ],
+      }),
+    });
   }
 
   dispose() {

@@ -47,7 +47,7 @@ export class Screen extends Struct {
 where:
   ptr - REQUIRED: an existing struct Screen pointer from
         Intuition.OpenScreenTags / LockPubScreen. You cannot
-        allocate a Screen from scratch — only Intuition may.
+        allocate a Screen from scratch - only Intuition may.
 
 Fields (read-only getters): leftEdge, topEdge, width, height,
   flags, title, barHeight, font (TextAttr wrapper).

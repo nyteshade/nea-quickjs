@@ -17,12 +17,19 @@
  * which sidesteps the __reg("a6") frame pointer issue we've fought
  * elsewhere in the library.
  *
- * Only used in 040/060 FPU builds — sharedlib_math.c provides the
- * 020 FPU versions which use inlined 68881 instructions.
+ * Only used in 040/060 FPU builds. On the 020 FPU build vbcc inlines
+ * all of these as 6888x instructions.
+ *
+ * fmod, ldexp and round were here until 0.231; they are now in
+ * sharedlib_math_round.c, shared with the 020 FPU build.
  */
 
 #include <exec/types.h>
-#include <math.h>  /* for floor() inlining on 040/060 */
+#include <math.h>
+#include "sharedlib_dblbits.h"
+#include "sharedlib_math_fpu.h"
+
+double log1p(double x);         /* sharedlib_math.c */
 
 /* MathIeeeDoubTransBase global — defined and initialized in
  * sharedlib_math.c (FPU build) by sharedlib_math_soft_init.
@@ -188,193 +195,96 @@ double acos(double x) { return __ieee_acos(MathIeeeDoubTransBase, x); }
 double log10(double x){ return __ieee_log10(MathIeeeDoubTransBase, x); }
 
 /* ----------------------------------------------------------------
- * Functions not provided by mathieeedoubtrans.library.
- * Build them on top of the primitives above.
+ * Functions not provided by mathieeedoubtrans.library, built on the
+ * primitives above. (On the 68020 variant vbcc inlines these as
+ * single 6888x instructions and this file is not linked.)
  * ---------------------------------------------------------------- */
 
-/* exp2(x) = exp(x * ln(2)) */
-double exp2(double x)
+static double aux_from_bits(QJSWord hi, QJSWord lo)
 {
-    static const double M_LN2_LOCAL = 0.69314718055994530942;
-    return exp(x * M_LN2_LOCAL);
-}
-
-/* expm1(x) = exp(x) - 1, accurate for small x */
-double expm1(double x)
-{
-    if (x > -0.5 && x < 0.5) {
-        /* Avoid catastrophic cancellation: use exp(x) - 1 directly
-         * but the precision loss is OK for our use case */
-        double e = exp(x);
-        return e - 1.0;
-    }
-    return exp(x) - 1.0;
-}
-
-/* log2(x) = log(x) / ln(2) */
-double log2(double x)
-{
-    static const double INV_LN2 = 1.4426950408889634074;  /* 1/ln(2) */
-    return log(x) * INV_LN2;
-}
-
-/* fmod(x, y): the remainder of x / y with the sign of x, exact.
- *
- * Until 0.225 the soft variant used x - floor(x/y)*y, which is the
- * FLOORED remainder (-7 % 5 gave 3, not -2), and both variants lost
- * precision once x/y no longer fitted in a double's 53 bits.
- *
- * This is shift-and-subtract. t is |y| scaled by a power of two to
- * the largest |y|*2^k not above r; it is then halved back down to
- * |y|, and subtracted from r whenever it fits. r < 2t holds
- * throughout, so every r - t is exact. Positive doubles order the
- * same way as their bit patterns, so the comparisons, the scaling and
- * the halving are integer operations on the two halves; the only
- * floating-point operation in the loop is the subtraction, which
- * matters on the soft-float variants where each one is a library
- * call.
- *
- * NaN and infinity are recognised from the exponent bits, not by
- * comparing, so the result does not depend on how the maths library
- * orders NaN. */
-double fmod(double x, double y)
-{
-    union { double d; struct { unsigned long hi, lo; } w; } ux, uy, ur, ua, ut;
-    unsigned long ex, ey;
-
-/* a >= b for two non-negative doubles, on their bits */
-#define FMOD_GE(a, b) ((a).w.hi > (b).w.hi || \
-                       ((a).w.hi == (b).w.hi && (a).w.lo >= (b).w.lo))
-
-    ux.d = x; uy.d = y;
-    ex = (ux.w.hi >> 20) & 0x7ff;
-    ey = (uy.w.hi >> 20) & 0x7ff;
-
-    /* y is NaN, x is NaN or infinite, or y is zero: NaN */
-    if ((ey == 0x7ff && ((uy.w.hi & 0xfffffUL) | uy.w.lo) != 0) ||
-        ex == 0x7ff ||
-        (((uy.w.hi & 0x7fffffffUL) | uy.w.lo) == 0)) {
-        ux.w.hi = 0x7ff80000UL; ux.w.lo = 0;
-        return ux.d;
-    }
-    /* y infinite, or x zero (keeps -0): x */
-    if (ey == 0x7ff || ((ux.w.hi & 0x7fffffffUL) | ux.w.lo) == 0)
-        return x;
-
-    ur = ux; ur.w.hi &= 0x7fffffffUL;       /* r = |x| */
-    ua = uy; ua.w.hi &= 0x7fffffffUL;       /* |y| */
-
-    if (FMOD_GE(ur, ua)) {
-        ut = ua;
-        if (ey != 0) {
-            /* |y| is a normal number: give t the exponent of r, which
-             * multiplies it by a power of two, then halve once if that
-             * overshot. From here t stays normal, so halving it is
-             * taking one from its exponent. */
-            ut.w.hi = (ut.w.hi & 0x000fffffUL) | (ex << 20);
-            if (!FMOD_GE(ur, ut))
-                ut.w.hi -= 0x00100000UL;
-            for (;;) {
-                if (FMOD_GE(ur, ut))
-                    ur.d -= ut.d;
-                if (ut.w.hi == ua.w.hi)     /* same exponent: t is |y| */
-                    break;
-                ut.w.hi -= 0x00100000UL;
-            }
-        } else {
-            /* |y| is denormal (below about 2.2e-308): rare, so plain
-             * arithmetic */
-            while (ut.d <= ur.d * 0.5)
-                ut.d += ut.d;
-            for (;;) {
-                if (ur.d >= ut.d)
-                    ur.d -= ut.d;
-                if (ut.d <= ua.d)
-                    break;
-                ut.d *= 0.5;
-            }
-        }
-    }
-#undef FMOD_GE
-    /* the sign of x, also on a zero result */
-    ur.w.hi |= ux.w.hi & 0x80000000UL;
-    return ur.d;
-}
-
-/* ldexp(x, n) = x * 2^n
- * Implemented via IEEE 754 exponent manipulation. Avoids needing
- * a math library scale function. */
-double ldexp(double x, int n)
-{
-    union { double d; struct { unsigned long hi, lo; } w; } u;
-    int e;
-
-    if (x == 0.0) return 0.0;
-    if (n == 0) return x;
-
-    u.d = x;
-    e = (int)((u.w.hi >> 20) & 0x7FF);
-
-    /* Subnormal or zero: handled by zero check above for now */
-    if (e == 0) {
-        /* Subnormal — multiply by 2^54 to normalize, then adjust */
-        /* For simplicity, use repeated doubling/halving */
-        double r = x;
-        if (n > 0) {
-            while (n > 0) { r *= 2.0; n--; }
-        } else {
-            while (n < 0) { r *= 0.5; n++; }
-        }
-        return r;
-    }
-
-    /* Normal: bias the exponent directly */
-    e += n;
-
-    /* Overflow → infinity */
-    if (e >= 0x7FF) {
-        u.w.hi = (u.w.hi & 0x80000000UL) | 0x7FF00000UL;
-        u.w.lo = 0;
-        return u.d;
-    }
-
-    /* Underflow → zero (could implement subnormal but rarely needed) */
-    if (e <= 0) {
-        u.w.hi = u.w.hi & 0x80000000UL;
-        u.w.lo = 0;
-        return u.d;
-    }
-
-    /* Replace exponent bits */
-    u.w.hi = (u.w.hi & 0x800FFFFFUL) | ((unsigned long)e << 20);
+    QJSDblBits u;
+    u.w.hi = hi; u.w.lo = lo;
     return u.d;
 }
 
-/* frexp is provided by sharedlib_math.c */
-
-/* modf(x, *iptr) — split x into integer and fractional parts */
-double modf(double x, double *iptr)
+/* exp2(x) = 2**x; pow() is exact for whole numbers */
+double exp2(double x)
 {
-    double i;
-    if (x >= 0.0)
-        i = floor(x);
-    else
-        i = -floor(-x);
-    if (iptr) *iptr = i;
-    return x - i;
+    return pow(2.0, x);
 }
 
-/* round(x) — round to nearest, ties away from zero */
-double round(double x)
+/*
+ * expm1(x) = exp(x) - 1. Near zero exp(x) is 1 plus very little and
+ * the subtraction would keep only the few bits of x that survived in
+ * exp(x): expm1(1e-10) was 1.00000008274037e-10. Kahan's correction
+ * divides out that rounding: with u = exp(x) rounded, (u-1) * x/log(u)
+ * is accurate because log(u) is wrong in the same way u-1 is.
+ */
+double expm1(double x)
 {
-    if (x >= 0.0) return floor(x + 0.5);
-    return -floor(-x + 0.5);
+    double u, um1;
+
+    if (x > -0.5 && x < 0.5) {
+        u = qjs_dbl_round(exp(x));      /* a double, not 64 bits: see log1p */
+        if (u == 1.0)
+            return x;                   /* also keeps -0 */
+        um1 = u - 1.0;
+        return um1 * (x / log(u));
+    }
+    return exp(x) - 1.0;                /* NaN and the infinities too */
 }
 
-/* atanh(x) = 0.5 * log((1+x) / (1-x)) */
+/*
+ * log2(x). x = m * 2^e with m in [sqrt(1/2), sqrt(2)), so that for a
+ * power of two m is exactly 1, log(m) is exactly 0 and the result is
+ * the whole number e: log2(8) is 3, not 2.9999999999999996.
+ */
+double log2(double x)
+{
+    static const double INV_LN2 = 1.4426950408889634074;  /* 1/ln(2) */
+    QJSDblBits u;
+    double m;
+    int e;
+
+    u.d = x;
+    /* zero, negative, infinite or NaN: whatever log() says */
+    if ((u.w.hi & QJS_DBL_SIGN) || QJS_DBL_EXP(u.w.hi) == 0x7ff ||
+        (u.w.hi | u.w.lo) == 0)
+        return log(x);
+    m = frexp(x, &e);                   /* m in [0.5, 1) */
+    if (m < 0.70710678118654752440) {
+        m *= 2.0;
+        e--;
+    }
+    return (double)e + log(m) * INV_LN2;
+}
+
+/*
+ * atanh(x) = 0.5 * log((1+x) / (1-x)), odd in x, through log1p so
+ * that small arguments keep their accuracy.
+ */
 double atanh(double x)
 {
-    if (x <= -1.0 || x >= 1.0) return (x == 1.0) ? HUGE_VAL :
-                                       (x == -1.0) ? -HUGE_VAL : NAN;
-    return 0.5 * log((1.0 + x) / (1.0 - x));
+    QJSDblBits u;
+    double a, r;
+
+    u.d = x;
+    u.w.hi &= ~QJS_DBL_SIGN;
+    a = u.d;                            /* |x| */
+    if (u.w.hi > 0x3ff00000U || (u.w.hi == 0x3ff00000U && u.w.lo != 0))
+        return aux_from_bits(0x7ff80000U, 0);   /* |x| > 1, or NaN */
+    if (u.w.hi == 0x3ff00000U)                  /* +-1: +-Infinity */
+        return aux_from_bits(0x7ff00000U | ((QJSWord)(x < 0.0) << 31), 0);
+    if ((u.w.hi | u.w.lo) == 0)
+        return x;                               /* keeps -0 */
+    r = 0.5 * log1p(2.0 * a / (1.0 - a));
+    return (x < 0.0) ? -r : r;
+}
+
+/* modf(x, *iptr): split x into integer and fractional parts */
+double modf(double x, double *iptr)
+{
+    double i = trunc(x);
+    if (iptr) *iptr = i;
+    return x - i;
 }

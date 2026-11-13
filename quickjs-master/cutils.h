@@ -47,6 +47,18 @@
 #include <string.h>
 #include <inttypes.h>
 #include <math.h>
+#if defined(__VBCC__)
+/* vbcc's <math.h> does not declare cbrt(). Without this the call in
+ * js_math_cbrt was compiled as returning int: Math.cbrt(8) gave
+ * 1073741824 (the high half of 2.0) on the soft-float variants and 0
+ * or 1 on the FPU ones, on every version up to 0.231. */
+double cbrt(double x);
+#endif
+#if defined(__VBCC__) && (defined(__M68881) || defined(__M68882))
+/* FPU variants of quickjs.library: vbcc's inline floor/ceil/trunc/
+ * round/fmod/hypot are wrong or untestable there; see the header. */
+#include "sharedlib_math_fpu.h"
+#endif
 
 #include "dcmp.h"
 

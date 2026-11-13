@@ -154,10 +154,7 @@ Typical use:
    */
   free() {
     if (this._titleAlloc) {
-      globalThis.amiga.freeMem(
-        this._titleAlloc.ptr,
-        this._titleAlloc.size
-      );
+      this._titleAlloc.free();
       this._titleAlloc = null;
     }
 
@@ -188,10 +185,7 @@ Typical use:
    */
   set title(value) {
     if (this._titleAlloc) {
-      globalThis.amiga.freeMem(
-        this._titleAlloc.ptr,
-        this._titleAlloc.size
-      );
+      this._titleAlloc.free();
       this._titleAlloc = null;
     }
 
@@ -201,16 +195,11 @@ Typical use:
     }
 
     if (typeof value === 'string') {
-      let bytes = value.length + 1;
-      let strPtr = globalThis.amiga.allocMem(bytes);
-
-      if (!strPtr) {
-        throw new Error('NewWindow.title: allocMem failed');
-      }
-
-      globalThis.amiga.pokeString(strPtr, value);
-      this.write32(NewWindow.OFFSET.Title, strPtr);
-      this._titleAlloc = { ptr: strPtr, size: bytes };
+      /* OpenWindow() copies nothing: the window's title bar points at
+       * this string for as long as the window is open, so the copy
+       * lives until the next assignment or free(). */
+      this._titleAlloc = globalThis.amiga.allocString(value);
+      this.write32(NewWindow.OFFSET.Title, this._titleAlloc.ptr);
       return;
     }
 

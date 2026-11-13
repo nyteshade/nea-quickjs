@@ -118,28 +118,34 @@ export class Dos extends LibraryBase {
   });
 
   /**
-   * Open(name, accessMode) — d1=name, d2=accessMode. Returns BPTR.
-   * Accepts a JS string for `name` (allocates + frees a C copy).
+   * Run fn with a string argument as a C string. dos.library reads a
+   * name or command line during the call and keeps no pointer to it,
+   * so the copy is freed as soon as fn returns.
+   *
+   * @internal
+   * @template T
+   * @param {string|number|null} text - a JS string, or a pointer the
+   *   caller manages (passed through)
+   * @param {function(number): T} fn - receives the C string pointer
+   * @returns {T} whatever fn returns
+   * @throws {Error} if the temporary copy cannot be allocated
+   */
+  static _withText(text, fn) {
+    if (typeof text !== 'string') return fn(ptrOf(text));
+
+    return globalThis.amiga.withString(text, fn);
+  }
+
+  /**
+   * Open(name, accessMode) — d1=name, d2=accessMode.
+   *
+   * @param {string|number} name - file name, or a C string pointer
+   * @param {number} accessMode - Dos.consts.MODE_OLDFILE etc.
+   * @returns {number} the file handle (a BPTR), 0 on failure
    */
   static Open(name, accessMode) {
-    let namePtr = ptrOf(name);
-    let bytes = 0;
-
-    if (typeof name === 'string') {
-      bytes = name.length + 1;
-      namePtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(namePtr, name);
-    }
-
-    try {
-      return this.call(this.lvo.Open, {
-        d1: namePtr, d2: accessMode | 0,
-      });
-    }
-
-    finally {
-      if (bytes) globalThis.amiga.freeMem(namePtr, bytes);
-    }
+    return this._withText(name, (namePtr) =>
+      this.call(this.lvo.Open, { d1: namePtr, d2: accessMode | 0 }));
   }
 
   static Close(file)  { return this.call(this.lvo.Close, { d1: file | 0 }); }
@@ -166,27 +172,16 @@ export class Dos extends LibraryBase {
   }
 
   /**
-   * Lock(name, accessMode) — accepts a JS string name.
+   * Lock(name, accessMode) — d1=name, d2=accessMode.
+   *
+   * @param {string|number} name - path, or a C string pointer
+   * @param {number} accessMode - Dos.consts.SHARED_LOCK or
+   *   EXCLUSIVE_LOCK
+   * @returns {number} the lock (a BPTR), 0 on failure
    */
   static Lock(name, accessMode) {
-    let namePtr = ptrOf(name);
-    let bytes = 0;
-
-    if (typeof name === 'string') {
-      bytes = name.length + 1;
-      namePtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(namePtr, name);
-    }
-
-    try {
-      return this.call(this.lvo.Lock, {
-        d1: namePtr, d2: accessMode | 0,
-      });
-    }
-
-    finally {
-      if (bytes) globalThis.amiga.freeMem(namePtr, bytes);
-    }
+    return this._withText(name, (namePtr) =>
+      this.call(this.lvo.Lock, { d1: namePtr, d2: accessMode | 0 }));
   }
 
   static UnLock(lock) { return this.call(this.lvo.UnLock, { d1: lock | 0 }); }
@@ -199,24 +194,17 @@ export class Dos extends LibraryBase {
     return this.call(this.lvo.Delay, { d1: ticks | 0 });
   }
 
+  /**
+   * SystemTagList(command, tags) — d1=command, d2=tags. Runs a Shell
+   * command line and waits for it.
+   *
+   * @param {string|number} cmd - command line, or a C string pointer
+   * @param {number|null} tags - TagItem array, or null
+   * @returns {number} the command's return code, -1 if it could not
+   *   be run
+   */
   static SystemTagList(cmd, tags) {
-    let cmdPtr = ptrOf(cmd);
-    let bytes = 0;
-
-    if (typeof cmd === 'string') {
-      bytes = cmd.length + 1;
-      cmdPtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(cmdPtr, cmd);
-    }
-
-    try {
-      return this.call(this.lvo.SystemTagList, {
-        d1: cmdPtr, d2: ptrOf(tags),
-      });
-    }
-
-    finally {
-      if (bytes) globalThis.amiga.freeMem(cmdPtr, bytes);
-    }
+    return this._withText(cmd, (cmdPtr) =>
+      this.call(this.lvo.SystemTagList, { d1: cmdPtr, d2: ptrOf(tags) }));
   }
 }

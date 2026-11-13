@@ -39,15 +39,40 @@
 #ifdef __VBCC__
 /* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
  * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
-#define AMIGA_PORT_VERSION "0.231"
-#define AMIGA_PORT_DATE    "12.11.2026"
-#define AMIGA_PORT_DATE_US "11/12/2026"
+#define AMIGA_PORT_VERSION "0.233"
+#define AMIGA_PORT_DATE    "13.11.2026"
+#define AMIGA_PORT_DATE_US "11/13/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
 static const char amiga_ver[] =
     "$VER: qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE ")";
 extern int amiga_force_color;
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
+
+/* The stack qjs gives itself when the Shell's is smaller.
+ *
+ * vbcc's start-up code reads the variable __stack: if the stack the
+ * program was started with is smaller than that many bytes, it
+ * allocates a block of that size, moves to it with exec's StackSwap()
+ * before main() runs, and moves back and frees it on exit. A Shell
+ * whose Stack setting is already larger is left alone.
+ *
+ * The trade-off is memory against depth. A JavaScript call costs about
+ * 770 bytes of stack and 16 KB is kept free at the bottom, so:
+ *      64 KB (the old required minimum)   about   60 nested calls
+ *     512 KB                              about  640
+ *       1 MB (what the engine assumes elsewhere)  1300
+ * The block is taken from free memory for as long as qjs runs, on top
+ * of roughly 1.7 MB for the library, so on a 2 MB machine 512 KB may
+ * not be there. To change the size, change this one number (or build
+ * with -DQJS_OWN_STACK_SIZE=n); 0 turns the feature off and goes back
+ * to asking the user to type "Stack 65536". */
+#ifndef QJS_OWN_STACK_SIZE
+#define QJS_OWN_STACK_SIZE (512UL * 1024UL)
+#endif
+#if QJS_OWN_STACK_SIZE > 0
+unsigned long __stack = QJS_OWN_STACK_SIZE;
+#endif
 
 #ifdef QJS_USE_LIBRARY
 /* When using the library, quickjs-libc functions are inside
@@ -645,7 +670,12 @@ void help(void)
            "-o  --out FILE     output file for standalone executables\n"
            "    --exe          select the executable to use as the base, defaults to the current one\n"
            "    --memory-limit n       limit the memory usage to 'n' Kbytes\n"
+#ifdef __VBCC__
+           "    --stack-size n         let scripts use at most 'n' Kbytes of the stack\n"
+           "                           (never more than the Shell's Stack setting)\n"
+#else
            "    --stack-size n         limit the stack size to 'n' Kbytes\n"
+#endif
            "-q  --quit         just instantiate the interpreter and quit\n"
            "    --color        enable colored REPL output (AmigaOS default: off)\n"
 #ifdef __VBCC__
@@ -689,6 +719,30 @@ int main(int argc, char **argv)
     JSValue ns, func, call_args[3]; /* C89: hoisted from later if-blocks */
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
+
+#if defined(__VBCC__) && defined(QJS_NO_STACK_CHECK)
+    /* Host-test hook, never in a release build. vamos leaves
+     * tc_SPLower/tc_SPUpper at 0 even after the start-up code has
+     * swapped to its own stack of __stack bytes, so the library could
+     * not find the stack and its limit could not be tested on the Mac.
+     * Publish bounds here: the top is just above this frame, and the
+     * bottom is put 8 KB higher than it can really be, so the claim is
+     * never larger than the truth. */
+    {
+        extern unsigned long __stack;
+        void *sysbase = *(void **)4;
+        void *(*findtask)(__reg("a6") void *, __reg("a1") void *) =
+            (void *)((char *)sysbase - 294);
+        char *task = (char *)findtask(sysbase, (void *)0);
+        unsigned long *sp_lower = (unsigned long *)(task + 58);
+        unsigned long *sp_upper = (unsigned long *)(task + 62);
+
+        if (*sp_lower == 0 && *sp_upper == 0 && __stack > 16384) {
+            *sp_upper = ((unsigned long)&task + 512) & ~3UL;
+            *sp_lower = *sp_upper - __stack + 8192;
+        }
+    }
+#endif
 
 #if defined(__VBCC__) && !defined(QJS_NO_STACK_CHECK)
     /* (QJS_NO_STACK_CHECK is a host-test hook: vamos reports a zero
@@ -1011,8 +1065,32 @@ start:
     }
     if (memory_limit >= 0)
         JS_SetMemoryLimit(rt, (size_t)memory_limit);
-    if (stack_size >= 0)
+    if (stack_size >= 0) {
+#ifdef __VBCC__
+        /* --stack-size can lower the interpreter's limit, never raise it
+         * past the stack this task really has: the library keeps the
+         * limit inside the task's stack whatever is asked for (see
+         * update_stack_limit in quickjs.c). Say so when the request
+         * cannot be met, instead of pretending. Task.tc_SPLower is at
+         * offset 58 and tc_SPUpper at 62, as in the check at the top
+         * of main. */
+        void *sysbase = *(void **)4;
+        void *(*findtask)(__reg("a6") void *, __reg("a1") void *) =
+            (void *)((char *)sysbase - 294);
+        char *task = (char *)findtask(sysbase, (void *)0);
+        unsigned long have = *(unsigned long *)(task + 62) -
+                             *(unsigned long *)(task + 58);
+
+        if (have != 0 && (uint64_t)stack_size > have) {
+            fprintf(stderr,
+                    "qjs: --stack-size asks for %lu KB but this task's stack "
+                    "is %lu KB;\n     using what is there. Give qjs more with "
+                    "the Shell's Stack command.\n",
+                    (unsigned long)(stack_size >> 10), have >> 10);
+        }
+#endif
         JS_SetMaxStackSize(rt, (size_t)stack_size);
+    }
     if (dump_flags != 0)
         JS_SetDumpFlags(rt, dump_flags);
 #ifdef __VBCC__

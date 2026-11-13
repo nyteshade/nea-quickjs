@@ -143,4 +143,47 @@ export class GadgetBase extends BOOPSIBase {
 
   get text()      { return this.get('text'); }
   set text(v)     { this.set({ text: v }); }
+
+  /**
+   * Send a "show your requester" method: GFILE_REQUEST, GFONT_REQUEST,
+   * GSM_REQUEST or GCOLOR_REQUEST. The four pop-up gadgets (getfile,
+   * getfont, getscreenmode, getcolor) do not open their requester when
+   * clicked; the application sends this method when it sees the click.
+   * The message is { MethodID; struct Window *window; } and the
+   * headers say of the window: "MUST be provided". It is the window
+   * that is blocked while the requester is up.
+   *
+   * @internal
+   * @param {string} who - 'GetFile.request' etc., for the error
+   * @param {number} methodID - the class's _REQUEST method
+   * @param {object|number} [window] - the Reaction Window object, a
+   *   struct Window wrapper, or a struct Window pointer. Omitted: the
+   *   open window this gadget is in.
+   * @returns {number} what the class returned: non-zero if the user
+   *   chose something, 0 if the requester was cancelled
+   * @throws {Error} if there is no open window to give the class
+   */
+  _sendRequest(who, methodID, window) {
+    let pointer = 0;
+
+    if (typeof window === 'number') {
+      pointer = window;
+    }
+    else if (window && window.intuiWindow) {
+      pointer = window.intuiWindow.ptr;        /* a Reaction Window */
+    }
+    else if (window && typeof window.ptr === 'number') {
+      pointer = window.ptr;                    /* a struct Window wrapper */
+    }
+    else {
+      pointer = this._findWindowPtr();
+    }
+
+    if (!pointer) {
+      throw new Error(who + ': the gadget is not in an open window, ' +
+                      'and none was given');
+    }
+
+    return this.doMethod(methodID, pointer);
+  }
 }

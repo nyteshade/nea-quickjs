@@ -46,6 +46,12 @@ const GETSCREENMODE = Object.freeze({
   PropertyMask:    0x85041015,   /* +25 */
 });
 
+/** @internal getscreenmode.gadget's own methods (gadgets/getscreenmode.h). */
+const GSM = Object.freeze({
+  /* check-constants: prefix GSM_ header gadgets/getscreenmode.h */
+  REQUEST: 0x610001,
+});
+
 /**
  * getscreenmode.gadget — Reaction screen-mode requester.
  *
@@ -86,6 +92,10 @@ export class GetScreenMode extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -104,11 +114,16 @@ export class GetScreenMode extends GadgetBase {
    * NOTE: SCREENMODE_SELECTED fires on every preview-gadget click, not
    * only after an actual pick — filter for displayID being non-zero.
    *
-   * @param {number} winStructPtr — struct Window * (use win.intuiWindow.ptr)
-   * @returns {number}
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer (`win.intuiWindow.ptr`). Omit it for the window the
+   *   gadget is in.
+   * @returns {number} what the class returned: non-zero if a mode was
+   *   chosen
+   * @throws {Error} if there is no open window
    */
-  request(winStructPtr) {
-    return this.doMethod(0x610001, winStructPtr | 0);
+  request(window) {
+    return this._sendRequest('GetScreenMode.request', GSM.REQUEST, window);
   }
 }
 

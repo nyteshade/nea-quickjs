@@ -227,7 +227,7 @@ defineFeature({
     name:        'process',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'Node.js process global — argv, env, exit, platform, cwd, hrtime, nextTick, uptime, memoryUsage',
+    description: 'Node.js process global - argv, env, exit, platform, cwd, hrtime, nextTick, uptime, memoryUsage',
     globals:     ['process'],
     standard:    false,
     install() {
@@ -339,7 +339,7 @@ defineFeature({
     name:        'performance',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'performance.now / timeOrigin / mark / measure / getEntries* — web High Resolution Time',
+    description: 'performance.now / timeOrigin / mark / measure / getEntries* - web High Resolution Time',
     globals:     ['performance'],
     standard:    true,
     install() {
@@ -967,7 +967,7 @@ defineFeature({
     name:        'node-url-module',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'node url module — URL, format, fileURLToPath, pathToFileURL',
+    description: 'node url module - URL, format, fileURLToPath, pathToFileURL',
     requires:    ['url'],
     globals:     ['url'],
     standard:    false,
@@ -2340,7 +2340,7 @@ defineFeature({
     name:        'blob',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'WHATWG Blob + File — pure-JS Uint8Array-backed',
+    description: 'WHATWG Blob + File - pure-JS Uint8Array-backed',
     requires:    ['buffer', 'text-encoding'],
     globals:     ['Blob', 'File'],
     standard:    true,
@@ -2463,7 +2463,7 @@ defineFeature({
     name:        'form-data',
     tier:        'pure-js',
     provider:    'nea-port',
-    description: 'WHATWG FormData — ordered (name, value) pairs',
+    description: 'WHATWG FormData - ordered (name, value) pairs',
     requires:    ['blob'],
     globals:     ['FormData'],
     standard:    true,
@@ -5093,7 +5093,7 @@ defineFeature({
     name:        'amiga-ffi',
     tier:        'native-backed',
     provider:    'nea-port',
-    description: 'Raw AmigaOS FFI — openLibrary / call / peek / poke / allocMem / makeTags + 150 LVOs',
+    description: 'Raw AmigaOS FFI - openLibrary / call / peek / poke / allocMem / makeTags + 150 LVOs',
     globals:     ['amiga'],
     standard:    false,
     install() {
@@ -5780,7 +5780,7 @@ defineFeature({
              * MethodID. */
             doMethod(obj, msg) {
                 if (typeof N.__qjs_amiga_doMethod !== 'function') {
-                    throw new Error('amiga.doMethod: native not installed — library < 0.137?');
+                    throw new Error('amiga.doMethod: native not installed - library < 0.137?');
                 }
                 if (obj === null || obj === undefined) return 0;
                 return N.__qjs_amiga_doMethod(obj | 0, (msg | 0) || 0);

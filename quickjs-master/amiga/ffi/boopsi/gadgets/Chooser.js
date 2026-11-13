@@ -16,6 +16,7 @@
 
 import { GadgetBase, GADGET_ATTRS } from '../GadgetBase.js';
 import { EventKind } from '../EventKind.js';
+import { buildNodeList } from '../NodeList.js';
 
 /** @internal CHOOSER_* tag IDs (gadgets/chooser.h). */
 const CHOOSER = Object.freeze({
@@ -106,6 +107,10 @@ export class Chooser extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;
@@ -122,80 +127,30 @@ export class Chooser extends GadgetBase {
   }
 
   /**
-   * @internal
-   * Allocate a CNA-node per label, link into a struct List, return
-   * { listPtr, freeAll }. Lifetime tied to the owning Chooser's dispose.
+   * Build the CHOOSER_Labels list: one AllocChooserNodeA node per
+   * label, each with CNA_Text. The gadget keeps pointers to the list
+   * and the strings, so all of it lives until dispose().
    *
+   * @internal
    * @param   {string[]} labels
-   * @returns {{listPtr: number, freeAll: Function}}
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
    */
   static _buildLabelList(labels) {
     Chooser.ensureClass();
-    const libBase = Chooser._libBase;
-    if (!libBase) throw new Error('Chooser: class library base not cached');
-
-    /* Standard exec struct List header: 14 bytes, 16 for padding. */
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('Chooser: allocMem list failed');
-
-    /* NewList() inline. */
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];  /* { nodePtr } */
-    const labelAllocs = [];  /* [strPtr, strBytes] — keep alive for node lifetime */
-
-    for (let lbl of labels) {
-      const s = String(lbl);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      const tags = globalThis.amiga.makeTags([[CNA.Text, sP]]);
-      if (!tags) throw new Error('Chooser: makeTags failed');
-
-      /* AllocChooserNodeA takes (tags) in a0 ONLY — no d0. */
-      const nodePtr = globalThis.amiga.call(libBase, CHOOSER_LVO_ALLOC_NODE, {
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 16);
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CHOOSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('Chooser: AllocChooserNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr });
+    if (!Chooser._libBase) {
+      throw new Error('Chooser: class library base not cached');
     }
 
-    /* AddTail() each node. See RadioButton._buildLabelList for the
-     * struct List layout: ln_Succ at +0, ln_Pred at +4, lh_TailPred
-     * at listPtr+8. */
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CHOOSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'Chooser',
+      libBase:  Chooser._libBase,
+      allocLvo: CHOOSER_LVO_ALLOC_NODE,   /* AllocChooserNodeA(a0 tags) */
+      freeLvo:  CHOOSER_LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        pairs: [[CNA.Text, keep.string(labels[index])]],
+      }),
+    });
   }
 
   /** Dispose the chooser + its owned label list. */

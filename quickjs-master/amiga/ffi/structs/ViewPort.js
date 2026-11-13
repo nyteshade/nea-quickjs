@@ -58,7 +58,7 @@ where:
   ptr - REQUIRED: existing ViewPort* pointer. You'll typically get
         this via screen.viewPort (once Screen exposes the field) or
         from graphics.library MakeVPort. No from-scratch allocation
-        via this wrapper — the display list wiring is fragile.
+        via this wrapper - the display list wiring is fragile.
 
 Fields (getters):
   nextViewPort {number}       next ViewPort* in the view, +0

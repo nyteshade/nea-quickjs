@@ -777,24 +777,21 @@ export class Intuition extends LibraryBase {
    * @returns {Screen|null}
    */
   static LockPubScreen(name) {
-    let namePtr = ptrOf(name);
-    let bytes = 0;
-
-    if (typeof name === 'string') {
-      bytes = name.length + 1;
-      namePtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(namePtr, name);
-    }
-
-    try {
+    /**
+     * @param {number} namePtr - C string, or 0 for the default screen
+     * @returns {Screen|null}
+     */
+    let lock = (namePtr) => {
       let raw = this.call(this.lvo.LockPubScreen, { a0: namePtr });
 
       return raw ? new Screen(raw) : null;
-    }
+    };
 
-    finally {
-      if (bytes) globalThis.amiga.freeMem(namePtr, bytes);
-    }
+    /* Intuition looks the name up during the call and keeps no
+     * pointer to it. */
+    return (typeof name === 'string')
+      ? globalThis.amiga.withString(name, lock)
+      : lock(ptrOf(name));
   }
 
   static UnlockPubScreen(name, screen) {
@@ -828,6 +825,30 @@ export class Intuition extends LibraryBase {
     });
   }
 
+  /**
+   * DrawImageState(rp, image, leftOffset, topOffset, state, drawInfo)
+   * - a0/a1, d0/d1/d2, a2. Draws an image, BOOPSI or plain, in one of
+   * its states. The offsets are added to the image's own LeftEdge and
+   * TopEdge.
+   *
+   * @param {RastPort|number} rastPort - where to draw
+   * @param {object|number} image - struct Image or BOOPSI image
+   * @param {number} leftOffset - pixels added to the image's LeftEdge
+   * @param {number} topOffset - pixels added to the image's TopEdge
+   * @param {number} state - Intuition.consts.IDS_NORMAL etc.
+   * @param {DrawInfo|number} drawInfo - from GetScreenDrawInfo(); a
+   *   BOOPSI image needs it for its pens
+   * @returns {undefined}
+   */
+  static DrawImageState(rastPort, image, leftOffset, topOffset, state,
+                        drawInfo) {
+    this.call(this.lvo.DrawImageState, {
+      a0: ptrOf(rastPort), a1: ptrOf(image),
+      d0: leftOffset | 0, d1: topOffset | 0, d2: state | 0,
+      a2: ptrOf(drawInfo),
+    });
+  }
+
   /* ============================================================
    * BOOPSI
    * ============================================================ */
@@ -842,16 +863,11 @@ export class Intuition extends LibraryBase {
    *   pointer otherwise; null on failure
    */
   static NewObjectA(klass, classID, tagList) {
-    let idPtr = ptrOf(classID);
-    let bytes = 0;
-
-    if (typeof classID === 'string') {
-      bytes = classID.length + 1;
-      idPtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(idPtr, classID);
-    }
-
-    try {
+    /**
+     * @param {number} idPtr - the class name as a C string, or 0
+     * @returns {Image|number|null}
+     */
+    let create = (idPtr) => {
       let raw = this.call(this.lvo.NewObjectA, {
         a0: ptrOf(klass), a1: idPtr, a2: ptrOf(tagList),
       });
@@ -867,11 +883,13 @@ export class Intuition extends LibraryBase {
       }
 
       return raw;
-    }
+    };
 
-    finally {
-      if (bytes) globalThis.amiga.freeMem(idPtr, bytes);
-    }
+    /* Intuition finds the class by this name during the call; the
+     * object it returns does not point at the string. */
+    return (typeof classID === 'string')
+      ? globalThis.amiga.withString(classID, create)
+      : create(ptrOf(classID));
   }
 
   /**

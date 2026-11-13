@@ -161,12 +161,17 @@ endif
 FPU_SUPPORT = $(OBJDIR_FPU)/sharedlib_mem.o \
               $(OBJDIR_FPU)/sharedlib_string.o \
               $(OBJDIR_FPU)/sharedlib_math.o \
+              $(OBJDIR_FPU)/sharedlib_math_round.o \
+              $(OBJDIR_FPU)/sharedlib_math_pow.o \
+              $(OBJDIR_FPU)/sharedlib_fpu_mode.o \
               $(FPU_AUX_OBJ) \
               $(OBJDIR_FPU)/sharedlib_time.o \
               $(OBJDIR_FPU)/sharedlib_strtod.o \
               $(OBJDIR_FPU)/sharedlib_printf.o \
               $(OBJDIR_FPU)/sharedlib_vbcc.o \
               $(OBJDIR_FPU)/sharedlib_int64.o \
+              $(OBJDIR_FPU)/sharedlib_int64_fpu.o \
+              $(OBJDIR_FPU)/sharedlib_int64_conv.o \
               $(OBJDIR_FPU)/sharedlib_dbl_helpers.o \
               $(OBJDIR_FPU)/sharedlib_posix.o \
               $(OBJDIR_FPU)/sharedlib_stdio.o \
@@ -198,6 +203,7 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
                $(OBJDIR_SOFT)/sharedlib_strtod.o \
                $(OBJDIR_SOFT)/sharedlib_printf.o \
                $(OBJDIR_SOFT)/sharedlib_vbcc.o \
+               $(OBJDIR_SOFT)/sharedlib_int64.o \
                $(OBJDIR_SOFT)/sharedlib_int64_soft.o \
                $(OBJDIR_SOFT)/sharedlib_softfp.o \
                $(OBJDIR_SOFT)/sharedlib_int64_conv.o \
@@ -307,20 +313,26 @@ variants: 020 040 060 default-library
 
 # --- FPU variant build rules ---
 
+# Maths of the FPU variants. Every source that includes <math.h> also
+# gets sharedlib_math_fpu.h (the engine through cutils.h), which
+# replaces vbcc's inline floor/ceil/trunc/round/fmod/hypot/ldexp by
+# the functions in sharedlib_math_round.c and sharedlib_math.c.
+FPU_MATH_HDRS = $(LIBVBCC)/sharedlib_math_fpu.h $(LIBVBCC)/sharedlib_dblbits.h
+
 $(TARGET_FPU): $(FPU_ALL) | $(LIBSDIR)
 	$(VLINK) $(LDFLAGS) $(FPU_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
-$(OBJDIR_FPU)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/quickjs.o: $(QJS)/quickjs.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
 	ulimit -s 65520 && $(VC) $(CFLAGS_FPU_QUICKJS) $< -o $@
 
-$(OBJDIR_FPU)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/dtoa.o: $(QJS)/dtoa.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
-$(OBJDIR_FPU)/libregexp.o: $(QJS)/libregexp.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/libregexp.o: $(QJS)/libregexp.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU_REGEXP) $< -o $@
 
-$(OBJDIR_FPU)/libunicode.o: $(QJS)/libunicode.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/libunicode.o: $(QJS)/libunicode.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/library.o: $(TEMPLATE)/library.c $(LIBVBCC)/libraryconfig.h | $(OBJDIR_FPU)
@@ -368,11 +380,29 @@ $(OBJDIR_FPU)/sharedlib_mem.o: $(LIBVBCC)/sharedlib_mem.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/sharedlib_string.o: $(LIBVBCC)/sharedlib_string.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
-$(OBJDIR_FPU)/sharedlib_math.o: $(LIBVBCC)/sharedlib_math.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/sharedlib_math.o: $(LIBVBCC)/sharedlib_math.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+$(OBJDIR_FPU)/sharedlib_math_round.o: $(LIBVBCC)/sharedlib_math_round.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/sharedlib_math_pow.o: $(LIBVBCC)/sharedlib_math_pow.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+# FPU mode while inside the library: round to nearest; double precision
+# on the 68040/68060, extended on the 68020 (a 6888x is much slower in
+# double precision). The reasons are at the top of the file.
+ifeq ($(CPU),68020)
+QJS_FPCR_MODE = 0
+else
+QJS_FPCR_MODE = 128
+endif
+$(OBJDIR_FPU)/sharedlib_fpu_mode.o: $(LIBVBCC)/sharedlib_fpu_mode.s | $(OBJDIR_FPU)
+	$(VASM) $(ASMFLAGS_FPU) -I$(ROOT)/sdks/NDK3.2R4/Include_I \
+	    -DQJS_FPCR_MODE=$(QJS_FPCR_MODE) $< -o $@
+
 # 040/060 FPU only: provides atan/sin/cos/etc. via mathieeedoubtrans.library
-$(OBJDIR_FPU)/sharedlib_math_fpu_aux.o: $(LIBVBCC)/sharedlib_math_fpu_aux.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/sharedlib_math_fpu_aux.o: $(LIBVBCC)/sharedlib_math_fpu_aux.c $(FPU_MATH_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 # For 040/060 FPU builds: use soft math impl (calls mathieeedoubtrans
@@ -410,7 +440,14 @@ $(OBJDIR_FPU)/sharedlib_clib.o: $(LIBVBCC)/sharedlib_clib.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/sharedlib_fetch.o: $(LIBVBCC)/sharedlib_fetch.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
+# 64-bit integer helpers vbcc calls for "long long". sharedlib_int64.s
+# (multiply, divide, shifts) and sharedlib_int64_conv.c (double -> int64)
+# are integer code shared with the soft variants; sharedlib_int64_fpu.s
+# is int64 -> double with the FPU. Check them with perf/int64cmp/run.sh.
 $(OBJDIR_FPU)/sharedlib_int64.o: $(LIBVBCC)/sharedlib_int64.s | $(OBJDIR_FPU)
+	$(VASM) $(ASMFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/sharedlib_int64_fpu.o: $(LIBVBCC)/sharedlib_int64_fpu.s | $(OBJDIR_FPU)
 	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU):
@@ -502,9 +539,12 @@ $(OBJDIR_SOFT)/sharedlib_printf.o: $(LIBVBCC)/sharedlib_printf.c | $(OBJDIR_SOFT
 $(OBJDIR_SOFT)/sharedlib_vbcc.o: $(LIBVBCC)/sharedlib_vbcc.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
-# Double comparison (and, from 0.232, the soft-float arithmetic) for the
-# soft variants only; the FPU variants use the FPU's own instructions.
+# Double comparison and the soft-float arithmetic (0.232) for the soft
+# variants only; the FPU variants use the FPU's own instructions.
 $(OBJDIR_SOFT)/sharedlib_softfp.o: $(LIBVBCC)/sharedlib_softfp.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_int64.o: $(LIBVBCC)/sharedlib_int64.s | $(OBJDIR_SOFT)
 	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_int64_soft.o: $(LIBVBCC)/sharedlib_int64_soft.s | $(OBJDIR_SOFT)

@@ -7,26 +7,28 @@
  *   | [             Quit             ] |
  *   +----------------------------------+
  *
- * Click the gadget; whenever it reports back, the red, green and blue
- * of the colour it holds are printed on the Shell. The requester it
- * stands for is titled "Choose a color" and is set up to offer RGB
- * sliders, HSB sliders and a colour wheel.
+ * Click the gadget and a colour requester opens, titled "Choose a
+ * color", with RGB sliders, HSB sliders and a colour wheel. Choose a
+ * colour and its red, green and blue are printed on the Shell; cancel,
+ * and the script says so.
+ *
+ * The gadget does not open the requester by itself. A click on it
+ * arrives here as a COLOR_SELECTED event, and the script answers with
+ * `colorChooser.request()`, which shows the requester and returns
+ * once the user is done (GCOLOR_REQUEST in gadgets/getcolor.h; the
+ * NDK's Examples/GetColor.c does the same).
  *
  * Assumptions:
  *   - the window opens on the default public screen (normally
  *     Workbench), which has room for a 300 x 100 window interior
  *   - getcolor.gadget, label.image, button.gadget, layout.gadget and
  *     window.class are in SYS:Classes, as AmigaOS 3.2 installs them
- *   - the gadget opens its colour requester by itself when clicked.
- *     This script never sends it GCOLOR_REQUEST (gadgets/getcolor.h),
- *     which the header says is how the requester is opened; compare
- *     getfont_demo.js, which does ask
- *   - the red, green and blue values are printed as the gadget gives
- *     them; their range is not checked
+ *   - the gadget's `color` is 0x00RRGGBB, eight bits a channel, as
+ *     the NDK example reads it
  *   - window.class reports gadget clicks even though the `idcmp:` mask
  *     below asks only for close, refresh and attribute updates
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.232+ (GetColor.request arrived then).
  * Run: qjs examples/getcolor_demo.js
  */
 
@@ -35,6 +37,12 @@ const { Window, Layout, Button, GetColor, Label, EventKind, IDCMP,
 
 /** Gadget IDs: how an event says which gadget it came from. */
 const ID = { COLOR: 1, QUIT: 2 };
+
+/** The gadget's colour is 0x00RRGGBB: where each channel sits in it,
+ *  in bits, and the mask for one eight-bit channel. */
+const RED_SHIFT    = 16;
+const GREEN_SHIFT  = 8;
+const CHANNEL_MASK = 0xFF;
 
 let colorChooser = new GetColor({
   id:        ID.COLOR,
@@ -81,10 +89,19 @@ try {
     if (event.kind === EventKind.BUTTON_CLICK &&
         event.sourceId === ID.QUIT) break;
 
+    /* The gadget was clicked: show its requester. request() comes
+     * back when the user has chosen or cancelled. */
     if (event.kind === EventKind.COLOR_SELECTED) {
-      print('Got color: R=' + colorChooser.get('red') +
-            ' G=' + colorChooser.get('green') +
-            ' B=' + colorChooser.get('blue'));
+      if (colorChooser.request()) {
+        let color = colorChooser.get('color');
+
+        print('Got color: R=' + ((color >> RED_SHIFT) & CHANNEL_MASK) +
+              ' G=' + ((color >> GREEN_SHIFT) & CHANNEL_MASK) +
+              ' B=' + (color & CHANNEL_MASK));
+      }
+      else {
+        print('No color chosen.');
+      }
     }
   }
 }

@@ -233,7 +233,7 @@ export class ReactionWindow extends BOOPSIBase {
     let winPtr = this.doMethod(WM_OPEN);
 
     if (!winPtr) {
-      throw new Error('Window.open: WM_OPEN returned 0 — ' +
+      throw new Error('Window.open: WM_OPEN returned 0 - ' +
         'likely missing WA_Flags bit, bad screen, or out of memory');
     }
 
@@ -397,61 +397,78 @@ export class ReactionWindow extends BOOPSIBase {
   }
 
   /**
-   * Phase D helper — populate `event.attrs` with the most relevant
-   * current attribute(s) for the source gadget's class, so handlers
-   * don't need an explicit `event.source.get(...)` round-trip after
-   * each event. Class → attrs mapping is intentionally minimal:
-   *   slider/scroller/fuelgauge      → { level }
-   *   checkbox/radiobutton/clicktab  → { selected }
-   *   string/integer/texteditor      → { text }    (or `value` for integer)
-   *   chooser                        → { selected }
-   *   speedbar                       → { selected }
-   * Buttons get nothing extra — the click is the event, no state.
+   * Which attribute of the source gadget an event carries, by class:
+   * the names under which it appears in `event.attrs`, and the
+   * wrapper attribute it is read from. The first name is the
+   * gadget's own name for it (what the wrapper's ATTRS table and the
+   * header call it); `selected` is added where 0.156-0.231 documented
+   * that name.
    *
-   * Errors during get() are silently swallowed: if a class hasn't
-   * defined the named property, we don't surface attrs rather than
-   * blowing up the event pump.
+   * Until 0.231 radiobutton, chooser and clicktab all read
+   * `selected`, which for those classes is the inherited GA_Selected
+   * (is the gadget drawn pressed?), not the chosen entry; so
+   * `event.attrs.active` and `event.attrs.current` were never set and
+   * `event.attrs.selected` held 0 or 1. Scroller and gradient slider
+   * read `level`, an attribute neither has, so theirs was undefined.
    *
-   * @param {object} event
-   * @param {string} className — source.constructor._classLibName
+   * @type {Object<string, {names: string[], from: string}>}
+   */
+  static EVENT_ATTRS = Object.freeze({
+    'gadgets/slider.gadget':         { names: ['level'],    from: 'level' },
+    /* SCROLLER_Top: the scroller has no attribute called level */
+    'gadgets/scroller.gadget':       { names: ['top', 'level'],
+                                       from: 'top' },
+    'gadgets/fuelgauge.gadget':      { names: ['level'],    from: 'level' },
+    /* GRAD_CurVal: nor has the gradient slider */
+    'gadgets/gradientslider.gadget': { names: ['curVal', 'level'],
+                                       from: 'curVal' },
+    /* GA_Selected is the checkbox's own state */
+    'gadgets/checkbox.gadget':       { names: ['selected'], from: 'selected' },
+    /* RADIOBUTTON_Selected: index of the chosen button */
+    'gadgets/radiobutton.gadget':    { names: ['selected'], from: 'selectedIx' },
+    'gadgets/string.gadget':         { names: ['text'],     from: 'text' },
+    'gadgets/integer.gadget':        { names: ['value'],    from: 'value' },
+    /* CHOOSER_Active, which the header also names CHOOSER_Selected */
+    'gadgets/chooser.gadget':        { names: ['active', 'selected'],
+                                       from: 'active' },
+    /* CLICKTAB_Current: number of the chosen tab */
+    'gadgets/clicktab.gadget':       { names: ['current', 'selected'],
+                                       from: 'current' },
+    /* LISTBROWSER_Selected / SPEEDBAR_Selected */
+    'gadgets/listbrowser.gadget':    { names: ['selected'], from: 'selected' },
+    'gadgets/speedbar.gadget':       { names: ['selected'], from: 'selected' },
+    'gadgets/texteditor.gadget':     { names: ['text'],     from: 'contents' },
+  });
+
+  /**
+   * Put the source gadget's current value into `event.attrs`, so that
+   * a handler need not call `event.source.get(...)` itself. What is
+   * read, and under which names, is in EVENT_ATTRS. A button gets
+   * nothing: the click is the event.
+   *
+   * If the gadget cannot be asked (get() throws), the names are left
+   * undefined rather than stopping the event loop.
+   *
+   * @param {object} event - the event being built; its attrs are set
+   * @param {string} className - source.constructor._classLibName
+   * @returns {undefined}
    */
   static _fillAttrsForClass(event, className) {
     if (!className || !event.source) return;
-    let pull = (name) => {
-      try { return event.source.get(name); }
-      catch (_) { return undefined; }
-    };
-    switch (className) {
-      case 'gadgets/slider.gadget':
-      case 'gadgets/scroller.gadget':
-      case 'gadgets/fuelgauge.gadget':
-      case 'gadgets/gradientslider.gadget':
-        event.attrs.level = pull('level');
-        break;
-      case 'gadgets/checkbox.gadget':
-      case 'gadgets/radiobutton.gadget':
-        event.attrs.selected = pull('selected');
-        break;
-      case 'gadgets/string.gadget':
-        event.attrs.text = pull('text');
-        break;
-      case 'gadgets/integer.gadget':
-        event.attrs.value = pull('value');
-        break;
-      case 'gadgets/clicktab.gadget':
-      case 'gadgets/chooser.gadget':
-      case 'gadgets/listbrowser.gadget':
-      case 'gadgets/speedbar.gadget':
-      case 'gadgets/page.gadget':
-        event.attrs.selected = pull('selected');
-        break;
-      case 'gadgets/texteditor.gadget':
-        event.attrs.text = pull('contents');
-        break;
-      default:
-        /* Unknown class — leave attrs empty. Handlers can still
-         * call event.source.get(...) for any specific attr. */
-        break;
+
+    let entry = ReactionWindow.EVENT_ATTRS[className];
+
+    /* A class that is not in the table: attrs stay empty, and the
+     * handler can still call event.source.get(...). */
+    if (!entry) return;
+
+    let value;
+
+    try { value = event.source.get(entry.from); }
+    catch (_) { value = undefined; }
+
+    for (let name of entry.names) {
+      event.attrs[name] = value;
     }
   }
 
@@ -599,7 +616,7 @@ export class ReactionWindow extends BOOPSIBase {
     let winSig = this.get('sigMask') >>> 0;
     if (!winSig) {
       throw new Error(
-        'Window.events: WINDOW_SigMask returned 0 — window not properly opened'
+        'Window.events: WINDOW_SigMask returned 0 - window not properly opened'
       );
     }
 

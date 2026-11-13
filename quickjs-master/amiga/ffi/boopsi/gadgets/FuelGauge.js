@@ -76,6 +76,10 @@ export class FuelGauge extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (typeof clean.orientation === 'string') {
       clean.orientation = clean.orientation.toLowerCase() === 'vertical'

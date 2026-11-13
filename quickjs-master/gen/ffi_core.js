@@ -1448,6 +1448,179 @@ function withStruct(StructClass, fn) {
 }
 
 
+/* === structs/ExecNode.js === */
+/* quickjs-master/amiga/ffi/structs/ExecNode.js
+ *
+ * struct Node (exec/nodes.h): the link every member of an exec list
+ * starts with. A wrapper around an existing node only; nodes are
+ * allocated by whoever owns the list's members (a Reaction class
+ * library's AllocXxxNode(), for the gadget label lists).
+ *
+ * Named ExecNode rather than Node so that it cannot be mistaken for a
+ * DOM-style Node. Scripts reach it as amiga.exec.Node; it is not a
+ * global.
+ */
+
+
+class ExecNode extends Struct {
+  /* check-structs: struct Node */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * exec/nodes.h. Checked against the compiler's own layout of the
+   * struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    ln_Succ: 0,
+    ln_Pred: 4,
+    ln_Type: 8,
+    ln_Pri:  9,
+    ln_Name: 10,
+  });
+
+  /** @type {number} */
+  static SIZE = 14;
+
+  /** @returns {number} pointer to the next node (ln_Succ) */
+  get succ() { return this.read32(ExecNode.OFFSET.ln_Succ); }
+
+  /** @param {number} pointer - the next node */
+  set succ(pointer) { this.write32(ExecNode.OFFSET.ln_Succ, pointer); }
+
+  /** @returns {number} pointer to the previous node (ln_Pred) */
+  get pred() { return this.read32(ExecNode.OFFSET.ln_Pred); }
+
+  /** @param {number} pointer - the previous node */
+  set pred(pointer) { this.write32(ExecNode.OFFSET.ln_Pred, pointer); }
+
+  /** @returns {number} Exec.consts.NT_* (ln_Type) */
+  get type() { return this.read8(ExecNode.OFFSET.ln_Type); }
+
+  /** @returns {number} priority, -128..127 (ln_Pri) */
+  get priority() {
+    let value = this.read8(ExecNode.OFFSET.ln_Pri);
+
+    return value > 127 ? value - 256 : value;
+  }
+
+  /** @returns {string|null} the node's name (ln_Name), if it has one */
+  get name() {
+    let pointer = this.read32(ExecNode.OFFSET.ln_Name);
+
+    return pointer ? globalThis.amiga.peekString(pointer, 256) : null;
+  }
+}
+
+
+/* === structs/ExecList.js === */
+/* quickjs-master/amiga/ffi/structs/ExecList.js
+ *
+ * struct List (exec/lists.h): the header of an exec doubly linked
+ * list. This is the one place the wrappers build or walk such a list;
+ * until 0.231 five Reaction gadgets each did it with their own copy of
+ * the offsets.
+ *
+ * How an exec list works: the header holds two overlapping sentinel
+ * nodes. lh_Head points at the first real node, or at &lh_Tail when
+ * the list is empty; lh_Tail is always NULL; lh_TailPred points at the
+ * last real node, or at &lh_Head when the list is empty. A node is the
+ * last one when its ln_Succ points at &lh_Tail.
+ *
+ * Named ExecList rather than List so that the name says which kind of
+ * list it is. Scripts reach it as amiga.exec.List; it is not a global.
+ */
+
+
+class ExecList extends Struct {
+  /* check-structs: struct List */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * exec/lists.h. Checked against the compiler's own layout of the
+   * struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    lh_Head:     0,
+    lh_Tail:     4,
+    lh_TailPred: 8,
+    lh_Type:     12,
+  });
+
+  /** @type {number} */
+  static SIZE = 14;
+
+  /**
+   * @param {number} [ptr] - an existing struct List to wrap. Omit to
+   *   allocate a new one, which starts out empty (as after NewList())
+   *   and must be free()d once nothing uses it any more.
+   */
+  constructor(ptr) {
+    super(ptr);
+
+    if (ptr === undefined) {
+      this.clear();
+    }
+  }
+
+  /**
+   * Make the list empty, as the NewList() macro does. The nodes that
+   * were on it are not touched or freed.
+   *
+   * @returns {undefined}
+   */
+  clear() {
+    this.write32(ExecList.OFFSET.lh_Head, this.ptr + ExecList.OFFSET.lh_Tail);
+    this.write32(ExecList.OFFSET.lh_Tail, 0);
+    this.write32(ExecList.OFFSET.lh_TailPred,
+                 this.ptr + ExecList.OFFSET.lh_Head);
+  }
+
+  /** @returns {boolean} whether the list has no nodes */
+  get isEmpty() {
+    return (this.read32(ExecList.OFFSET.lh_TailPred) >>> 0) ===
+           ((this.ptr + ExecList.OFFSET.lh_Head) >>> 0);
+  }
+
+  /**
+   * Add a node at the end, as exec's AddTail() does.
+   *
+   * @param {number|ExecNode} node - the node, or a pointer to it
+   * @returns {undefined}
+   */
+  addTail(node) {
+    let added = (node instanceof ExecNode) ? node : new ExecNode(node);
+    let last  = new ExecNode(this.read32(ExecList.OFFSET.lh_TailPred));
+
+    added.succ = this.ptr + ExecList.OFFSET.lh_Tail;
+    added.pred = last.ptr;
+    /* When the list is empty `last` is the header itself, whose
+     * lh_Head lies where a node's ln_Succ does. */
+    last.succ  = added.ptr;
+    this.write32(ExecList.OFFSET.lh_TailPred, added.ptr);
+  }
+
+  /**
+   * The nodes, first to last.
+   *
+   * @returns {Generator<number>} each node's pointer
+   */
+  *nodes() {
+    let node = new ExecNode(this.read32(ExecList.OFFSET.lh_Head));
+
+    for (;;) {
+      let next = node.succ;
+
+      if (!next) return;          /* reached lh_Tail, which is NULL */
+
+      yield node.ptr >>> 0;
+      node = new ExecNode(next);
+    }
+  }
+}
+
+
 /* === structs/MsgPort.js === */
 /* quickjs-master/amiga/ffi/structs/MsgPort.js
  *
@@ -1734,7 +1907,7 @@ To describe a font of your own, allocate the name and point at it:
   attr.free(); name.free();
 
 Typical use:
-  screen.font.name, screen.font.ySize — live view of the screen's
+  screen.font.name, screen.font.ySize - live view of the screen's
   font TextAttr. Do NOT write to system-owned instances.`;
   }
 
@@ -1760,6 +1933,174 @@ Typical use:
   /** @returns {number} Graphics.consts.FPF_* bits */
   get flags()  { return this.read8(TextAttr.OFFSET.ta_Flags); }
   set flags(v) { this.write8(TextAttr.OFFSET.ta_Flags, v | 0); }
+}
+
+
+/* === structs/TextFont.js === */
+/* quickjs-master/amiga/ffi/structs/TextFont.js
+ *
+ * struct TextFont (graphics/text.h): an open font, as OpenFont(),
+ * OpenDiskFont() and DrawInfo.dri_Font give it. Read-only: the font
+ * belongs to graphics.library.
+ *
+ * The bundle keeps this class private (it is not a global); ScreenFont
+ * uses it to read the screen font's measurements.
+ */
+
+
+class TextFont extends Struct {
+  /* check-structs: struct TextFont */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * graphics/text.h. Checked against the compiler's own layout of the
+   * struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    tf_YSize:    20,
+    tf_Style:    22,
+    tf_Flags:    23,
+    tf_XSize:    24,
+    tf_Baseline: 26,
+  });
+
+  /** @type {number} */
+  static SIZE = 52;
+
+  /** @returns {number} height of a line of text, in pixels */
+  get ySize() { return this.read16(TextFont.OFFSET.tf_YSize); }
+
+  /** @returns {number} Graphics.consts.FSF_* bits the font has built in */
+  get style() { return this.read8(TextFont.OFFSET.tf_Style); }
+
+  /** @returns {number} Graphics.consts.FPF_* bits */
+  get flags() { return this.read8(TextFont.OFFSET.tf_Flags); }
+
+  /** @returns {number} nominal character width, in pixels */
+  get xSize() { return this.read16(TextFont.OFFSET.tf_XSize); }
+
+  /** @returns {number} pixels from the top of a line to its baseline */
+  get baseline() { return this.read16(TextFont.OFFSET.tf_Baseline); }
+}
+
+
+/* === structs/FileRequester.js === */
+/* quickjs-master/amiga/ffi/structs/FileRequester.js
+ *
+ * struct FileRequester (libraries/asl.h): what AllocAslRequest(
+ * ASL_FileRequest) returns and AslRequest() fills in. Read-only, and
+ * valid only until FreeAslRequest(): read what you need first.
+ *
+ * The bundle keeps this class private (it is not a global);
+ * Asl.openFileRequest uses it.
+ */
+
+
+class FileRequester extends Struct {
+  /* check-structs: struct FileRequester */
+  /**
+   * Byte offsets of the fields this wrapper touches, named as in
+   * libraries/asl.h. Checked against the compiler's own layout of the
+   * struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    fr_File:     4,
+    fr_Drawer:   8,
+    fr_LeftEdge: 22,
+    fr_TopEdge:  24,
+    fr_Width:    26,
+    fr_Height:   28,
+    fr_NumArgs:  32,
+  });
+
+  /** asl.library allocates these; a script never does. */
+  static SIZE = 0;
+
+  /** @returns {string|null} contents of the File gadget */
+  get file() {
+    let pointer = this.read32(FileRequester.OFFSET.fr_File);
+
+    return pointer ? globalThis.amiga.peekString(pointer, 256) : null;
+  }
+
+  /** @returns {string|null} contents of the Drawer gadget */
+  get drawer() {
+    let pointer = this.read32(FileRequester.OFFSET.fr_Drawer);
+
+    return pointer ? globalThis.amiga.peekString(pointer, 512) : null;
+  }
+
+  /** @returns {number} the requester's left edge when it closed */
+  get leftEdge() { return this.read16(FileRequester.OFFSET.fr_LeftEdge); }
+
+  /** @returns {number} the requester's top edge when it closed */
+  get topEdge() { return this.read16(FileRequester.OFFSET.fr_TopEdge); }
+
+  /** @returns {number} the requester's width when it closed */
+  get width() { return this.read16(FileRequester.OFFSET.fr_Width); }
+
+  /** @returns {number} the requester's height when it closed */
+  get height() { return this.read16(FileRequester.OFFSET.fr_Height); }
+
+  /** @returns {number} how many files a multi-select request chose */
+  get numArgs() { return this.read32(FileRequester.OFFSET.fr_NumArgs); }
+}
+
+
+/* === structs/DrawListEntry.js === */
+/* quickjs-master/amiga/ffi/structs/DrawListEntry.js
+ *
+ * struct DrawList (images/drawlist.h): ONE directive of the array a
+ * drawlist.image is given in DRAWLIST_Directives. The header calls the
+ * element "DrawList"; the wrapper is named for what it is, an entry,
+ * and the BOOPSI class that draws the array keeps the name DrawList.
+ *
+ * The bundle keeps this class private (it is not a global);
+ * DrawList.packDirectives uses it.
+ */
+
+
+class DrawListEntry extends Struct {
+  /* check-structs: struct DrawList */
+  /**
+   * Byte offsets of the fields, named as in images/drawlist.h.
+   * Checked against the compiler's own layout of the struct by
+   * scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    dl_Directive: 0,
+    dl_X1:        2,
+    dl_Y1:        4,
+    dl_X2:        6,
+    dl_Y2:        8,
+    dl_Pen:       10,
+  });
+
+  /** @type {number} */
+  static SIZE = 12;
+
+  /** @param {number} value - a DLST_* directive (DrawOp.*) */
+  set directive(value) { this.write16(DrawListEntry.OFFSET.dl_Directive, value); }
+
+  /** @param {number} value - first x, on the reference grid */
+  set x1(value) { this.write16(DrawListEntry.OFFSET.dl_X1, value); }
+
+  /** @param {number} value - first y, on the reference grid */
+  set y1(value) { this.write16(DrawListEntry.OFFSET.dl_Y1, value); }
+
+  /** @param {number} value - second x, on the reference grid */
+  set x2(value) { this.write16(DrawListEntry.OFFSET.dl_X2, value); }
+
+  /** @param {number} value - second y, on the reference grid */
+  set y2(value) { this.write16(DrawListEntry.OFFSET.dl_Y2, value); }
+
+  /** @param {number} value - the pen to draw with */
+  set pen(value) { this.write16(DrawListEntry.OFFSET.dl_Pen, value); }
 }
 
 
@@ -1801,7 +2142,7 @@ where:
   ptr - REQUIRED: an existing BOOPSI image pointer returned by
         Intuition.NewObjectTags('frameiclass'/'sysiclass'/etc, ...).
         You cannot allocate a BOOPSI image from scratch via this
-        wrapper — use NewObjectTags and let it wrap the return.
+        wrapper - use NewObjectTags and let it wrap the return.
 
 Fields (read-only getters):
   leftEdge  {number} WORD, +0
@@ -2198,7 +2539,7 @@ Typical use (raw-FFI escape hatch, wrapper pending):
 
     if (!p || index < 0 || index >= this.numPens) return 0;
 
-    return globalThis.amiga.peek16(p + index * 2);
+    return globalThis.amiga.peek16(p + index * 2);  /* check-structs: a UWORD array */
   }
 }
 
@@ -2396,7 +2737,7 @@ Fields (getter+setter on each):
   mutualExclude {number}   LONG exclusion bitmask
   itemFill      {number}   APTR to Image* or IntuiText*
   selectFill    {number}   APTR for highlight
-  command       {number}   BYTE — single-char Amiga-key shortcut
+  command       {number}   BYTE - single-char Amiga-key shortcut
   subItem       {MenuItem|null} submenu ptr, or null
   nextSelect    {number}   UWORD
 
@@ -2532,7 +2873,7 @@ Fields (read+write):
                                {string|number} (setter, owning if str)
   nextText                     {number}
 
-Methods: free() — releases struct + owned text allocation.`;
+Methods: free() - releases struct + owned text allocation.`;
   }
 
   /**
@@ -2569,10 +2910,7 @@ Methods: free() — releases struct + owned text allocation.`;
    */
   free() {
     if (this._textAlloc) {
-      globalThis.amiga.freeMem(
-        this._textAlloc.ptr,
-        this._textAlloc.size
-      );
+      this._textAlloc.free();
       this._textAlloc = null;
     }
 
@@ -2607,10 +2945,7 @@ Methods: free() — releases struct + owned text allocation.`;
    */
   set text(value) {
     if (this._textAlloc) {
-      globalThis.amiga.freeMem(
-        this._textAlloc.ptr,
-        this._textAlloc.size
-      );
+      this._textAlloc.free();
       this._textAlloc = null;
     }
 
@@ -2620,14 +2955,10 @@ Methods: free() — releases struct + owned text allocation.`;
     }
 
     if (typeof value === 'string') {
-      let bytes = value.length + 1;
-      let p = globalThis.amiga.allocMem(bytes);
-
-      if (!p) throw new Error('IntuiText.text: allocMem failed');
-
-      globalThis.amiga.pokeString(p, value);
-      this.write32(IntuiText.OFFSET.IText, p);
-      this._textAlloc = { ptr: p, size: bytes };
+      /* Intuition reads IText every time the text is drawn, so the
+       * copy lives until the next assignment or free(). */
+      this._textAlloc = globalThis.amiga.allocString(value);
+      this.write32(IntuiText.OFFSET.IText, this._textAlloc.ptr);
       return;
     }
 
@@ -2875,7 +3206,7 @@ where:
   ptr - REQUIRED: existing ViewPort* pointer. You'll typically get
         this via screen.viewPort (once Screen exposes the field) or
         from graphics.library MakeVPort. No from-scratch allocation
-        via this wrapper — the display list wiring is fragile.
+        via this wrapper - the display list wiring is fragile.
 
 Fields (getters):
   nextViewPort {number}       next ViewPort* in the view, +0
@@ -3133,12 +3464,12 @@ Fields (read+write on primitives):
   micros     {number} TimeStamp micros  at +18
 
 IECLASS_* codes (UBYTE):
-  0  NULL          — empty/reset event
-  1  RAWKEY        — keyboard raw key code
-  2  RAWMOUSE      — mouse movement / buttons
-  3  EVENT         — generic system event
-  4  POINTERPOS    — absolute pointer coord
-  5  TIMER         — VBL tick`;
+  0  NULL          - empty/reset event
+  1  RAWKEY        - keyboard raw key code
+  2  RAWMOUSE      - mouse movement / buttons
+  3  EVENT         - generic system event
+  4  POINTERPOS    - absolute pointer coord
+  5  TIMER         - VBL tick`;
   }
 
   /** @returns {number} */
@@ -3233,7 +3564,7 @@ where:
 
 Fields:
   replyPort   {number} MsgPort* ptr at +14 (mn_ReplyPort)
-  messageLen  {number} UWORD at +18 (mn_Length — struct byte size)
+  messageLen  {number} UWORD at +18 (mn_Length - struct byte size)
   device      {number} Device* ptr at +20
   unit        {number} Unit* ptr at +24
   command     {number} UWORD at +28
@@ -3369,7 +3700,7 @@ Fields (inherits IORequest + adds):
   setTimeval(secs, micro)     convenience setter
 
 Typical use:
-  // open timer.device first (not wrapped yet — use raw FFI).
+  // open timer.device first (not wrapped yet - use raw FFI).
   let tr = new TimerRequest();
   tr.replyPort  = port.ptr;
   tr.messageLen = TimerRequest.SIZE;
@@ -3454,7 +3785,7 @@ class Screen extends Struct {
 where:
   ptr - REQUIRED: an existing struct Screen pointer from
         Intuition.OpenScreenTags / LockPubScreen. You cannot
-        allocate a Screen from scratch — only Intuition may.
+        allocate a Screen from scratch - only Intuition may.
 
 Fields (read-only getters): leftEdge, topEdge, width, height,
   flags, title, barHeight, font (TextAttr wrapper).
@@ -3695,10 +4026,7 @@ Typical use:
    */
   free() {
     if (this._titleAlloc) {
-      globalThis.amiga.freeMem(
-        this._titleAlloc.ptr,
-        this._titleAlloc.size
-      );
+      this._titleAlloc.free();
       this._titleAlloc = null;
     }
 
@@ -3729,10 +4057,7 @@ Typical use:
    */
   set title(value) {
     if (this._titleAlloc) {
-      globalThis.amiga.freeMem(
-        this._titleAlloc.ptr,
-        this._titleAlloc.size
-      );
+      this._titleAlloc.free();
       this._titleAlloc = null;
     }
 
@@ -3742,16 +4067,11 @@ Typical use:
     }
 
     if (typeof value === 'string') {
-      let bytes = value.length + 1;
-      let strPtr = globalThis.amiga.allocMem(bytes);
-
-      if (!strPtr) {
-        throw new Error('NewWindow.title: allocMem failed');
-      }
-
-      globalThis.amiga.pokeString(strPtr, value);
-      this.write32(NewWindow.OFFSET.Title, strPtr);
-      this._titleAlloc = { ptr: strPtr, size: bytes };
+      /* OpenWindow() copies nothing: the window's title bar points at
+       * this string for as long as the window is open, so the copy
+       * lives until the next assignment or free(). */
+      this._titleAlloc = globalThis.amiga.allocString(value);
+      this.write32(NewWindow.OFFSET.Title, this._titleAlloc.ptr);
       return;
     }
 
@@ -3833,7 +4153,7 @@ where:
   ptr - REQUIRED: an existing struct Window pointer returned by
         Intuition.OpenWindow / Intuition.OpenWindowTags /
         Intuition.OpenWindowTagList. You cannot allocate a Window
-        from scratch — only Intuition may.
+        from scratch - only Intuition may.
 
 Fields (read-only getters): leftEdge, topEdge, width, height, title,
   screen, rastPort, userPort.
@@ -4147,18 +4467,8 @@ class Exec extends LibraryBase {
   static _withName(name, fn) {
     if (typeof name !== 'string') return fn(ptrOf(name));
 
-    let bytes  = name.length + 1;
-    let buffer = globalThis.amiga.allocMem(bytes);
-
-    if (!buffer) throw new Error('Exec: out of memory for a name');
-
-    try {
-      globalThis.amiga.pokeString(buffer, name);
-      return fn(buffer);
-    }
-    finally {
-      globalThis.amiga.freeMem(buffer, bytes);
-    }
+    /* exec reads the name during the call and keeps no pointer to it. */
+    return globalThis.amiga.withString(name, fn);
   }
 
   /**
@@ -4418,28 +4728,34 @@ class Dos extends LibraryBase {
   });
 
   /**
-   * Open(name, accessMode) — d1=name, d2=accessMode. Returns BPTR.
-   * Accepts a JS string for `name` (allocates + frees a C copy).
+   * Run fn with a string argument as a C string. dos.library reads a
+   * name or command line during the call and keeps no pointer to it,
+   * so the copy is freed as soon as fn returns.
+   *
+   * @internal
+   * @template T
+   * @param {string|number|null} text - a JS string, or a pointer the
+   *   caller manages (passed through)
+   * @param {function(number): T} fn - receives the C string pointer
+   * @returns {T} whatever fn returns
+   * @throws {Error} if the temporary copy cannot be allocated
+   */
+  static _withText(text, fn) {
+    if (typeof text !== 'string') return fn(ptrOf(text));
+
+    return globalThis.amiga.withString(text, fn);
+  }
+
+  /**
+   * Open(name, accessMode) — d1=name, d2=accessMode.
+   *
+   * @param {string|number} name - file name, or a C string pointer
+   * @param {number} accessMode - Dos.consts.MODE_OLDFILE etc.
+   * @returns {number} the file handle (a BPTR), 0 on failure
    */
   static Open(name, accessMode) {
-    let namePtr = ptrOf(name);
-    let bytes = 0;
-
-    if (typeof name === 'string') {
-      bytes = name.length + 1;
-      namePtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(namePtr, name);
-    }
-
-    try {
-      return this.call(this.lvo.Open, {
-        d1: namePtr, d2: accessMode | 0,
-      });
-    }
-
-    finally {
-      if (bytes) globalThis.amiga.freeMem(namePtr, bytes);
-    }
+    return this._withText(name, (namePtr) =>
+      this.call(this.lvo.Open, { d1: namePtr, d2: accessMode | 0 }));
   }
 
   static Close(file)  { return this.call(this.lvo.Close, { d1: file | 0 }); }
@@ -4466,27 +4782,16 @@ class Dos extends LibraryBase {
   }
 
   /**
-   * Lock(name, accessMode) — accepts a JS string name.
+   * Lock(name, accessMode) — d1=name, d2=accessMode.
+   *
+   * @param {string|number} name - path, or a C string pointer
+   * @param {number} accessMode - Dos.consts.SHARED_LOCK or
+   *   EXCLUSIVE_LOCK
+   * @returns {number} the lock (a BPTR), 0 on failure
    */
   static Lock(name, accessMode) {
-    let namePtr = ptrOf(name);
-    let bytes = 0;
-
-    if (typeof name === 'string') {
-      bytes = name.length + 1;
-      namePtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(namePtr, name);
-    }
-
-    try {
-      return this.call(this.lvo.Lock, {
-        d1: namePtr, d2: accessMode | 0,
-      });
-    }
-
-    finally {
-      if (bytes) globalThis.amiga.freeMem(namePtr, bytes);
-    }
+    return this._withText(name, (namePtr) =>
+      this.call(this.lvo.Lock, { d1: namePtr, d2: accessMode | 0 }));
   }
 
   static UnLock(lock) { return this.call(this.lvo.UnLock, { d1: lock | 0 }); }
@@ -4499,25 +4804,18 @@ class Dos extends LibraryBase {
     return this.call(this.lvo.Delay, { d1: ticks | 0 });
   }
 
+  /**
+   * SystemTagList(command, tags) — d1=command, d2=tags. Runs a Shell
+   * command line and waits for it.
+   *
+   * @param {string|number} cmd - command line, or a C string pointer
+   * @param {number|null} tags - TagItem array, or null
+   * @returns {number} the command's return code, -1 if it could not
+   *   be run
+   */
   static SystemTagList(cmd, tags) {
-    let cmdPtr = ptrOf(cmd);
-    let bytes = 0;
-
-    if (typeof cmd === 'string') {
-      bytes = cmd.length + 1;
-      cmdPtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(cmdPtr, cmd);
-    }
-
-    try {
-      return this.call(this.lvo.SystemTagList, {
-        d1: cmdPtr, d2: ptrOf(tags),
-      });
-    }
-
-    finally {
-      if (bytes) globalThis.amiga.freeMem(cmdPtr, bytes);
-    }
+    return this._withText(cmd, (cmdPtr) =>
+      this.call(this.lvo.SystemTagList, { d1: cmdPtr, d2: ptrOf(tags) }));
   }
 }
 
@@ -5459,20 +5757,19 @@ class Asl extends LibraryBase {
   }
 
   /**
-   * Convenience — one call that allocates, runs the requester, and
-   * frees cleanly. Returns a {ok, drawer, file, path} object for
-   * file requesters, or {ok, requester} for other types.
+   * Convenience — one call that allocates a file requester, shows
+   * it, reads the answer and frees it.
    *
-   * File-request layout (struct FileRequester after a successful
-   * AslRequest, from NDK3.2R4 libraries/asl.h:61):
-   *   +0   fr_Reserved0[4]
-   *   +4   fr_File   (STRPTR)  — contents of File gadget
-   *   +8   fr_Drawer (STRPTR)  — contents of Drawer gadget
-   *   +22  fr_LeftEdge (WORD)
-   *   ... fr_NumArgs / fr_ArgList for multi-select
+   * The requester is freed before this returns, so the result holds
+   * strings, not pointers. (Until 0.231 it also carried `requester`,
+   * the address of the struct that had just been freed; reading
+   * through it read freed memory. It is now always 0 and will be
+   * removed.)
    *
    * @param {Array<[number, number]>} pairs — ASLFR_* tag pairs
    * @returns {{ok: boolean, drawer: string|null, file: string|null, path: string|null, requester: number}}
+   *   ok is false if the user cancelled or the requester could not be
+   *   made; path is drawer and file joined as AmigaDOS would
    */
   static openFileRequest(pairs) {
     let req = this.AllocAslRequestTags(this.consts.ASL_FileRequest,
@@ -5488,20 +5785,14 @@ class Asl extends LibraryBase {
 
       if (!ok) {
         return { ok: false, drawer: null, file: null, path: null,
-                 requester: req };
+                 requester: 0 };
       }
 
-      /* Per NDK 3.2 layout: fr_File is at +4, fr_Drawer at +8. */
-      let filePtr   = globalThis.amiga.peek32(req + 4);
-      let drawerPtr = globalThis.amiga.peek32(req + 8);
-
-      let drawer = drawerPtr
-        ? globalThis.amiga.peekString(drawerPtr, 512)
-        : null;
-
-      let file = filePtr
-        ? globalThis.amiga.peekString(filePtr, 256)
-        : null;
+      /* Copy the answer out now: the strings belong to the requester
+       * and go with it in the finally below. */
+      let answer = new FileRequester(req);
+      let drawer = answer.drawer;
+      let file   = answer.file;
 
       let path = null;
 
@@ -5516,7 +5807,7 @@ class Asl extends LibraryBase {
         path = drawer + sep + file;
       }
 
-      return { ok: true, drawer, file, path, requester: req };
+      return { ok: true, drawer, file, path, requester: 0 };
     }
 
     finally {
@@ -6383,24 +6674,21 @@ class Intuition extends LibraryBase {
    * @returns {Screen|null}
    */
   static LockPubScreen(name) {
-    let namePtr = ptrOf(name);
-    let bytes = 0;
-
-    if (typeof name === 'string') {
-      bytes = name.length + 1;
-      namePtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(namePtr, name);
-    }
-
-    try {
+    /**
+     * @param {number} namePtr - C string, or 0 for the default screen
+     * @returns {Screen|null}
+     */
+    let lock = (namePtr) => {
       let raw = this.call(this.lvo.LockPubScreen, { a0: namePtr });
 
       return raw ? new Screen(raw) : null;
-    }
+    };
 
-    finally {
-      if (bytes) globalThis.amiga.freeMem(namePtr, bytes);
-    }
+    /* Intuition looks the name up during the call and keeps no
+     * pointer to it. */
+    return (typeof name === 'string')
+      ? globalThis.amiga.withString(name, lock)
+      : lock(ptrOf(name));
   }
 
   static UnlockPubScreen(name, screen) {
@@ -6434,6 +6722,30 @@ class Intuition extends LibraryBase {
     });
   }
 
+  /**
+   * DrawImageState(rp, image, leftOffset, topOffset, state, drawInfo)
+   * - a0/a1, d0/d1/d2, a2. Draws an image, BOOPSI or plain, in one of
+   * its states. The offsets are added to the image's own LeftEdge and
+   * TopEdge.
+   *
+   * @param {RastPort|number} rastPort - where to draw
+   * @param {object|number} image - struct Image or BOOPSI image
+   * @param {number} leftOffset - pixels added to the image's LeftEdge
+   * @param {number} topOffset - pixels added to the image's TopEdge
+   * @param {number} state - Intuition.consts.IDS_NORMAL etc.
+   * @param {DrawInfo|number} drawInfo - from GetScreenDrawInfo(); a
+   *   BOOPSI image needs it for its pens
+   * @returns {undefined}
+   */
+  static DrawImageState(rastPort, image, leftOffset, topOffset, state,
+                        drawInfo) {
+    this.call(this.lvo.DrawImageState, {
+      a0: ptrOf(rastPort), a1: ptrOf(image),
+      d0: leftOffset | 0, d1: topOffset | 0, d2: state | 0,
+      a2: ptrOf(drawInfo),
+    });
+  }
+
   /* ============================================================
    * BOOPSI
    * ============================================================ */
@@ -6448,16 +6760,11 @@ class Intuition extends LibraryBase {
    *   pointer otherwise; null on failure
    */
   static NewObjectA(klass, classID, tagList) {
-    let idPtr = ptrOf(classID);
-    let bytes = 0;
-
-    if (typeof classID === 'string') {
-      bytes = classID.length + 1;
-      idPtr = globalThis.amiga.allocMem(bytes);
-      globalThis.amiga.pokeString(idPtr, classID);
-    }
-
-    try {
+    /**
+     * @param {number} idPtr - the class name as a C string, or 0
+     * @returns {Image|number|null}
+     */
+    let create = (idPtr) => {
       let raw = this.call(this.lvo.NewObjectA, {
         a0: ptrOf(klass), a1: idPtr, a2: ptrOf(tagList),
       });
@@ -6473,11 +6780,13 @@ class Intuition extends LibraryBase {
       }
 
       return raw;
-    }
+    };
 
-    finally {
-      if (bytes) globalThis.amiga.freeMem(idPtr, bytes);
-    }
+    /* Intuition finds the class by this name during the call; the
+     * object it returns does not point at the string. */
+    return (typeof classID === 'string')
+      ? globalThis.amiga.withString(classID, create)
+      : create(ptrOf(classID));
   }
 
   /**
@@ -6704,17 +7013,6 @@ class Intuition extends LibraryBase {
  */
 
 
-/** sizeof(struct RastPort), graphics/rastport.h. */
-const RASTPORT_SIZE = 100;
-
-/** MEMF_PUBLIC | MEMF_CLEAR, exec/memory.h. */
-const MEMF_PUBLIC_CLEAR = 0x00010001;
-
-/** Offsets into struct TextFont, graphics/text.h. */
-const TF_YSIZE    = 20;
-const TF_XSIZE    = 24;
-const TF_BASELINE = 26;
-
 class ScreenFont {
   /**
    * REPL help text.
@@ -6735,6 +7033,8 @@ Properties:
                          distance as one pixel down (1 = square)
   screenWidth   {number} the screen's width in pixels
   screenHeight  {number} the screen's height in pixels
+  drawInfo      {number} the screen's struct DrawInfo pointer, for
+                         classes that want one (SYSIA_DrawInfo)
 
 Methods:
   widthOf(text) {number} pixel width of text in this font
@@ -6797,14 +7097,16 @@ Typical use:
     /** @type {number} struct TextFont pointer, owned by the screen */
     this._fontPtr = drawInfo.font;
 
+    let font = new TextFont(this._fontPtr);
+
     /** @type {number} pixels in one line of text */
-    this.height = globalThis.amiga.peek16(this._fontPtr + TF_YSIZE);
+    this.height = font.ySize;
 
     /** @type {number} the font's nominal character width */
-    this.nominalWidth = globalThis.amiga.peek16(this._fontPtr + TF_XSIZE);
+    this.nominalWidth = font.xSize;
 
     /** @type {number} pixels from the top of a line to its baseline */
-    this.baseline = globalThis.amiga.peek16(this._fontPtr + TF_BASELINE);
+    this.baseline = font.baseline;
 
     /* dri_Resolution is the size of one pixel, in ticks. On a 640x256
      * screen a pixel is half as wide as it is tall (22 x 44), so it
@@ -6818,8 +7120,8 @@ Typical use:
       ? ticksDown / ticksAcross
       : 1;
 
-    this._rastPortPtr = globalThis.amiga.allocMem(RASTPORT_SIZE,
-                                                  MEMF_PUBLIC_CLEAR);
+    /* amiga.allocMem gives public, zero-filled memory by default. */
+    this._rastPortPtr = globalThis.amiga.allocMem(RastPort.SIZE);
 
     if (!this._rastPortPtr) {
       this.close();
@@ -6828,6 +7130,17 @@ Typical use:
 
     Graphics.InitRastPort(this._rastPortPtr);
     Graphics.SetFont(this._rastPortPtr, this._fontPtr);
+  }
+
+  /**
+   * The screen's struct DrawInfo, as a pointer: its pens, font and
+   * resolution. Classes that draw in the screen's style ask for it
+   * (sysiclass needs it as SYSIA_DrawInfo). 0 after close().
+   *
+   * @returns {number}
+   */
+  get drawInfo() {
+    return this._drawInfoPtr;
   }
 
   /**
@@ -6847,18 +7160,9 @@ Typical use:
     text = String(text);
     if (text.length === 0) return 0;
 
-    let bytes  = text.length + 1;
-    let buffer = globalThis.amiga.allocMem(bytes, MEMF_PUBLIC_CLEAR);
-
-    if (!buffer) throw new Error('ScreenFont: out of memory');
-
-    try {
-      globalThis.amiga.pokeString(buffer, text);
-      return Graphics.TextLength(this._rastPortPtr, buffer, text.length);
-    }
-    finally {
-      globalThis.amiga.freeMem(buffer, bytes);
-    }
+    /* TextLength() measures during the call and keeps nothing. */
+    return globalThis.amiga.withString(text, (pointer) =>
+      Graphics.TextLength(this._rastPortPtr, pointer, text.length));
   }
 
   /**
@@ -6883,7 +7187,7 @@ Typical use:
    */
   close() {
     if (this._rastPortPtr) {
-      globalThis.amiga.freeMem(this._rastPortPtr, RASTPORT_SIZE);
+      globalThis.amiga.freeMem(this._rastPortPtr, RastPort.SIZE);
       this._rastPortPtr = 0;
     }
 
@@ -6981,7 +7285,10 @@ const structsByLib = {
     DrawInfo, Menu, MenuItem, IntuiText,
   },
   graphics:  { RastPort, TextAttr, BitMap, ColorMap, ViewPort },
-  exec:      { MsgPort, IORequest },
+  /* List and Node are reached as amiga.exec.List / amiga.exec.Node
+   * only: as globals those two names would be too easily taken for
+   * something else. */
+  exec:      { MsgPort, IORequest, List: ExecList, Node: ExecNode },
   dos:       { FileInfoBlock },
   /* timer.device / inputevent.device live under "devices" in the
    * NDK; mirror that. */
@@ -7046,8 +7353,11 @@ globalThis.__qjs_ffiShared = {
   CEnumeration,
   ptrOf,
   Struct,
+  withStruct,
+  ExecList,
   IntuiMessage,
   TextAttr,
+  DrawListEntry,
   Image,
   Gadget,
   RastPort,
@@ -7058,6 +7368,7 @@ globalThis.__qjs_ffiShared = {
   ColorMap,
   Screen,
   makeTags,
+  withTags,
   Window,
   Exec,
   GadTools,

@@ -48,13 +48,6 @@ const BYTES_PER_MB = 1024 * 1024;
 /** Width of one column of the table, in characters. */
 const COLUMN_WIDTH = 12;
 
-/** Which timer.device unit to open (devices/timer.h). */
-const UNIT_VBLANK = 1;
-
-/** timer.device command: "reply to me after this long"
- *  (devices/timer.h, TR_ADDREQUEST = CMD_NONSTD = 9). */
-const TR_ADDREQUEST = 9;
-
 /** The pause between tables, in microseconds: half a second. */
 const PAUSE_MICROSECONDS = 500000;
 
@@ -115,12 +108,23 @@ function reportSnapshot() {
 function reportFurtherSnapshots(lastTick) {
   const TimerRequest = amiga.devices.TimerRequest;
 
-  let port    = new MsgPort(Exec.CreateMsgPort());
+  /** timer.device's units and commands, by their header names. */
+  const T = TimerRequest.consts;
+
+  let port = new MsgPort(Exec.CreateMsgPort());
+
+  /* CreateMsgPort gives 0 when there is no memory or no signal bit
+   * left; a request sent to a port at address 0 would never return. */
+  if (!port.ptr) {
+    print('CreateMsgPort failed');
+    std.exit(1);
+  }
+
   let request = new TimerRequest();
   request.replyPort  = port.ptr;
   request.messageLen = TimerRequest.SIZE;
 
-  let openError = Exec.OpenDevice('timer.device', UNIT_VBLANK, request, 0);
+  let openError = Exec.OpenDevice('timer.device', T.UNIT_VBLANK, request, 0);
 
   if (openError !== 0) {
     print('OpenDevice failed rc=' + openError);
@@ -131,7 +135,7 @@ function reportFurtherSnapshots(lastTick) {
 
   try {
     for (let tick = 2; tick <= lastTick; tick++) {
-      request.command = TR_ADDREQUEST;
+      request.command = T.TR_ADDREQUEST;
       request.setTimeval(0, PAUSE_MICROSECONDS);
       Exec.DoIO(request);
 

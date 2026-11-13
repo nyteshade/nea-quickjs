@@ -31,6 +31,12 @@ const GETCOLOR = Object.freeze({
   SmallTextAttr:0x85043013,
 });
 
+/** @internal getcolor.gadget's own methods (gadgets/getcolor.h). */
+const GCOLOR = Object.freeze({
+  /* check-constants: prefix GCOLOR_ header gadgets/getcolor.h */
+  REQUEST: 0x630001,
+});
+
 /**
  * getcolor.gadget — color-picker popup.
  *
@@ -65,9 +71,39 @@ export class GetColor extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
+  }
+
+  /**
+   * Open the colour requester and wait for the user. The gadget does
+   * not do this by itself when clicked: gadgets/getcolor.h gives the
+   * GCOLOR_REQUEST method and the macro RequestColor(obj, win) for
+   * it, and the NDK's Examples/GetColor.c sends it when the gadget's
+   * WMHI_GADGETUP arrives. Here that is the COLOR_SELECTED event:
+   *
+   *   if (event.kind === EventKind.COLOR_SELECTED &&
+   *       colorChooser.request()) {
+   *     print(colorChooser.get('color').toString(16));
+   *   }
+   *
+   * (Until 0.231 this wrapper had no such method, so a GetColor could
+   * be clicked but never showed a requester.)
+   *
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer. Omit it for the window the gadget is in.
+   * @returns {boolean} true if a colour was chosen, false if the
+   *   requester was cancelled
+   * @throws {Error} if there is no open window
+   */
+  request(window) {
+    return this._sendRequest('GetColor.request', GCOLOR.REQUEST, window) !== 0;
   }
 }
 

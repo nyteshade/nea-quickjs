@@ -50,8 +50,13 @@ const SHARED_LOCK = Dos.consts.SHARED_LOCK;
 /** How wide the size column is for a file, in characters. */
 const SIZE_COLUMN_WIDTH = 10;
 
-/** What a drawer shows in place of a size. */
-const NO_SIZE = '     -';
+/** What a drawer shows in place of a size: a dash where the last
+ *  digit of a size would be, so the two kinds of row line up. */
+const NO_SIZE = '-'.padStart(SIZE_COLUMN_WIDTH);
+
+/** What the script hands back to the Shell. */
+const EXIT_OK      = 0;
+const EXIT_FAILURE = 1;
 
 /**
  * Get a shared lock on a directory.
@@ -107,19 +112,21 @@ function isDrawer(fileInfo) {
   return fileInfo.dirEntryType > 0;
 }
 
-let lock = lockSharedFor(directory);
-
-if (!lock) {
-  print('Cannot lock ' + directory + ' (check it exists and is readable)');
-  std.exit(1);
-}
-
-let fileInfo = new FileInfoBlock();
-
-try {
+/**
+ * Print the listing of a locked directory.
+ *
+ * It returns instead of calling std.exit(), because std.exit() ends
+ * the script on the spot: the caller's `finally`, which gives back the
+ * lock and the FileInfoBlock, would never run.
+ *
+ * @param {number} lock - the directory's lock (BPTR)
+ * @param {FileInfoBlock} fileInfo - scratch space for the entries
+ * @returns {number} EXIT_OK or EXIT_FAILURE
+ */
+function printListing(lock, fileInfo) {
   if (!examine(lock, fileInfo)) {
     print('Examine failed on ' + directory);
-    std.exit(1);
+    return EXIT_FAILURE;
   }
 
   /* The first Examine describes the directory itself, so it makes the
@@ -129,9 +136,9 @@ try {
   print('-- ' + kind + ' "' + directory + '" (' + fileInfo.fileName +
         ') --');
 
-  if (fileInfo.dirEntryType <= 0) {
+  if (!isDrawer(fileInfo)) {
     print('(Path points at a file; size=' + fileInfo.size + ')');
-    std.exit(0);
+    return EXIT_OK;
   }
 
   let count = 0;
@@ -148,8 +155,25 @@ try {
   }
 
   print('-- ' + count + ' entries --');
+  return EXIT_OK;
+}
+
+let lock = lockSharedFor(directory);
+
+if (!lock) {
+  print('Cannot lock ' + directory + ' (check it exists and is readable)');
+  std.exit(EXIT_FAILURE);
+}
+
+let fileInfo = new FileInfoBlock();
+let exitCode = EXIT_FAILURE;
+
+try {
+  exitCode = printListing(lock, fileInfo);
 }
 finally {
   fileInfo.free();
   Dos.UnLock(lock);
 }
+
+if (exitCode !== EXIT_OK) std.exit(exitCode);
