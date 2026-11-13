@@ -17,4 +17,8 @@ OUT=$HERE/../out/mathcheck
 mkdir -p "$OUT"
 # -ffp-contract=off: no fused multiply-add, which the 68k does not have
 cc -O1 -ffp-contract=off -DQJS_HOST_TEST -o "$OUT/hostcheck" "$HERE/hostcheck.c" -lm || exit 1
-"$OUT/hostcheck"
+"$OUT/hostcheck" || exit 1
+# The soft-float variants' primitives (exp, log, sin, atan, sqrt ...),
+# library/vbcc/sharedlib_math_prim.c, against libm: see primcheck.c.
+cc -O1 -ffp-contract=off -DQJS_HOST_TEST -o "$OUT/primcheck" "$HERE/primcheck.c" -lm || exit 1
+"$OUT/primcheck"

@@ -49,6 +49,14 @@ DEFAULT = [
     'library/vbcc/sharedlib_worker.c', 'library/vbcc/sharedlib_vbcc.c',
     'src/amiga_ssl.c',
 ]
+# Wrong constants that vbcc never compiles: each sits in the #else of an
+# "#if defined(__VBCC__)" whose vbcc branch builds the value from bits.
+# (literal, file) -> why. A new occurrence anywhere else is still reported.
+NOT_FOR_VBCC = {
+    ('1.7976931348623157e+308', 'quickjs-master/quickjs.c'): 'Number.MAX_VALUE, other compilers',
+    ('9.2233720368547758e18', 'quickjs-master/quickjs.c'): 'JS_TWO_POW_63, other compilers',
+}
+
 LITERAL = re.compile(r'(?<![\w.])((?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)[fFlL]?(?![\w.])')
 
 
@@ -118,6 +126,11 @@ def main():
             print('??   %s: could not read the compiled value (%s)' % (lit, where[lit][0]))
             continue
         if got[i] != want:
+            places = set(w.rsplit(':', 1)[0] for w in where[lit])
+            if len(where[lit]) == 1 and all((lit, f) in NOT_FOR_VBCC for f in places):
+                print('skip %s: wrong under vbcc but not compiled by it (%s)' %
+                      (lit, NOT_FOR_VBCC[(lit, list(places)[0])]))
+                continue
             bad += 1
             print('BAD  %s: vbcc %016x, correct %016x' % (lit, got[i], want))
             print('     ' + ', '.join(where[lit][:6]) + (' ...' if len(where[lit]) > 6 else ''))

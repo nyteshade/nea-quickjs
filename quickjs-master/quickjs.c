@@ -77,6 +77,29 @@ static double js_neg_zero(void)
 #define JS_NEG_ZERO (-0.0)
 #endif
 
+/* 2^63, the first double too large for an int64. vbcc compiles the
+   decimal constant 9.2233720368547758e18 to 0x43e0000000000003, three
+   units in the last place too large (scripts/check_fp_literals.py finds
+   such constants), so values just above 2^63 passed the range tests that
+   guard conversions to int64. Built from its bit pattern there. */
+#if defined(__VBCC__)
+static double js_two_pow_63(void)
+{
+    union { uint32_t w[2]; double d; } u;
+    u.w[0] = 0x43e00000U;       /* big-endian: high word first */
+    u.w[1] = 0;
+    return u.d;
+}
+#define JS_TWO_POW_63 (js_two_pow_63())
+#else
+#define JS_TWO_POW_63 9.2233720368547758e18
+#endif
+
+/* x with a negative zero turned into +0, anything else unchanged.
+   The usual idiom, "x + 0.0", does not survive vbcc: it removes the
+   addition, so new Date(-0).getTime() was -0. */
+#define JS_NO_NEG_ZERO(x) js_no_neg_zero(x)
+
 #if defined(EMSCRIPTEN) || defined(_MSC_VER) || defined(__SASC) || defined(__VBCC__)
 #define DIRECT_DISPATCH  0
 #else
@@ -1344,6 +1367,11 @@ typedef enum JSStrictEqModeEnum {
     JS_EQ_SAME_VALUE,
     JS_EQ_SAME_VALUE_ZERO,
 } JSStrictEqModeEnum;
+
+static double js_no_neg_zero(double d)
+{
+    return D_EQ(d, 0) ? 0.0 : d;
+}
 
 static bool js_strict_eq2(JSContext *ctx, JSValue op1, JSValue op2,
                           JSStrictEqModeEnum eq_mode);
@@ -13685,7 +13713,7 @@ static __maybe_unused JSValue JS_ToIntegerFree(JSContext *ctx, JSValue val)
                 ret = js_int32(0);
             } else {
                 /* convert -0 to +0 */
-                d = trunc(d) + 0.0;
+                d = JS_NO_NEG_ZERO(trunc(d));
                 ret = js_number(d);
             }
         }
@@ -13790,7 +13818,7 @@ static int JS_ToInt64SatFree(JSContext *ctx, int64_t *pres, JSValue val)
             } else {
                 if (D_LT(d, INT64_MIN))
                     *pres = INT64_MIN;
-                else if (D_GE(d, 9.2233720368547758e18)) /* 9.2233720368547758e18 = 2^63 */
+                else if (D_GE(d, JS_TWO_POW_63))
                     *pres = INT64_MAX;
                 else
                     *pres = (int64_t)d;
@@ -55091,7 +55119,7 @@ static __exception int get_date_fields(JSContext *ctx, JSValueConst obj,
 
 static double time_clip(double t) {
     if (D_GE(t, -8.64e15) && D_LE(t, 8.64e15))
-        return trunc(t) + 0.0;  /* convert -0 to +0 */
+        return JS_NO_NEG_ZERO(trunc(t));
     else
         return NAN;
 }
@@ -55151,7 +55179,7 @@ static double set_date_fields(double fields[minimum_length(7)], int is_local) {
 
     /* adjust for local time and clip */
     if (is_local) {
-        int64_t ti = D_LT(tv, INT64_MIN) ? INT64_MIN : D_GE(tv, 9.2233720368547758e18) ? INT64_MAX : (int64_t)tv;
+        int64_t ti = D_LT(tv, INT64_MIN) ? INT64_MIN : D_GE(tv, JS_TWO_POW_63) ? INT64_MAX : (int64_t)tv;
         tv += getTimezoneOffset(ti) * 60000;
     }
     d = time_clip(tv);
@@ -55208,8 +55236,12 @@ static JSValue set_date_field(JSContext *ctx, JSValueConst this_val,
         fields[first_field + i] = trunc(a);
     }
 
+    /* An argument that is not a finite number makes the date invalid
+       (ECMAScript: the new time value is NaN and is stored). Returning
+       NaN without storing it left the old date in place:
+       d.setUTCMilliseconds(NaN); d.getTime() was still a number. */
     if (!res)
-        return JS_NAN;
+        return JS_SetThisTimeValue(ctx, this_val, NAN);
 
     if (argc > 0)
         d = set_date_fields(fields, is_local);
@@ -58227,7 +58259,7 @@ static JSValue js_typed_array_indexOf(JSContext *ctx, JSValueConst this_val,
     } else
     if (tag == JS_TAG_FLOAT64) {
         d = JS_VALUE_GET_FLOAT64(argv[0]);
-        if (D_GE(d, INT64_MIN) && D_LT(d, 9.2233720368547758e18)) {
+        if (D_GE(d, INT64_MIN) && D_LT(d, JS_TWO_POW_63)) {
             v64 = d;
             is_int = D_EQ((double)v64, d);
         }
@@ -60218,7 +60250,7 @@ static JSValue js_atomics_wait(JSContext *ctx,
     }
     if (JS_ToFloat64(ctx, &d, argv[3]))
         return JS_EXCEPTION;
-    if (isnan(d) || D_GE(d, 9.2233720368547758e18))
+    if (isnan(d) || D_GE(d, JS_TWO_POW_63))
         timeout = INT64_MAX;
     else if (D_LT(d, 0))
         timeout = 0;
