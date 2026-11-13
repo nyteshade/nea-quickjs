@@ -3612,7 +3612,7 @@ See TimerRequest for a concrete specialization.`;
   get error()       {
     let b = this.read8(IORequest.OFFSET.io_Error);
     /* BYTE is signed; extend from 8-bit 2s-complement. */
-    return b >= 0x80 ? b - 0x100 : b;
+    return b >= 0x80 ? b - 0x100 : b;   /* check-constants: skip - sign extension of a byte */
   }
 }
 
@@ -3771,6 +3771,7 @@ class Screen extends Struct {
     Title:     22,
     BarHeight: 30,
     Font:      40,
+    RastPort:  84,
   });
 
   /* SIZE not exposed — Screen is allocated by Intuition. */
@@ -3788,7 +3789,9 @@ where:
         allocate a Screen from scratch - only Intuition may.
 
 Fields (read-only getters): leftEdge, topEdge, width, height,
-  flags, title, barHeight, font (TextAttr wrapper).
+  flags, title, barHeight, font (TextAttr wrapper), rastPort (the
+  screen's own RastPort: measure text in the screen's font with
+  screen.rastPort.textWidth(text) and .fontHeight; do not draw in it).
 
 Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
   }
@@ -3817,6 +3820,18 @@ Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
 
   /** @returns {number} */
   get barHeight() { return this.read8(Screen.OFFSET.BarHeight); }
+
+  /**
+   * The screen's own RastPort, which is part of the struct. Its font
+   * is the screen's font, so text can be measured in it before any
+   * window is open: textWidth(), fontHeight, fontBaseline. Drawing in
+   * it would draw over the screen's title bar and windows.
+   *
+   * @returns {RastPort}
+   */
+  get rastPort() {
+    return new RastPort(this.ptr + Screen.OFFSET.RastPort);
+  }
 
   /** @returns {TextAttr|null} */
   get font() {
@@ -5777,7 +5792,7 @@ class Asl extends LibraryBase {
 
     if (!req) {
       return { ok: false, drawer: null, file: null, path: null,
-               requester: 0 };
+               requester: 0 };   /* check-constants: skip - no requester: a null pointer */
     }
 
     try {
@@ -5785,7 +5800,7 @@ class Asl extends LibraryBase {
 
       if (!ok) {
         return { ok: false, drawer: null, file: null, path: null,
-                 requester: 0 };
+                 requester: 0 };   /* check-constants: skip - no requester: a null pointer */
       }
 
       /* Copy the answer out now: the strings belong to the requester
@@ -5807,7 +5822,7 @@ class Asl extends LibraryBase {
         path = drawer + sep + file;
       }
 
-      return { ok: true, drawer, file, path, requester: 0 };
+      return { ok: true, drawer, file, path, requester: 0 };   /* check-constants: skip - no requester: a null pointer */
     }
 
     finally {
@@ -6084,6 +6099,12 @@ class Intuition extends LibraryBase {
     NOMENU:   0x001F,
     NOITEM:   0x003F,
     NOSUB:    0x001F,
+
+    /* Menu item layout: pixels to leave for the checkmark (left) and the Amiga-key shortcut (right); LOW for a low-resolution screen (intuition/intuition.h) */
+    CHECKWIDTH:    19,
+    COMMWIDTH:     27,
+    LOWCHECKWIDTH: 13,
+    LOWCOMMWIDTH:  16,
 
     /* Gadget flags, activation and types (intuition/intuition.h) */
     GFLG_GADGHIGHBITS: 0x0003,
@@ -6991,7 +7012,19 @@ class Intuition extends LibraryBase {
  *   font.height                           // pixels, one line of text
  *   font.widthOf('Quit')                  // pixels, in that font
  *   font.across(font.height)              // the same distance, sideways
+ *   font.useIn(window);                   // a plain window: draw in it
  *   font.close();                         // when the window is open
+ *
+ * useIn() matters for a window you draw into yourself. Such a window
+ * does NOT start with the screen's font. On a screen opened with a
+ * font of its own (SA_Font) it does; on Workbench, and on any screen
+ * that takes its font from the user's preferences, the window's
+ * RastPort starts with the system default font instead (intuition.doc,
+ * OpenScreenTagList, SA_SysFont: "windows opened on your screen will
+ * not inherit the screen font"). The RKRM's advice is to SetFont() the
+ * window once it is open if its size was worked out beforehand; that
+ * is what useIn() does. Reaction gadgets need none of this: they use
+ * the DrawInfo font themselves.
  *
  * How it works (all from NDK 3.2R4 headers):
  *   LockPubScreen(name)        keeps the screen from closing
@@ -7038,6 +7071,9 @@ Properties:
 
 Methods:
   widthOf(text) {number} pixel width of text in this font
+  useIn(window)          make an open window draw its text in this
+                         font; without it a window on Workbench draws
+                         in the system default font, not this one
   across(down)  {number} pixels across that look as long as 'down'
                          pixels do vertically
   close()                unlock the screen; call when your window is open
@@ -7163,6 +7199,29 @@ Typical use:
     /* TextLength() measures during the call and keeps nothing. */
     return globalThis.amiga.withString(text, (pointer) =>
       Graphics.TextLength(this._rastPortPtr, pointer, text.length));
+  }
+
+  /**
+   * Make an open window draw its text in this font, so that what was
+   * measured here before the window opened is what gets drawn.
+   *
+   * The window must be on the screen this object was made for. The
+   * font belongs to the screen, which the window keeps open, so this
+   * may be called before or after close().
+   *
+   * @param {object} window - an open window: a struct Window wrapper
+   *   (from Intuition.OpenWindowTags), anything with a rastPort
+   * @returns {undefined}
+   * @throws {TypeError} if window has no rastPort
+   */
+  useIn(window) {
+    let rastPort = window && window.rastPort;
+
+    if (!rastPort) {
+      throw new TypeError('ScreenFont.useIn: not an open window');
+    }
+
+    Graphics.SetFont(rastPort, this._fontPtr);
   }
 
   /**

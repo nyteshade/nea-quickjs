@@ -71,6 +71,7 @@ const {
  * a corresponding EventKind registered below.
  */
 const IDCMP = Object.freeze({
+  /* check-constants: prefix IDCMP_ header intuition/intuition.h */
   SIZE_VERIFY:      0x00000001,
   NEW_SIZE:         0x00000002,
   REFRESH_WINDOW:   0x00000004,
@@ -358,7 +359,7 @@ class EventKind extends CEnumeration {
      * (fromIdcmp walks `from === 'intuition'` only). attrs.sigMask on
      * the event is the bitmask of extra signals that actually fired. */
     EventKind.define('SIGNAL', {
-      idcmp: 0,
+      idcmp: 0,   /* check-constants: skip - no IDCMP class: synthetic */
       rich:  { hasId: false, hasCode: false, hasCoords: false,
                hasSource: false, hasPressed: false },
       from:  'exec',
@@ -439,6 +440,18 @@ class EventKind extends CEnumeration {
  *     └─ sets ptr = 0, _disposed = true
  */
 
+/* Tags and methods of other classes that this file sends itself. Each
+ * is the header's own name, so scripts/check_constants.py compares it
+ * with gadgets/layout.h and classes/window.h. A table, not separate
+ * constants: the wrappers are bundled into one scope, where the same
+ * `const` name in two files would be an error. */
+const SENT = Object.freeze({
+  LAYOUT_ModifyChild: 0x85007016,
+  CHILD_ReplaceImage: 0x85007008,   /* LAYOUT_Dummy+8, not CHILD_Dummy */
+  WM_NEWPREFS:        0x570004,
+  WM_RETHINK:         0x570006,
+});
+
 /**
  * Attribute-type codec registry. Per-class ATTRS tables reference
  * these to decide how a JS value becomes a ULONG tag value (and
@@ -482,8 +495,11 @@ class BOOPSIBase {
   /** @type {string} — subclasses override */
   static _classLibName = '';
 
-  /** @type {number} — LVO of XXX_GetClass in the backing library (NDK convention = -30) */
-  static _classLibLvo = -30;
+  /** @type {number} — LVO of XXX_GetClass in the backing library.
+   *  -30 is the first vector of every Reaction class library; button's
+   *  stands for them all on this line, and scripts/check_attr_types.py
+   *  checks each wrapper's own class against its pragma file. */
+  static _classLibLvo = -30;   /* check-constants: is BUTTON_GetClass */
 
   /** @type {number} — cached pointer returned by the class library's GetClass; 0 until ensureClass() */
   static _classPtr = 0;
@@ -775,7 +791,7 @@ class BOOPSIBase {
    */
   _pairsToTags(pairs) {
     if (!pairs || pairs.length === 0) {
-      return { ptr: 0, bytes: 0 };
+      return { ptr: 0, bytes: 0 };   /* check-constants: skip - nothing allocated */
     }
     let ptr = globalThis.amiga.makeTags(pairs);
     let bytes = (pairs.length + 1) * 8;
@@ -1141,9 +1157,9 @@ class BOOPSIBase {
 
     /* Image children need CHILD_ReplaceImage, NOT CHILD_ReplaceObject.
      * gadgets/layout.h:
-     *   #define LAYOUT_ModifyChild  (LAYOUT_Dummy+22) = 0x85007016
-     *   #define CHILD_ReplaceObject (CHILD_Dummy+7)   = 0x85007107
-     *   #define CHILD_ReplaceImage  (LAYOUT_Dummy+8)  = 0x85007008
+     *   #define LAYOUT_ModifyChild  (LAYOUT_Dummy+22)
+     *   #define CHILD_ReplaceObject (CHILD_Dummy+7)
+     *   #define CHILD_ReplaceImage  (LAYOUT_Dummy+8)
      *
      * CHILD_ReplaceObject installs the new child as a gadget and
      * calls GM_RENDER on it — fine for a Button→CheckBox swap
@@ -1157,8 +1173,8 @@ class BOOPSIBase {
      * set() gates on kind === 'image'), so we always use
      * CHILD_ReplaceImage here. */
     let replaceTags = this._pairsToTags([
-      [0x85007016, this.ptr],    /* LAYOUT_ModifyChild */
-      [0x85007008, newPtr],      /* CHILD_ReplaceImage */
+      [SENT.LAYOUT_ModifyChild, this.ptr],
+      [SENT.CHILD_ReplaceImage, newPtr],
     ]);
 
     try {
@@ -1183,8 +1199,8 @@ class BOOPSIBase {
      *       DoMethod(winobj, WM_NEWPREFS);
      * WM_RETHINK returns 0 when it had nothing to do; in that case
      * fall back to WM_NEWPREFS which forces a full refresh. */
-    let r = winObj.doMethod(0x570006 /* WM_RETHINK */);
-    if (r === 0) winObj.doMethod(0x570004 /* WM_NEWPREFS */);
+    let r = winObj.doMethod(SENT.WM_RETHINK);
+    if (r === 0) winObj.doMethod(SENT.WM_NEWPREFS);
   }
 
   /**
@@ -1419,7 +1435,7 @@ const GADGET_ATTRS = Object.freeze({
   id:          { tagID: GA.ID,        type: 'uint32' },
   disabled:    { tagID: GA.Disabled,  type: 'bool'   },
   selected:    { tagID: GA.Selected,  type: 'bool'   },
-  userData:    { tagID: GA.UserData,  type: 'uint32' },
+  userData:    { tagID: GA.UserData,  type: 'uint32' },   /* check-attr-types: ok - any 32-bit value of the script, never followed */
   text:        { tagID: GA.Text,      type: 'string-owned' },
   gadgetHelp:  { tagID: GA.GadgetHelp, type: 'bool'  },
   tabCycle:    { tagID: GA.TabCycle,  type: 'bool'   },
@@ -1751,7 +1767,7 @@ function buildNodeList(spec) {
   try {
     for (let index = 0; index < spec.count; index++) {
       const described = spec.describe(index, keep);
-      const regs = { a0: 0 };
+      const regs = { a0: 0 };   /* check-constants: skip - no tag list: a null pointer */
 
       if (described.d0 !== undefined) {
         regs.d0 = described.d0;
@@ -1902,10 +1918,10 @@ const LED = Object.freeze({
 });
 
 /** Size of one entry of the LED_Values array: a WORD. */
-const WORD_BYTES = 2;
+const WORD_BYTES = 2;   /* check-constants: skip - sizeof(WORD) */
 
 /** The largest number of pairs a led.image shows (images/led.h). */
-const MAX_PAIRS = 8;
+const MAX_PAIRS = 8;   /* check-constants: skip - our own limit */
 
 /**
  * led.image - a row of seven-segment digits, in pairs.
@@ -1960,7 +1976,7 @@ class Led extends ImageBase {
    * @returns {number[]} pairCount values, each 0 to 99
    */
   static pairsOf(value, pairCount) {
-    const PAIR_MODULUS = 100;       /* two decimal digits */
+    const PAIR_MODULUS = 100;   /* check-constants: skip - two decimal digits */
     let rest  = Math.max(0, Math.floor(Number(value) || 0));
     let pairs = [];
 
@@ -2180,11 +2196,11 @@ class Bevel extends ImageBase {
     innerHeight:  { tagID: BEVEL.InnerHeight, type: 'int32' },
     horizSize:    { tagID: BEVEL.HorizSize,   type: 'int32' },
     vertSize:     { tagID: BEVEL.VertSize,    type: 'int32' },
-    fillPen:      { tagID: BEVEL.FillPen,     type: 'uint32' },
-    fillPattern:  { tagID: BEVEL.FillPattern, type: 'uint32' },
-    textPen:      { tagID: BEVEL.TextPen,     type: 'uint32' },
+    fillPen:      { tagID: BEVEL.FillPen,     type: 'int32' },
+    fillPattern:  { tagID: BEVEL.FillPattern, type: 'ptr' },
+    textPen:      { tagID: BEVEL.TextPen,     type: 'int32' },
     transparent:  { tagID: BEVEL.Transparent, type: 'bool' },
-    softStyle:    { tagID: BEVEL.SoftStyle,   type: 'uint32' },
+    softStyle:    { tagID: BEVEL.SoftStyle,   type: 'int32' },
     colorMap:     { tagID: BEVEL.ColorMap,    type: 'ptr' },
     flags:        { tagID: BEVEL.Flags,       type: 'uint32' },
   };
@@ -2258,7 +2274,7 @@ class Glyph extends ImageBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...IMAGE_ATTRS,
-    glyph:    { tagID: GLYPH.Glyph,    type: 'uint32' },
+    glyph:    { tagID: GLYPH.Glyph,    type: 'int32' },
     drawInfo: { tagID: GLYPH.DrawInfo, type: 'ptr' },
   };
 }
@@ -2516,15 +2532,15 @@ class Button extends GadgetBase {
      *  drawn while the button is pressed. */
     selectImage:    { tagID: 0x8003000C,          type: 'ptr'  },   /* check-constants: is GA_SelectRender */
     glyph:          { tagID: BUTTON.Glyph,        type: 'ptr'  },
-    textPen:        { tagID: BUTTON.TextPen,      type: 'uint32' },
-    fillPen:        { tagID: BUTTON.FillPen,      type: 'uint32' },
-    fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'uint32' },
-    bgPen:          { tagID: BUTTON.BgPen,        type: 'uint32' },
+    textPen:        { tagID: BUTTON.TextPen,      type: 'int32' },
+    fillPen:        { tagID: BUTTON.FillPen,      type: 'int32' },
+    fillTextPen:    { tagID: BUTTON.FillTextPen,  type: 'int32' },
+    bgPen:          { tagID: BUTTON.BgPen,        type: 'int32' },
     current:        { tagID: BUTTON.Current,      type: 'int32' },   /* (LONG) which item of BUTTON_Array is current */
-    bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'uint32' },
+    bevelStyle:     { tagID: BUTTON.BevelStyle,   type: 'int32' },
     transparent:    { tagID: BUTTON.Transparent,  type: 'bool' },
-    justification:  { tagID: BUTTON.Justification,type: 'uint32' },
-    softStyle:      { tagID: BUTTON.SoftStyle,    type: 'uint32' },
+    justification:  { tagID: BUTTON.Justification,type: 'int32' },
+    softStyle:      { tagID: BUTTON.SoftStyle,    type: 'int32' },
   };
 
   /**
@@ -2549,7 +2565,7 @@ class Button extends GadgetBase {
  * Window event pump looks up this case when it sees IDCMP_IDCMPUPDATE
  * carrying a GA_ID whose owner is a Button. */
 EventKind.define('BUTTON_CLICK', {
-  idcmp: 0x00800000,  /* IDCMP_IDCMPUPDATE — correct value per intuition.h:887 */
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/button.gadget',
@@ -2609,7 +2625,7 @@ class CheckBox extends GadgetBase {
 }
 
 EventKind.define('CHECKBOX_TOGGLE', {
-  idcmp: 0x00800000,   /* IDCMP_IDCMPUPDATE */
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: true,
            hasCode: false, hasCoords: false },
   from:  'gadgets/checkbox.gadget',
@@ -2662,8 +2678,8 @@ const RBNA = Object.freeze({
 });
 
 /** exec.library list/node poke offsets used by linkNodeList. */
-const LVO_ALLOC_NODE = -36;
-const LVO_FREE_NODE  = -42;
+const LVO_ALLOC_NODE = -36;   /* check-constants: is AllocRadioButtonNodeA */
+const LVO_FREE_NODE  = -42;   /* check-constants: is FreeRadioButtonNode */
 
 /**
  * radiobutton.gadget — exclusive-select group.
@@ -2681,8 +2697,8 @@ class RadioButton extends GadgetBase {
      * Do not pass manually unless you've already allocated a List. */
     labelsPtr:  { tagID: RADIOBUTTON.Labels,     type: 'ptr' },
     spacing:    { tagID: RADIOBUTTON.Spacing,    type: 'int32' },
-    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'uint32' },
-    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'uint32' },
+    selectedIx: { tagID: RADIOBUTTON.Selected,   type: 'int32' },
+    labelPlace: { tagID: RADIOBUTTON.LabelPlace, type: 'int32' },
   };
 
   /**
@@ -2741,7 +2757,7 @@ class RadioButton extends GadgetBase {
       freeLvo:  LVO_FREE_NODE,
       count:    labels.length,
       describe: (index, keep) => ({
-        d0:    1,
+        d0:    1,   /* check-constants: skip - a count: one column */
         pairs: [[RBNA.Label, keep.string(labels[index])]],
       }),
     });
@@ -2762,7 +2778,7 @@ class RadioButton extends GadgetBase {
 }
 
 EventKind.define('RADIO_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/radiobutton.gadget',
@@ -2880,7 +2896,7 @@ class Slider extends GadgetBase {
 }
 
 EventKind.define('SLIDER_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/slider.gadget',
@@ -2936,7 +2952,7 @@ class Scroller extends GadgetBase {
     top:         { tagID: SCROLLER.Top,         type: 'int32' },
     visible:     { tagID: SCROLLER.Visible,     type: 'int32' },
     total:       { tagID: SCROLLER.Total,       type: 'int32' },
-    orientation: { tagID: SCROLLER.Orientation, type: 'uint32' },
+    orientation: { tagID: SCROLLER.Orientation, type: 'int32' },
     arrows:      { tagID: SCROLLER.Arrows,      type: 'bool' },   /* (BOOL) in gadgets/scroller.h */
     stretch:     { tagID: SCROLLER.Stretch,     type: 'bool' },
     arrowDelta:  { tagID: SCROLLER.ArrowDelta,  type: 'int32' },
@@ -2959,7 +2975,7 @@ class Scroller extends GadgetBase {
 }
 
 EventKind.define('SCROLLER_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/scroller.gadget',
@@ -3022,7 +3038,7 @@ class Integer extends GadgetBase {
 }
 
 EventKind.define('INTEGER_CHANGED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/integer.gadget',
@@ -3183,7 +3199,7 @@ class StringGadget extends GadgetBase {
 }
 
 EventKind.define('STRING_CHANGED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/string.gadget',
@@ -3251,8 +3267,8 @@ const CNA = Object.freeze({
 });
 
 /** chooser_lib LVO offsets used by _buildLabelList. */
-const CHOOSER_LVO_ALLOC_NODE = -36;
-const CHOOSER_LVO_FREE_NODE  = -42;
+const CHOOSER_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocChooserNodeA */
+const CHOOSER_LVO_FREE_NODE  = -42;   /* check-constants: is FreeChooserNode */
 
 /**
  * chooser.gadget — dropdown / popup selector.
@@ -3278,10 +3294,10 @@ class Chooser extends GadgetBase {
      * constructor convenience below builds one for you; otherwise you
      * can pass labelsPtr directly. */
     labelsPtr:      { tagID: CHOOSER.Labels,        type: 'ptr' },
-    active:         { tagID: CHOOSER.Active,        type: 'uint32' },
+    active:         { tagID: CHOOSER.Active,        type: 'int32' },
     autoFit:        { tagID: CHOOSER.AutoFit,       type: 'bool' },
     maxLabels:      { tagID: CHOOSER.MaxLabels,     type: 'int32' },
-    justification:  { tagID: CHOOSER.Justification, type: 'uint32' },
+    justification:  { tagID: CHOOSER.Justification, type: 'int32' },
     labelArray:     { tagID: CHOOSER.LabelArray,    type: 'ptr' },
     deactivateOnMostRawKeys: { tagID: CHOOSER.DeactivateOnMostRawKeys, type: 'bool' },
   };
@@ -3357,7 +3373,7 @@ class Chooser extends GadgetBase {
 }
 
 EventKind.define('CHOOSER_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/chooser.gadget',
@@ -3431,8 +3447,8 @@ const TNA = Object.freeze({
 });
 
 /** clicktab_lib LVO offsets used by _buildLabelList. */
-const CLICKTAB_LVO_ALLOC_NODE = -36;
-const CLICKTAB_LVO_FREE_NODE  = -42;
+const CLICKTAB_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocClickTabNodeA */
+const CLICKTAB_LVO_FREE_NODE  = -42;   /* check-constants: is FreeClickTabNode */
 
 /**
  * clicktab.gadget — tab switcher.
@@ -3453,7 +3469,7 @@ class ClickTab extends GadgetBase {
     labelsPtr:                 { tagID: CLICKTAB.Labels,                   type: 'ptr' },
     current:                   { tagID: CLICKTAB.Current,                  type: 'int32' },
     currentNode:               { tagID: CLICKTAB.CurrentNode,              type: 'ptr' },
-    orientation:               { tagID: CLICKTAB.Orientation,              type: 'uint32' },
+    orientation:               { tagID: CLICKTAB.Orientation,              type: 'int32' },
     pageGroup:                 { tagID: CLICKTAB.PageGroup,                type: 'ptr' },
     pageGroupBackFill:         { tagID: CLICKTAB.PageGroupBackFill,        type: 'ptr' },
     pageGroupBorder:           { tagID: CLICKTAB.PageGroupBorder,          type: 'bool' },
@@ -3536,7 +3552,7 @@ class ClickTab extends GadgetBase {
 }
 
 EventKind.define('CLICKTAB_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/clicktab.gadget',
@@ -3690,8 +3706,8 @@ const LBFLG = Object.freeze({
 });
 
 /** listbrowser_lib LVO offsets used by _buildLabelList. */
-const LISTBROWSER_LVO_ALLOC_NODE = -36;
-const LISTBROWSER_LVO_FREE_NODE  = -42;
+const LISTBROWSER_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocListBrowserNodeA */
+const LISTBROWSER_LVO_FREE_NODE  = -42;   /* check-constants: is FreeListBrowserNode */
 
 /**
  * listbrowser.gadget — scrollable columnar list.
@@ -3789,7 +3805,7 @@ class ListBrowser extends GadgetBase {
       freeLvo:  LISTBROWSER_LVO_FREE_NODE,
       count:    labels.length,
       describe: (index, keep) => ({
-        d0:    1,
+        d0:    1,   /* check-constants: skip - a count: one column */
         pairs: [
           [LBNCA.CopyText, 1],
           [LBNCA.Text,     keep.string(labels[index])],
@@ -3810,7 +3826,7 @@ class ListBrowser extends GadgetBase {
 }
 
 EventKind.define('LIST_SELECT', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/listbrowser.gadget',
@@ -3882,7 +3898,7 @@ class Palette extends GadgetBase {
 }
 
 EventKind.define('PALETTE_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/palette.gadget',
@@ -3941,7 +3957,7 @@ class Space extends GadgetBase {
     transparent: { tagID: SPACE.Transparent, type: 'bool' },
     areaBox:     { tagID: SPACE.AreaBox,     type: 'ptr' },
     renderHook:  { tagID: SPACE.RenderHook,  type: 'ptr' },
-    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'uint32' },
+    bevelStyle:  { tagID: SPACE.BevelStyle,  type: 'int32' },
     domainBevel: { tagID: SPACE.DomainBevel, type: 'bool' },
   };
 }
@@ -4011,7 +4027,7 @@ class FuelGauge extends GadgetBase {
     min:            { tagID: FUELGAUGE.Min,            type: 'int32' },
     max:            { tagID: FUELGAUGE.Max,            type: 'int32' },
     level:          { tagID: FUELGAUGE.Level,          type: 'int32' },
-    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'uint32' },
+    orientation:    { tagID: FUELGAUGE.Orientation,    type: 'int32' },
     percent:        { tagID: FUELGAUGE.Percent,        type: 'bool' },
     ticks:          { tagID: FUELGAUGE.Ticks,          type: 'int32' },
     shortTicks:     { tagID: FUELGAUGE.ShortTicks,     type: 'int32' },
@@ -4020,7 +4036,7 @@ class FuelGauge extends GadgetBase {
     percentPen:     { tagID: FUELGAUGE.PercentPen,     type: 'int32' },
     fillPen:        { tagID: FUELGAUGE.FillPen,        type: 'int32' },
     emptyPen:       { tagID: FUELGAUGE.EmptyPen,       type: 'int32' },
-    justification:  { tagID: FUELGAUGE.Justification,  type: 'uint32' },
+    justification:  { tagID: FUELGAUGE.Justification,  type: 'int32' },
   };
 
   constructor(init) {
@@ -4136,8 +4152,8 @@ const SpeedBarHighlight = Object.freeze({
 });
 
 /** speedbar_lib LVO offsets used by _buildButtonList. */
-const SPEEDBAR_LVO_ALLOC_NODE = -36;
-const SPEEDBAR_LVO_FREE_NODE  = -42;
+const SPEEDBAR_LVO_ALLOC_NODE = -36;   /* check-constants: is AllocSpeedButtonNodeA */
+const SPEEDBAR_LVO_FREE_NODE  = -42;   /* check-constants: is FreeSpeedButtonNode */
 
 /**
  * speedbar.gadget — toolbar strip.
@@ -4163,15 +4179,15 @@ class SpeedBar extends GadgetBase {
   static ATTRS = {
     ...GADGET_ATTRS,
     buttonsPtr:   { tagID: SPEEDBAR.Buttons,      type: 'ptr' },
-    orientation:  { tagID: SPEEDBAR.Orientation,  type: 'uint32' },
+    orientation:  { tagID: SPEEDBAR.Orientation,  type: 'int32' },
     background:   { tagID: SPEEDBAR.Background,   type: 'uint32' },   /* (UWORD) a pen number */
     strumBar:     { tagID: SPEEDBAR.StrumBar,     type: 'bool' },
     top:          { tagID: SPEEDBAR.Top,          type: 'int32' },
     visible:      { tagID: SPEEDBAR.Visible,      type: 'int32' },
     total:        { tagID: SPEEDBAR.Total,        type: 'int32' },
     help:         { tagID: SPEEDBAR.Help,         type: 'string-owned' },   /* (STRPTR) help text; was bool until 0.224 */
-    bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'uint32' },
-    selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },
+    bevelStyle:   { tagID: SPEEDBAR.BevelStyle,   type: 'int32' },
+    selected:     { tagID: SPEEDBAR.Selected,     type: 'int32' },   /* check-attr-types: ok - the header says (STRPTR) of a "node number" */
     selectedNode: { tagID: SPEEDBAR.SelectedNode, type: 'ptr' },
     evenSize:     { tagID: SPEEDBAR.EvenSize,     type: 'bool' },
     font:         { tagID: SPEEDBAR.Font,         type: 'ptr' },
@@ -4319,7 +4335,7 @@ class SpeedBar extends GadgetBase {
 }
 
 EventKind.define('SPEEDBAR_CLICK', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/speedbar.gadget',
@@ -4449,7 +4465,7 @@ class GetFile extends GadgetBase {
 }
 
 EventKind.define('FILE_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getfile.gadget',
@@ -4561,7 +4577,7 @@ class GetFont extends GadgetBase {
 }
 
 EventKind.define('FONT_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getfont.gadget',
@@ -4698,7 +4714,7 @@ class GetScreenMode extends GadgetBase {
 }
 
 EventKind.define('SCREENMODE_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getscreenmode.gadget',
@@ -4765,8 +4781,12 @@ class GetColor extends GadgetBase {
     hue:         { tagID: GETCOLOR.Hue,          type: 'uint32' },
     saturation:  { tagID: GETCOLOR.Saturation,   type: 'uint32' },
     brightness:  { tagID: GETCOLOR.Brightness,   type: 'uint32' },
-    rgb:         { tagID: GETCOLOR.RGB,          type: 'uint32' },
-    hsb:         { tagID: GETCOLOR.HSB,          type: 'uint32' },
+    /* A pointer to a struct ColorWheelRGB / ColorWheelHSB (three
+     * ULONGs, each a 32-bit fraction), not a 0xRRGGBB number: that is
+     * `color`. Until 0.237 these were 'uint32', which let a colour
+     * number through to be read as an address. */
+    rgb:         { tagID: GETCOLOR.RGB,          type: 'ptr' },
+    hsb:         { tagID: GETCOLOR.HSB,          type: 'ptr' },
     colorWheel:  { tagID: GETCOLOR.ColorWheel,   type: 'bool' },
     rgbSliders:  { tagID: GETCOLOR.RGBSliders,   type: 'bool' },
     hsbSliders:  { tagID: GETCOLOR.HSBSliders,   type: 'bool' },
@@ -4815,7 +4835,7 @@ class GetColor extends GadgetBase {
 }
 
 EventKind.define('COLOR_SELECTED', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/getcolor.gadget',
@@ -4868,7 +4888,7 @@ class DateBrowser extends GadgetBase {
     ...GADGET_ATTRS,
     day:          { tagID: DATEBROWSER.Day,          type: 'uint32' },
     month:        { tagID: DATEBROWSER.Month,        type: 'uint32' },
-    year:         { tagID: DATEBROWSER.Year,         type: 'uint32' },
+    year:         { tagID: DATEBROWSER.Year,         type: 'int32' },
     selectedDays: { tagID: DATEBROWSER.SelectedDays, type: 'uint32' },   /* (ULONG) one bit per day of the month */
     weekDay:      { tagID: DATEBROWSER.WeekDay,      type: 'uint32' },
     firstWeekDay: { tagID: DATEBROWSER.FirstWDay,    type: 'uint32' },
@@ -4889,7 +4909,7 @@ class DateBrowser extends GadgetBase {
 }
 
 EventKind.define('DATE_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/datebrowser.gadget',
@@ -5295,7 +5315,7 @@ class TextEditor extends GadgetBase {
   /** @type {Object<string, {tagID: number, type: string}>} */
   static ATTRS = {
     ...GADGET_ATTRS,
-    contents:        { tagID: TEXTEDITOR.Contents,        type: 'string-owned' },
+    contents:        { tagID: TEXTEDITOR.Contents,        type: 'string-owned' },   /* check-attr-types: ok - the text: a STRPTR unless an import hook is set */
     cursorX:         { tagID: TEXTEDITOR.CursorX,         type: 'int32' },
     cursorY:         { tagID: TEXTEDITOR.CursorY,         type: 'int32' },
     readOnly:        { tagID: TEXTEDITOR.ReadOnly,        type: 'bool' },
@@ -5546,7 +5566,7 @@ class TextEditor extends GadgetBase {
     /* The message holds four ULONG pointers; the class stores the
      * block's corners through them. One zeroed block of four ULONGs
      * receives all of them. */
-    const ULONG_BYTES = 4;
+    const ULONG_BYTES = 4;   /* check-constants: skip - sizeof(ULONG) */
     const RESULT_BYTES = 4 * ULONG_BYTES;
 
     let result = globalThis.amiga.allocMem(RESULT_BYTES);
@@ -5606,7 +5626,7 @@ class TextEditor extends GadgetBase {
 }
 
 EventKind.define('TEXT_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/texteditor.gadget',
@@ -5712,7 +5732,7 @@ class SketchBoard extends GadgetBase {
 }
 
 EventKind.define('SKETCH_UPDATE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: true },
   from:  'gadgets/sketchboard.gadget',
@@ -5802,7 +5822,7 @@ class TapeDeck extends GadgetBase {
 }
 
 EventKind.define('TAPEDECK_CLICK', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: true, hasCoords: false },
   from:  'gadgets/tapedeck.gadget',
@@ -5870,7 +5890,7 @@ class ColorWheel extends GadgetBase {
     rgb:            { tagID: WHEEL.RGB,            type: 'ptr' },
     screen:         { tagID: WHEEL.Screen,         type: 'ptr' },
     abbrv:          { tagID: WHEEL.Abbrv,          type: 'string' },
-    donation:       { tagID: WHEEL.Donation,       type: 'uint32' },
+    donation:       { tagID: WHEEL.Donation,       type: 'ptr' },
     bevelBox:       { tagID: WHEEL.BevelBox,       type: 'bool' },
     gradientSlider: { tagID: WHEEL.GradientSlider, type: 'ptr' },
     maxPens:        { tagID: WHEEL.MaxPens,        type: 'uint32' },
@@ -5888,7 +5908,7 @@ class ColorWheel extends GadgetBase {
 }
 
 EventKind.define('COLORWHEEL_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/colorwheel.gadget',
@@ -5956,7 +5976,7 @@ class GradientSlider extends GadgetBase {
 }
 
 EventKind.define('GRADIENT_CHANGE', {
-  idcmp: 0x00800000,
+  idcmp: IDCMP.IDCMPUPDATE,
   rich:  { hasId: true, hasSource: true, hasPressed: false,
            hasCode: false, hasCoords: false },
   from:  'gadgets/gradientslider.gadget',
@@ -6049,7 +6069,7 @@ const LAYOUT = Object.freeze({
  *   LAYOUT_VERTICAL   = 1
  */
 const LayoutOrient = Object.freeze({
-  /* check-constants: prefix FUELGAUGE_ header gadgets/fuelgauge.h */
+  /* check-constants: prefix LAYOUT_ header gadgets/layout.h */
   HORIZONTAL: 0,
   VERTICAL:   1,
 });
@@ -6089,7 +6109,9 @@ class Layout extends GadgetBase {
    */
   static RethinkLayout(layoutPtr, winPtr, reqPtr, refresh) {
     this.ensureClass();
-    return globalThis.amiga.call(this._libBase, -48, {
+    return globalThis.amiga.call(
+      this._libBase, -48,   /* check-constants: is RethinkLayout */
+      {
       a0: (layoutPtr && typeof layoutPtr === 'object')
             ? (layoutPtr.ptr | 0) : (layoutPtr | 0),
       a1: (winPtr && typeof winPtr === 'object' && 'ptr' in winPtr)
@@ -6097,7 +6119,7 @@ class Layout extends GadgetBase {
       a2: (reqPtr && typeof reqPtr === 'object' && 'ptr' in reqPtr)
             ? (reqPtr.ptr | 0) : (reqPtr | 0),
       d0: refresh ? 1 : 0,
-    });
+      });
   }
 
   /**
@@ -6172,9 +6194,15 @@ class Layout extends GadgetBase {
    * the layout.gadget handles member-insertion when it sees the
    * LAYOUT_AddChild tags during NewObject.
    *
-   * @param {object|number} init
+   * A number is the pointer of an existing layout.gadget object to
+   * wrap: nothing is created, and it has no JS-side children. Until
+   * 0.237 the number was ignored and a new, empty layout was created.
+   *
+   * @param {object|number} init - attributes, or a pointer to wrap
    */
   constructor(init) {
+    if (typeof init === 'number') { super(init); return; }
+
     /* Normalize the input object without mutating the caller's copy. */
     let rawInit = (init && typeof init === 'object') ? { ...init } : {};
 
@@ -6379,7 +6407,7 @@ class Page extends Layout {
    *  NDK3.2R4/FD/layout_lib.fd (bias 30; LAYOUT_GetClass at -30,
    *  ActivateLayoutGadget -36, FlushLayoutDomainCache -42, RethinkLayout -48,
    *  LayoutLimits -54, PAGE_GetClass at -60). */
-  static _classLibLvo = -60;
+  static _classLibLvo = -60;   /* check-constants: is PAGE_GetClass */
 
   /** Cached class pointer + base, distinct from the Layout class
    *  pointer because Page._libBase shares the layout.gadget OpenLibrary
@@ -6403,9 +6431,15 @@ class Page extends Layout {
    * Construct a Page. Like Layout, accepts a `children: []` array,
    * but each child is added via PAGE_Add instead of LAYOUT_AddChild.
    *
-   * @param {object} init
+   * A number is the pointer of an existing page object to wrap:
+   * nothing is created. Until 0.237 the number was ignored and a new,
+   * empty page group was created.
+   *
+   * @param {object|number} init - attributes, or a pointer to wrap
    */
   constructor(init) {
+    if (typeof init === 'number') { super(init); return; }
+
     let raw = (init && typeof init === 'object') ? { ...init } : {};
     let children = raw.children;
     delete raw.children;
@@ -6561,11 +6595,8 @@ class Virtual extends Layout {
  *   WA_*        — intuition/intuition.h, 0x80000063 base
  *   WINDOW_*    — classes/window.h, 0x85025000 base
  *
- * Method IDs (classes/window.h:293-308) — BOOPSI method IDs live in
- * their own integer namespace and are NOT offsets of WINDOW_Dummy:
- *   WM_HANDLEINPUT = 0x570001
- *   WM_OPEN        = 0x570002
- *   WM_CLOSE       = 0x570003
+ * Method IDs (classes/window.h, WM_*) live in their own integer
+ * namespace and are NOT offsets of WINDOW_Dummy.
  *
  * Event surface: open() returns the Window wrapper itself (so the
  * user can chain); events() + eventsAsync() + .on() iterate over
@@ -6643,6 +6674,33 @@ const WindowPosition = Object.freeze({
 
   /** @deprecated the old name for CENTERMOUSE */
   MOUSEPOINTER: 2,   /* check-constants: is WPOS_CENTERMOUSE */
+});
+
+/* What an IDCMP_IDCMPUPDATE message can carry in its tag list, and the
+ * tags that steer a walk along any tag list. Each name is the header's
+ * own (utility/tagitem.h, intuition/gadgetclass.h, intuition/icclass.h,
+ * gadgets/layout.h, intuition/intuition.h), so
+ * scripts/check_constants.py compares every value.
+ *
+ * Until 0.237 these were typed where they were used, where the check
+ * could not see them, and GA_ID was typed as 0x8003000F. That is
+ * GA_GZZGadget: _translateMessage() never gave an IDCMPUPDATE event
+ * its source. (events() goes through WM_HANDLEINPUT and was not
+ * affected.)
+ *
+ * A table, not separate constants: the wrappers are bundled into one
+ * scope, where a second `const ICA_TARGET` would be an error. */
+const UPDATE = Object.freeze({
+  TAG_END:           0,
+  TAG_IGNORE:        1,
+  TAG_MORE:          2,
+  TAG_SKIP:          3,
+  GA_ID:             0x80030010,
+  ICA_TARGET:        0x80040001,
+  LAYOUT_RelVerify:  0x85007017,
+  LAYOUT_RelCode:    0x85007018,
+  LAYOUT_TabVerify:  0x85007021,
+  IDCMP_IDCMPUPDATE: 0x00800000,
 });
 
 const WM_HANDLEINPUT = 0x570001;
@@ -6730,14 +6788,36 @@ class ReactionWindow extends BOOPSIBase {
     lockHeight:    { tagID: WINDOW.LockHeight,type: 'bool' },
     /* nestedEvents was removed in 0.219: classes/window.h has no such
      * attribute, and the tag it sent was WINDOW_Application. */
-    userData:      { tagID: WINDOW.UserData, type: 'uint32' },
+    userData:      { tagID: WINDOW.UserData, type: 'uint32' },   /* check-attr-types: ok - any 32-bit value of the script, never followed */
 
     /* Read-only; populated by window.class after open(). */
     intuiWindow:   { tagID: WINDOW.Window,  type: 'ptr', readOnly: true },
     sigMask:       { tagID: WINDOW.SigMask, type: 'uint32', readOnly: true },
   };
 
+  /**
+   * Create a window object, or wrap an existing one.
+   *
+   * A number is the pointer of an existing window.class object to
+   * wrap: nothing is created, and dispose() neither closes nor frees
+   * it, because the wrapper does not own it. To use the window's
+   * events, call open() first: WM_OPEN does nothing to a window that
+   * is already open and returns its struct Window (window_cl.doc).
+   * Until 0.237 the number was ignored and a new window object was
+   * created.
+   *
+   * @param {object|number} init - attributes, or a pointer to wrap
+   */
   constructor(init) {
+    if (typeof init === 'number') {
+      super(init);
+      /** @type {Window|null} (struct Window wrapper) */
+      this._intuiWindow = null;
+      /** @type {number} */
+      this._codeBuf = 0;
+      return;
+    }
+
     /* Default WA_IDCMP to a sensible Reaction set. WM_HANDLEINPUT
      * decodes IntuiMessages into WMHI_* return codes, but it can only
      * see classes the user actually requested via WA_IDCMP — without
@@ -6852,7 +6932,7 @@ class ReactionWindow extends BOOPSIBase {
 
     /* Safety cap — Reaction tag lists are short (< 32 items), but
      * bail out if something is corrupt to avoid a runaway loop. */
-    const MAX_TAGS = 256;
+    const MAX_TAGS = 256;   /* check-constants: skip - our own loop bound */
     let p = tagListPtr;
     let i = 0;
 
@@ -6860,33 +6940,33 @@ class ReactionWindow extends BOOPSIBase {
       let tag  = peek(p);
       let data = peek(p + 4);
 
-      /* TAG_END = 0 */
-      if (tag === 0) break;
+      if (tag === UPDATE.TAG_END) break;
 
-      /* TAG_IGNORE = 1 — skip this slot */
-      if (tag === 1) continue;
+      /* skip this slot */
+      if (tag === UPDATE.TAG_IGNORE) continue;
 
-      /* TAG_MORE = 2 — ti_Data points to continuation TagList. */
-      if (tag === 2) { p = (data >>> 0) - 8; continue; }
+      /* ti_Data points to the continuation of the list */
+      if (tag === UPDATE.TAG_MORE) { p = (data >>> 0) - 8; continue; }
 
-      /* TAG_SKIP = 3 — skip ti_Data more items */
-      if (tag === 3) { p += (data | 0) * 8; continue; }
+      /* skip ti_Data more items */
+      if (tag === UPDATE.TAG_SKIP) { p += (data | 0) * 8; continue; }
 
-      /* GA_ID = 0x8003000F */
-      if (tag === 0x8003000F) { out.id = data >>> 0; continue; }
+      if (tag === UPDATE.GA_ID) { out.id = data >>> 0; continue; }
 
-      /* ICA_TARGET = 0x80040001 (ICA_Dummy = TAG_USER+0x40000, +1) */
-      if (tag === 0x80040001) { out.icaTarget = data >>> 0; continue; }
+      if (tag === UPDATE.ICA_TARGET) { out.icaTarget = data >>> 0; continue; }
 
-      /* LAYOUT_RelVerify = 0x85007017 — marker: this IDCMPUPDATE is
-       * a gadgetup broadcast from layout.gadget. */
-      if (tag === 0x85007017) { out.layoutRelVerify = data >>> 0; continue; }
+      /* marker: this IDCMPUPDATE is a gadgetup broadcast from
+       * layout.gadget */
+      if (tag === UPDATE.LAYOUT_RelVerify) {
+        out.layoutRelVerify = data >>> 0;
+        continue;
+      }
 
-      /* LAYOUT_RelCode = 0x85007018 — the child's release code. */
-      if (tag === 0x85007018) { out.code = data >>> 0; continue; }
+      /* the child's release code */
+      if (tag === UPDATE.LAYOUT_RelCode) { out.code = data >>> 0; continue; }
 
-      /* LAYOUT_TabVerify = 0x85007021 — whether the release was via tab. */
-      if (tag === 0x85007021) { out.tabVerify = data >>> 0; continue; }
+      /* whether the release was via tab */
+      if (tag === UPDATE.LAYOUT_TabVerify) { out.tabVerify = data >>> 0; continue; }
 
       /* Anything else — record by tag ID for class-specific parsing. */
       if (!out.tags) out.tags = {};
@@ -6917,11 +6997,11 @@ class ReactionWindow extends BOOPSIBase {
       raw:      msg,
     };
 
-    /* IDCMP_IDCMPUPDATE: 0x00800000. Walk iAddress TagList, pull GA_ID,
+    /* IDCMP_IDCMPUPDATE: walk iAddress TagList, pull GA_ID,
      * resolve source from JS-side child registry, upgrade event.kind
      * to the most specific class-level case (BUTTON_CLICK,
      * CHECKBOX_TOGGLE, ...) if any is registered. */
-    if (cls === 0x00800000 && msg.iAddress) {
+    if (cls === UPDATE.IDCMP_IDCMPUPDATE && msg.iAddress) {
       let parsed = {};
       ReactionWindow._walkUpdateTags(msg.iAddress, parsed);
 
@@ -7216,7 +7296,7 @@ class ReactionWindow extends BOOPSIBase {
             source: null,
             sourceId: null,
             attrs: { sigMask: extraFired },
-            raw: { waitReturned: got, classRaw: 0 },
+            raw: { waitReturned: got, classRaw: 0 },   /* check-constants: skip - no IDCMP class: a signal */
           };
           this._fire(event);
           yield event;
@@ -7234,7 +7314,12 @@ class ReactionWindow extends BOOPSIBase {
    */
   dispose() {
     if (this._disposed) return;
-    this.close();
+
+    /* A wrapper round somebody else's object leaves their window as
+     * it is; this._intuiWindow is dropped with the wrapper. */
+    if (this._wrappingOnly) this._intuiWindow = null;
+    else this.close();
+
     if (this._codeBuf) {
       globalThis.amiga.freeMem(this._codeBuf, 2);
       this._codeBuf = 0;
@@ -7317,7 +7402,7 @@ class Requester extends BOOPSIBase {
     bodyText:    { tagID: REQ.BodyText,    type: 'string-owned' },
     gadgetText:  { tagID: REQ.GadgetText,  type: 'string-owned' },
     returnCode:  { tagID: REQ.ReturnCode,  type: 'uint32', readOnly: true },
-    image:       { tagID: REQ.Image,       type: 'uint32' },
+    image:       { tagID: REQ.Image,       type: 'ptr' },
     evenButtons: { tagID: REQ.EvenButtons, type: 'bool' },
     wrapBorder:  { tagID: REQ.WrapBorder,  type: 'bool' },
     timeOutSecs: { tagID: REQ.TimeOutSecs, type: 'int32' },
