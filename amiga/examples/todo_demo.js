@@ -63,9 +63,6 @@ const MAX_TASKS = 8;
 /** The file Save writes and Load reads. */
 const TODO_PATH = 'RAM:todo.txt';
 
-/** How much of the file is read at a time, in characters. */
-const READ_CHUNK = 4096;
-
 /**
  * One task as a line of the file.
  *
@@ -131,12 +128,10 @@ function readTasks() {
   let file = std.open(TODO_PATH, 'r');
   if (!file) return null;
 
-  let fileText = '';
-  while (true) {
-    let chunk = file.readAsString(READ_CHUNK);
-    if (!chunk || !chunk.length) break;
-    fileText += chunk;
-  }
+  /* With no size, readAsString() reads to the end of the file.
+   * (Reading a fixed number of bytes at a time can cut an accented
+   * letter, which is two bytes in the file, in half.) */
+  let fileText = file.readAsString();
 
   file.close();
   return parseTasks(fileText);
