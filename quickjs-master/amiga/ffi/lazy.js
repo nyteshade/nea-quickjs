@@ -4,49 +4,40 @@
  *
  * The wrappers (Intuition, Exec, the struct classes, the Reaction
  * classes, ...) are two bundles of precompiled JavaScript inside
- * quickjs.library. Building them costs more than half of qjs's
- * start-up time and several hundred kilobytes of heap, and most
- * scripts use none or only some of them. So at start-up only this file
- * runs. It puts a small accessor wherever a bundle would have put a
- * value; the first read of any of them loads that bundle, which
- * replaces the accessors with the real values.
+ * quickjs.library. Building them costs several hundred kilobytes of
+ * heap and a large part of a second on a 68020, and most scripts use
+ * none or only some of them.
  *
  *   group 0, "core":   CEnumeration, LibraryBase, the struct wrappers,
  *                      the library wrappers, ScreenFont
  *   group 1, "boopsi": the BOOPSI / Reaction classes; needs group 0
  *
- * scripts/bundle_ffi.py fills in LAZY_NAMES from the sources, so the
- * lists cannot drift from what the bundles define:
+ * Nothing here runs when qjs starts. The library registers every name
+ * a bundle publishes as a HOST LAZY PROPERTY (see
+ * qjs_install_lazy_globals in library/vbcc/amiga_ffi.c), from tables
+ * that scripts/bundle_ffi.py writes from the index files: the globals
+ * at start-up, and the names on `amiga` and its per-library tables
+ * once `amiga` exists. The first time a script uses one of those
+ * names the library evaluates this file (once) and calls the handler
+ * registered at the bottom with the group number.
  *
- *   globals[group]   names a bundle sets on globalThis
- *   amiga[group]     [path, name] pairs: amiga.<path>.<name>, with an
- *                    empty path for amiga.<name> itself
- *
- * Each bundle is one function body, so it publishes nothing else. The
- * BOOPSI bundle needs classes that are private to the core bundle;
- * the core leaves them in globalThis.__qjs_ffiShared, which is taken
- * away here at once and put back only while the BOOPSI bundle loads.
+ * Each bundle is one function body, so it publishes nothing but what
+ * its index file assigns. The BOOPSI bundle needs classes that are
+ * private to the core bundle; the core leaves them in
+ * globalThis.__qjs_ffiShared, which is taken away here at once and put
+ * back only while the BOOPSI bundle loads.
  */
 
 (function () {
   'use strict';
 
-  const LAZY_NAMES = /*@LAZY_NAMES@*/null;
-
-  /* The native loader is handed over through a global, which is
-   * removed so scripts cannot call it. */
+  /* Natives from library/vbcc/amiga_ffi.c. */
   const loadBundle = globalThis.__qjs_loadBundle;
+  const lazyClear  = globalThis.__qjs_lazyClear;
+  const setHandler = globalThis.__qjs_lazyHandler;
 
-  delete globalThis.__qjs_loadBundle;
-
-  /* The native that makes one accessor; extended.js uses it too and
-   * leaves it for this file to remove. */
-  const defineLazy = globalThis.__qjs_defineLazy;
-
-  delete globalThis.__qjs_defineLazy;
-
-  if (typeof loadBundle !== 'function' || typeof defineLazy !== 'function' ||
-      LAZY_NAMES === null) {
+  if (typeof loadBundle !== 'function' || typeof lazyClear !== 'function' ||
+      typeof setHandler !== 'function') {
     return;
   }
 
@@ -57,11 +48,14 @@
   const BOOPSI_GROUP = 1;
   const CORE_GROUP   = 0;
 
+  /** The library's tag for a group is this plus the group number. */
+  const FFI_TAG_BASE = 1000;
+
+  /** Which handler slot is this file's (extended.js has slot 0). */
+  const FFI_HANDLER_SLOT = 1;
+
   /** Per group: NOT_LOADED, LOADING or LOADED. */
   const state = [NOT_LOADED, NOT_LOADED];
-
-  /** Per group: the accessors installed, as [object, key, getter]. */
-  const installed = [[], []];
 
   /** The core bundle's private classes that the BOOPSI bundle uses. */
   let shared;
@@ -69,8 +63,8 @@
   /**
    * Load a group's bundle if that has not been done yet.
    *
-   * The accessors are removed first, because a bundle only sets a
-   * global whose name is free.
+   * The group's names that are still lazy are removed first, because
+   * a bundle only sets a global whose name is free.
    *
    * @param {number} group - CORE_GROUP or BOOPSI_GROUP
    * @returns {undefined}
@@ -86,17 +80,7 @@
 
     state[group] = LOADING;
 
-    for (const [object, key, getter] of installed[group]) {
-      const descriptor = Object.getOwnPropertyDescriptor(object, key);
-
-      /* Only remove what is still ours: a script may have assigned
-       * its own value under the same name. */
-      if (descriptor && descriptor.get === getter) {
-        delete object[key];
-      }
-    }
-
-    installed[group].length = 0;
+    lazyClear(FFI_TAG_BASE + group);
 
     if (group === BOOPSI_GROUP) {
       globalThis.__qjs_ffiShared = shared;
@@ -116,98 +100,15 @@
     state[group] = LOADED;
   }
 
-  /**
-   * Called by an accessor when it is read: load the bundle, then
-   * answer with what it put there.
-   *
-   * @param {number} group - the bundle that defines the real value
-   * @param {object} object - the object the accessor is on
-   * @param {string} key - the property name
-   * @returns {*} the real value
-   */
-  function onLazyGet(group, object, key) {
+  /* The library calls this when one of the wrappers' names is first
+   * used. By then the engine has made the property an ordinary one
+   * holding undefined; that placeholder is removed first, so that the
+   * bundle sees the name as free. */
+  setHandler(FFI_HANDLER_SLOT, function (group, object, key) {
+    if (object[key] === undefined) {
+      delete object[key];
+    }
+
     ensureLoaded(group);
-
-    return object[key];
-  }
-
-  /**
-   * Called by an accessor when it is assigned: the name becomes a
-   * plain value.
-   *
-   * @param {number} group - the bundle the accessor stood for
-   * @param {object} object - the object the accessor is on
-   * @param {string} key - the property name
-   * @param {*} value - what the script assigned
-   * @returns {undefined}
-   */
-  function onLazySet(group, object, key, value) {
-    Object.defineProperty(object, key, {
-      value, writable: true, enumerable: true, configurable: true,
-    });
-  }
-
-  /**
-   * Put a load-on-first-use accessor at object[key]. The accessor is
-   * made by the native __qjs_defineLazy, which is far cheaper than
-   * building one here out of closures.
-   *
-   * @param {number} group - the bundle that defines the real value
-   * @param {object} object - globalThis, amiga or one of amiga's tables
-   * @param {string} key - the property name
-   * @returns {undefined}
-   */
-  function installLazy(group, object, key) {
-    if (key in object) {
-      return;
-    }
-
-    const getter = defineLazy(object, key, group, onLazyGet, onLazySet);
-
-    installed[group].push([object, key, getter]);
-  }
-
-  /* Indexed loops: this runs on every start, and for-of costs several
-   * times as much through the iterator protocol. */
-  for (let group = 0; group < state.length; group++) {
-    const names = LAZY_NAMES.globals[group];
-
-    for (let index = 0; index < names.length; index++) {
-      installLazy(group, globalThis, names[index]);
-    }
-  }
-
-  /**
-   * Put the accessors that live on `amiga` and its per-library tables.
-   *
-   * @returns {undefined}
-   */
-  function attachToAmiga() {
-    const amiga = globalThis.amiga = globalThis.amiga || {};
-
-    for (let group = 0; group < state.length; group++) {
-      if (state[group] !== NOT_LOADED) continue;
-
-      for (const [path, name] of LAZY_NAMES.amiga[group]) {
-        let table = amiga;
-
-        if (path !== '') {
-          table = amiga[path] = amiga[path] || {};
-        }
-
-        installLazy(group, table, name);
-      }
-    }
-  }
-
-  /* `amiga` itself is created on first use by extended.js (its
-   * amiga-ffi feature), so the accessors on it are added when that
-   * happens. Without extended.js (qjs -nox) there is nothing to wait
-   * for. */
-  const modules = globalThis.qjs && globalThis.qjs.modules;
-
-  if (!modules || typeof modules.whenApplied !== 'function' ||
-      !modules.whenApplied('amiga-ffi', attachToAmiga)) {
-    attachToAmiga();
-  }
+  });
 })();

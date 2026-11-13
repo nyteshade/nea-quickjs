@@ -7,11 +7,11 @@ Compiled as one blob, every start of qjs had to read all of it (about
 570 KB of heap and most of the start-up time, measured at 0.227) even
 for a script using none of the features. This script compiles it as:
 
-  qjsc_extended           the module evaluated at start-up: the file's
-                          preamble, a compact _features table (name,
-                          globals, requires per feature) built here at
-                          build time, and the file's tail, which puts
-                          an accessor on each global
+  qjsc_extended           the module evaluated on first use of any
+                          feature: the file's preamble, a compact
+                          _features table (name, globals, requires per
+                          feature) built here at build time, and the
+                          file's tail, which applies features
   qjsc_ext_NN_<feature>   one classic script per feature, holding its
                           install() body; evaluated by the native
                           __qjs_loadFeature(NN) when the feature is
@@ -23,6 +23,12 @@ and writes them all to quickjs-master/gen/extended.c together with the
 table the native indexes:
 
   qjsc_ext_features[], qjsc_ext_feature_sizes[], qjsc_ext_feature_count
+
+and the names the library registers as lazy properties when a context
+starts (no JavaScript runs then; the module is evaluated the first time
+one of them is used):
+
+  qjsc_ext_lazy_names[], qjsc_ext_lazy_tags[], qjsc_ext_lazy_count
 
 extended.js is the source of truth but is never compiled as it stands:
 defineFeature is a marker for this script, not a run-time function.
@@ -113,8 +119,7 @@ const _features = [];
 
         _features.push({
             name: row[0], globals: row[1], requires: row[2], index,
-            applied: false, applying: false,
-            accessors: null, overrides: null, whenApplied: null,
+            applied: false, applying: false, whenApplied: null,
         });
     }
 })([
@@ -260,6 +265,27 @@ def main():
             out.write('    %s,\n' % size)
         out.write('};\n\nconst uint32_t qjsc_ext_feature_count = %d;\n'
                   % len(arrays))
+
+        # Every name a feature lists, for the library to register as a
+        # host lazy property, with the feature's index as its tag. `qjs`
+        # comes last with an index one past the features: it loads the
+        # start-up module and nothing else.
+        lazy = []
+        for index, (name, head, _) in enumerate(features):
+            for global_name in string_list(head, 'globals'):
+                lazy.append((global_name, index))
+        lazy.append(('qjs', len(features)))
+
+        out.write('\n/* Lazy names: see qjs_install_lazy_globals in '
+                  'library/vbcc/amiga_ffi.c. */\n')
+        out.write('const char *const qjsc_ext_lazy_names[] = {\n')
+        for global_name, _ in lazy:
+            out.write('    "%s",\n' % global_name)
+        out.write('};\n\nconst uint16_t qjsc_ext_lazy_tags[] = {\n')
+        for _, index in lazy:
+            out.write('    %d,\n' % index)
+        out.write('};\n\nconst uint32_t qjsc_ext_lazy_count = %d;\n'
+                  % len(lazy))
 
     for leftover in (main_c, parts_c):
         os.remove(leftover)

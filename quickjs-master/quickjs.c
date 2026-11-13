@@ -383,6 +383,9 @@ struct JSRuntime {
     void *user_opaque;
     void *libc_opaque;
     JSRuntimeFinalizerState *finalizers;
+    /* Amiga port: called when a host lazy property is first used; see
+       JS_DefineHostLazyProperty */
+    JSHostLazyPropertyFunc *host_lazy_func;
 };
 
 struct JSClass {
@@ -8668,6 +8671,31 @@ static int JS_AutoInitProperty(JSContext *ctx, JSObject *p, JSAtom prop,
         return -1;
 
     realm = js_autoinit_get_realm(pr);
+
+    /* Amiga port: a host lazy property (JS_DefineHostLazyProperty). It
+       shares JS_AUTOINIT_ID_PROP, whose opaque is otherwise a pointer to
+       a JSCFunctionListEntry and therefore even; an odd opaque is
+       (tag << 1) | 1. Unlike the engine's own initialisers, the host's
+       callback runs arbitrary JavaScript, which may add properties to
+       this object (moving 'pr') and assign this very property. So the
+       property is turned into an ordinary one holding undefined BEFORE
+       the callback runs, and nothing is touched through 'pr' afterwards.
+       Every caller looks the property up again when this returns 0. */
+    if (js_autoinit_get_id(pr) == JS_AUTOINIT_ID_PROP &&
+        ((uintptr_t)pr->u.init.opaque & 1)) {
+        uint32_t tag = (uint32_t)((uintptr_t)pr->u.init.opaque >> 1);
+        JSHostLazyPropertyFunc *host = ctx->rt->host_lazy_func;
+
+        js_autoinit_free(ctx->rt, pr);
+        prs->flags &= ~JS_PROP_TMASK;
+        pr->u.value = JS_UNDEFINED;
+
+        if (!host)
+            return 0;
+
+        return host(realm, JS_MKPTR(JS_TAG_OBJECT, p), prop, tag) < 0 ? -1 : 0;
+    }
+
     func = js_autoinit_func_table[js_autoinit_get_id(pr)];
     /* 'func' shall not modify the object properties 'pr' */
     val = func(realm, p, prop, pr->u.init.opaque);
@@ -10993,6 +11021,65 @@ static int JS_DefineAutoInitProperty(JSContext *ctx, JSValueConst this_obj,
     pr->u.init.realm_and_id |= id;
     pr->u.init.opaque = opaque;
     return true;
+}
+
+/* Amiga port: host lazy properties.
+ *
+ * A host lazy property costs one property slot and nothing else until
+ * it is first read, written or described. At that moment it becomes an
+ * ordinary property holding undefined and the runtime's host function
+ * is called with the tag it was defined with; the host is expected to
+ * give the property its real value (or delete it) before returning.
+ * `key in object` and enumeration do not trigger it.
+ *
+ * quickjs.library uses this to make every global of the extended
+ * features and of the FFI wrappers available without running any
+ * JavaScript when a context starts. */
+void JS_SetHostLazyPropertyFunc(JSRuntime *rt, JSHostLazyPropertyFunc *func)
+{
+    rt->host_lazy_func = func;
+}
+
+/* Returns 1 if the property was defined, 0 if obj already has a
+   property of that name (which is left alone), -1 on error. */
+int JS_DefineHostLazyProperty(JSContext *ctx, JSValueConst obj, JSAtom prop,
+                              uint32_t tag)
+{
+    JSProperty *pr;
+    int ret;
+
+    if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
+        return -1;
+    if (find_own_property(&pr, JS_VALUE_GET_OBJ(obj), prop))
+        return 0;
+
+    ret = JS_DefineAutoInitProperty(ctx, obj, prop, JS_AUTOINIT_ID_PROP,
+                                    (void *)(((uintptr_t)tag << 1) | 1),
+                                    JS_PROP_C_W_E);
+    return ret < 0 ? -1 : 1;
+}
+
+/* Removes obj[prop] if it is still a host lazy property with this tag.
+   Returns 1 if it was removed, 0 if it was anything else. */
+int JS_DeleteHostLazyProperty(JSContext *ctx, JSValueConst obj, JSAtom prop,
+                              uint32_t tag)
+{
+    JSObject *p;
+    JSProperty *pr;
+    JSShapeProperty *prs;
+
+    if (JS_VALUE_GET_TAG(obj) != JS_TAG_OBJECT)
+        return 0;
+
+    p = JS_VALUE_GET_OBJ(obj);
+    prs = find_own_property(&pr, p, prop);
+
+    if (!prs || (prs->flags & JS_PROP_TMASK) != JS_PROP_AUTOINIT ||
+        js_autoinit_get_id(pr) != JS_AUTOINIT_ID_PROP ||
+        (uintptr_t)pr->u.init.opaque != (((uintptr_t)tag << 1) | 1))
+        return 0;
+
+    return delete_property(ctx, p, prop) > 0 ? 1 : 0;
 }
 
 /* shortcut to add or redefine a new property value */

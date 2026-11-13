@@ -547,6 +547,17 @@ JS_EXTERN void JS_FreeContext(JSContext *s);
 JS_EXTERN JSContext *JS_DupContext(JSContext *ctx);
 JS_EXTERN void *JS_GetContextOpaque(JSContext *ctx);
 JS_EXTERN void JS_SetContextOpaque(JSContext *ctx, void *opaque);
+
+/* Amiga port: host lazy properties, see quickjs.c. The function returns
+   a negative value, with an exception pending, to fail. */
+typedef int JSHostLazyPropertyFunc(JSContext *ctx, JSValueConst obj,
+                                   JSAtom prop, uint32_t tag);
+JS_EXTERN void JS_SetHostLazyPropertyFunc(JSRuntime *rt,
+                                          JSHostLazyPropertyFunc *func);
+JS_EXTERN int JS_DefineHostLazyProperty(JSContext *ctx, JSValueConst obj,
+                                        JSAtom prop, uint32_t tag);
+JS_EXTERN int JS_DeleteHostLazyProperty(JSContext *ctx, JSValueConst obj,
+                                        JSAtom prop, uint32_t tag);
 JS_EXTERN JSRuntime *JS_GetRuntime(JSContext *ctx);
 JS_EXTERN void JS_SetClassProto(JSContext *ctx, JSClassID class_id, JSValue obj);
 JS_EXTERN JSValue JS_GetClassProto(JSContext *ctx, JSClassID class_id);

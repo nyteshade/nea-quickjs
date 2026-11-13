@@ -35,31 +35,11 @@ const nativeMemoryUsage = globalThis.__qjs_memoryUsage;
 
 delete globalThis.__qjs_memoryUsage;
 
-/* ----------------------------------------------------------
- * Date.now — VBCC int64-mul / int64-div miscompile bypass.
- *
- * Two VBCC -O1 bugs poison the C-side timestamp paths on this build:
- *   1. `int64 / 1000` in date_now() truncates dividend to int32 first.
- *   2. `(double)int * literal_double` collapses to int32 multiply.
- *   3. `JS_NewFloat64` under NAN_BOXING uses int64 sub + shift, which
- *      ALSO misbehaves and truncates the resulting JSValue to int32
- *      of the integer-valued double.
- *
- * `globalThis.__qjs_datestamp` (installed by quickjs_libc_lib.c) just
- * returns the three small int components of an OS DateStamp. Each
- * fits trivially in int32 — JS_NewInt32 takes the fast path, no int64
- * arithmetic involved. JS does the rest of the math here using native
- * Number (double) arithmetic, where the engine handles double ops via
- * mathieeedoubbas and produces correct values (verified-working).
- * ---------------------------------------------------------- */
-if (typeof globalThis.__qjs_now_ms_str === 'function') {
-    Date.now = function now() {
-        /* C side returns "<sec_digits><3 ms-digits>" as a string. JS
-         * Number() parses via strtod, never multiplies int*int → so
-         * the engine's broken int64 multiplication path is bypassed. */
-        return Number(globalThis.__qjs_now_ms_str());
-    };
-}
+/* Date.now is replaced natively (qjs_install_lazy_globals in
+ * library/vbcc/amiga_ffi.c) with a function that reads the clock as a
+ * decimal string and converts that, because this module is no longer
+ * evaluated when qjs starts and the engine's own Date.now goes through
+ * 64-bit arithmetic that VBCC miscompiles. */
 
 /* ==========================================================
  * Features
@@ -6152,15 +6132,27 @@ defineFeature({
 /* ==========================================================
  * Apply features on first use; expose the registry
  *
- * Applying every feature at start-up cost about 570 KB of heap and
- * nine tenths of qjs's start-up time, for a script that may use none
- * of them (measured at 0.227). So no feature is applied here. Each of
- * a feature's globals gets an accessor; the first read of one applies
- * the feature (after the features it requires), which puts the real
- * values in place of the accessors.
+ * THIS MODULE IS NOT EVALUATED WHEN QJS STARTS. Applying every feature
+ * at start-up cost about 570 KB of heap and nine tenths of start-up
+ * time (measured at 0.227), and even after features were deferred,
+ * evaluating this module and putting an accessor on each global was
+ * still half of start-up (0.230). So the library now registers every
+ * name in the features' `globals` lists as a HOST LAZY PROPERTY, from
+ * a table written at build time, without running any JavaScript:
+ * about a hundred property slots and nothing else.
+ *
+ * The first time a script reads, writes or describes one of those
+ * names, the engine turns it into an ordinary property holding
+ * undefined and calls the library, which evaluates this module (once)
+ * and then calls the handler registered below with the feature's
+ * index. The handler applies the feature, after the features it
+ * requires, which puts the real values in place.
  *
  * A feature with no globals of its own extends the feature it
  * requires (fs-sync adds to fs) and is applied straight after it.
+ *
+ * `qjs` itself is such a name, with an index one past the last
+ * feature: using it loads this module and nothing more.
  *
  * _features is written by scripts/bundle_extended.py just above this
  * comment: one record per feature, in source order, with
@@ -6168,9 +6160,10 @@ defineFeature({
  *   index                     which install() blob to load
  * ========================================================== */
 
-/* The native that creates one accessor; left in globalThis for the FFI
- * stub (amiga/ffi/lazy.js), which runs next and removes it. */
-const _defineLazy = globalThis.__qjs_defineLazy;
+/* Natives from library/vbcc/amiga_ffi.c. They stay in globalThis: the
+ * FFI stub (amiga/ffi/lazy.js), loaded separately, uses them too. */
+const _lazyClear     = globalThis.__qjs_lazyClear;
+const _lazyOriginals = globalThis.__qjs_lazyOriginals();
 
 /**
  * Report a feature that failed to apply, as start-up always has.
@@ -6195,8 +6188,8 @@ function _reportApplyFailure(feature, error) {
  * @returns {object|undefined} its record
  */
 function _findFeature(name) {
-    for (const feature of _features) {
-        if (feature.name === name) return feature;
+    for (let index = 0; index < _features.length; index++) {
+        if (_features[index].name === name) return _features[index];
     }
 
     return undefined;
@@ -6217,34 +6210,40 @@ function _applyFeature(feature) {
 
     feature.applying = true;
 
-    for (const required of feature.requires) {
-        const dependency = _findFeature(required);
+    for (let index = 0; index < feature.requires.length; index++) {
+        const dependency = _findFeature(feature.requires[index]);
 
         if (!dependency) {
-            _reportApplyFailure(feature, new Error(`missing dep '${required}'`));
+            _reportApplyFailure(feature,
+                new Error(`missing dep '${feature.requires[index]}'`));
             continue;
         }
 
         _applyFeature(dependency);
     }
 
-    /* Take the accessors away and put back what they replaced (a
-     * native fetch, say), so install() finds the globals as it would
-     * have at start-up. */
-    for (const [object, key, getter, original] of feature.accessors || []) {
-        const current = Object.getOwnPropertyDescriptor(object, key);
+    /* Take away the feature's names that are still lazy, and put back
+     * what a lazy name had replaced (a native fetch, say), so install()
+     * finds the globals as it would have at start-up. */
+    _lazyClear(feature.index);
 
-        if (current && current.get === getter) {
-            if (original) {
-                Object.defineProperty(object, key, original);
-            }
-            else {
-                delete object[key];
-            }
+    for (let index = 0; index < feature.globals.length; index++) {
+        const name = feature.globals[index];
+
+        if (!(name in _lazyOriginals)) continue;
+
+        /* 'fetch' is a property of globalThis, 'console.log' one of
+         * globalThis.console */
+        const dot = name.indexOf('.');
+
+        if (dot < 0) {
+            globalThis[name] = _lazyOriginals[name];
+        }
+        else {
+            globalThis[name.substring(0, dot)][name.substring(dot + 1)] =
+                _lazyOriginals[name];
         }
     }
-
-    feature.accessors = null;
 
     try {
         _loadFeature(feature, feature.index);
@@ -6253,107 +6252,55 @@ function _applyFeature(feature) {
         _reportApplyFailure(feature, error);
     }
 
-    feature.applied = true;
+    feature.applied  = true;
+    feature.applying = false;
 
-    /* A value a script assigned to one of the names before the feature
-     * was applied stays the value, as it would have had it been
-     * assigned after start-up. */
-    for (const [object, key, value] of feature.overrides || []) {
-        object[key] = value;
-    }
-
-    feature.overrides = null;
-    feature.applying  = false;
-
-    for (const callback of feature.whenApplied || []) {
-        callback();
-    }
+    const callbacks = feature.whenApplied;
 
     feature.whenApplied = null;
 
-    for (const other of _features) {
+    for (let index = 0; callbacks && index < callbacks.length; index++) {
+        callbacks[index]();
+    }
+
+    /* `amiga` now exists: let the library register the FFI wrappers'
+     * names on it (amiga.Exec, amiga.intuition.Window, amiga.boopsi). */
+    if (feature.name === 'amiga-ffi' &&
+        typeof globalThis.__qjs_lazyAttachFFI === 'function') {
+        globalThis.__qjs_lazyAttachFFI();
+    }
+
+    for (let index = 0; index < _features.length; index++) {
+        const other = _features[index];
+
         if (other.globals.length === 0 && other.requires[0] === feature.name) {
             _applyFeature(other);
         }
     }
 }
 
-/**
- * Called by an accessor when its global is read: apply the feature,
- * then answer with what it defined.
- *
- * @param {number} index - the feature's index
- * @param {object} object - the object the accessor is on
- * @param {string} key - the property name
- * @returns {*} the real value
- */
-function _onLazyGet(index, object, key) {
-    _applyFeature(_features[index]);
+/* The library calls this when a lazy name of ours is first used. By
+ * then the engine has made the property an ordinary one holding
+ * undefined; that placeholder is removed first, so that install() sees
+ * the name as free. */
+globalThis.__qjs_lazyHandler(0, function (index, object, key) {
+    if (object[key] === undefined) {
+        delete object[key];
+    }
 
-    return object[key];
-}
+    if (index < _features.length) {
+        _applyFeature(_features[index]);
+    }
+});
 
-/**
- * Called by an accessor when its global is assigned: the name becomes
- * a plain value at once, and keeps that value when the feature is
- * applied later.
- *
- * @param {number} index - the feature's index
- * @param {object} object - the object the accessor is on
- * @param {string} key - the property name
- * @param {*} value - what the script assigned
- * @returns {undefined}
- */
-function _onLazySet(index, object, key, value) {
+/* Features that neither have globals nor extend another (none today)
+ * cannot be reached by a name, so they are applied when this loads. */
+for (let index = 0; index < _features.length; index++) {
     const feature = _features[index];
 
-    if (!feature.applied) {
-        feature.overrides = feature.overrides || [];
-        feature.overrides.push([object, key, value]);
+    if (feature.globals.length === 0 && feature.requires.length === 0) {
+        _applyFeature(feature);
     }
-
-    Object.defineProperty(object, key, {
-        value, writable: true, enumerable: true, configurable: true,
-    });
-}
-
-/* Indexed loops and no destructuring here: this runs on every start,
- * and for-of costs several times as much through the iterator
- * protocol. */
-for (let featureIndex = 0; featureIndex < _features.length; featureIndex++) {
-    const feature = _features[featureIndex];
-    const globals = feature.globals;
-
-    if (globals.length === 0) {
-        /* extends another feature, or (none today) stands alone */
-        if (feature.requires.length === 0) _applyFeature(feature);
-
-        continue;
-    }
-
-    const accessors = [];
-
-    for (let globalIndex = 0; globalIndex < globals.length; globalIndex++) {
-        /* 'URL' is a property of globalThis, 'console.error' one of
-         * globalThis.console */
-        const name = globals[globalIndex];
-        const dot  = name.indexOf('.');
-        const object = dot < 0 ? globalThis
-                               : globalThis[name.substring(0, dot)];
-        const key    = dot < 0 ? name : name.substring(dot + 1);
-
-        /* what the accessor replaces, if anything: a native fetch, the
-         * console.log that qjs:std installed */
-        const original = (key in object)
-            ? Object.getOwnPropertyDescriptor(object, key) : undefined;
-
-        const getter = _defineLazy(object, key, featureIndex,
-                                   _onLazyGet, _onLazySet);
-
-        accessors.push([object, key, getter, original]);
-    }
-
-    feature.accessors = accessors;
 }
 
 /* Introspection registry */
@@ -6384,7 +6331,12 @@ function _describeFeatures() {
     }));
 }
 
-globalThis.qjs = globalThis.qjs || {};
+/* `qjs` is a lazy name too. If it is still lazy (this module was loaded
+ * through another name), remove it without triggering it; then start
+ * from whatever object it replaced, if any. */
+_lazyClear(_features.length);
+
+globalThis.qjs = _lazyOriginals.qjs || {};
 globalThis.qjs.extended = true;
 globalThis.qjs.version  = '0.66';
 globalThis.qjs.modules  = {

@@ -789,18 +789,15 @@ void QJS_InstallExtended_impl(struct JSContext *ctx)
     extern void qjs_install_now_ms_global(struct JSContext *ctx);
     qjs_install_now_ms_global(ctx);
 
-    /* Q1: extended.js — installs globalThis.amiga (raw FFI primitives,
-     * 76 LVO tables) and the rest of the Node-compat surface. */
-    js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
-
-    /* Q2: the FFI wrappers (LibraryBase, CEnumeration, the library and
-     * struct wrappers, the BOOPSI/Reaction classes) are NOT evaluated
-     * here any more. Only the small stub is: it installs accessors
-     * that call __qjs_loadBundle(group) on first use (a native that
-     * amiga_ffi.c registers with the other FFI natives), and then
-     * removes that global. Depends on globalThis.amiga from extended
-     * above. */
-    js_std_eval_binary(ctx, qjsc_ffi_lazy, qjsc_ffi_lazy_size, 0);
+    /* Neither extended.js nor the FFI wrappers are evaluated here any
+     * more. Every name they publish is registered as a lazy property
+     * from tables written at build time; the code behind a name is
+     * evaluated the first time a script uses it. See "Lazy globals" in
+     * amiga_ffi.c. */
+    {
+        extern void qjs_install_lazy_globals(struct JSContext *ctx);
+        qjs_install_lazy_globals(ctx);
+    }
 }
 
 /* QJS_NewDate_impl — called from assembly, no __reg.

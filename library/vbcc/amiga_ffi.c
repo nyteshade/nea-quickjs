@@ -649,99 +649,425 @@ static JSValue qjs_load_extended_feature(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
-/* __qjs_defineLazy(object, key, tag, onGet, onSet) - put an accessor at
- * object[key] that calls back into JavaScript:
- *   reading it      returns onGet(tag, object, key)
- *   assigning to it calls   onSet(tag, object, key, value)
- * Returns the getter function, so the caller can later tell whether
- * the property is still this accessor.
+/* ------------------------------------------------------------------
+ * Lazy globals
  *
- * It exists because the load-on-first-use machinery (extended.js for
- * its features, amiga/ffi/lazy.js for the FFI bundles) puts well over
- * a hundred of these in place every time qjs starts. Written in
- * JavaScript each one was two closures, a descriptor object and a
- * defineProperty call, about 28,000 68k instructions (measured at
- * 0.229); here it is two small native function objects. */
-#define LAZY_CALLBACK 0
-#define LAZY_TAG      1
-#define LAZY_OBJECT   2
-#define LAZY_KEY      3
-#define LAZY_DATA     4
+ * Every global of the extended.js features (URL, Buffer, process,
+ * console.error, amiga, ...) and of the FFI wrappers (Intuition, Exec,
+ * the struct classes, amiga.boopsi, ...) is registered here as a HOST
+ * LAZY PROPERTY (JS_DefineHostLazyProperty in quickjs.c): one property
+ * slot each, from tables written at build time by
+ * scripts/bundle_extended.py and scripts/bundle_ffi.py. No JavaScript
+ * runs when a context starts.
+ *
+ * The first use of such a name makes the engine call qjs_host_lazy
+ * with the name's tag:
+ *   tag < 1000    an extended.js feature index; handled by the module
+ *                 qjsc_extended, evaluated the first time it is needed
+ *   tag >= 1000   1000 + an FFI bundle group; handled by the script
+ *                 qjsc_ffi_lazy, likewise
+ * Each of the two registers a JavaScript handler with
+ * __qjs_lazyHandler(slot, fn); the handler gives the name its value.
+ *
+ * Until 0.230 the same thing was done by evaluating both of those at
+ * start-up and putting an accessor on every name, which was half of
+ * all start-up work on a 68020.
+ *
+ * State is kept in a hidden object, globalThis.__qjs_lazy:
+ *   handlers    [extended's handler, the FFI stub's handler]
+ *   loading     [bool, bool]: a handler's code is being evaluated
+ *   originals   what a lazy name replaced, by name: the native fetch,
+ *               performance and queueMicrotask, which their features
+ *               wrap
+ *   attached    true once the FFI names on `amiga` are registered
+ * ------------------------------------------------------------------ */
+#define LAZY_STATE_NAME  "__qjs_lazy"
+#define LAZY_FFI_TAG     1000
+#define LAZY_SLOT_EXT    0
+#define LAZY_SLOT_FFI    1
 
-static JSValue qjs_lazy_get(JSContext *ctx, JSValueConst this_val,
-                            int argc, JSValueConst *argv, int magic,
-                            JSValueConst *data)
+extern const unsigned char qjsc_extended[];
+extern const unsigned long qjsc_extended_size;
+extern const unsigned char qjsc_ffi_lazy[];
+extern const unsigned long qjsc_ffi_lazy_size;
+
+extern const char *const qjsc_ext_lazy_names[];
+extern const unsigned short qjsc_ext_lazy_tags[];
+extern const unsigned long qjsc_ext_lazy_count;
+
+extern const char *const qjsc_ffi_lazy_globals[];
+extern const unsigned short qjsc_ffi_lazy_global_tags[];
+extern const unsigned long qjsc_ffi_lazy_global_count;
+
+extern const char *const qjsc_ffi_lazy_amiga_paths[];
+extern const char *const qjsc_ffi_lazy_amiga_names[];
+extern const unsigned short qjsc_ffi_lazy_amiga_tags[];
+extern const unsigned long qjsc_ffi_lazy_amiga_count;
+
+/* The hidden state object; a new reference, or an exception. */
+static JSValue lazy_state(JSContext *ctx)
 {
-    JSValueConst arguments[3];
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue state = JS_GetPropertyStr(ctx, global, LAZY_STATE_NAME);
 
-    arguments[0] = data[LAZY_TAG];
-    arguments[1] = data[LAZY_OBJECT];
-    arguments[2] = data[LAZY_KEY];
-
-    return JS_Call(ctx, data[LAZY_CALLBACK], JS_UNDEFINED, 3, arguments);
+    JS_FreeValue(ctx, global);
+    return state;
 }
 
-static JSValue qjs_lazy_set(JSContext *ctx, JSValueConst this_val,
-                            int argc, JSValueConst *argv, int magic,
-                            JSValueConst *data)
+/* One element of a two-element array member of the state. */
+static JSValue lazy_state_slot(JSContext *ctx, const char *member, int slot)
 {
-    JSValueConst arguments[4];
+    JSValue state = lazy_state(ctx);
+    JSValue array = JS_GetPropertyStr(ctx, state, member);
+    JSValue value = JS_GetPropertyUint32(ctx, array, (uint32_t)slot);
 
-    arguments[0] = data[LAZY_TAG];
-    arguments[1] = data[LAZY_OBJECT];
-    arguments[2] = data[LAZY_KEY];
-    arguments[3] = argc > 0 ? argv[0] : JS_UNDEFINED;
-
-    return JS_Call(ctx, data[LAZY_CALLBACK], JS_UNDEFINED, 4, arguments);
+    JS_FreeValue(ctx, array);
+    JS_FreeValue(ctx, state);
+    return value;
 }
 
-static JSValue qjs_define_lazy(JSContext *ctx, JSValueConst this_val,
-                               int argc, JSValueConst *argv)
+static void lazy_state_set_slot(JSContext *ctx, const char *member, int slot,
+                                JSValue value)
 {
-    JSValueConst data[LAZY_DATA];
-    JSValue getter, setter;
-    JSAtom atom;
-    int status;
+    JSValue state = lazy_state(ctx);
+    JSValue array = JS_GetPropertyStr(ctx, state, member);
 
-    if (argc < 5 || !JS_IsObject(argv[0]) ||
-        !JS_IsFunction(ctx, argv[3]) || !JS_IsFunction(ctx, argv[4]))
-        return JS_ThrowTypeError(ctx,
-            "__qjs_defineLazy(object, key, tag, onGet, onSet)");
+    JS_SetPropertyUint32(ctx, array, (uint32_t)slot, value);
+    JS_FreeValue(ctx, array);
+    JS_FreeValue(ctx, state);
+}
 
-    atom = JS_ValueToAtom(ctx, argv[1]);
-    if (atom == JS_ATOM_NULL)
-        return JS_EXCEPTION;
+/* The object a dotted name lives on and the atom of its last part:
+ * "URL" is a property of the global object, "console.error" one of
+ * globalThis.console. Returns the object (a new reference), or
+ * JS_UNDEFINED if the first part does not name an object. */
+static JSValue lazy_target(JSContext *ctx, JSValueConst global,
+                           const char *name, JSAtom *atom)
+{
+    const char *dot = strchr(name, '.');
+    JSValue object;
+    JSAtom first;
 
-    data[LAZY_TAG]    = argv[2];
-    data[LAZY_OBJECT] = argv[0];
-    data[LAZY_KEY]    = argv[1];
+    if (!dot) {
+        *atom = JS_NewAtom(ctx, name);
+        return JS_DupValue(ctx, global);
+    }
 
-    data[LAZY_CALLBACK] = argv[3];
-    getter = JS_NewCFunctionData(ctx, qjs_lazy_get, 0, 0, LAZY_DATA, data);
+    first = JS_NewAtomLen(ctx, name, (size_t)(dot - name));
+    object = JS_GetProperty(ctx, global, first);
+    JS_FreeAtom(ctx, first);
 
-    data[LAZY_CALLBACK] = argv[4];
-    setter = JS_NewCFunctionData(ctx, qjs_lazy_set, 1, 0, LAZY_DATA, data);
+    if (!JS_IsObject(object)) {
+        JS_FreeValue(ctx, object);
+        *atom = JS_ATOM_NULL;
+        return JS_UNDEFINED;
+    }
 
-    if (JS_IsException(getter) || JS_IsException(setter)) {
-        JS_FreeValue(ctx, getter);
-        JS_FreeValue(ctx, setter);
+    *atom = JS_NewAtom(ctx, dot + 1);
+    return object;
+}
+
+/* The engine calls this when a lazy name is first used. The property
+ * already holds undefined; the handler replaces or removes it. */
+static int qjs_host_lazy(JSContext *ctx, JSValueConst object, JSAtom prop,
+                         uint32_t tag)
+{
+    int slot = tag >= LAZY_FFI_TAG ? LAZY_SLOT_FFI : LAZY_SLOT_EXT;
+    JSValue handler, result, loading;
+    JSValue arguments[3];
+
+    handler = lazy_state_slot(ctx, "handlers", slot);
+
+    if (!JS_IsFunction(ctx, handler)) {
+        JS_FreeValue(ctx, handler);
+
+        /* A name used by the handler's own code while that is being
+         * evaluated (extended.js sets globalThis.qjs, for one): leave
+         * the placeholder to it. */
+        loading = lazy_state_slot(ctx, "loading", slot);
+        if (JS_ToBool(ctx, loading)) {
+            JS_FreeValue(ctx, loading);
+            return 0;
+        }
+        JS_FreeValue(ctx, loading);
+
+        lazy_state_set_slot(ctx, "loading", slot, JS_TRUE);
+        if (slot == LAZY_SLOT_EXT)
+            js_std_eval_binary(ctx, qjsc_extended, qjsc_extended_size, 0);
+        else
+            js_std_eval_binary(ctx, qjsc_ffi_lazy, qjsc_ffi_lazy_size, 0);
+        lazy_state_set_slot(ctx, "loading", slot, JS_FALSE);
+
+        handler = lazy_state_slot(ctx, "handlers", slot);
+        if (!JS_IsFunction(ctx, handler)) {
+            JS_FreeValue(ctx, handler);
+            return 0;
+        }
+    }
+
+    arguments[0] = JS_NewInt32(ctx, (int32_t)(slot == LAZY_SLOT_FFI
+                                              ? tag - LAZY_FFI_TAG : tag));
+    arguments[1] = JS_DupValue(ctx, object);
+    arguments[2] = JS_AtomToString(ctx, prop);
+
+    result = JS_Call(ctx, handler, JS_UNDEFINED, 3, (JSValueConst *)arguments);
+
+    JS_FreeValue(ctx, arguments[1]);
+    JS_FreeValue(ctx, arguments[2]);
+    JS_FreeValue(ctx, handler);
+
+    if (JS_IsException(result))
+        return -1;
+
+    JS_FreeValue(ctx, result);
+    return 0;
+}
+
+/* __qjs_lazyHandler(slot, fn) - register the JavaScript handler for
+ * the extended features (slot 0) or the FFI bundles (slot 1). It is
+ * called as fn(index, object, key). */
+static JSValue qjs_lazy_handler(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+{
+    int32_t slot = -1;
+
+    if (argc < 2 || JS_ToInt32(ctx, &slot, argv[0]) ||
+        slot < 0 || slot > 1 || !JS_IsFunction(ctx, argv[1]))
+        return JS_ThrowTypeError(ctx, "__qjs_lazyHandler(slot, function)");
+
+    lazy_state_set_slot(ctx, "handlers", slot, JS_DupValue(ctx, argv[1]));
+    return JS_UNDEFINED;
+}
+
+/* __qjs_lazyOriginals() - the values lazy names replaced, by name. */
+static JSValue qjs_lazy_originals(JSContext *ctx, JSValueConst this_val,
+                                  int argc, JSValueConst *argv)
+{
+    JSValue state = lazy_state(ctx);
+    JSValue originals = JS_GetPropertyStr(ctx, state, "originals");
+
+    JS_FreeValue(ctx, state);
+    return originals;
+}
+
+/* Register the FFI names that live on `amiga` and its per-library
+ * tables. Names that already exist are left alone. */
+static void lazy_attach_amiga(JSContext *ctx, JSValueConst amiga)
+{
+    unsigned long index;
+
+    for (index = 0; index < qjsc_ffi_lazy_amiga_count; index++) {
+        const char *path = qjsc_ffi_lazy_amiga_paths[index];
+        JSValue table;
+        JSAtom atom;
+
+        if (path[0] == '\0') {
+            table = JS_DupValue(ctx, amiga);
+        } else {
+            table = JS_GetPropertyStr(ctx, amiga, path);
+            if (!JS_IsObject(table)) {
+                JS_FreeValue(ctx, table);
+                table = JS_NewObject(ctx);
+                JS_SetPropertyStr(ctx, amiga, path, JS_DupValue(ctx, table));
+            }
+        }
+
+        atom = JS_NewAtom(ctx, qjsc_ffi_lazy_amiga_names[index]);
+        JS_DefineHostLazyProperty(ctx, table, atom,
+                                  qjsc_ffi_lazy_amiga_tags[index]);
         JS_FreeAtom(ctx, atom);
-        return JS_EXCEPTION;
+        JS_FreeValue(ctx, table);
+    }
+}
+
+/* __qjs_lazyAttachFFI() - called by extended.js once its amiga feature
+ * has created globalThis.amiga. */
+static JSValue qjs_lazy_attach_ffi(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv)
+{
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue amiga = JS_GetPropertyStr(ctx, global, "amiga");
+    JSValue state = lazy_state(ctx);
+
+    if (JS_IsObject(amiga)) {
+        lazy_attach_amiga(ctx, amiga);
+        JS_SetPropertyStr(ctx, state, "attached", JS_TRUE);
     }
 
-    /* JS_DefinePropertyGetSet takes over the two references it is
-     * given; one more of the getter is kept to return. */
-    status = JS_DefinePropertyGetSet(ctx, argv[0], atom,
-                                     JS_DupValue(ctx, getter), setter,
-                                     JS_PROP_CONFIGURABLE | JS_PROP_ENUMERABLE);
-    JS_FreeAtom(ctx, atom);
+    JS_FreeValue(ctx, state);
+    JS_FreeValue(ctx, amiga);
+    JS_FreeValue(ctx, global);
+    return JS_UNDEFINED;
+}
 
-    if (status < 0) {
-        JS_FreeValue(ctx, getter);
+/* __qjs_lazyClear(tag) - remove every name that is STILL lazy and has
+ * this tag (a feature index, or 1000 + an FFI group), so that the code
+ * about to define those names finds them free. Names a script has
+ * already used or assigned are no longer lazy and are not touched. */
+static JSValue qjs_lazy_clear(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    JSValue global, state, attached, amiga, object;
+    unsigned long index;
+    int32_t tag = -1;
+    JSAtom atom;
+
+    if (argc < 1 || JS_ToInt32(ctx, &tag, argv[0]))
         return JS_EXCEPTION;
+
+    global = JS_GetGlobalObject(ctx);
+
+    if (tag < LAZY_FFI_TAG) {
+        for (index = 0; index < qjsc_ext_lazy_count; index++) {
+            if (qjsc_ext_lazy_tags[index] != tag) continue;
+
+            object = lazy_target(ctx, global, qjsc_ext_lazy_names[index], &atom);
+            if (atom != JS_ATOM_NULL) {
+                JS_DeleteHostLazyProperty(ctx, object, atom, (uint32_t)tag);
+                JS_FreeAtom(ctx, atom);
+            }
+            JS_FreeValue(ctx, object);
+        }
+    } else {
+        for (index = 0; index < qjsc_ffi_lazy_global_count; index++) {
+            if (qjsc_ffi_lazy_global_tags[index] != tag) continue;
+
+            atom = JS_NewAtom(ctx, qjsc_ffi_lazy_globals[index]);
+            JS_DeleteHostLazyProperty(ctx, global, atom, (uint32_t)tag);
+            JS_FreeAtom(ctx, atom);
+        }
+
+        /* `amiga` is only looked at once the names on it have been
+         * registered: reading it earlier would itself be a first use
+         * of the lazy name `amiga`. */
+        state = lazy_state(ctx);
+        attached = JS_GetPropertyStr(ctx, state, "attached");
+        JS_FreeValue(ctx, state);
+
+        if (JS_ToBool(ctx, attached)) {
+            amiga = JS_GetPropertyStr(ctx, global, "amiga");
+
+            for (index = 0; JS_IsObject(amiga) &&
+                            index < qjsc_ffi_lazy_amiga_count; index++) {
+                const char *path = qjsc_ffi_lazy_amiga_paths[index];
+
+                if (qjsc_ffi_lazy_amiga_tags[index] != tag) continue;
+
+                object = path[0] == '\0' ? JS_DupValue(ctx, amiga)
+                                         : JS_GetPropertyStr(ctx, amiga, path);
+                if (JS_IsObject(object)) {
+                    atom = JS_NewAtom(ctx, qjsc_ffi_lazy_amiga_names[index]);
+                    JS_DeleteHostLazyProperty(ctx, object, atom, (uint32_t)tag);
+                    JS_FreeAtom(ctx, atom);
+                }
+                JS_FreeValue(ctx, object);
+            }
+
+            JS_FreeValue(ctx, amiga);
+        }
+        JS_FreeValue(ctx, attached);
     }
 
-    return getter;
+    JS_FreeValue(ctx, global);
+    return JS_UNDEFINED;
+}
+
+/* Date.now(): the clock as a decimal string of milliseconds
+ * (__qjs_now_ms_str), converted with the engine's string-to-number
+ * code. The engine's own Date.now divides and multiplies 64-bit
+ * integers, which VBCC miscompiles; extended.js used to install this
+ * replacement in JavaScript at start-up. */
+static JSValue qjs_date_now(JSContext *ctx, JSValueConst this_val,
+                            int argc, JSValueConst *argv)
+{
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue reader = JS_GetPropertyStr(ctx, global, "__qjs_now_ms_str");
+    JSValue text, number;
+
+    JS_FreeValue(ctx, global);
+
+    text = JS_Call(ctx, reader, JS_UNDEFINED, 0, NULL);
+    JS_FreeValue(ctx, reader);
+    if (JS_IsException(text))
+        return text;
+
+    number = JS_ToNumber(ctx, text);
+    JS_FreeValue(ctx, text);
+    return number;
+}
+
+/* Called once per context, where extended.js and the FFI stub used to
+ * be evaluated. Registers the lazy names and replaces Date.now. */
+void qjs_install_lazy_globals(JSContext *ctx)
+{
+    JSValue global = JS_GetGlobalObject(ctx);
+    JSValue state, originals, value, object, date, reader;
+    unsigned long index;
+    JSAtom atom;
+
+    JS_SetHostLazyPropertyFunc(JS_GetRuntime(ctx), qjs_host_lazy);
+
+    state     = JS_NewObject(ctx);
+    originals = JS_NewObject(ctx);
+
+    value = JS_NewArray(ctx);
+    JS_SetPropertyUint32(ctx, value, 0, JS_UNDEFINED);
+    JS_SetPropertyUint32(ctx, value, 1, JS_UNDEFINED);
+    JS_SetPropertyStr(ctx, state, "handlers", value);
+
+    value = JS_NewArray(ctx);
+    JS_SetPropertyUint32(ctx, value, 0, JS_FALSE);
+    JS_SetPropertyUint32(ctx, value, 1, JS_FALSE);
+    JS_SetPropertyStr(ctx, state, "loading", value);
+
+    JS_SetPropertyStr(ctx, state, "originals", JS_DupValue(ctx, originals));
+    JS_SetPropertyStr(ctx, state, "attached", JS_FALSE);
+
+    /* hidden: not enumerable, not writable, not configurable */
+    JS_DefinePropertyValueStr(ctx, global, LAZY_STATE_NAME, state, 0);
+
+    /* The extended features' names. One that already exists (a native
+     * fetch) is remembered and replaced: its feature wraps it. */
+    for (index = 0; index < qjsc_ext_lazy_count; index++) {
+        const char *name = qjsc_ext_lazy_names[index];
+
+        object = lazy_target(ctx, global, name, &atom);
+        if (atom == JS_ATOM_NULL) {
+            JS_FreeValue(ctx, object);
+            continue;
+        }
+
+        if (JS_HasProperty(ctx, object, atom) > 0) {
+            value = JS_GetProperty(ctx, object, atom);
+            JS_SetPropertyStr(ctx, originals, name, value);
+            JS_DeleteProperty(ctx, object, atom, 0);
+        }
+
+        JS_DefineHostLazyProperty(ctx, object, atom, qjsc_ext_lazy_tags[index]);
+        JS_FreeAtom(ctx, atom);
+        JS_FreeValue(ctx, object);
+    }
+
+    /* The FFI wrappers' globals. One that already exists is left to
+     * whoever defined it, as the bundles themselves do. */
+    for (index = 0; index < qjsc_ffi_lazy_global_count; index++) {
+        atom = JS_NewAtom(ctx, qjsc_ffi_lazy_globals[index]);
+        JS_DefineHostLazyProperty(ctx, global, atom,
+                                  qjsc_ffi_lazy_global_tags[index]);
+        JS_FreeAtom(ctx, atom);
+    }
+
+    reader = JS_GetPropertyStr(ctx, global, "__qjs_now_ms_str");
+    if (JS_IsFunction(ctx, reader)) {
+        date = JS_GetPropertyStr(ctx, global, "Date");
+        JS_SetPropertyStr(ctx, date, "now",
+                          JS_NewCFunction(ctx, qjs_date_now, "now", 0));
+        JS_FreeValue(ctx, date);
+    }
+    JS_FreeValue(ctx, reader);
+
+    JS_FreeValue(ctx, originals);
+    JS_FreeValue(ctx, global);
 }
 
 /* __qjs_memoryUsage() - what this runtime has allocated, as counted by
@@ -794,8 +1120,14 @@ void qjs_install_amiga_ffi_global(JSContext *ctx)
 
     fn = JS_NewCFunction(ctx, qjs_load_extended_feature, "__qjs_loadFeature",    1);
     JS_SetPropertyStr(ctx, global, "__qjs_loadFeature", fn);
-    fn = JS_NewCFunction(ctx, qjs_define_lazy,       "__qjs_defineLazy",         5);
-    JS_SetPropertyStr(ctx, global, "__qjs_defineLazy", fn);
+    fn = JS_NewCFunction(ctx, qjs_lazy_handler,      "__qjs_lazyHandler",        2);
+    JS_SetPropertyStr(ctx, global, "__qjs_lazyHandler", fn);
+    fn = JS_NewCFunction(ctx, qjs_lazy_clear,        "__qjs_lazyClear",          1);
+    JS_SetPropertyStr(ctx, global, "__qjs_lazyClear", fn);
+    fn = JS_NewCFunction(ctx, qjs_lazy_originals,    "__qjs_lazyOriginals",      0);
+    JS_SetPropertyStr(ctx, global, "__qjs_lazyOriginals", fn);
+    fn = JS_NewCFunction(ctx, qjs_lazy_attach_ffi,   "__qjs_lazyAttachFFI",      0);
+    JS_SetPropertyStr(ctx, global, "__qjs_lazyAttachFFI", fn);
     fn = JS_NewCFunction(ctx, qjs_memory_usage,      "__qjs_memoryUsage",        0);
     JS_SetPropertyStr(ctx, global, "__qjs_memoryUsage", fn);
     fn = JS_NewCFunction(ctx, qjs_load_ffi_bundle,   "__qjs_loadBundle",         1);
