@@ -114,6 +114,10 @@ export class StringGadget extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;

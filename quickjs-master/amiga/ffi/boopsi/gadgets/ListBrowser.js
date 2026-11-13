@@ -202,6 +202,10 @@ export class ListBrowser extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
 

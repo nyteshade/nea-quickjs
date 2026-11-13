@@ -7,9 +7,14 @@
  *   | [            Quit            ] |
  *   +--------------------------------+
  *
- * Click the gadget; whenever it reports back, the full path it holds
- * is printed on the Shell. The requester it stands for is titled
- * "Pick any file" and starts in SYS:.
+ * Click the gadget and a file requester opens, titled "Pick any file"
+ * and starting in SYS:. Choose a file and its full path is printed on
+ * the Shell; cancel, and the script says so.
+ *
+ * The gadget does not open the requester by itself. A click on it
+ * arrives here as a FILE_SELECTED event, and the script answers with
+ * `fileChooser.request()`, which shows the requester and returns once
+ * the user is done (GFILE_REQUEST in gadgets/getfile.h).
  *
  * Assumptions:
  *   - the window opens on the default public screen (normally
@@ -17,14 +22,13 @@
  *   - getfile.gadget, label.image, button.gadget, layout.gadget and
  *     window.class are in SYS:Classes, as AmigaOS 3.2 installs them
  *   - SYS: is assigned, as it is on any booted system
- *   - the gadget opens its file requester by itself when clicked. This
- *     script never sends it GFILE_REQUEST (gadgets/getfile.h), which
- *     the header says is how the requester is opened; compare
- *     getfont_demo.js, which does ask
+ *   - request() returns false when the File field of the requester
+ *     was left empty, even if OK was pressed: the gadget's autodoc
+ *     says so
  *   - window.class reports gadget clicks even though the `idcmp:` mask
  *     below asks only for close, refresh and attribute updates
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.232+ (GetFile.request arrived then).
  * Run: qjs examples/getfile_demo.js
  */
 
@@ -79,8 +83,15 @@ try {
     if (event.kind === EventKind.BUTTON_CLICK &&
         event.sourceId === ID.QUIT) break;
 
+    /* The gadget was clicked: show its requester. request() comes
+     * back when the user has chosen or cancelled. */
     if (event.kind === EventKind.FILE_SELECTED) {
-      print('Selected: ' + fileChooser.get('fullFile'));
+      if (fileChooser.request()) {
+        print('Selected: ' + fileChooser.get('fullFile'));
+      }
+      else {
+        print('No file chosen.');
+      }
     }
   }
 }
