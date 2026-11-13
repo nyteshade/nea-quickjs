@@ -625,6 +625,30 @@ static JSValue qjs_load_ffi_bundle(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
+/* __qjs_loadFeature(index) - evaluate the install() body of one
+ * extended.js feature. The bodies are separate bytecode blobs (see
+ * scripts/bundle_extended.py); the script leaves a function in
+ * globalThis.__qjs_extInstall, which extended.js collects and calls. */
+extern const unsigned char *const qjsc_ext_features[];
+extern const unsigned long qjsc_ext_feature_sizes[];
+extern const unsigned long qjsc_ext_feature_count;
+
+static JSValue qjs_load_extended_feature(JSContext *ctx, JSValueConst this_val,
+                                         int argc, JSValueConst *argv)
+{
+    int32_t index = -1;
+
+    if (argc < 1 || JS_ToInt32(ctx, &index, argv[0]))
+        return JS_EXCEPTION;
+
+    if (index < 0 || (unsigned long)index >= qjsc_ext_feature_count)
+        return JS_ThrowRangeError(ctx, "no extended feature %d", (int)index);
+
+    js_std_eval_binary(ctx, qjsc_ext_features[index],
+                       qjsc_ext_feature_sizes[index], 0);
+    return JS_UNDEFINED;
+}
+
 /* __qjs_memoryUsage() - what this runtime has allocated, as counted by
  * the engine (JS_ComputeMemoryUsage). Sizes are bytes. Used by
  * process.memoryUsage() in extended.js, and by the perf/ scripts to
@@ -673,6 +697,8 @@ void qjs_install_amiga_ffi_global(JSContext *ctx)
     JSValue global, fn;
     global = JS_GetGlobalObject(ctx);
 
+    fn = JS_NewCFunction(ctx, qjs_load_extended_feature, "__qjs_loadFeature",    1);
+    JS_SetPropertyStr(ctx, global, "__qjs_loadFeature", fn);
     fn = JS_NewCFunction(ctx, qjs_memory_usage,      "__qjs_memoryUsage",        0);
     JS_SetPropertyStr(ctx, global, "__qjs_memoryUsage", fn);
     fn = JS_NewCFunction(ctx, qjs_load_ffi_bundle,   "__qjs_loadBundle",         1);

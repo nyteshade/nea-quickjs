@@ -153,21 +153,43 @@
     installed[group].push([object, key, getter]);
   }
 
-  const amiga = globalThis.amiga = globalThis.amiga || {};
-
   for (let group = 0; group < state.length; group++) {
     for (const name of LAZY_NAMES.globals[group]) {
       installLazy(group, globalThis, name);
     }
+  }
 
-    for (const [path, name] of LAZY_NAMES.amiga[group]) {
-      let table = amiga;
+  /**
+   * Put the accessors that live on `amiga` and its per-library tables.
+   *
+   * @returns {undefined}
+   */
+  function attachToAmiga() {
+    const amiga = globalThis.amiga = globalThis.amiga || {};
 
-      if (path !== '') {
-        table = amiga[path] = amiga[path] || {};
+    for (let group = 0; group < state.length; group++) {
+      if (state[group] !== NOT_LOADED) continue;
+
+      for (const [path, name] of LAZY_NAMES.amiga[group]) {
+        let table = amiga;
+
+        if (path !== '') {
+          table = amiga[path] = amiga[path] || {};
+        }
+
+        installLazy(group, table, name);
       }
-
-      installLazy(group, table, name);
     }
+  }
+
+  /* `amiga` itself is created on first use by extended.js (its
+   * amiga-ffi feature), so the accessors on it are added when that
+   * happens. Without extended.js (qjs -nox) there is nothing to wait
+   * for. */
+  const modules = globalThis.qjs && globalThis.qjs.modules;
+
+  if (!modules || typeof modules.whenApplied !== 'function' ||
+      !modules.whenApplied('amiga-ffi', attachToAmiga)) {
+    attachToAmiga();
   }
 })();

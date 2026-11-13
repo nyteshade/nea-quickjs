@@ -15,10 +15,16 @@
  * qjs:extension.
  *
  * To modify a built-in feature: edit its section below, run
- *     qjsc -ss -m -N qjsc_extended \
- *          -o quickjs-master/gen/extended.c \
- *          quickjs-master/amiga/extended/extended.js
- * then rebuild the CLI (make -C library/vbcc -f Makefile.cli).
+ *     python3 scripts/bundle_extended.py
+ * (which splits this file into a small start-up module plus one
+ * bytecode blob per feature and compiles them into gen/extended.c),
+ * then rebuild the library (make -C library/vbcc variants).
+ *
+ * A feature is applied on first use of one of the globals its
+ * manifest lists, so `globals` must name every global install()
+ * creates, and install() must be the manifest's last member. An
+ * install() body may use the module-level `std`, `os` and
+ * `nativeMemoryUsage`; see SHARED in the script to add another.
  */
 
 import * as std from 'qjs:std';
@@ -79,6 +85,11 @@ class LocalManifest {
         this.standard    = opts.standard ?? false;
         this._install    = opts.install;
         this._applied    = false;
+        /* Set while the feature waits to be applied on first use; see
+         * "Apply features" at the end of this file. */
+        this._accessors  = null;   /* [key, getter, original descriptor] */
+        this._overrides  = null;   /* Map: key -> value a script assigned */
+        this._whenApplied = null;  /* callbacks to run once applied */
     }
 
     apply() {
@@ -2597,7 +2608,7 @@ _manifests.push(new LocalManifest({
     tier:        'pure-js',
     provider:    'nea-port',
     description: 'Node.js EventEmitter (on/once/off/emit + helpers)',
-    globals:     ['EventEmitter'],
+    globals:     ['EventEmitter', 'events'],
     standard:    false,
     install() {
         class EventEmitter {
@@ -4836,6 +4847,7 @@ _manifests.push(new LocalManifest({
             let name = String(id);
             if (name.startsWith('node:')) name = name.substring(5);
             switch (name) {
+                case 'amiga':            return globalThis.amiga;
                 case 'assert':           return globalThis.assert;
                 case 'buffer':           return { Buffer: globalThis.Buffer, Blob: globalThis.Blob, File: globalThis.File };
                 case 'child_process':    return globalThis.child_process;
@@ -6150,45 +6162,219 @@ _manifests.push(new LocalManifest({
             if (!amiga[libName].lvo) amiga[libName].lvo = LVOS[libName];
         }
 
-        /* Extend require() to resolve 'amiga' and 'node:amiga'. */
-        if (typeof globalThis.require === 'function') {
-            const origRequire = globalThis.require;
-            globalThis.require = function (id) {
-                const n = typeof id === 'string' && id.startsWith('node:') ? id.substring(5) : id;
-                if (n === 'amiga') return amiga;
-                return origRequire(id);
-            };
-            globalThis.require.resolve = origRequire.resolve;
-            globalThis.require.cache = origRequire.cache;
-            globalThis.require.extensions = origRequire.extensions;
-        }
+        /* require('amiga') and require('node:amiga') are resolved by the
+         * node-require feature itself, which reads globalThis.amiga when
+         * it is called. */
     },
 }));
 
 /* ==========================================================
- * Apply all features in dependency order, expose registry
+ * Apply features, most of them on first use; expose registry
+ *
+ * Applying every feature at start-up cost about 570 KB of heap and
+ * nine tenths of qjs's start-up time, for a script that may use none
+ * of them (measured at 0.227). So a feature whose globals are plain
+ * names (URL, Buffer, process, amiga, ...) is not applied here. Each
+ * of its globals gets an accessor instead; the first read of one
+ * applies the feature, which puts the real values in their place.
+ *
+ * Three kinds of feature:
+ *   lazy      has globals, all plain names: applied on first use
+ *   follower  has no globals of its own and requires another feature,
+ *             which it extends (fs-sync adds to fs): applied straight
+ *             after the feature it follows
+ *   eager     everything else (console.* methods): applied now
+ *
+ * A feature that requires others applies them first, as before.
  * ========================================================== */
 
-(function topoApply() {
-    const applied = new Set();
-    function apply(m) {
-        if (applied.has(m.name)) return;
-        for (const req of m.requires || []) {
-            const dep = _manifests.find(x => x.name === req);
-            if (!dep) throw new Error(`extended.js: missing dep '${req}' for '${m.name}'`);
-            apply(dep);
-        }
-        m.apply();
-        applied.add(m.name);
+/** Features that are applied at start-up although they could wait. */
+const EAGER_FEATURES = new Set([
+    /* a five-line guard around a native that already exists */
+    'queue-microtask',
+]);
+
+/**
+ * Report a feature that failed to apply, as start-up always has.
+ *
+ * @param {LocalManifest} manifest - the feature
+ * @param {Error} error - what its install() threw
+ * @returns {undefined}
+ */
+function _reportApplyFailure(manifest, error) {
+    try {
+        std.err.puts(`extended.js: failed to apply '${manifest.name}': ${error.message}\n`);
     }
-    for (const m of _manifests) {
-        try { apply(m); }
-        catch (e) {
-            try { std.err.puts(`extended.js: failed to apply '${m.name}': ${e.message}\n`); }
-            catch (_) {}
+    catch (_) {
+        /* nowhere to report to */
+    }
+}
+
+/**
+ * Find a feature by name.
+ *
+ * @param {string} name - the manifest's name
+ * @returns {LocalManifest|undefined}
+ */
+function _findManifest(name) {
+    return _manifests.find((manifest) => manifest.name === name);
+}
+
+/**
+ * Whether a feature waits for first use.
+ *
+ * @param {LocalManifest} manifest - the feature
+ * @returns {boolean}
+ */
+function _isLazy(manifest) {
+    return manifest.globals.length > 0 &&
+           !EAGER_FEATURES.has(manifest.name) &&
+           manifest.globals.every((name) => !name.includes('.'));
+}
+
+/**
+ * Whether a feature only extends the feature it requires.
+ *
+ * @param {LocalManifest} manifest - the feature
+ * @returns {boolean}
+ */
+function _isFollower(manifest) {
+    return manifest.globals.length === 0 && manifest.requires.length > 0 &&
+           _isLazy(_findManifest(manifest.requires[0]));
+}
+
+/**
+ * Apply a feature now: the features it requires first, then itself,
+ * then its followers. Does nothing if it is applied or being applied.
+ *
+ * @param {LocalManifest} manifest - the feature
+ * @returns {undefined}
+ */
+function _applyManifest(manifest) {
+    if (manifest._applied || manifest._applying) {
+        return;
+    }
+
+    manifest._applying = true;
+
+    for (const required of manifest.requires) {
+        const dependency = _findManifest(required);
+
+        if (!dependency) {
+            _reportApplyFailure(manifest,
+                new Error(`missing dep '${required}'`));
+            continue;
+        }
+
+        _applyManifest(dependency);
+    }
+
+    /* Take the accessors away and put back what they replaced (a
+     * native fetch, say), so install() finds the globals as it would
+     * have at start-up. */
+    for (const [key, getter, original] of manifest._accessors || []) {
+        const current = Object.getOwnPropertyDescriptor(globalThis, key);
+
+        if (current && current.get === getter) {
+            if (original) {
+                Object.defineProperty(globalThis, key, original);
+            }
+            else {
+                delete globalThis[key];
+            }
         }
     }
-})();
+
+    manifest._accessors = null;
+
+    try {
+        manifest.apply();
+    }
+    catch (error) {
+        manifest._applied = true;       /* do not try again on every read */
+        _reportApplyFailure(manifest, error);
+    }
+
+    /* A value a script assigned to one of the names before the feature
+     * was applied stays the value, as it would have had it been
+     * assigned after start-up. */
+    for (const [key, value] of manifest._overrides || []) {
+        globalThis[key] = value;
+    }
+
+    manifest._overrides = null;
+    manifest._applying  = false;
+
+    for (const callback of manifest._whenApplied || []) {
+        callback();
+    }
+
+    manifest._whenApplied = null;
+
+    for (const other of _manifests) {
+        if (other.requires[0] === manifest.name && _isFollower(other)) {
+            _applyManifest(other);
+        }
+    }
+}
+
+/**
+ * Put an apply-on-first-use accessor at globalThis[key].
+ *
+ * @param {LocalManifest} manifest - the feature that defines the global
+ * @param {string} key - the global's name
+ * @returns {undefined}
+ */
+function _installLazyGlobal(manifest, key) {
+    const original = Object.getOwnPropertyDescriptor(globalThis, key);
+
+    /**
+     * Apply the feature, then answer with what it defined.
+     *
+     * @returns {*} the real value
+     */
+    const getter = function () {
+        _applyManifest(manifest);
+
+        return globalThis[key];
+    };
+
+    /**
+     * Assigning to the name makes it a plain value at once, and keeps
+     * that value when the feature is applied later.
+     *
+     * @param {*} value - what the script assigned
+     * @returns {undefined}
+     */
+    const setter = function (value) {
+        if (!manifest._applied) {
+            manifest._overrides = manifest._overrides || new Map();
+            manifest._overrides.set(key, value);
+        }
+
+        Object.defineProperty(globalThis, key, {
+            value, writable: true, enumerable: true, configurable: true,
+        });
+    };
+
+    Object.defineProperty(globalThis, key, {
+        get: getter, set: setter, enumerable: true, configurable: true,
+    });
+
+    manifest._accessors = manifest._accessors || [];
+    manifest._accessors.push([key, getter, original]);
+}
+
+for (const manifest of _manifests) {
+    if (_isLazy(manifest)) {
+        for (const key of manifest.globals) {
+            _installLazyGlobal(manifest, key);
+        }
+    }
+    else if (!_isFollower(manifest)) {
+        _applyManifest(manifest);
+    }
+}
 
 /* Introspection registry */
 globalThis.qjs = globalThis.qjs || {};
@@ -6201,4 +6387,55 @@ globalThis.qjs.modules  = {
         return m ? m.toJSON() : undefined;
     },
     has:  (name) => _manifests.some(m => m.name === name),
+
+    /**
+     * Apply a feature now instead of on first use.
+     *
+     * @param {string} name - the feature's name, as list() gives it
+     * @returns {boolean} false if there is no such feature
+     */
+    apply(name) {
+        const manifest = _findManifest(name);
+
+        if (!manifest) return false;
+
+        _applyManifest(manifest);
+
+        return true;
+    },
+
+    /**
+     * Apply every feature now, as start-up did until 0.227.
+     *
+     * @returns {undefined}
+     */
+    applyAll() {
+        for (const manifest of _manifests) {
+            _applyManifest(manifest);
+        }
+    },
+
+    /**
+     * Run a function once a feature has been applied: at once if it
+     * already is.
+     *
+     * @param {string} name - the feature's name
+     * @param {function(): undefined} callback - what to run
+     * @returns {boolean} false if there is no such feature
+     */
+    whenApplied(name, callback) {
+        const manifest = _findManifest(name);
+
+        if (!manifest) return false;
+
+        if (manifest._applied) {
+            callback();
+        }
+        else {
+            manifest._whenApplied = manifest._whenApplied || [];
+            manifest._whenApplied.push(callback);
+        }
+
+        return true;
+    },
 };

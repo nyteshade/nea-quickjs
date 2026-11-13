@@ -15,6 +15,7 @@
 #   libs/mathieeedoubbas.library  a real one, for the soft-float variants
 # and amitools' vamos for the python named in tools/prof.py.
 #
+# PERF_BENCH_DIR takes the scripts from another directory (e.g. amiga/tests).
 # PERF_ARGS adds qjs options, e.g. PERF_ARGS=-d to dump memory usage at exit.
 # PERF_CPU=68040 selects the emulated CPU (needed for the FPU variants).
 #
@@ -33,7 +34,7 @@ OUT=$HERE/out/$label; mkdir -p "$OUT"
 WORK=$(mktemp -d)
 one() {
   b=$1; W=$WORK/$b; mkdir -p "$W/vols"; cp -R "$VM" "$W/vm"
-  cp "$lib" "$W/vm/libs/quickjs.library"; cp "$HERE/bench/$b.js" "$W/vm/"
+  cp "$lib" "$W/vm/libs/quickjs.library"; cp "${PERF_BENCH_DIR:-$HERE/bench}/$b.js" "$W/vm/"
   ( cd "$W/vm" && PROF_OUT=$W/prof "$HERE/tools/prof.py" -S --vols-base-dir "$W/vols" \
       -l main:info -C ${PERF_CPU:-68020} -m 65536 -H disable -s 2048 --cwd sys: -V "sys:$PWD" \
       -a libs:sys:libs -a s:sys:s -a c:sys:c -a t:sys:s \
