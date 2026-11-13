@@ -207,6 +207,11 @@ extern void sharedlib_clib_init(void);
 /* From sharedlib_math_soft.c or sharedlib_math.c — sets math library bases.
  * Soft-float build: sets MathIeeeDoubBasBase/MathIeeeDoubTransBase globals.
  * FPU build: no-op stubs. */
+#if defined(__M68881) || defined(__M68882)
+/* sharedlib_fpu_mode.s: per-call FPU mode for the FPU variants */
+extern long qjs_fpu_thunks_install(struct Library *lib, struct ExecBase *sys);
+extern void qjs_fpu_thunks_free(struct ExecBase *sys);
+#endif
 extern void sharedlib_math_soft_init(struct Library *basBase,
                                       struct Library *transBase);
 extern void sharedlib_math_soft_cleanup(void);
@@ -529,6 +534,15 @@ BOOL CustomLibInit(LIBRARY_BASE_TYPE *aBase)
     sharedlib_math_soft_init(aBase->iMathDoubBasBase,
                               aBase->iMathDoubTransBase);
 
+#if defined(__M68881) || defined(__M68882)
+    /* FPU variants: from here on every library vector runs with the
+     * FPU rounding to nearest and gives the caller its own FPU mode
+     * back on return (sharedlib_fpu_mode.s). After the math libraries
+     * are open: opening mathieeedoubbas.library changes the mode. */
+    if (qjs_fpu_thunks_install(&aBase->iLibrary, sys))
+        return TRUE;
+#endif
+
     /* Create memory pool for all engine allocations */
     if (AmigaPoolInit(aBase))
         return TRUE;
@@ -571,6 +585,9 @@ VOID CustomLibCleanup(LIBRARY_BASE_TYPE *aBase)
 
     /* Tear down math subsystem */
     sharedlib_math_soft_cleanup();
+#if defined(__M68881) || defined(__M68882)
+    qjs_fpu_thunks_free(sys);
+#endif
 
     if (aBase->iMathDoubTransBase) {
         __CloseLibrary(sys, aBase->iMathDoubTransBase);
