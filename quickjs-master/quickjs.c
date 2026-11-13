@@ -2771,10 +2771,45 @@ JSRuntime *JS_GetRuntime(JSContext *ctx)
     return ctx->rt;
 }
 
+#if defined(__VBCC__)
+/* In library/vbcc/qjsfuncs.c: the lowest address the interpreter may
+ * let the stack pointer of the calling task reach, or 0 when the task's
+ * stack bounds cannot be trusted. */
+extern uintptr_t qjs_amiga_stack_floor(void);
+#endif
+
 static void update_stack_limit(JSRuntime *rt)
 {
 #if defined(__wasi__)
     rt->stack_limit = 0; /* no limit */
+#elif defined(__VBCC__)
+    /* AmigaOS: a task's stack is a fixed block, 4 KB to a few hundred KB,
+     * and nothing stops the stack pointer leaving it: there is no guard
+     * page, the memory below simply gets overwritten. Upstream assumes
+     * JS_DEFAULT_STACK_SIZE (1 MB) below the point where the runtime was
+     * created, so deep recursion never reached the limit and trashed
+     * memory instead of throwing RangeError. Whatever size is asked for
+     * (the default, JS_SetMaxStackSize, or 0 for "no limit"), the limit
+     * is never put below the real bottom of the stack plus a margin.
+     *
+     * The subtraction is also guarded: a size larger than the address
+     * of the stack top wrapped round to a limit near 4 GB, which made
+     * every call a stack overflow (qjs --stack-size with a big number).
+     */
+    {
+        uintptr_t limit, floor_address;
+
+        if (rt->stack_size == 0 || rt->stack_size > rt->stack_top)
+            limit = 0;
+        else
+            limit = rt->stack_top - rt->stack_size;
+
+        floor_address = qjs_amiga_stack_floor();
+        if (limit < floor_address)
+            limit = floor_address;
+
+        rt->stack_limit = limit;
+    }
 #else
     if (rt->stack_size == 0) {
         rt->stack_limit = 0; /* no limit */

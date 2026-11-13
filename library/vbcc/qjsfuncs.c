@@ -294,6 +294,8 @@ static struct timerequest *_qjs_timer_req = NULL;
  * specific to int64 globals in this template). */
 volatile long long _qjs_time_offset_us = 1779926400000000LL;
 
+extern LIBRARY_BASE_TYPE *_qjs_lib_base;    /* defined below */
+
 /* GetSysTime — timer.device LVO -66.
  * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
 static void __qjs_GetSysTime(__reg("a6") struct Library *base,
@@ -304,6 +306,62 @@ static void __qjs_GetSysTime(__reg("a6") struct Library *base,
 static struct Task *__qjs_FindTask(__reg("a6") struct ExecBase *sb,
                                     __reg("a1") const char *name)
                                     = "\tjsr\t-294(a6)";
+
+/* ---- The real stack of the calling task ----
+ *
+ * QJS_STACK_MARGIN is what must stay free below the interpreter's limit.
+ * The engine tests the stack pointer when a JavaScript function is
+ * entered and at its other recursion points (parser, JSON, regexp
+ * compiler, toString of nested values); between two tests the stack
+ * still grows by the frame of the interpreter itself, by whatever C
+ * helpers that call reaches before the next test, and by dos.library or
+ * another library called from there. Measured on the 020soft library
+ * under vamos, on a zero-filled 256 KB stack, by finding the lowest
+ * word written after each kind of runaway recursion had been stopped:
+ * the stack pointer went at most 6,008 bytes below the limit (plain
+ * calls 3.9 KB, getters 4.1 KB, JSON.stringify 5.3 KB, toString and
+ * String.replace callbacks 6.0 KB). 16 KB leaves 10 KB beyond that for
+ * a dos.library call (handlers run on their own stacks) and for exec
+ * saving the task's registers on this stack at a task switch.
+ * amiga/tests/test_stack_limit.js paints the margin and reports how far
+ * into it the stack went.
+ */
+#define QJS_STACK_MARGIN 16384UL
+
+#include <exec/tasks.h>
+
+/* The lowest address the interpreter may let the calling task's stack
+ * pointer reach: the bottom of the task's stack plus QJS_STACK_MARGIN.
+ * Returns 0, "unknown", when tc_SPLower/tc_SPUpper do not describe the
+ * stack we are actually running on: vamos leaves them 0, and a program
+ * that moved its stack by hand without StackSwap() leaves them
+ * describing the old one. The engine then falls back to its own
+ * assumption (JS_DEFAULT_STACK_SIZE below the stack top), as before.
+ *
+ * Called from update_stack_limit in quickjs.c, i.e. whenever a runtime
+ * is created and from JS_UpdateStackTop / JS_SetMaxStackSize, always on
+ * the task that will run the JavaScript. */
+unsigned long qjs_amiga_stack_floor(void)
+{
+    struct Task *task;
+    unsigned long lower, upper, here;
+    char marker;
+
+    if (!_qjs_lib_base)
+        return 0;
+
+    task = __qjs_FindTask(_qjs_lib_base->iSysBase, NULL);
+    lower = (unsigned long)task->tc_SPLower;
+    upper = (unsigned long)task->tc_SPUpper;
+    here = (unsigned long)&marker;
+
+    if (lower == 0 || upper <= lower || here <= lower || here > upper)
+        return 0;
+
+    /* A stack smaller than the margin: every call overflows, which is
+     * the truthful answer (the CLI refuses to start on such a stack). */
+    return lower + QJS_STACK_MARGIN;
+}
 
 static int qjs_timer_init(LIBRARY_BASE_TYPE *aBase)
 {
