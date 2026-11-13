@@ -2771,10 +2771,45 @@ JSRuntime *JS_GetRuntime(JSContext *ctx)
     return ctx->rt;
 }
 
+#if defined(__VBCC__)
+/* In library/vbcc/qjsfuncs.c: the lowest address the interpreter may
+ * let the stack pointer of the calling task reach, or 0 when the task's
+ * stack bounds cannot be trusted. */
+extern uintptr_t qjs_amiga_stack_floor(void);
+#endif
+
 static void update_stack_limit(JSRuntime *rt)
 {
 #if defined(__wasi__)
     rt->stack_limit = 0; /* no limit */
+#elif defined(__VBCC__)
+    /* AmigaOS: a task's stack is a fixed block, 4 KB to a few hundred KB,
+     * and nothing stops the stack pointer leaving it: there is no guard
+     * page, the memory below simply gets overwritten. Upstream assumes
+     * JS_DEFAULT_STACK_SIZE (1 MB) below the point where the runtime was
+     * created, so deep recursion never reached the limit and trashed
+     * memory instead of throwing RangeError. Whatever size is asked for
+     * (the default, JS_SetMaxStackSize, or 0 for "no limit"), the limit
+     * is never put below the real bottom of the stack plus a margin.
+     *
+     * The subtraction is also guarded: a size larger than the address
+     * of the stack top wrapped round to a limit near 4 GB, which made
+     * every call a stack overflow (qjs --stack-size with a big number).
+     */
+    {
+        uintptr_t limit, floor_address;
+
+        if (rt->stack_size == 0 || rt->stack_size > rt->stack_top)
+            limit = 0;
+        else
+            limit = rt->stack_top - rt->stack_size;
+
+        floor_address = qjs_amiga_stack_floor();
+        if (limit < floor_address)
+            limit = floor_address;
+
+        rt->stack_limit = limit;
+    }
 #else
     if (rt->stack_size == 0) {
         rt->stack_limit = 0; /* no limit */
@@ -29731,6 +29766,66 @@ static char *js_default_module_normalize_name(JSContext *ctx,
         return js_strdup(ctx, name);
     }
 
+#if defined(__VBCC__)
+    /* AmigaOS paths. The directory of the importing file ends at its
+     * last '/' or, failing that, at the ':' of its volume, which is
+     * kept ("Work:main.js" is in "Work:", "Work:src/main.js" in
+     * "Work:src"). "./" is dropped; "../" removes the last directory,
+     * and where there is none left to remove it becomes "/", which is
+     * how AmigaDOS writes "parent directory". Without this, a module in
+     * "Work:app/main.js" importing "../lib/x.js" was looked up as
+     * "lib/x.js" in the current directory. */
+    {
+        const char *slash = strrchr(base_name, '/');
+        const char *colon = strrchr(base_name, ':');
+
+        if (slash)
+            len = slash - base_name;
+        else if (colon)
+            len = colon - base_name + 1;
+        else
+            len = 0;
+
+        /* every "../" can add one '/', every other part only shrinks */
+        cap = len + strlen(name) + 2;
+        filename = js_malloc(ctx, cap);
+        if (!filename)
+            return NULL;
+        memcpy(filename, base_name, len);
+        filename[len] = '\0';
+
+        r = name;
+        for(;;) {
+            if (r[0] == '.' && r[1] == '/') {
+                r += 2;
+            } else if (r[0] == '.' && r[1] == '.' && r[2] == '/') {
+                len = strlen(filename);
+                if (len == 0 || filename[len - 1] == ':' ||
+                    filename[len - 1] == '/') {
+                    /* nothing to remove: ask AmigaDOS for the parent */
+                    filename[len] = '/';
+                    filename[len + 1] = '\0';
+                } else {
+                    p = filename + len;
+                    while (p > filename && p[-1] != '/' && p[-1] != ':')
+                        p--;
+                    if (p > filename && p[-1] == '/')
+                        p--;        /* "a/b" -> "a"; "Work:a" -> "Work:" */
+                    *p = '\0';
+                }
+                r += 3;
+            } else {
+                break;
+            }
+        }
+        len = strlen(filename);
+        if (len > 0 && filename[len - 1] != ':' && filename[len - 1] != '/')
+            js__pstrcat(filename, cap, "/");
+        js__pstrcat(filename, cap, r);
+        return filename;
+    }
+#endif
+
     r = strrchr(base_name, '/');
     if (r)
         len = r - base_name;
@@ -30714,24 +30809,28 @@ JSAtom JS_GetScriptOrModuleName(JSContext *ctx, int n_stack_levels)
     JSStackFrame *sf;
     JSFunctionBytecode *b;
     JSObject *p;
+    /* One result variable and one return, on purpose. Written upstream
+       as four "return JS_ATOM_NULL" and a final "return JS_DupAtom(...)",
+       the vbccm68k this port is built with (the locally patched one,
+       sha 475e0818) merged the returns into a common exit that loads 0
+       into d0, after the call to JS_DupAtom as well: the function always
+       answered JS_ATOM_NULL, and every import() failed with "no function
+       filename for import()". Check the assembly if this is rearranged. */
+    JSAtom name = JS_ATOM_NULL;
     /* XXX: currently we just use the filename of the englobing
        function. It does not work for eval(). Need to add a
        ScriptOrModule info in JSFunctionBytecode */
     sf = ctx->rt->current_stack_frame;
-    if (!sf)
-        return JS_ATOM_NULL;
-    while (n_stack_levels-- > 0) {
+    while (sf && n_stack_levels-- > 0)
         sf = sf->prev_frame;
-        if (!sf)
-            return JS_ATOM_NULL;
+    if (sf && JS_VALUE_GET_TAG(sf->cur_func) == JS_TAG_OBJECT) {
+        p = JS_VALUE_GET_OBJ(sf->cur_func);
+        if (js_class_has_bytecode(p->ob1.hflags.class_id)) {
+            b = p->u.func.function_bytecode;
+            name = JS_DupAtom(ctx, b->filename);
+        }
     }
-    if (JS_VALUE_GET_TAG(sf->cur_func) != JS_TAG_OBJECT)
-        return JS_ATOM_NULL;
-    p = JS_VALUE_GET_OBJ(sf->cur_func);
-    if (!js_class_has_bytecode(p->ob1.hflags.class_id))
-        return JS_ATOM_NULL;
-    b = p->u.func.function_bytecode;
-    return JS_DupAtom(ctx, b->filename);
+    return name;
 }
 
 JSAtom JS_GetModuleName(JSContext *ctx, JSModuleDef *m)

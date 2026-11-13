@@ -294,6 +294,8 @@ static struct timerequest *_qjs_timer_req = NULL;
  * specific to int64 globals in this template). */
 volatile long long _qjs_time_offset_us = 1779926400000000LL;
 
+extern LIBRARY_BASE_TYPE *_qjs_lib_base;    /* defined below */
+
 /* GetSysTime — timer.device LVO -66.
  * Returns struct timeval{tv_secs,tv_micro} in Amiga naming. */
 static void __qjs_GetSysTime(__reg("a6") struct Library *base,
@@ -304,6 +306,62 @@ static void __qjs_GetSysTime(__reg("a6") struct Library *base,
 static struct Task *__qjs_FindTask(__reg("a6") struct ExecBase *sb,
                                     __reg("a1") const char *name)
                                     = "\tjsr\t-294(a6)";
+
+/* ---- The real stack of the calling task ----
+ *
+ * QJS_STACK_MARGIN is what must stay free below the interpreter's limit.
+ * The engine tests the stack pointer when a JavaScript function is
+ * entered and at its other recursion points (parser, JSON, regexp
+ * compiler, toString of nested values); between two tests the stack
+ * still grows by the frame of the interpreter itself, by whatever C
+ * helpers that call reaches before the next test, and by dos.library or
+ * another library called from there. Measured on the 020soft library
+ * under vamos, on a zero-filled 256 KB stack, by finding the lowest
+ * word written after each kind of runaway recursion had been stopped:
+ * the stack pointer went at most 6,008 bytes below the limit (plain
+ * calls 3.9 KB, getters 4.1 KB, JSON.stringify 5.3 KB, toString and
+ * String.replace callbacks 6.0 KB). 16 KB leaves 10 KB beyond that for
+ * a dos.library call (handlers run on their own stacks) and for exec
+ * saving the task's registers on this stack at a task switch.
+ * amiga/tests/test_stack_limit.js paints the margin and reports how far
+ * into it the stack went.
+ */
+#define QJS_STACK_MARGIN 16384UL
+
+#include <exec/tasks.h>
+
+/* The lowest address the interpreter may let the calling task's stack
+ * pointer reach: the bottom of the task's stack plus QJS_STACK_MARGIN.
+ * Returns 0, "unknown", when tc_SPLower/tc_SPUpper do not describe the
+ * stack we are actually running on: vamos leaves them 0, and a program
+ * that moved its stack by hand without StackSwap() leaves them
+ * describing the old one. The engine then falls back to its own
+ * assumption (JS_DEFAULT_STACK_SIZE below the stack top), as before.
+ *
+ * Called from update_stack_limit in quickjs.c, i.e. whenever a runtime
+ * is created and from JS_UpdateStackTop / JS_SetMaxStackSize, always on
+ * the task that will run the JavaScript. */
+unsigned long qjs_amiga_stack_floor(void)
+{
+    struct Task *task;
+    unsigned long lower, upper, here;
+    char marker;
+
+    if (!_qjs_lib_base)
+        return 0;
+
+    task = __qjs_FindTask(_qjs_lib_base->iSysBase, NULL);
+    lower = (unsigned long)task->tc_SPLower;
+    upper = (unsigned long)task->tc_SPUpper;
+    here = (unsigned long)&marker;
+
+    if (lower == 0 || upper <= lower || here <= lower || here > upper)
+        return 0;
+
+    /* A stack smaller than the margin: every call overflows, which is
+     * the truthful answer (the CLI refuses to start on such a stack). */
+    return lower + QJS_STACK_MARGIN;
+}
 
 static int qjs_timer_init(LIBRARY_BASE_TYPE *aBase)
 {
@@ -650,6 +708,33 @@ long QJS_EvalSimple_impl(
 extern JSValue JS_EvalFunction(struct JSContext *ctx, JSValue fun_obj);
 extern int JS_ResolveModule(struct JSContext *ctx, JSValue obj);
 extern JSValue js_std_await(struct JSContext *ctx, JSValue obj);
+extern JSValue JS_Throw(struct JSContext *ctx, JSValue obj);
+
+extern int js_module_set_import_meta(struct JSContext *ctx, JSValue func_val,
+                                     int use_realpath, int is_main);
+
+/* Run a module that QJS_EvalBuf has just compiled: resolve its imports,
+ * give it its import.meta, evaluate it and wait for it to finish.
+ * Takes ownership of `module`; returns the result or an exception.
+ *
+ * import.meta used to be left empty for the file given on the command
+ * line (url and main both undefined), although modules it imported got
+ * theirs from the loader. Names in angle brackets ("<cmdline>",
+ * "<input>") are not files, so no attempt is made to resolve them to a
+ * full path. */
+static JSValue qjs_run_main_module(struct JSContext *ctx, JSValue module,
+                                   const char *filename)
+{
+    JSValue val;
+
+    if (JS_ResolveModule(ctx, module) < 0 ||
+        js_module_set_import_meta(ctx, module, filename[0] != '<', 1) < 0) {
+        JS_FreeValue(ctx, module);
+        return JS_Throw(ctx, JS_GetException(ctx));
+    }
+    val = JS_EvalFunction(ctx, module);
+    return js_std_await(ctx, val);
+}
 
 /* QJS_EvalBuf — eval with module support, runs entirely in library.
  * Returns 0 on success, -1 on exception.
@@ -679,9 +764,7 @@ long QJS_EvalBuf_impl(
         val = JS_Eval(ctx, input, (size_t)input_len, filename,
                       (eval_flags & ~0x03) | 1 | 0x20);
         if (!JS_IsException(val)) {
-            JS_ResolveModule(ctx, val);
-            val = JS_EvalFunction(ctx, val);
-            val = js_std_await(ctx, val);
+            val = qjs_run_main_module(ctx, val, filename);
             ret = JS_IsException(val) ? -1 : 0;
             JS_FreeValue(ctx, val);
             return ret;
@@ -691,7 +774,6 @@ long QJS_EvalBuf_impl(
             /* It did not compile as a module. A module whose import
              * cannot be loaded is still a module, and that is its
              * error; anything else means: evaluate it as a script. */
-            extern JSValue JS_Throw(JSContext *ctx, JSValue obj);
             extern void JS_FreeCString(JSContext *ctx, const char *ptr);
             extern char *strstr(const char *, const char *);
             JSValue exception = JS_GetException(ctx);
@@ -724,11 +806,8 @@ long QJS_EvalBuf_impl(
          * rejection into the proper JS exception. */
         val = JS_Eval(ctx, input, (size_t)input_len, filename,
                       eval_flags | 0x20); /* JS_EVAL_FLAG_COMPILE_ONLY */
-        if (!JS_IsException(val)) {
-            JS_ResolveModule(ctx, val);
-            val = JS_EvalFunction(ctx, val);
-            val = js_std_await(ctx, val);
-        }
+        if (!JS_IsException(val))
+            val = qjs_run_main_module(ctx, val, filename);
     } else {
         val = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
     }
@@ -753,13 +832,32 @@ long QJS_EvalBuf_impl(
  * nowhere. Importing qjs:std and qjs:os never called the loader, which
  * is why it went unnoticed. */
 extern void js_module_loader(void);
-extern int js_module_set_import_meta(void *ctx, JSValue func_val,
-                                     int use_realpath, int is_main);
+
+/* The loader takes the import attributes as a fourth argument
+ * (`import x from "./a.json" with { type: "json" }`), so it has to be
+ * installed with JS_SetModuleLoaderFunc2. Until 0.231 it was installed
+ * with JS_SetModuleLoaderFunc, which calls a three-argument loader:
+ * js_module_loader then read its `attributes` from whatever was on the
+ * stack. */
+typedef JSModuleDef *JSModuleLoaderFunc2(JSContext *ctx,
+    const char *module_name, void *opaque, JSValue attributes);
+typedef int JSModuleCheckSupportedImportAttributes(JSContext *ctx,
+    void *opaque, JSValue attributes);
+extern void JS_SetModuleLoaderFunc2(JSRuntime *rt,
+    JSModuleNormalizeFunc *module_normalize,
+    JSModuleLoaderFunc2 *module_loader,
+    JSModuleCheckSupportedImportAttributes *module_check_attrs,
+    void *opaque);
+extern int js_module_check_attributes(JSContext *ctx, void *opaque,
+                                      JSValue attributes);
 
 void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
 {
-    JS_SetModuleLoaderFunc(rt, NULL,
-        (void *)&js_module_loader, NULL);
+    /* No normalizer of our own: the engine's default one knows AmigaOS
+     * paths (js_default_module_normalize_name in quickjs.c). */
+    JS_SetModuleLoaderFunc2(rt, NULL,
+        (JSModuleLoaderFunc2 *)&js_module_loader,
+        &js_module_check_attributes, NULL);
 }
 
 /* QJS_InstallExtended_impl — runs precompiled extended.js bytecode.

@@ -168,14 +168,21 @@ import * as bjson from "qjs:bjson";
         /* get the terminal size */
         term_width = 80;
         if (os.isatty(term_fd)) {
+            /* Raw mode first, then the size. On the Amiga the size is
+               asked of the console in-band (window status request) and
+               the answer arrives on the input stream; a console still in
+               line mode may hold it back until Return is pressed, so the
+               request timed out, the width stayed at 80 whatever the
+               window, and the late answer could turn up as typed text.
+               Elsewhere the size is an ioctl and the order is free. */
+            if (os.ttySetRaw) {
+                /* set the TTY to raw mode */
+                os.ttySetRaw(term_fd);
+            }
             if (os.ttyGetWinSize) {
                 tab = os.ttyGetWinSize(term_fd);
                 if (tab)
                     term_width = tab[0];
-            }
-            if (os.ttySetRaw) {
-                /* set the TTY to raw mode */
-                os.ttySetRaw(term_fd);
             }
         }
 
@@ -333,8 +340,20 @@ import * as bjson from "qjs:bjson";
            UTF-16 string 'cmd' */
         if (cmd != last_cmd) {
             if (!show_colors && last_cmd.substring(0, last_cursor_pos) == cmd.substring(0, last_cursor_pos)) {
-                /* optimize common case */
+                /* optimize common case: everything left of the cursor is
+                   unchanged, so only the rest of the line is written */
                 std.puts(cmd.substring(last_cursor_pos));
+                /* The cursor has advanced by what was written, not by
+                   the whole line. Upstream adds the whole line here too,
+                   which makes term_cursor_x wrong by last_cursor_pos
+                   after every key typed with colours off, and colours
+                   are off by default on the Amiga. move_cursor() trusts
+                   term_cursor_x to decide when a move crosses a row, so
+                   it then sent "cursor up, cursor right 79" in the
+                   middle of a line and the text was redrawn over the
+                   rows above (seen as "qjs > newnew URL('https:www..."
+                   after recalling a line and inserting into it). */
+                term_cursor_x = (term_cursor_x + ucs_length(cmd.substring(last_cursor_pos))) % term_width;
             } else {
                 /* goto the start of the line */
                 move_cursor(-ucs_length(last_cmd.substring(0, last_cursor_pos)));
@@ -346,8 +365,8 @@ import * as bjson from "qjs:bjson";
                 } else {
                     std.puts(cmd);
                 }
+                term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
             }
-            term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
             if (term_cursor_x == 0) {
                 /* show the cursor on the next line */
                 std.puts(" \x08");
@@ -833,6 +852,8 @@ import * as bjson from "qjs:bjson";
         "\x1bOH":   backward_word,          /* ^[OH - ctrl-left */
         "\x1b[1;5C": forward_word,          /* ^[[1;5C - ctrl-right */
         "\x1b[1;5D": backward_word,         /* ^[[1;5D - ctrl-left */
+        "\x1b[ @":  forward_word,           /* Amiga shift-right */
+        "\x1b[ A":  backward_word,          /* Amiga shift-left */
         "\x1b[1~":  beginning_of_line,      /* ^[[1~ - bol */
         "\x1b[3~":  delete_char,            /* ^[[3~ - delete */
         "\x1b[4~":  end_of_line,            /* ^[[4~ - eol */
@@ -924,7 +945,14 @@ import * as bjson from "qjs:bjson";
             break;
         case 2: /* '^[[' - CSI */
             readline_keys += c;
-            if (!(c == ';' || (c >= '0' && c <= '9'))) {
+            /* A control sequence is parameter bytes (0x30-0x3F: digits
+               ; < = > ?), then intermediate bytes (0x20-0x2F), then one
+               final byte. Upstream ends the sequence at the first byte
+               that is not a digit or ';', which is too early for the
+               Amiga's shifted cursor keys ("CSI SP A", "CSI SP @") and
+               Help ("CSI ? ~"): the real final byte was then typed into
+               the line as a letter. */
+            if (!(c >= ' ' && c <= '?')) {
                 handle_key(readline_keys);
                 readline_state = 0;
             }
@@ -1912,6 +1940,12 @@ import * as bjson from "qjs:bjson";
     }
 
     function config_file(s) {
+        /* AmigaOS has no home directory and no dot files; the port keeps
+           its files in S: (S:QJS-Config.txt, S:QJS-Startup.js). The
+           rules below would give "./.qjs_history", which is not an
+           AmigaDOS path, or, where unset variables read as "", the
+           parent of the current directory. */
+        if (os.platform === "amiga") return "S:QJS-History";
         var xdg_state_home = std.getenv("XDG_STATE_HOME");
         if (xdg_state_home && xdg_state_home[0] === "/") return xdg_state_home + "/" + s;
         var home = std.getenv("HOME");
