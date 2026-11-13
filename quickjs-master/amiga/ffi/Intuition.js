@@ -825,6 +825,30 @@ export class Intuition extends LibraryBase {
     });
   }
 
+  /**
+   * DrawImageState(rp, image, leftOffset, topOffset, state, drawInfo)
+   * - a0/a1, d0/d1/d2, a2. Draws an image, BOOPSI or plain, in one of
+   * its states. The offsets are added to the image's own LeftEdge and
+   * TopEdge.
+   *
+   * @param {RastPort|number} rastPort - where to draw
+   * @param {object|number} image - struct Image or BOOPSI image
+   * @param {number} leftOffset - pixels added to the image's LeftEdge
+   * @param {number} topOffset - pixels added to the image's TopEdge
+   * @param {number} state - Intuition.consts.IDS_NORMAL etc.
+   * @param {DrawInfo|number} drawInfo - from GetScreenDrawInfo(); a
+   *   BOOPSI image needs it for its pens
+   * @returns {undefined}
+   */
+  static DrawImageState(rastPort, image, leftOffset, topOffset, state,
+                        drawInfo) {
+    this.call(this.lvo.DrawImageState, {
+      a0: ptrOf(rastPort), a1: ptrOf(image),
+      d0: leftOffset | 0, d1: topOffset | 0, d2: state | 0,
+      a2: ptrOf(drawInfo),
+    });
+  }
+
   /* ============================================================
    * BOOPSI
    * ============================================================ */

@@ -31,12 +31,10 @@
  *     added on at the next tick
  *   - the time itself comes from Date.now(), read at each tick and
  *     taken to be in milliseconds
- *   - led.image reads its digits from a buffer of one byte per digit
- *     that the script owns, most significant digit first (as the NDK
- *     example LED.c does), and draws them again when it is handed the
- *     buffer a second time
+ *   - hours wrap round after 23
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.232+ (Led took only a pointer before,
+ * and did not repaint).
  * Run: qjs examples/stopwatch_demo.js
  */
 
@@ -53,8 +51,8 @@ const { Window, Layout, Button, Led,
  * depends on the machine it runs on.
  * ================================================================== */
 
-/** Milliseconds in one hundredth of a second, the unit time is kept
- *  in. */
+/** Milliseconds in one hundredth of a second, the unit the display
+ *  works in. */
 const MS_PER_CENTISECOND = 10;
 
 class Stopwatch {
@@ -65,12 +63,23 @@ class Stopwatch {
     /** @type {boolean} */
     this.running = false;
 
-    /** @type {number} elapsed time, in hundredths of a second */
-    this.centiseconds = 0;
+    /** @type {number} elapsed time, in milliseconds. Kept in the
+     *  clock's own unit so that no part of a tick is rounded away. */
+    this.elapsedMs = 0;
 
     /** @type {?number} clock reading at the last tick or at Start, in
      *  milliseconds; null while stopped */
     this.lastClockMs = null;
+  }
+
+  /**
+   * The elapsed time in hundredths of a second, which is what the
+   * display shows.
+   *
+   * @returns {number} a whole number
+   */
+  get centiseconds() {
+    return Math.floor(this.elapsedMs / MS_PER_CENTISECOND);
   }
 
   /**
@@ -104,7 +113,7 @@ class Stopwatch {
    * @returns {undefined}
    */
   reset() {
-    this.centiseconds = 0;
+    this.elapsedMs = 0;
   }
 
   /**
@@ -118,35 +127,32 @@ class Stopwatch {
   tick(nowMs) {
     if (!this.running) return;
 
-    if (this.lastClockMs) {
-      this.centiseconds +=
-        Math.floor((nowMs - this.lastClockMs) / MS_PER_CENTISECOND);
+    if (this.lastClockMs !== null) {
+      this.elapsedMs += nowMs - this.lastClockMs;
     }
     this.lastClockMs = nowMs;
   }
 }
 
 /**
- * Split a time into the eight digits of the display: two each for
- * hours, minutes and seconds, then tenths of a second and a zero.
- * Hours wrap round after 23.
+ * Split a time into the four pairs of the display: hours, minutes,
+ * seconds, and a last pair whose first digit is tenths of a second
+ * and whose second is always 0. Hours wrap round after 23.
+ *
+ * An LED display takes one number per pair of digits, 0 to 99.
  *
  * @param {number} centiseconds
- * @returns {Array<number>} eight digits, most significant first
+ * @returns {Array<number>} four numbers: [hours, minutes, seconds,
+ *   tenths * 10]
  */
-function timeDigits(centiseconds) {
+function timePairs(centiseconds) {
   let whole   = centiseconds | 0;
   let tenths  = Math.floor(whole /     10) % 10;
   let seconds = Math.floor(whole /    100) % 60;
   let minutes = Math.floor(whole /   6000) % 60;
   let hours   = Math.floor(whole / 360000) % 24;
 
-  return [
-    Math.floor(hours   / 10), hours   % 10,
-    Math.floor(minutes / 10), minutes % 10,
-    Math.floor(seconds / 10), seconds % 10,
-    tenths,                   0,
-  ];
+  return [hours, minutes, seconds, tenths * 10];
 }
 
 
@@ -161,35 +167,10 @@ function timeDigits(centiseconds) {
 /** Gadget IDs: how an event says which gadget it came from. */
 const ID = { START: 1, STOP: 2, RESET: 3, QUIT: 4 };
 
-/** An LED display shows digits in pairs. Four pairs is eight digits. */
-const LED_PAIRS = 4;
-
-/** The size of the display's digit buffer: one byte per digit. */
-const LED_BYTES = 8;
-
-/** The digit buffer the LED display reads from. It is ours: the image
- *  only ever holds its address. */
-let ledDigits = amiga.allocMem(LED_BYTES);
-
-/**
- * Write a time into the LED display's digit buffer.
- *
- * @param {number} centiseconds
- * @returns {undefined}
- */
-function writeLedDigits(centiseconds) {
-  timeDigits(centiseconds).forEach((digit, index) => {
-    amiga.poke8(ledDigits + index, digit);
-  });
-}
-
-writeLedDigits(0);
-
-/* `time` and `colon` make the image set the pairs out as a time, with
- * colons between them. */
+/* Four pairs: eight digits. `time` and `colon` make the image set the
+ * pairs out as a time, with colons between them. */
 let display = new Led({
-  pairs:  LED_PAIRS,
-  values: ledDigits,
+  values: timePairs(0),
   colon:  true,
   time:   true,
 });
@@ -249,10 +230,7 @@ let shown = { centiseconds: 0, running: false };
  */
 function render() {
   if (shown.centiseconds !== stopwatch.centiseconds) {
-    /* New digits in the buffer, then the same buffer handed to the LED
-     * again, which is what makes it draw them. */
-    writeLedDigits(stopwatch.centiseconds);
-    display.set({ values: ledDigits });
+    display.setValues(timePairs(stopwatch.centiseconds));
     shown.centiseconds = stopwatch.centiseconds;
   }
 
@@ -295,10 +273,8 @@ try {
   }
 }
 finally {
+  /* The LED image goes with the window, and its values with it. */
   window.dispose();
-
-  /* The LED image went with the window; its buffer is ours. */
-  amiga.freeMem(ledDigits, LED_BYTES);
 }
 
 print('Bye.');

@@ -27,15 +27,13 @@
  *   - window.class, layout.gadget, button.gadget, slider.gadget,
  *     string.gadget, label.image and led.image are installed in
  *     SYS:Classes, as they are on AmigaOS 3.2
- *   - led.image reads its digits from a buffer of one byte per digit
- *     that the script owns, most significant digit first, and draws
- *     them again when it is handed the buffer a second time
  *   - quickjs.library 0.157+ puts the slider's new level on the event;
  *     on 0.156 the script asks the slider instead
  *   - the hex code is a read-only string gadget because a Label keeps
  *     the text it was created with
  *
- * Requires quickjs.library 0.156+.
+ * Requires quickjs.library 0.232+ (Led took only a pointer before,
+ * and did not repaint).
  * Run: qjs examples/color_mixer_demo.js
  */
 
@@ -84,23 +82,6 @@ function hexCode(mix) {
   return '#' + hexPair(mix.red) + hexPair(mix.green) + hexPair(mix.blue);
 }
 
-/**
- * One level as the four decimal digits an LED display of two pairs
- * shows. A level never needs more than three, so the first is always
- * 0.
- *
- * @param {number} level - 0 to 255
- * @returns {Array<number>} four digits, most significant first
- */
-function ledDigits(level) {
-  return [
-    0,
-    Math.floor(level / 100) % 10,
-    Math.floor(level / 10)  % 10,
-    level % 10,
-  ];
-}
-
 
 /* ==================================================================
  * 2. THE PANEL
@@ -113,45 +94,27 @@ function ledDigits(level) {
 /** Gadget IDs: how an event says which gadget it came from. */
 const ID = { RED: 1, GREEN: 2, BLUE: 3, QUIT: 99, HEX: 200 };
 
-/** An LED display shows digits in pairs. Two pairs is four digits. */
+/** An LED display shows digits in pairs, and is given one number, 0
+ *  to 99, for each. Two pairs is four digits; a level never needs more
+ *  than three, so the first digit is always 0. Led.pairsOf(128, 2) is
+ *  [1, 28], shown as 01 28. */
 const LED_PAIRS = 2;
-
-/** The size of an LED display's digit buffer: one byte per digit. */
-const LED_BYTES = 4;
-
-/**
- * Write a level into an LED display's digit buffer.
- *
- * @param {number} buffer - address of LED_BYTES bytes
- * @param {number} level - 0 to 255
- * @returns {undefined}
- */
-function writeLedDigits(buffer, level) {
-  ledDigits(level).forEach((digit, index) => {
-    amiga.poke8(buffer + index, digit);
-  });
-}
 
 /**
  * Build the gadgets for one channel of the colour.
  *
  * @param {number} id - gadget ID for the slider, one of ID
  * @param {string} name - which level it controls: a key of `colour`
- * @returns {{name: string, slider: Slider, led: Led, digits: number,
- *            shownLevel: number}} `digits` is the address of the LED's
- *   buffer, which is ours to free; `shownLevel` is the level the LED
+ * @returns {{name: string, slider: Slider, led: Led,
+ *            shownLevel: number}} `shownLevel` is the level the LED
  *   currently displays
  */
 function channel(id, name) {
-  let digits = amiga.allocMem(LED_BYTES);
-  writeLedDigits(digits, colour[name]);
-
   return {
     name,
-    digits,
     shownLevel: colour[name],
 
-    led: new Led({ pairs: LED_PAIRS, values: digits }),
+    led: new Led({ values: Led.pairsOf(colour[name], LED_PAIRS) }),
 
     slider: new Slider({
       id, min: 0, max: LEVEL_MAX, level: colour[name],
@@ -243,10 +206,7 @@ function render() {
     let level = colour[oneChannel.name];
     if (level === oneChannel.shownLevel) continue;
 
-    /* New digits in the buffer, then the same buffer handed to the LED
-     * again, which is what makes it draw them. */
-    writeLedDigits(oneChannel.digits, level);
-    oneChannel.led.set({ values: oneChannel.digits });
+    oneChannel.led.setValues(Led.pairsOf(level, LED_PAIRS));
     oneChannel.shownLevel = level;
   }
 
@@ -283,12 +243,8 @@ try {
   }
 }
 finally {
+  /* The LED displays go with the window, and their values with them. */
   window.dispose();
-
-  /* The LED displays went with the window; their buffers are ours. */
-  for (let oneChannel of [red, green, blue]) {
-    amiga.freeMem(oneChannel.digits, LED_BYTES);
-  }
 }
 
 print('Bye.');
