@@ -16970,8 +16970,21 @@ static __exception int JS_CopyDataProperties(JSContext *ctx,
     JSPropertyDescriptor desc;
     bool is_enumerable;
 
-    if (JS_VALUE_GET_TAG(source) != JS_TAG_OBJECT)
+    if (JS_VALUE_GET_TAG(source) != JS_TAG_OBJECT) {
+        /* CopyDataProperties starts with ToObject(source). A string is
+           the one primitive whose wrapper has own enumerable
+           properties (its characters), so {...'ab'} is {0:'a',1:'b'}.
+           Upstream skipped every primitive and gave {}. */
+        if (JS_IsString(source)) {
+            JSValue obj = JS_ToObject(ctx, source);
+            if (JS_IsException(obj))
+                return -1;
+            ret = JS_CopyDataProperties(ctx, target, obj, excluded, setprop);
+            JS_FreeValue(ctx, obj);
+            return ret;
+        }
         return 0;
+    }
 
     if (JS_VALUE_GET_TAG(excluded) == JS_TAG_OBJECT)
         pexcl = JS_VALUE_GET_OBJ(excluded);
@@ -44937,6 +44950,31 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
     if (it->done) {
         *pdone = true;
         return JS_UNDEFINED;
+    }
+
+    if (magic == GEN_MAGIC_RETURN) {
+        /* helper.return() closes the underlying iterator, and closing
+           an iterator that has no 'return' method (every built-in
+           array, string, Map and Set iterator) means doing nothing.
+           The code below calls the method without looking, so
+           [1,2,3].values().filter(f).take(1).toArray() threw "not a
+           function" when take() closed the filter helper. */
+        JSValue method = JS_GetProperty(ctx, it->obj, JS_ATOM_return);
+        if (JS_IsException(method))
+            return JS_EXCEPTION;
+        if (JS_IsUndefined(method) || JS_IsNull(method)) {
+            int err = 0;
+            if (!JS_IsUndefined(it->inner)) {
+                /* flatMap: the iterator of the current inner value */
+                err = JS_IteratorClose(ctx, it->inner, false);
+                JS_FreeValue(ctx, it->inner);
+                it->inner = JS_UNDEFINED;
+            }
+            it->done = 1;
+            *pdone = true;
+            return err ? JS_EXCEPTION : JS_UNDEFINED;
+        }
+        JS_FreeValue(ctx, method);
     }
 
     it->executing = 1;
