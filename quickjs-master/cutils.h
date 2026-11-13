@@ -60,6 +60,8 @@ double cbrt(double x);
 #include "sharedlib_math_fpu.h"
 #endif
 
+#include "dcmp.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -456,7 +458,7 @@ static inline uint16_t tofp16(double d) {
     double t;
     int e;
     s = 0;
-    if (copysign(1, d) < 0) { /* preserve sign when |d| is negative zero */
+    if (D_LT(copysign(1, d), 0)) { /* preserve sign when |d| is negative zero */
         d = -d;
         s = 0x8000;
     }
@@ -464,7 +466,7 @@ static inline uint16_t tofp16(double d) {
         return s | 0x7C00;
     if (isnan(d))
         return s | 0x7C01;
-    if (d == 0)
+    if (D_EQ(d, 0))
         return s | 0;
     d = 2 * frexp(d, &e);
     e--;
@@ -483,9 +485,9 @@ static inline uint16_t tofp16(double d) {
     d *= 1024.;
     f = (uint16_t)d;
     t = d - f;
-    if (t < 0.5)
+    if (D_LT(t, 0.5))
         goto done;
-    if (t == 0.5)
+    if (D_EQ(t, 0.5))
         if ((f & 1) == 0)
             goto done;
     /* adjust for rounding */

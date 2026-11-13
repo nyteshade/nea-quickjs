@@ -199,12 +199,18 @@ SOFT_ENGINE = $(OBJDIR_SOFT)/quickjs.o $(OBJDIR_SOFT)/dtoa.o \
 SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
                $(OBJDIR_SOFT)/sharedlib_string.o \
                $(OBJDIR_SOFT)/sharedlib_math_soft.o \
+               $(OBJDIR_SOFT)/sharedlib_math_prim.o \
+               $(OBJDIR_SOFT)/sharedlib_math.o \
+               $(OBJDIR_SOFT)/sharedlib_math_fpu_aux.o \
+               $(OBJDIR_SOFT)/sharedlib_math_round.o \
+               $(OBJDIR_SOFT)/sharedlib_math_pow.o \
                $(OBJDIR_SOFT)/sharedlib_time.o \
                $(OBJDIR_SOFT)/sharedlib_strtod.o \
                $(OBJDIR_SOFT)/sharedlib_printf.o \
                $(OBJDIR_SOFT)/sharedlib_vbcc.o \
                $(OBJDIR_SOFT)/sharedlib_int64.o \
                $(OBJDIR_SOFT)/sharedlib_int64_soft.o \
+               $(OBJDIR_SOFT)/sharedlib_softfp.o \
                $(OBJDIR_SOFT)/sharedlib_int64_conv.o \
                $(OBJDIR_SOFT)/sharedlib_dbl_helpers.o \
                $(OBJDIR_SOFT)/sharedlib_posix.o \
@@ -246,7 +252,34 @@ endif
 TARGET_FPU  = $(LIBSDIR)/quickjs.$(CPU_TAG)fpu.library
 TARGET_SOFT = $(LIBSDIR)/quickjs.$(CPU_TAG)soft.library
 
-.PHONY: all fpu soft clean variants 020 040 060 default-library
+.PHONY: all fpu soft clean variants 020 040 060 default-library check-dcmp
+
+# Every C file that goes into a soft-float library. check-dcmp compiles
+# each to assembly with the soft flags and fails if the compiler emitted
+# a double comparison of its own, which is wrong for NaN: see
+# quickjs-master/dcmp.h and scripts/check_dcmp.py. Run it after touching
+# floating-point code. (-g only adds line markers to the assembly.)
+DCMP_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c $(QJS)/libregexp.c \
+           $(QJS)/libunicode.c $(TEMPLATE)/library.c \
+           $(LIBVBCC)/qjsfuncs.c $(LIBVBCC)/execinline.c \
+           $(LIBVBCC)/qjs_dbg_stub.c $(LIBVBCC)/quickjs_libc_lib.c \
+           $(LIBVBCC)/amiga_ssl_lib.c $(LIBVBCC)/sharedlib_worker.c \
+           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/sharedlib_mem.c \
+           $(LIBVBCC)/sharedlib_string.c $(LIBVBCC)/sharedlib_math_soft.c \
+           $(LIBVBCC)/sharedlib_math_prim.c \
+           $(LIBVBCC)/sharedlib_math.c $(LIBVBCC)/sharedlib_math_fpu_aux.c \
+           $(LIBVBCC)/sharedlib_math_round.c $(LIBVBCC)/sharedlib_math_pow.c \
+           $(LIBVBCC)/sharedlib_time.c $(LIBVBCC)/sharedlib_strtod.c \
+           $(LIBVBCC)/sharedlib_printf.c $(LIBVBCC)/sharedlib_vbcc.c \
+           $(LIBVBCC)/sharedlib_int64_conv.c \
+           $(LIBVBCC)/sharedlib_dbl_helpers.c $(LIBVBCC)/sharedlib_posix.c \
+           $(LIBVBCC)/sharedlib_stdio.c $(LIBVBCC)/sharedlib_clib.c \
+           $(LIBVBCC)/sharedlib_fetch.c
+
+check-dcmp:
+	python3 $(ROOT)/scripts/check_dcmp.py $(OBJDIR_SOFT)/dcmp \
+	    $(VC) $(filter-out -c,$(CFLAGS_SOFT)) $(QJS_INTERP_FLAGS) -g \
+	    -- $(DCMP_SRC)
 
 all: fpu soft default-library
 
@@ -502,6 +535,27 @@ $(OBJDIR_SOFT)/sharedlib_string.o: $(LIBVBCC)/sharedlib_string.c | $(OBJDIR_SOFT
 $(OBJDIR_SOFT)/sharedlib_math_soft.o: $(LIBVBCC)/sharedlib_math_soft.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
+# The maths functions built on the primitives are the FPU variants'
+# sources (0.232): with the library's own IEEE arithmetic underneath
+# (sharedlib_softfp.s) the same C gives the same results. The
+# primitives themselves are in sharedlib_math_prim.c.
+SOFT_MATH_HDRS = $(LIBVBCC)/sharedlib_dblbits.h $(QJS)/dcmp.h
+
+$(OBJDIR_SOFT)/sharedlib_math_prim.o: $(LIBVBCC)/sharedlib_math_prim.c $(SOFT_MATH_HDRS) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_math.o: $(LIBVBCC)/sharedlib_math.c $(SOFT_MATH_HDRS) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_math_fpu_aux.o: $(LIBVBCC)/sharedlib_math_fpu_aux.c $(SOFT_MATH_HDRS) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_math_round.o: $(LIBVBCC)/sharedlib_math_round.c $(SOFT_MATH_HDRS) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/sharedlib_math_pow.o: $(LIBVBCC)/sharedlib_math_pow.c $(SOFT_MATH_HDRS) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
 $(OBJDIR_SOFT)/sharedlib_time.o: $(LIBVBCC)/sharedlib_time.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
@@ -513,6 +567,11 @@ $(OBJDIR_SOFT)/sharedlib_printf.o: $(LIBVBCC)/sharedlib_printf.c | $(OBJDIR_SOFT
 
 $(OBJDIR_SOFT)/sharedlib_vbcc.o: $(LIBVBCC)/sharedlib_vbcc.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+# Double comparison and the soft-float arithmetic (0.232) for the soft
+# variants only; the FPU variants use the FPU's own instructions.
+$(OBJDIR_SOFT)/sharedlib_softfp.o: $(LIBVBCC)/sharedlib_softfp.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_int64.o: $(LIBVBCC)/sharedlib_int64.s | $(OBJDIR_SOFT)
 	$(VASM) $(ASMFLAGS_SOFT) $< -o $@

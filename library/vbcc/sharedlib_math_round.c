@@ -13,13 +13,18 @@
  * instructions are loads and stores of the argument and result, and
  * the exact subtraction inside fmod.
  *
- * Linked into the three FPU variants only. The soft-float variants
- * have their own versions in sharedlib_math_soft.c.
+ * Linked into every variant (the soft-float ones from 0.232).
  *
  * Tested by amiga/tests/test_fpu_numeric.js and, on the build machine,
  * by perf/mathcheck/run.sh.
  */
 #include "sharedlib_dblbits.h"
+#ifdef QJS_HOST_TEST
+#define D_LE(a, b) ((a) <= (b))
+#define D_GE(a, b) ((a) >= (b))
+#else
+#include "dcmp.h"       /* D_LE, D_GE: plain operators unless soft-float */
+#endif
 
 /* how round_to_integer() treats the fraction */
 #define RND_TRUNC     0     /* toward zero */
@@ -212,12 +217,12 @@ double fmod(double x, double y)
         } else {
             /* |y| is denormal (below about 2.2e-308): rare, so plain
              * arithmetic */
-            while (ut.d <= ur.d * 0.5)
+            while (D_LE(ut.d, ur.d * 0.5))
                 ut.d += ut.d;
             for (;;) {
-                if (ur.d >= ut.d)
+                if (D_GE(ur.d, ut.d))
                     ur.d -= ut.d;
-                if (ut.d <= ua.d)
+                if (D_LE(ut.d, ua.d))
                     break;
                 ut.d *= 0.5;
             }

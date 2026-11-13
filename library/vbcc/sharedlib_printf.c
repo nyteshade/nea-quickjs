@@ -12,6 +12,7 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <math.h>
+#include "dcmp.h"   /* NaN-aware double comparisons */
 
 /* Output helper: writes char, respects buffer limit */
 typedef struct {
@@ -82,17 +83,17 @@ static int fmt_float(char *tmp, double val, int prec, int fmt_type)
     if (prec < 0) prec = 6;
 
     /* Handle sign */
-    if (val < 0.0) {
+    if (D_LT(val, 0.0)) {
         tmp[len++] = '-';
         val = -val;
     }
 
     /* Handle infinity and NaN */
-    if (val != val) { /* NaN */
+    if (D_NE(val, val)) { /* NaN */
         tmp[len++]='n'; tmp[len++]='a'; tmp[len++]='n';
         return len;
     }
-    if (val > 1e18) { /* infinity or very large */
+    if (D_GT(val, 1e18)) { /* infinity or very large */
         tmp[len++]='i'; tmp[len++]='n'; tmp[len++]='f';
         return len;
     }
@@ -257,8 +258,18 @@ int vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
             /* Output with padding (for non-string conversions) */
             {
                 char padchar = (zero_pad && !left_align) ? '0' : ' ';
+                int skip = 0;
+                /* Zero padding goes between the sign and the digits:
+                 * "%+07d" of -1 is "-000001", not "00000-1" (which is
+                 * what Date.prototype.toISOString printed for the
+                 * year -1). */
+                if (padchar == '0' && len > 0 && width > len &&
+                    (tmp[0] == '-' || tmp[0] == '+')) {
+                    fb_putc(&fb, tmp[0]);
+                    skip = 1;
+                }
                 if (!left_align) fb_pad(&fb, padchar, width - len);
-                fb_puts(&fb, tmp, len);
+                fb_puts(&fb, tmp + skip, len - skip);
                 if (left_align) fb_pad(&fb, ' ', width - len);
             }
         }

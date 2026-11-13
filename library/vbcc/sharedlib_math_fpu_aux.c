@@ -27,9 +27,17 @@
 #include <exec/types.h>
 #include <math.h>
 #include "sharedlib_dblbits.h"
-#include "sharedlib_math_fpu.h"
+#include "dcmp.h"
 
 double log1p(double x);         /* sharedlib_math.c */
+
+/* The soft-float variants build this file too (from 0.232), for the
+ * functions at the end only (exp2, expm1, log2, atanh, modf): their
+ * primitives are in sharedlib_math_prim.c. The comparisons in those
+ * functions use the D_xx macros of dcmp.h, plain operators in an FPU
+ * build, so that a soft-float build has no compiler-made compare. */
+#if defined(__M68881) || defined(__M68882)
+#include "sharedlib_math_fpu.h"
 
 /* MathIeeeDoubTransBase global — defined and initialized in
  * sharedlib_math.c (FPU build) by sharedlib_math_soft_init.
@@ -194,6 +202,8 @@ double asin(double x) { return __ieee_asin(MathIeeeDoubTransBase, x); }
 double acos(double x) { return __ieee_acos(MathIeeeDoubTransBase, x); }
 double log10(double x){ return __ieee_log10(MathIeeeDoubTransBase, x); }
 
+#endif /* FPU build */
+
 /* ----------------------------------------------------------------
  * Functions not provided by mathieeedoubtrans.library, built on the
  * primitives above. (On the 68020 variant vbcc inlines these as
@@ -224,14 +234,31 @@ double expm1(double x)
 {
     double u, um1;
 
-    if (x > -0.5 && x < 0.5) {
+#if !defined(__M68881) && !defined(__M68882)
+    /* Soft-float: the correction below needs log() and exp() to agree
+     * to the last bit near 1, which the system's mathieeedoubtrans
+     * does not manage (expm1(1e-10) came out 1e-10 low in relative
+     * terms). The series x + x^2/2! + x^3/3! ... to 16 terms is below
+     * 1e-18 of the result for |x| < 0.5; it is summed from the small
+     * end, as x(1 + x/2(1 + x/3(...))). */
+    if (D_GT(x, -0.5) && D_LT(x, 0.5)) {
+        int k;
+        u = 1.0;
+        for (k = 16; k >= 2; k--)
+            u = 1.0 + (x / (double)k) * u;
+        return x * u;                   /* keeps -0, and NaN never gets here */
+    }
+    return exp(x) - 1.0;
+#else
+    if (D_GT(x, -0.5) && D_LT(x, 0.5)) {
         u = qjs_dbl_round(exp(x));      /* a double, not 64 bits: see log1p */
-        if (u == 1.0)
+        if (D_EQ(u, 1.0))
             return x;                   /* also keeps -0 */
         um1 = u - 1.0;
         return um1 * (x / log(u));
     }
     return exp(x) - 1.0;                /* NaN and the infinities too */
+#endif
 }
 
 /*
@@ -252,7 +279,7 @@ double log2(double x)
         (u.w.hi | u.w.lo) == 0)
         return log(x);
     m = frexp(x, &e);                   /* m in [0.5, 1) */
-    if (m < 0.70710678118654752440) {
+    if (D_LT(m, 0.70710678118654752440)) {
         m *= 2.0;
         e--;
     }
@@ -268,17 +295,20 @@ double atanh(double x)
     QJSDblBits u;
     double a, r;
 
+    QJSWord x_hi_sign;                  /* the sign bit of x, in place */
+
     u.d = x;
+    x_hi_sign = u.w.hi & QJS_DBL_SIGN;
     u.w.hi &= ~QJS_DBL_SIGN;
     a = u.d;                            /* |x| */
     if (u.w.hi > 0x3ff00000U || (u.w.hi == 0x3ff00000U && u.w.lo != 0))
         return aux_from_bits(0x7ff80000U, 0);   /* |x| > 1, or NaN */
     if (u.w.hi == 0x3ff00000U)                  /* +-1: +-Infinity */
-        return aux_from_bits(0x7ff00000U | ((QJSWord)(x < 0.0) << 31), 0);
+        return aux_from_bits(0x7ff00000U | (x_hi_sign), 0);
     if ((u.w.hi | u.w.lo) == 0)
         return x;                               /* keeps -0 */
     r = 0.5 * log1p(2.0 * a / (1.0 - a));
-    return (x < 0.0) ? -r : r;
+    return x_hi_sign ? -r : r;
 }
 
 /* modf(x, *iptr): split x into integer and fractional parts */

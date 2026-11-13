@@ -24,13 +24,19 @@
  *               and 68060 variants return the same value and nothing
  *               traps to an emulation library.
  *
- * Linked into the three FPU variants only (the soft-float variants
- * use mathieeedoubtrans.library through sharedlib_math_soft.c).
+ * Linked into every variant. The soft-float variants (from 0.232) skip
+ * pow_int(): see USE_POW_INT below.
  *
  * Tested by amiga/tests/test_fpu_numeric.js and, on the build machine,
  * by perf/mathcheck/run.sh (QJS_HOST_TEST).
  */
 #include "sharedlib_dblbits.h"
+#ifndef QJS_HOST_TEST
+#include "dcmp.h"       /* D_GT, D_LE: plain operators unless soft-float */
+#else
+#define D_GT(a, b) ((a) > (b))
+#define D_LE(a, b) ((a) <= (b))
+#endif
 
 #ifdef QJS_HOST_TEST
 #include <math.h>
@@ -41,6 +47,18 @@
  * to check pow_kernel() over whole-number exponents too. */
 static int qjs_host_use_pow_int = 1;
 #define USE_POW_INT qjs_host_use_pow_int
+#elif !defined(__M68881) && !defined(__M68882)
+/* Soft-float variant (from 0.232, with the library's own IEEE
+ * arithmetic underneath). There is no extended precision to make
+ * pow_int() exact, so whole-number exponents go to pow_int_exact()
+ * instead, which only answers when every product it forms is exact,
+ * and everything else through pow_kernel(), which needs nothing but
+ * correctly rounded + - * /. */
+#include <math.h>
+#define fpcr_enter_extended() 0
+#define fpcr_leave(old) ((void)(old))
+#define USE_POW_INT 1
+#define QJS_POW_INT_EXACT 1
 #else
 #include <math.h>
 #include "sharedlib_math_fpu.h"
@@ -66,6 +84,7 @@ static double make_double(QJSWord hi, QJSWord lo)
     return u.d;
 }
 
+#ifndef QJS_POW_INT_EXACT
 /*
  * x ** n for an integer n, by repeated squaring. Handles every x:
  * zeros, infinities and NaN come out right from the arithmetic itself
@@ -98,6 +117,73 @@ static double pow_int(double x, long n)
     fpcr_leave(old);
     return (double)r;
 }
+#endif /* !QJS_POW_INT_EXACT */
+
+#ifdef QJS_POW_INT_EXACT
+/* how many bits the significand of a normal double really uses:
+ * 53 less its trailing zero bits */
+static int significant_bits(double d)
+{
+    QJSDblBits u;
+    QJSWord w;
+    int n = 53;
+
+    u.d = d;
+    w = u.w.lo;
+    if (w == 0) {
+        n = 21;
+        w = (u.w.hi & QJS_DBL_MANTMASK) | QJS_DBL_IMPLICIT;
+    }
+    while ((w & 1) == 0) {
+        w >>= 1;
+        n--;
+    }
+    return n;
+}
+
+/*
+ * x ** n by repeated squaring in plain doubles, but only while every
+ * product is exact: two significands of a and b bits multiply to at
+ * most a + b bits, which a double holds when that is 53 or less. Then
+ * the power is the true value (2**32, 10**15, 3**20, 1.5**2), and for
+ * a negative n one division of 1 by it is the correctly rounded
+ * result (10**-5 is the double nearest 0.00001, where the kernel is
+ * one unit off). Returns 0, leaving *res alone, as soon as a product
+ * would be inexact or leave the range of normal numbers; the caller
+ * then uses the kernel. x must be finite, normal and not zero.
+ */
+static int pow_int_exact(double x, long n, double *res)
+{
+    unsigned long m = (n < 0) ? (unsigned long)(-n) : (unsigned long)n;
+    double r = 1.0, b = x;
+    int rbits = 1, bbits = significant_bits(x);
+    QJSDblBits u;
+
+    for (;;) {
+        if (m & 1) {
+            if (rbits + bbits > 53)
+                return 0;
+            r *= b;
+            u.d = r;
+            if (QJS_DBL_EXP(u.w.hi) == 0 || QJS_DBL_EXP(u.w.hi) == 0x7ff)
+                return 0;
+            rbits = significant_bits(r);
+        }
+        m >>= 1;
+        if (m == 0)
+            break;
+        if (bbits + bbits > 53)
+            return 0;
+        b *= b;
+        u.d = b;
+        if (QJS_DBL_EXP(u.w.hi) == 0 || QJS_DBL_EXP(u.w.hi) == 0x7ff)
+            return 0;
+        bbits = significant_bits(b);
+    }
+    *res = (n < 0) ? 1.0 / r : r;
+    return 1;
+}
+#endif /* QJS_POW_INT_EXACT */
 
 /* ====================================================================
  * The kernel below is derived from e_pow.c of FreeBSD's msun / fdlibm:
@@ -257,12 +343,12 @@ static double pow_kernel(double ax, double y)
     if (j >= 0x40900000) {                         /* z >= 1024 */
         if (((j - 0x40900000) | i) != 0)           /* if z > 1024 */
             return make_double(0x7ff00000U, 0);     /* overflow */
-        if (p_l + ovt > z - p_h)
+        if (D_GT(p_l + ovt, z - p_h))
             return make_double(0x7ff00000U, 0);     /* overflow */
     } else if ((j & 0x7fffffff) >= 0x4090cc00) {  /* z <= -1075 */
         if ((((QJSWord)j - 0xc090cc00U) | (QJSWord)i) != 0) /* z < -1075 */
             return 0.0;                             /* underflow */
-        if (p_l <= z - p_h)
+        if (D_LE(p_l, z - p_h))
             return 0.0;                             /* underflow */
     }
     /*
@@ -339,7 +425,14 @@ double pow(double x, double y)
     /* whole-number exponents of ordinary size: exact where possible */
     if (USE_POW_INT && y_int && ey <= 10) {
         long n = (long)((((iy & QJS_DBL_MANTMASK) | QJS_DBL_IMPLICIT) >> (20 - ey)));
+#ifdef QJS_POW_INT_EXACT
+        /* zeros, infinities and denormals take the general path below */
+        if (QJS_DBL_EXP(hx) != 0 && QJS_DBL_EXP(hx) != 0x7ff &&
+            pow_int_exact(x, (hy & QJS_DBL_SIGN) ? -n : n, &r))
+            return r;
+#else
         return pow_int(x, (hy & QJS_DBL_SIGN) ? -n : n);
+#endif
     }
 
     if (iy == 0x7ff00000U) {                    /* y is +-Infinity */
