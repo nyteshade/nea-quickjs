@@ -39,7 +39,7 @@
 #ifdef __VBCC__
 /* AmigaOS port version — bump in step with library/vbcc/libraryconfig.h
  * LIBRARY_VERSION_STRING so --help and the $VER string agree. */
-#define AMIGA_PORT_VERSION "0.228"
+#define AMIGA_PORT_VERSION "0.229"
 #define AMIGA_PORT_DATE    "12.11.2026"
 #define AMIGA_PORT_DATE_US "11/12/2026"
 /* AmigaOS version string — queryable via the "version" CLI command */
@@ -570,6 +570,38 @@ static int amiga_ctrl_c_interrupt(JSRuntime *rt, void *opaque)
 
 #endif /* __VBCC__ */
 
+#ifdef __VBCC__
+#include <exec/libraries.h>
+
+extern struct Library *QJSBase;
+
+/* -v / --version: one line for the CLI and one for the library that is
+ * actually loaded. The library line comes from the loaded library's
+ * own identification string, so it shows the variant (020soft, 060fpu,
+ * ...) and tells an old library still in memory from a new one on
+ * disk. */
+static void version(void)
+{
+    printf("qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE "), QuickJS-ng %s\n",
+           QJS_ENGINE_VERSION_STATIC);
+
+    if (QJSBase && QJSBase->lib_IdString) {
+        const char *id = (const char *)QJSBase->lib_IdString;
+        int length = 0;
+
+        /* the string ends with CR LF, which is left off */
+        while (id[length] && id[length] != '\r' && id[length] != '\n')
+            length++;
+
+        printf("%.*s\n", length, id);
+    } else {
+        printf("quickjs.library is not open\n");
+    }
+
+    exit(0);
+}
+#endif
+
 void help(void)
 {
 #ifdef __VBCC__
@@ -584,6 +616,9 @@ void help(void)
            "usage: " PROG_NAME " [options] [file [args]]\n"
 #endif
            "-h  --help         list options\n"
+#ifdef __VBCC__
+           "-v  --version      show the versions of qjs and the loaded library\n"
+#endif
            "-e  --eval EXPR    evaluate EXPR\n"
            "-i  --interactive  go to interactive mode\n"
            "-C  --script       load as JS classic script (default=autodetect)\n"
@@ -601,7 +636,7 @@ void help(void)
            "-q  --quit         just instantiate the interpreter and quit\n"
            "    --color        enable colored REPL output (AmigaOS default: off)\n"
 #ifdef __VBCC__
-           "    --no-extensions   disable Amiga-port extensions (default: on)\n"
+           "-nox --no-extensions  disable Amiga-port extensions (default: on)\n"
            "                      (URL, TextEncoder/Decoder, path, process,\n"
            "                      console.*, AbortController, structuredClone, ...)\n"
 #endif
@@ -758,6 +793,16 @@ int main(int argc, char **argv)
         if (!*arg)
             break;
         optind++;
+#ifdef __VBCC__
+        /* -nox: the documented short form of --no-extensions. It is
+         * three letters, so it cannot go through the single-letter
+         * scan below (which used to read it as -n -o -x and print the
+         * help). */
+        if (!strcmp(arg, "nox")) {
+            longopt = "no-extensions";
+            arg += strlen(arg);
+        } else
+#endif
         if (*arg == '-') {
             longopt = arg + 1;
             optarg = strchr(longopt, '=');
@@ -779,6 +824,12 @@ int main(int argc, char **argv)
                 help();
                 continue;
             }
+#ifdef __VBCC__
+            if (opt == 'v' || !strcmp(longopt, "version")) {
+                version();
+                continue;
+            }
+#endif
             if (opt == 'e' || !strcmp(longopt, "eval")) {
                 if (!optarg) {
                     if (optind >= argc) {
