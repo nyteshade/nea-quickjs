@@ -291,12 +291,87 @@ double hypot(double x, double y)
     return sl_Sqrt(x * x + y * y);
 }
 
+/* fmod(x, y): the remainder of x / y with the sign of x, exact.
+ *
+ * Until 0.225 the soft variant used x - floor(x/y)*y, which is the
+ * FLOORED remainder (-7 % 5 gave 3, not -2), and both variants lost
+ * precision once x/y no longer fitted in a double's 53 bits.
+ *
+ * This is shift-and-subtract. t is |y| scaled by a power of two to
+ * the largest |y|*2^k not above r; it is then halved back down to
+ * |y|, and subtracted from r whenever it fits. r < 2t holds
+ * throughout, so every r - t is exact. Positive doubles order the
+ * same way as their bit patterns, so the comparisons, the scaling and
+ * the halving are integer operations on the two halves; the only
+ * floating-point operation in the loop is the subtraction, which
+ * matters on the soft-float variants where each one is a library
+ * call.
+ *
+ * NaN and infinity are recognised from the exponent bits, not by
+ * comparing, so the result does not depend on how the maths library
+ * orders NaN. */
 double fmod(double x, double y)
 {
-    double q;
-    if (y == 0.0) return MY_NAN;
-    q = sl_Floor(x / y);
-    return x - q * y;
+    union { double d; struct { unsigned long hi, lo; } w; } ux, uy, ur, ua, ut;
+    unsigned long ex, ey;
+
+/* a >= b for two non-negative doubles, on their bits */
+#define FMOD_GE(a, b) ((a).w.hi > (b).w.hi || \
+                       ((a).w.hi == (b).w.hi && (a).w.lo >= (b).w.lo))
+
+    ux.d = x; uy.d = y;
+    ex = (ux.w.hi >> 20) & 0x7ff;
+    ey = (uy.w.hi >> 20) & 0x7ff;
+
+    /* y is NaN, x is NaN or infinite, or y is zero: NaN */
+    if ((ey == 0x7ff && ((uy.w.hi & 0xfffffUL) | uy.w.lo) != 0) ||
+        ex == 0x7ff ||
+        (((uy.w.hi & 0x7fffffffUL) | uy.w.lo) == 0)) {
+        ux.w.hi = 0x7ff80000UL; ux.w.lo = 0;
+        return ux.d;
+    }
+    /* y infinite, or x zero (keeps -0): x */
+    if (ey == 0x7ff || ((ux.w.hi & 0x7fffffffUL) | ux.w.lo) == 0)
+        return x;
+
+    ur = ux; ur.w.hi &= 0x7fffffffUL;       /* r = |x| */
+    ua = uy; ua.w.hi &= 0x7fffffffUL;       /* |y| */
+
+    if (FMOD_GE(ur, ua)) {
+        ut = ua;
+        if (ey != 0) {
+            /* |y| is a normal number: give t the exponent of r, which
+             * multiplies it by a power of two, then halve once if that
+             * overshot. From here t stays normal, so halving it is
+             * taking one from its exponent. */
+            ut.w.hi = (ut.w.hi & 0x000fffffUL) | (ex << 20);
+            if (!FMOD_GE(ur, ut))
+                ut.w.hi -= 0x00100000UL;
+            for (;;) {
+                if (FMOD_GE(ur, ut))
+                    ur.d -= ut.d;
+                if (ut.w.hi == ua.w.hi)     /* same exponent: t is |y| */
+                    break;
+                ut.w.hi -= 0x00100000UL;
+            }
+        } else {
+            /* |y| is denormal (below about 2.2e-308): rare, so plain
+             * arithmetic */
+            while (ut.d <= ur.d * 0.5)
+                ut.d += ut.d;
+            for (;;) {
+                if (ur.d >= ut.d)
+                    ur.d -= ut.d;
+                if (ut.d <= ua.d)
+                    break;
+                ut.d *= 0.5;
+            }
+        }
+    }
+#undef FMOD_GE
+    /* the sign of x, also on a zero result */
+    ur.w.hi |= ux.w.hi & 0x80000000UL;
+    return ur.d;
 }
 
 double modf(double x, double *iptr)

@@ -98,12 +98,29 @@ ASMFLAGS_SOFT = -Fhunk -nowarn=62 -m$(CPU)
 CFLAGS_FPU_REGEXP  = $(subst -O1,-O0,$(CFLAGS_FPU))
 CFLAGS_SOFT_REGEXP = $(subst -O1,-O0,$(CFLAGS_SOFT))
 
-# quickjs.c at -O1 SIGSEGVs vbccm68k on soft-float builds (discovered
-# 2026-04-21 during the 0.152 build; FPU side at -O1 is unaffected).
-# Same class of vbcc optimizer bug that already forced libregexp.c to
-# -O0. Workaround mirrors the regex pattern. Revisit when bumping vbcc
-# or refactoring quickjs.c — see project_vbcc_quickjs_soft_o0 memory.
-CFLAGS_SOFT_QUICKJS = $(subst -O1,-O0,$(CFLAGS_SOFT))
+# Interpreter loop options, for quickjs.c only (0.226). Measured as
+# executed instructions under vamos; see perf/README.md.
+#   QJS_INTERP_ONE_TABLE=1  "#pragma opt 1" around JS_CallInternal. At
+#       plain -O1 vbcc splits the 246-case opcode switch into five range
+#       tables and the commonest opcodes pay about 56 instructions of
+#       dispatch; with the pragma there is one table (about 11). The
+#       pragma is restored with "#pragma opt 991", which is what
+#       "vc -O1" passes to vbccm68k: if -O1 below ever changes, change
+#       that number in quickjs.c too.
+#   QJS_INTERP_FAST=2       inside JS_CallInternal the small helpers
+#       (js_dup, JS_FreeValue, set_value, get_u16...) are macros, since
+#       vbcc does not inline at -O1, and the hot opcodes have int32 fast
+#       paths in front of their original bodies.
+#   QJS_INTERP_INT_DIV      "/" and "%" on two int32 stay integer.
+QJS_INTERP_FLAGS = -DQJS_INTERP_ONE_TABLE=1 -DQJS_INTERP_FAST=2 \
+                   -DQJS_INTERP_INT_DIV
+
+# Until 0.225 the soft variants built quickjs.c at -O0, a workaround for
+# a vbccm68k crash that was fixed in the local compiler on 10.6.2026.
+# With QJS_INTERP_ONE_TABLE the -O1 build is the faster one, so soft and
+# FPU now use the same flags.
+CFLAGS_SOFT_QUICKJS = $(CFLAGS_SOFT) $(QJS_INTERP_FLAGS)
+CFLAGS_FPU_QUICKJS  = $(CFLAGS_FPU) $(QJS_INTERP_FLAGS)
 
 # Linker flags
 LDFLAGS = -bamigahunk -Bstatic -nostdlib -mrel
@@ -270,7 +287,7 @@ $(TARGET_FPU): $(FPU_ALL) | $(LIBSDIR)
 	@ls -la $@
 
 $(OBJDIR_FPU)/quickjs.o: $(QJS)/quickjs.c | $(OBJDIR_FPU)
-	ulimit -s 65520 && $(VC) $(CFLAGS_FPU) $< -o $@
+	ulimit -s 65520 && $(VC) $(CFLAGS_FPU_QUICKJS) $< -o $@
 
 $(OBJDIR_FPU)/dtoa.o: $(QJS)/dtoa.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@

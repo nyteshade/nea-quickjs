@@ -57,6 +57,26 @@
 #define FLEX_ARRAY /* empty -- C99 flexible array */
 #endif
 
+/* Negative zero. vbcc folds the constant -0.0 to +0.0 (checked with
+   "return -0.0;" at -O1, with and without -fpu: both load all-zero
+   bits), which made -0, -1 * 0 and every other negative-zero result
+   positive. So on vbcc the value is built from its bit pattern, in a
+   local: a static constant would be loaded with an absolute-address
+   FPU operand, which the Musashi core used for testing under vamos
+   does not implement. It is only needed on rare paths. */
+#if defined(__VBCC__)
+static double js_neg_zero(void)
+{
+    union { uint32_t w[2]; double d; } u;
+    u.w[0] = 0x80000000U;       /* big-endian: sign bit in the first word */
+    u.w[1] = 0;
+    return u.d;
+}
+#define JS_NEG_ZERO (js_neg_zero())
+#else
+#define JS_NEG_ZERO (-0.0)
+#endif
+
 #if defined(EMSCRIPTEN) || defined(_MSC_VER) || defined(__SASC) || defined(__VBCC__)
 #define DIRECT_DISPATCH  0
 #else
@@ -3592,7 +3612,7 @@ static JSValue JS_AtomIsNumericIndex1(JSContext *ctx, JSAtom atom)
             /* -0 case is specific */
             if (c == '0' && len == 2) {
             minus_zero:
-                return js_float64(-0.0);
+                return js_float64(JS_NEG_ZERO);
             }
         }
         if (!is_num(c)) {
@@ -14671,7 +14691,7 @@ static no_inline __exception int js_unary_arith_slow(JSContext *ctx,
                 break;
             case OP_neg:
                 if (v64 == 0) {
-                    sp[-1] = js_float64(-0.0);
+                    sp[-1] = js_float64(JS_NEG_ZERO);
                     return 0;
                 } else {
                     v64 = -v64;
@@ -14910,7 +14930,7 @@ static no_inline __exception int js_binary_arith_slow(JSContext *ctx, JSValue *s
         case OP_mul:
             v = (int64_t)v1 * (int64_t)v2;
             if (v == 0 && (v1 | v2) < 0) {
-                sp[-2] = js_float64(-0.0);
+                sp[-2] = js_float64(JS_NEG_ZERO);
                 return 0;
             }
             break;
@@ -17400,6 +17420,53 @@ static bool needs_backtrace(JSValue exc)
 }
 
 /* argv[] is modified if (flags & JS_CALL_FLAG_COPY_ARGV) = 0. */
+#ifdef QJS_INTERP_ONE_TABLE
+/* r2(c): compile only the interpreter loop without the optimizer pass that splits the
+   opcode switch into five range tables.  #pragma lines are not macro-expanded. */
+#pragma opt 1
+#endif
+#ifdef QJS_INTERP_FAST
+/* r2(a): inside JS_CallInternal the tiny helpers are macros.  Statement macros use
+   'if (1) {...} else (void)0', not do/while: vbcc's -O=1 register allocator weights
+   every use by 10 per enclosing loop, do/while(0) included, and the macro temporaries
+   then take the address registers away from pc.  vbcc -O0/-O1 does not
+   inline, and every by-value JSValue argument costs a 16-byte byte-loop push. */
+static int32_t qfi_mulv(__reg("d0") int32_t a, __reg("d1") int32_t b, __reg("a0") char *ov) =
+    "\tmuls.l\td1,d0\n\tsvs\t(a0)\n";
+#ifdef QJS_INTERP_PRIME_VARBUF
+#define QFI_PRIME opcode = 0; qfi_y = opcode; opcode = qfi_y; qfi_y = opcode; var_buf = var_buf;
+#else
+#define QFI_PRIME opcode = 0; qfi_y = opcode; opcode = qfi_y; qfi_y = opcode;
+#endif
+#define QFI_HASRC(pv) ((uint32_t)(int32_t)(pv)->tag >= (uint32_t)JS_TAG_FIRST)
+#define QFI_REF(pv)   (((JSRefCountHeader *)(pv)->u.ptr)->ref_count)
+#define QFI_FREE(pv)  if (1) { if (QFI_HASRC(pv) && --QFI_REF(pv) <= 0) js_free_value_rt(rt, *(pv)); } else (void)0
+#define QFI_PUSH_INT(x) if (1) { sp->u.int32 = (x); sp->tag = JS_TAG_INT; sp++; } else (void)0
+#define QFI_PUSH_DUP(src) if (1) { qfi_p = (JSValue *)&(src); *sp = *qfi_p; if (QFI_HASRC(sp)) QFI_REF(sp)++; sp++; } else (void)0
+#define QFI_SET(dst, srcp) if (1) { qfi_p = (dst); \
+        if (QFI_HASRC(qfi_p)) { JSValue qfi_o_ = *qfi_p; *qfi_p = *(srcp); if (--QFI_REF(&qfi_o_) <= 0) js_free_value_rt(rt, qfi_o_); } \
+        else *qfi_p = *(srcp); } else (void)0
+#define QFI_SET_POP(dst) if (1) { sp--; QFI_SET(dst, sp); } else (void)0
+#define QFI_SET_DUP(dst) if (1) { if (QFI_HASRC(sp - 1)) QFI_REF(sp - 1)++; QFI_SET(dst, sp - 1); } else (void)0
+#define get_u16(p) (*(const uint16_t *)(p))
+#define get_i16(p) (*(const int16_t *)(p))
+#define get_u32(p) (*(const uint32_t *)(p))
+#define js_poll_interrupts(c) (unlikely(--(c)->interrupt_counter <= 0) && __js_poll_interrupts(c))
+#define JS_IsException(v)     (JS_VALUE_GET_TAG(v) == JS_TAG_EXCEPTION)
+#define JS_IsUninitialized(v) (JS_VALUE_GET_TAG(v) == JS_TAG_UNINITIALIZED)
+#define JS_IsUndefined(v)     (JS_VALUE_GET_TAG(v) == JS_TAG_UNDEFINED)
+#define JS_IsNull(v)          (JS_VALUE_GET_TAG(v) == JS_TAG_NULL)
+#define JS_IsObject(v)        (JS_VALUE_GET_TAG(v) == JS_TAG_OBJECT)
+#define js_int32(x) (qfi_s.v.u.int32 = (x), qfi_s.v.tag = JS_TAG_INT, qfi_s.v)
+#define js_bool(x)  (qfi_s.v.u.int32 = ((x) != 0), qfi_s.v.tag = JS_TAG_BOOL, qfi_s.v)
+#define js_dup(v)   (qfi_s.p = (JSValue *)&(v), (void)(QFI_HASRC(qfi_s.p) ? QFI_REF(qfi_s.p)++ : 0), *qfi_s.p)
+#define JS_FreeValue(ctx, v) if (1) { qfi_p = (JSValue *)&(v); QFI_FREE(qfi_p); } else (void)0
+#define set_value(ctx, pval, nv) if (1) { JSValue qfi_so_; qfi_p = (pval); qfi_so_ = *qfi_p; *qfi_p = (nv); QFI_FREE(&qfi_so_); } else (void)0
+#else
+#define QFI_PUSH_DUP(src) (*sp++ = js_dup(src))
+#define QFI_SET_POP(dst)  set_value(ctx, dst, *--sp)
+#define QFI_SET_DUP(dst)  set_value(ctx, dst, js_dup(sp[-1]))
+#endif
 static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                                JSValueConst this_obj, JSValueConst new_target,
                                int argc, JSValueConst *argv, int flags)
@@ -17414,6 +17481,15 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     JSValue *local_buf, *stack_buf, *var_buf, *arg_buf, *sp, ret_val, *pval;
     JSVarRef **var_refs;
     size_t alloca_size;
+#ifdef QJS_INTERP_FAST
+    /* in a struct on purpose: under "#pragma opt 1" registers go to the most-used
+       scalars, and a scalar scratch pointer used by every js_dup() would take the
+       register away from pc */
+    struct { JSValue v; JSValue *p; } qfi_s;
+    /* scalars on purpose: used by every fast path so that they win registers */
+    JSValue *qfi_p;
+    int32_t qfi_y;
+#endif
 
 #ifdef ENABLE_DUMPS /* JS_DUMP_BYTECODE_STEP */
 #define DUMP_BYTECODE_OR_DONT(pc) \
@@ -17426,7 +17502,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
 #define SWITCH(pc)      DUMP_BYTECODE_OR_DONT(pc) switch (opcode = *pc++)
 #define CASE(op)        case op
 #define DEFAULT         default
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+/* same target as break (nothing follows the switch inside for(;;)), one branch less */
+#define BREAK           continue
+#else
 #define BREAK           break
+#endif
 #else
     __extension__ static const void * const dispatch_table[256] = {
 #define DEF(id, size, n_pop, n_push, f) && case_OP_ ## id,
@@ -17534,6 +17615,13 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
         print_func_name(b);
 #endif
 
+#ifdef QJS_INTERP_FAST
+    /* vbcc -O=1 gives registers to the scalars with the highest use count, each use
+       weighted 10x per enclosing loop.  These dead self-assignments in nested
+       do/while(0) only raise the weight of opcode and the scratch variable (and var_buf) so that
+       they are kept in d6/d7 (and an address register).  A few instructions per call. */
+    do { do { do { do { QFI_PRIME } while (0); } while (0); } while (0); } while (0);
+#endif
  restart:
     for(;;) {
         int call_argc;
@@ -17541,6 +17629,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
 
         SWITCH(pc) {
         CASE(OP_push_i32):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { QFI_PUSH_INT(*(const int32_t *)pc); pc += 4; BREAK; }
+#endif
             *sp++ = js_int32(get_u32(pc));
             pc += 4;
             BREAK;
@@ -17561,17 +17652,29 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
         CASE(OP_push_5):
         CASE(OP_push_6):
         CASE(OP_push_7):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { QFI_PUSH_INT(opcode - OP_push_0); BREAK; }
+#endif
             *sp++ = js_int32(opcode - OP_push_0);
             BREAK;
         CASE(OP_push_i8):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { QFI_PUSH_INT((int8_t)pc[0]); pc += 1; BREAK; }
+#endif
             *sp++ = js_int32(get_i8(pc));
             pc += 1;
             BREAK;
         CASE(OP_push_i16):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { QFI_PUSH_INT(*(const int16_t *)pc); pc += 2; BREAK; }
+#endif
             *sp++ = js_int32(get_i16(pc));
             pc += 2;
             BREAK;
         CASE(OP_push_const8):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { QFI_PUSH_DUP(b->cpool[*pc++]); BREAK; }
+#endif
             *sp++ = js_dup(b->cpool[*pc++]);
             BREAK;
         CASE(OP_fclosure8):
@@ -17732,6 +17835,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_drop):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { sp--; QFI_FREE(sp); BREAK; }
+#endif
             JS_FreeValue(ctx, sp[-1]);
             sp--;
             BREAK;
@@ -17747,6 +17853,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             sp--;
             BREAK;
         CASE(OP_dup):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) { *sp = sp[-1]; if (QFI_HASRC(sp)) QFI_REF(sp)++; sp++; BREAK; }
+#endif
             sp[0] = js_dup(sp[-1]);
             sp++;
             BREAK;
@@ -18245,8 +18354,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 int idx;
                 idx = get_u16(pc);
                 pc += 2;
+#ifdef QJS_INTERP_FAST
+                QFI_PUSH_DUP(var_buf[idx]);
+#else
                 sp[0] = js_dup(var_buf[idx]);
                 sp++;
+#endif
             }
             BREAK;
         CASE(OP_put_loc):
@@ -18254,8 +18367,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 int idx;
                 idx = get_u16(pc);
                 pc += 2;
+#ifdef QJS_INTERP_FAST
+                QFI_SET_POP(&var_buf[idx]);
+#else
                 set_value(ctx, &var_buf[idx], sp[-1]);
                 sp--;
+#endif
             }
             BREAK;
         CASE(OP_set_loc):
@@ -18263,7 +18380,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 int idx;
                 idx = get_u16(pc);
                 pc += 2;
+#ifdef QJS_INTERP_FAST
+                QFI_SET_DUP(&var_buf[idx]);
+#else
                 set_value(ctx, &var_buf[idx], js_dup(sp[-1]));
+#endif
             }
             BREAK;
         CASE(OP_get_arg):
@@ -18271,8 +18392,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 int idx;
                 idx = get_u16(pc);
                 pc += 2;
+#ifdef QJS_INTERP_FAST
+                QFI_PUSH_DUP(arg_buf[idx]);
+#else
                 sp[0] = js_dup(arg_buf[idx]);
                 sp++;
+#endif
             }
             BREAK;
         CASE(OP_put_arg):
@@ -18280,8 +18405,12 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 int idx;
                 idx = get_u16(pc);
                 pc += 2;
+#ifdef QJS_INTERP_FAST
+                QFI_SET_POP(&arg_buf[idx]);
+#else
                 set_value(ctx, &arg_buf[idx], sp[-1]);
                 sp--;
+#endif
             }
             BREAK;
         CASE(OP_set_arg):
@@ -18289,13 +18418,17 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 int idx;
                 idx = get_u16(pc);
                 pc += 2;
+#ifdef QJS_INTERP_FAST
+                QFI_SET_DUP(&arg_buf[idx]);
+#else
                 set_value(ctx, &arg_buf[idx], js_dup(sp[-1]));
+#endif
             }
             BREAK;
 
-        CASE(OP_get_loc8): *sp++ = js_dup(var_buf[*pc++]); BREAK;
-        CASE(OP_put_loc8): set_value(ctx, &var_buf[*pc++], *--sp); BREAK;
-        CASE(OP_set_loc8): set_value(ctx, &var_buf[*pc++], js_dup(sp[-1])); BREAK;
+        CASE(OP_get_loc8): QFI_PUSH_DUP(var_buf[*pc++]); BREAK;
+        CASE(OP_put_loc8): QFI_SET_POP(&var_buf[*pc++]); BREAK;
+        CASE(OP_set_loc8): QFI_SET_DUP(&var_buf[*pc++]); BREAK;
 
         /* Observation: get_loc0 and get_loc1 are individually very */
         /* frequent opcodes _and_ they are very often paired together, */
@@ -18305,42 +18438,42 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             *sp++ = js_dup(var_buf[1]);
             BREAK;
 
-        CASE(OP_get_loc0): *sp++ = js_dup(var_buf[0]); BREAK;
-        CASE(OP_get_loc1): *sp++ = js_dup(var_buf[1]); BREAK;
-        CASE(OP_get_loc2): *sp++ = js_dup(var_buf[2]); BREAK;
-        CASE(OP_get_loc3): *sp++ = js_dup(var_buf[3]); BREAK;
-        CASE(OP_put_loc0): set_value(ctx, &var_buf[0], *--sp); BREAK;
-        CASE(OP_put_loc1): set_value(ctx, &var_buf[1], *--sp); BREAK;
-        CASE(OP_put_loc2): set_value(ctx, &var_buf[2], *--sp); BREAK;
-        CASE(OP_put_loc3): set_value(ctx, &var_buf[3], *--sp); BREAK;
-        CASE(OP_set_loc0): set_value(ctx, &var_buf[0], js_dup(sp[-1])); BREAK;
-        CASE(OP_set_loc1): set_value(ctx, &var_buf[1], js_dup(sp[-1])); BREAK;
-        CASE(OP_set_loc2): set_value(ctx, &var_buf[2], js_dup(sp[-1])); BREAK;
-        CASE(OP_set_loc3): set_value(ctx, &var_buf[3], js_dup(sp[-1])); BREAK;
-        CASE(OP_get_arg0): *sp++ = js_dup(arg_buf[0]); BREAK;
-        CASE(OP_get_arg1): *sp++ = js_dup(arg_buf[1]); BREAK;
-        CASE(OP_get_arg2): *sp++ = js_dup(arg_buf[2]); BREAK;
-        CASE(OP_get_arg3): *sp++ = js_dup(arg_buf[3]); BREAK;
-        CASE(OP_put_arg0): set_value(ctx, &arg_buf[0], *--sp); BREAK;
-        CASE(OP_put_arg1): set_value(ctx, &arg_buf[1], *--sp); BREAK;
-        CASE(OP_put_arg2): set_value(ctx, &arg_buf[2], *--sp); BREAK;
-        CASE(OP_put_arg3): set_value(ctx, &arg_buf[3], *--sp); BREAK;
-        CASE(OP_set_arg0): set_value(ctx, &arg_buf[0], js_dup(sp[-1])); BREAK;
-        CASE(OP_set_arg1): set_value(ctx, &arg_buf[1], js_dup(sp[-1])); BREAK;
-        CASE(OP_set_arg2): set_value(ctx, &arg_buf[2], js_dup(sp[-1])); BREAK;
-        CASE(OP_set_arg3): set_value(ctx, &arg_buf[3], js_dup(sp[-1])); BREAK;
-        CASE(OP_get_var_ref0): *sp++ = js_dup(*var_refs[0]->pvalue); BREAK;
-        CASE(OP_get_var_ref1): *sp++ = js_dup(*var_refs[1]->pvalue); BREAK;
-        CASE(OP_get_var_ref2): *sp++ = js_dup(*var_refs[2]->pvalue); BREAK;
-        CASE(OP_get_var_ref3): *sp++ = js_dup(*var_refs[3]->pvalue); BREAK;
-        CASE(OP_put_var_ref0): set_value(ctx, var_refs[0]->pvalue, *--sp); BREAK;
-        CASE(OP_put_var_ref1): set_value(ctx, var_refs[1]->pvalue, *--sp); BREAK;
-        CASE(OP_put_var_ref2): set_value(ctx, var_refs[2]->pvalue, *--sp); BREAK;
-        CASE(OP_put_var_ref3): set_value(ctx, var_refs[3]->pvalue, *--sp); BREAK;
-        CASE(OP_set_var_ref0): set_value(ctx, var_refs[0]->pvalue, js_dup(sp[-1])); BREAK;
-        CASE(OP_set_var_ref1): set_value(ctx, var_refs[1]->pvalue, js_dup(sp[-1])); BREAK;
-        CASE(OP_set_var_ref2): set_value(ctx, var_refs[2]->pvalue, js_dup(sp[-1])); BREAK;
-        CASE(OP_set_var_ref3): set_value(ctx, var_refs[3]->pvalue, js_dup(sp[-1])); BREAK;
+        CASE(OP_get_loc0): QFI_PUSH_DUP(var_buf[0]); BREAK;
+        CASE(OP_get_loc1): QFI_PUSH_DUP(var_buf[1]); BREAK;
+        CASE(OP_get_loc2): QFI_PUSH_DUP(var_buf[2]); BREAK;
+        CASE(OP_get_loc3): QFI_PUSH_DUP(var_buf[3]); BREAK;
+        CASE(OP_put_loc0): QFI_SET_POP(&var_buf[0]); BREAK;
+        CASE(OP_put_loc1): QFI_SET_POP(&var_buf[1]); BREAK;
+        CASE(OP_put_loc2): QFI_SET_POP(&var_buf[2]); BREAK;
+        CASE(OP_put_loc3): QFI_SET_POP(&var_buf[3]); BREAK;
+        CASE(OP_set_loc0): QFI_SET_DUP(&var_buf[0]); BREAK;
+        CASE(OP_set_loc1): QFI_SET_DUP(&var_buf[1]); BREAK;
+        CASE(OP_set_loc2): QFI_SET_DUP(&var_buf[2]); BREAK;
+        CASE(OP_set_loc3): QFI_SET_DUP(&var_buf[3]); BREAK;
+        CASE(OP_get_arg0): QFI_PUSH_DUP(arg_buf[0]); BREAK;
+        CASE(OP_get_arg1): QFI_PUSH_DUP(arg_buf[1]); BREAK;
+        CASE(OP_get_arg2): QFI_PUSH_DUP(arg_buf[2]); BREAK;
+        CASE(OP_get_arg3): QFI_PUSH_DUP(arg_buf[3]); BREAK;
+        CASE(OP_put_arg0): QFI_SET_POP(&arg_buf[0]); BREAK;
+        CASE(OP_put_arg1): QFI_SET_POP(&arg_buf[1]); BREAK;
+        CASE(OP_put_arg2): QFI_SET_POP(&arg_buf[2]); BREAK;
+        CASE(OP_put_arg3): QFI_SET_POP(&arg_buf[3]); BREAK;
+        CASE(OP_set_arg0): QFI_SET_DUP(&arg_buf[0]); BREAK;
+        CASE(OP_set_arg1): QFI_SET_DUP(&arg_buf[1]); BREAK;
+        CASE(OP_set_arg2): QFI_SET_DUP(&arg_buf[2]); BREAK;
+        CASE(OP_set_arg3): QFI_SET_DUP(&arg_buf[3]); BREAK;
+        CASE(OP_get_var_ref0): QFI_PUSH_DUP(*var_refs[0]->pvalue); BREAK;
+        CASE(OP_get_var_ref1): QFI_PUSH_DUP(*var_refs[1]->pvalue); BREAK;
+        CASE(OP_get_var_ref2): QFI_PUSH_DUP(*var_refs[2]->pvalue); BREAK;
+        CASE(OP_get_var_ref3): QFI_PUSH_DUP(*var_refs[3]->pvalue); BREAK;
+        CASE(OP_put_var_ref0): QFI_SET_POP(var_refs[0]->pvalue); BREAK;
+        CASE(OP_put_var_ref1): QFI_SET_POP(var_refs[1]->pvalue); BREAK;
+        CASE(OP_put_var_ref2): QFI_SET_POP(var_refs[2]->pvalue); BREAK;
+        CASE(OP_put_var_ref3): QFI_SET_POP(var_refs[3]->pvalue); BREAK;
+        CASE(OP_set_var_ref0): QFI_SET_DUP(var_refs[0]->pvalue); BREAK;
+        CASE(OP_set_var_ref1): QFI_SET_DUP(var_refs[1]->pvalue); BREAK;
+        CASE(OP_set_var_ref2): QFI_SET_DUP(var_refs[2]->pvalue); BREAK;
+        CASE(OP_set_var_ref3): QFI_SET_DUP(var_refs[3]->pvalue); BREAK;
 
         CASE(OP_get_var_ref):
             {
@@ -18420,6 +18553,14 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_get_loc_check):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) {
+                qfi_p = &var_buf[*(const uint16_t *)pc];
+                if (likely((int32_t)qfi_p->tag != JS_TAG_UNINITIALIZED)) {
+                    pc += 2; *sp = *qfi_p; if (QFI_HASRC(sp)) QFI_REF(sp)++; sp++; BREAK;
+                }
+            }
+#endif
             {
                 int idx;
                 idx = get_u16(pc);
@@ -18434,6 +18575,17 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_put_loc_check):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) {
+                qfi_p = &var_buf[*(const uint16_t *)pc];
+                if (likely((int32_t)qfi_p->tag != JS_TAG_UNINITIALIZED)) {
+                    pc += 2; sp--;
+                    if (QFI_HASRC(qfi_p)) { JSValue qfi_o_ = *qfi_p; *qfi_p = *sp; if (--QFI_REF(&qfi_o_) <= 0) js_free_value_rt(rt, qfi_o_); }
+                    else *qfi_p = *sp;
+                    BREAK;
+                }
+            }
+#endif
             {
                 int idx;
                 idx = get_u16(pc);
@@ -18570,6 +18722,15 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_if_true8):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((uint32_t)(int32_t)sp[-1].tag <= JS_TAG_UNDEFINED)) {
+                sp--;
+                if (sp->u.int32) pc += (int8_t)pc[0]; else pc += 1;
+                if (unlikely(js_poll_interrupts(ctx)))
+                    goto exception;
+                BREAK;
+            }
+#endif
             {
                 int res;
                 JSValue op1;
@@ -18590,6 +18751,15 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_if_false8):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((uint32_t)(int32_t)sp[-1].tag <= JS_TAG_UNDEFINED)) {
+                sp--;
+                if (!sp->u.int32) pc += (int8_t)pc[0]; else pc += 1;
+                if (unlikely(js_poll_interrupts(ctx)))
+                    goto exception;
+                BREAK;
+            }
+#endif
             {
                 int res;
                 JSValue op1;
@@ -18788,6 +18958,21 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_get_field):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-1].tag == JS_TAG_OBJECT)) {
+                JSObject *qfi_o = (JSObject *)sp[-1].u.ptr;
+                JSProperty *qfi_pr;
+                JSShapeProperty *qfi_prs = find_own_property(&qfi_pr, qfi_o, *(const uint32_t *)pc);
+                if (likely(qfi_prs && !(qfi_prs->flags & JS_PROP_TMASK))) {
+                    pc += 4;
+                    qfi_p = &qfi_pr->u.value;
+                    sp[-1] = *qfi_p;
+                    if (QFI_HASRC(qfi_p)) QFI_REF(qfi_p)++;
+                    if (unlikely(--((JSRefCountHeader *)qfi_o)->ref_count <= 0)) js_free_value_rt(rt, JS_MKPTR(JS_TAG_OBJECT, qfi_o));
+                    BREAK;
+                }
+            }
+#endif
             {
                 JSValue val, obj;
                 JSAtom atom;
@@ -18883,6 +19068,21 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_put_field):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-2].tag == JS_TAG_OBJECT)) {
+                JSObject *qfi_o = (JSObject *)sp[-2].u.ptr;
+                JSProperty *qfi_pr;
+                JSShapeProperty *qfi_prs = find_own_property(&qfi_pr, qfi_o, *(const uint32_t *)pc);
+                if (likely(qfi_prs && (qfi_prs->flags & (JS_PROP_TMASK | JS_PROP_WRITABLE |
+                                                     JS_PROP_LENGTH)) == JS_PROP_WRITABLE)) {
+                    pc += 4;
+                    QFI_SET(&qfi_pr->u.value, sp - 1);
+                    sp -= 2;
+                    if (unlikely(--((JSRefCountHeader *)qfi_o)->ref_count <= 0)) js_free_value_rt(rt, JS_MKPTR(JS_TAG_OBJECT, qfi_o));
+                    BREAK;
+                }
+            }
+#endif
             {
                 int ret;
                 JSValue obj;
@@ -19101,6 +19301,21 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_get_array_el):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-2].tag == JS_TAG_OBJECT && (int32_t)sp[-1].tag == JS_TAG_INT)) {
+                JSObject *qfi_o = (JSObject *)sp[-2].u.ptr;
+                /* same test as the fast path of OP_put_array_el below */
+                if (likely(qfi_o->ob1.hflags.class_id == JS_CLASS_ARRAY &&
+                           (uint32_t)sp[-1].u.int32 < (uint32_t)qfi_o->u.array.count)) {
+                    qfi_p = &qfi_o->u.array.u.values[(uint32_t)sp[-1].u.int32];
+                    sp--;
+                    sp[-1] = *qfi_p;
+                    if (QFI_HASRC(qfi_p)) QFI_REF(qfi_p)++;
+                    if (unlikely(--((JSRefCountHeader *)qfi_o)->ref_count <= 0)) js_free_value_rt(rt, JS_MKPTR(JS_TAG_OBJECT, qfi_o));
+                    BREAK;
+                }
+            }
+#endif
             {
                 JSValue val;
 
@@ -19311,6 +19526,14 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_add):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
+                qfi_y = (int32_t)((uint32_t)sp[-2].u.int32 + (uint32_t)sp[-1].u.int32);
+                if (likely(((sp[-2].u.int32 ^ qfi_y) & (sp[-1].u.int32 ^ qfi_y)) >= 0)) {
+                    sp[-2].u.int32 = qfi_y; sp--; BREAK;
+                }
+            }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19338,6 +19561,17 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_add_loc):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) {
+                qfi_p = &var_buf[pc[0]];
+                if (likely(((int32_t)qfi_p->tag | (int32_t)sp[-1].tag) == 0)) {
+                    qfi_y = (int32_t)((uint32_t)qfi_p->u.int32 + (uint32_t)sp[-1].u.int32);
+                    if (likely(((qfi_p->u.int32 ^ qfi_y) & (sp[-1].u.int32 ^ qfi_y)) >= 0)) {
+                        qfi_p->u.int32 = qfi_y; sp--; pc += 1; BREAK;
+                    }
+                }
+            }
+#endif
             {
                 JSValue *pv;
                 int idx;
@@ -19381,6 +19615,14 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_sub):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
+                qfi_y = (int32_t)((uint32_t)sp[-2].u.int32 - (uint32_t)sp[-1].u.int32);
+                if (likely(((sp[-2].u.int32 ^ sp[-1].u.int32) & (sp[-2].u.int32 ^ qfi_y)) >= 0)) {
+                    sp[-2].u.int32 = qfi_y; sp--; BREAK;
+                }
+            }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19405,6 +19647,16 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_mul):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
+                char qfi_ov;
+                qfi_y = qfi_mulv(sp[-2].u.int32, sp[-1].u.int32, &qfi_ov);
+                /* overflow and the -0 result stay on the original path */
+                if (likely(!qfi_ov && (qfi_y != 0 || (sp[-2].u.int32 | sp[-1].u.int32) >= 0))) {
+                    sp[-2].u.int32 = qfi_y; sp--; BREAK;
+                }
+            }
+#endif
             {
                 JSValue op1, op2;
                 double d;
@@ -19422,7 +19674,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                     }
                     /* need to test zero case for -0 result */
                     if (unlikely(r == 0 && (v1 | v2) < 0)) {
-                        d = -0.0;
+                        d = JS_NEG_ZERO;
                         goto mul_fp_res;
                     }
                     sp[-2] = js_int32(r);
@@ -19440,6 +19692,20 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_div):
+#ifdef QJS_INTERP_INT_DIV
+            /* two int32: exact quotient stays an int32.  Excluded (original path):
+               divisor 0, INT32_MIN / -1, inexact results, and 0 / negative (= -0). */
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
+                int32_t qfi_a = sp[-2].u.int32, qfi_b = sp[-1].u.int32;
+                if (likely(qfi_b != 0 && !(qfi_b == -1 && qfi_a == INT32_MIN) &&
+                           (qfi_a != 0 || qfi_b > 0))) {
+                    int32_t qfi_q = qfi_a / qfi_b;
+                    if (likely(qfi_q * qfi_b == qfi_a)) {
+                        sp[-2].u.int32 = qfi_q; sp--; BREAK;
+                    }
+                }
+            }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19470,6 +19736,25 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_mod):
+#ifdef QJS_INTERP_INT_DIV
+            /* two int32, any signs: C truncating remainder has the sign of the dividend
+               like JS.  Excluded: divisor 0 and -1. */
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
+                int32_t qfi_a = sp[-2].u.int32, qfi_b = sp[-1].u.int32;
+                if (likely(qfi_b != 0 && qfi_b != -1)) {
+                    int32_t qfi_r = qfi_a % qfi_b;
+                    if (likely(qfi_r != 0 || qfi_a >= 0)) {
+                        sp[-2].u.int32 = qfi_r; sp--; BREAK;
+                    }
+                    /* a negative dividend that divides exactly: -0, written
+                       as its two words (this option is big-endian only) */
+                    ((uint32_t *)&sp[-2].u)[0] = 0x80000000U;
+                    ((uint32_t *)&sp[-2].u)[1] = 0;
+                    sp[-2].tag = JS_TAG_FLOAT64;
+                    sp--; BREAK;
+                }
+            }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19513,6 +19798,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_neg):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != 0 && sp[-1].u.int32 != INT32_MIN)) {
+                sp[-1].u.int32 = -sp[-1].u.int32; BREAK;
+            }
+#endif
             {
                 JSValue op1;
                 uint32_t tag;
@@ -19524,7 +19814,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                     val = JS_VALUE_GET_INT(op1);
                     /* Note: -0 cannot be expressed as integer */
                     if (unlikely(val == 0)) {
-                        d = -0.0;
+                        d = JS_NEG_ZERO;
                         goto neg_fp_res;
                     }
                     if (unlikely(val == INT32_MIN)) {
@@ -19544,6 +19834,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_inc):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MAX)) {
+                sp[-1].u.int32 = sp[-1].u.int32 + 1; BREAK;
+            }
+#endif
             {
                 JSValue op1;
                 int val;
@@ -19562,6 +19857,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_dec):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MIN)) {
+                sp[-1].u.int32 = sp[-1].u.int32 - 1; BREAK;
+            }
+#endif
             {
                 JSValue op1;
                 int val;
@@ -19580,6 +19880,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_post_inc):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MAX)) {
+                QFI_PUSH_INT(sp[-1].u.int32 + 1); BREAK;
+            }
+#endif
             {
                 JSValue op1;
                 int val;
@@ -19599,6 +19904,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_post_dec):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MIN)) {
+                QFI_PUSH_INT(sp[-1].u.int32 - 1); BREAK;
+            }
+#endif
             {
                 JSValue op1;
                 int val;
@@ -19618,6 +19928,14 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_inc_loc):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) {
+                qfi_p = &var_buf[pc[0]];
+                if (likely((int32_t)qfi_p->tag == JS_TAG_INT && qfi_p->u.int32 != INT32_MAX)) {
+                    qfi_p->u.int32 = qfi_p->u.int32 + 1; pc += 1; BREAK;
+                }
+            }
+#endif
             {
                 JSValue op1;
                 int val;
@@ -19644,6 +19962,14 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_dec_loc):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (1) {
+                qfi_p = &var_buf[pc[0]];
+                if (likely((int32_t)qfi_p->tag == JS_TAG_INT && qfi_p->u.int32 != INT32_MIN)) {
+                    qfi_p->u.int32 = qfi_p->u.int32 - 1; pc += 1; BREAK;
+                }
+            }
+#endif
             {
                 JSValue op1;
                 int val;
@@ -19684,6 +20010,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
         CASE(OP_shl):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 = (int32_t)((uint32_t)sp[-2].u.int32 << (sp[-1].u.int32 & 0x1f)); sp--; BREAK; }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19722,6 +20051,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_sar):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 = sp[-2].u.int32 >> (sp[-1].u.int32 & 0x1f); sp--; BREAK; }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19743,6 +20075,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_and):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 &= sp[-1].u.int32; sp--; BREAK; }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19759,6 +20094,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_or):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 |= sp[-1].u.int32; sp--; BREAK; }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19775,6 +20113,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             }
             BREAK;
         CASE(OP_xor):
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 ^= sp[-1].u.int32; sp--; BREAK; }
+#endif
             {
                 JSValue op1, op2;
                 op1 = sp[-2];
@@ -19792,6 +20133,21 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
             BREAK;
 
 
+#if defined(QJS_INTERP_FAST) && QJS_INTERP_FAST >= 2
+#define OP_CMP(opcode, binary_op, slow_call)              \
+            CASE(opcode):                                 \
+                if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {                         \
+                    sp[-2].u.int32 = (sp[-2].u.int32 binary_op sp[-1].u.int32); \
+                    sp[-2].tag = JS_TAG_BOOL;             \
+                    sp--;                                 \
+                } else {                                  \
+                    sf->cur_pc = pc;                      \
+                    if (slow_call)                        \
+                        goto exception;                   \
+                    sp--;                                 \
+                }                                         \
+            BREAK
+#else
 #define OP_CMP(opcode, binary_op, slow_call)              \
             CASE(opcode):                                 \
                 {                                         \
@@ -19809,6 +20165,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
                 }                                                       \
                 }                                                       \
             BREAK
+#endif
 
             OP_CMP(OP_lt, <, js_relational_slow(ctx, sp, opcode));
             OP_CMP(OP_lte, <=, js_relational_slow(ctx, sp, opcode));
@@ -20118,6 +20475,34 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     rt->current_stack_frame = sf->prev_frame;
     return ret_val;
 }
+#undef QFI_PUSH_DUP
+#undef QFI_SET_POP
+#undef QFI_SET_DUP
+#ifdef QJS_INTERP_FAST
+#undef get_u16
+#undef get_i16
+#undef get_u32
+#undef js_poll_interrupts
+#undef JS_IsException
+#undef JS_IsUninitialized
+#undef JS_IsUndefined
+#undef JS_IsNull
+#undef JS_IsObject
+#undef js_int32
+#undef js_bool
+#undef js_dup
+#undef JS_FreeValue
+#undef set_value
+#endif
+#ifdef QJS_INTERP_ONE_TABLE
+#if QJS_INTERP_ONE_TABLE == 0
+/* file built with -O0: back to -O=0 */
+#pragma opt 0
+#else
+/* back to what "vc -O1" passes (-O=991) */
+#pragma opt 991
+#endif
+#endif
 
 JSValue JS_Call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_obj,
                 int argc, JSValueConst *argv)
@@ -47099,7 +47484,7 @@ static double sum_precise_get_result(SumPreciseState *s)
         switch(s->state) {
         default:
         case SUM_PRECISE_STATE_MINUS_ZERO:
-            return -0.0;
+            return JS_NEG_ZERO;
         case SUM_PRECISE_STATE_INFINITY:
             return INFINITY;
         case SUM_PRECISE_STATE_MINUS_INFINITY:

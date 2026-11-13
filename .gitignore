@@ -13,3 +13,8 @@ _UAEFSDB.___
 website/modern/node_modules/
 website/modern/dist/
 __pycache__/
+
+# perf/ measuring: local emulator template, built hook, results
+perf/.vm/
+perf/out/
+perf/tools/hook.dylib
