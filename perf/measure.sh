@@ -8,7 +8,7 @@
 #   library  defaults to amiga/libs/quickjs.020soft.library
 #   bench    names from perf/bench/ without .js; default is all of them
 #
-# Needs a template directory, perf/.vm (not in git), holding
+# Needs a template directory, perf/.vm (not in git; PERF_VM names another), holding
 #   c/qjs                         a CLI built to run under vamos (see the
 #                                 "vamos recipe": -DQJS_NO_STACK_CHECK and
 #                                 a large __stack)
@@ -27,7 +27,7 @@ ROOT=$(dirname "$HERE")
 label=${1:?usage: measure.sh <label> [library] [bench...]}; shift
 lib=${1:-$ROOT/amiga/libs/quickjs.020soft.library}; [ $# -gt 0 ] && shift
 [ $# -gt 0 ] || set -- empty intloop float prop array call intdiv intops strcat alloc regex edge modchk
-VM=$HERE/.vm
+VM=${PERF_VM:-$HERE/.vm}
 [ -x "$VM/c/qjs" ] || { echo "no $VM/c/qjs - see the header of this script"; exit 1; }
 [ -f "$HERE/tools/hook.dylib" ] || cc -O2 -shared -o "$HERE/tools/hook.dylib" "$HERE/tools/hook.c" || exit 1
 OUT=$HERE/out/$label; mkdir -p "$OUT"

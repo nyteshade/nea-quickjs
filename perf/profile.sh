@@ -45,7 +45,7 @@ run)
   b=${2:?bench name}; base=${3:-}
   [ -f "$OUT/lib.funcs" ] || { echo "run 'perf/profile.sh symbols' first"; exit 1; }
   [ -f "$HERE/tools/hook.dylib" ] || cc -O2 -shared -o "$HERE/tools/hook.dylib" "$HERE/tools/hook.c" || exit 1
-  prof() { W=$(mktemp -d); cp -R "$HERE/.vm" "$W/vm"; mkdir -p "$W/vols"
+  prof() { W=$(mktemp -d); cp -R "${PERF_VM:-$HERE/.vm}" "$W/vm"; mkdir -p "$W/vols"
     cp "$ROOT/amiga/libs/quickjs.020soft.library" "$W/vm/libs/quickjs.library"; cp "$HERE/bench/$1.js" "$W/vm/"
     ( cd "$W/vm" && PROF_OUT="$OUT/$1.prof" PROF_FUNCS="$OUT/lib.funcs" "$HERE/tools/prof.py" -S --vols-base-dir "$W/vols" -l main:info -C 68020 -m 65536 -H disable -s 2048 --cwd sys: -V "sys:$PWD" -a libs:sys:libs -a s:sys:s -a c:sys:c -a t:sys:s -O mathieeedoubbas.library=mode:amiga -- c/qjs ${PERF_ARGS:-} $1.js < /dev/null > "$OUT/$1.raw" 2>&1 ); rm -rf "$W"; }
   prof "$b"; [ -n "$base" ] && prof "$base"
