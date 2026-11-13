@@ -458,7 +458,24 @@ $(OBJDIR_FPU)/sharedlib_int64.o: $(LIBVBCC)/sharedlib_int64.s | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/sharedlib_int64_fpu.o: $(LIBVBCC)/sharedlib_int64_fpu.s | $(OBJDIR_FPU)
 	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
-$(OBJDIR_FPU):
+# Refuse to compile with a vbccm68k that has the "constant reloaded at
+# the exit label" bug: it built the libraries up to 0.232 with a
+# JS_GetScriptOrModuleName that always returned 0, and nothing in the
+# build showed it. The check compiles one small function with the
+# vbccm68k that vc is about to run (the first on PATH) and takes 20 ms;
+# tools/vbcc-patches/README.md has the story and the fixed compiler.
+# ALLOW_BAD_VBCC=1 builds anyway.
+.PHONY: compiler-check
+compiler-check:
+	@$(ROOT)/tools/vbcc-patches/check-compiler.sh || [ -n "$(ALLOW_BAD_VBCC)" ] || { \
+	  echo "*** This vbccm68k miscompiles the library. Use the fixed one, e.g."; \
+	  echo "***   PATH=\$$HOME/vbcc-fixed/bin:\$$PATH make ..."; \
+	  echo "*** See tools/vbcc-patches/README.md. (ALLOW_BAD_VBCC=1 overrides.)"; \
+	  exit 1; }
+
+# Every object needs its directory first, so the check runs before any
+# compilation, also under make -j.
+$(OBJDIR_FPU): | compiler-check
 	@mkdir -p $@
 
 # --- Soft-float variant build rules ---
@@ -597,7 +614,7 @@ $(OBJDIR_SOFT)/sharedlib_int64_conv.o: $(LIBVBCC)/sharedlib_int64_conv.c | $(OBJ
 $(OBJDIR_SOFT)/sharedlib_dbl_helpers.o: $(LIBVBCC)/sharedlib_dbl_helpers.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
-$(OBJDIR_SOFT):
+$(OBJDIR_SOFT): | compiler-check
 	@mkdir -p $@
 
 clean:

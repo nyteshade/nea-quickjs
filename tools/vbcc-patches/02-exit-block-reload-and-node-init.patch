@@ -1,0 +1,49 @@
+diff --git a/src/vbcc/parse_expr.c b/src/vbcc/parse_expr.c
+index c88e7ef..3db1766 100644
+--- a/src/vbcc/parse_expr.c
++++ b/src/vbcc/parse_expr.c
+@@ -10,6 +10,13 @@ extern int no_alg_opt;
+ np new_node(void)
+ {
+   np p=mymalloc(NODES);
++  /* Clear the whole node. type_expression2() tests val.vumax of an
++     ADDRESS node to decide whether "*&x" may be replaced by "x", and
++     nothing ever stores there: with only the fields below set, that
++     test read whatever malloc() returned, and the generated code
++     (correct either way, but different) depended on the heap's
++     history. Seen in quickjs.c's JS_CallInternal at -O=1. */
++  memset(p,0,NODES);
+   p->flags=0;
+   p->lvalue=0;
+   p->sidefx=0;
+diff --git a/src/vbcc/regs.c b/src/vbcc/regs.c
+index cc7e72c..4c17214 100644
+--- a/src/vbcc/regs.c
++++ b/src/vbcc/regs.c
+@@ -190,7 +190,16 @@ void insert_regs(flowgraph *fg1)
+     fg=fg1;
+     while(fg){
+         if(DEBUG&8192) printf("block %d:\n",fg->index);
+-	if(fg!=fg1&&!fg->branchout&&!fg->normalout&&fg->start==fg->end)
++	/* The exit block is the block that holds nothing but the
++	   function's exit label. No register variable may be loaded at
++	   its start (see the entry-load test below): nothing can use it
++	   there, and a constant that the allocator kept in the return
++	   register would overwrite a return value that another
++	   predecessor left in that register ("return g(x);" joined with
++	   "return 0;" came out as "jsr _g ... exit: moveq #0,d0; rts").
++	   Same two lines as upstream regs.c 1.39; this tree's 1.36 had
++	   the test commented out. */
++	if(fg!=fg1&&!fg->branchout&&!fg->normalout&&fg->start==fg->end&&fg->start&&fg->start->code==LABEL)
+ 	  exit_block=1;
+ 	else
+ 	  exit_block=0;
+@@ -305,7 +314,7 @@ void insert_regs(flowgraph *fg1)
+                     }
+                 }
+                 if(fg->regv[i]->index>=vcount-rcount||BTST(fg->av_in,fg->regv[i]->index)){
+-		  if(/*!exit_block&&*/(fg==fg1||entry_load(fg,i))&&(fg!=fg1||!(fg->regv[i]->flags&REGPARM))){
++		  if(!exit_block&&(fg==fg1||entry_load(fg,i))&&(fg!=fg1||!(fg->regv[i]->flags&REGPARM))){
+                         if(DEBUG&8192) printf("\thave to load it at start of block\n");
+                         new=new_IC();
+                         new->line=0;

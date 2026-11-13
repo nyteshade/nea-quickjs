@@ -1,5 +1,16 @@
 # Toolchain patches
 
+> **13.11.2026: this patch alone is not enough.** The compiler built
+> from it on 10.6.2026 (sha1 `475e0818`) was built from a vbcc source
+> tree older than the compiler it replaced, and that tree has a register
+> allocator bug that made `JS_GetScriptOrModuleName` always return 0
+> (every `import()` failed). The "byte-identical to a known-good run"
+> validation below cannot have been against the compiler it replaced:
+> the two differ in about 80 functions of each library variant. The
+> second patch, the fixed compiler, the list of
+> affected functions and a script that compares two compilers over the
+> whole library are in `tools/vbcc-patches/` (start with its README).
+
 ## vbcc-ic-uaf-and-move_freereg.patch
 
 Fixes two vbccm68k (vbcc V0.9i pre, m68k backend) bugs that broke
