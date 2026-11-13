@@ -12,6 +12,16 @@ echo "*N--- qjs -v"
 qjs -v
 echo "*N--- test_engine_conformance"
 qjs tests/test_engine_conformance.js
+echo "*N--- test_engine_scope"
+qjs tests/test_engine_scope.js
+echo "*N--- test_engine_iterators"
+qjs tests/test_engine_iterators.js
+echo "*N--- test_engine_objects"
+qjs tests/test_engine_objects.js
+echo "*N--- test_engine_builtins"
+qjs tests/test_engine_builtins.js
+echo "*N--- test_engine_host"
+qjs tests/test_engine_host.js
 echo "*N--- test_fpu_numeric"
 qjs tests/test_fpu_numeric.js
 echo "*N--- test_compiler_regressions"

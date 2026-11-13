@@ -17,8 +17,8 @@
 # version strings. 020fpu cannot run the maths tests in this emulator.
 cd "$(dirname "$0")/.." || exit 1
 label=${1:?usage: verify-all.sh <label> [benchmark-baseline-label]}; base=${2:-}
-T="test_numeric_edge test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_led test_reaction_events test_persistence test_screen_font test_engine_conformance"
-F="test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists"
+T="test_numeric_edge test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_led test_reaction_events test_persistence test_screen_font test_engine_conformance test_engine_scope test_engine_iterators test_engine_objects test_engine_builtins test_engine_host"
+F="test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_engine_scope test_engine_iterators test_engine_objects"
 [ -d perf/out/t231 ] && perf/compare-tests.sh "t$label" amiga/libs/quickjs.020soft.library t231 | /usr/bin/grep -v '^same'
 perf/measure.sh "v$label" > /dev/null; tr '\n' ' ' < "perf/out/v$label/instr.txt"; echo
 if [ -n "$base" ]; then for b in intloop float prop array call intdiv intops strcat alloc regex edge modchk; do
