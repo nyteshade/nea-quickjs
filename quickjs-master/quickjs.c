@@ -376,6 +376,11 @@ struct JSRuntime {
     void *host_promise_rejection_tracker_opaque;
 
     struct list_head job_list; /* list of JSJobEntry.link */
+    /* targets of the WeakRefs made or dereferenced in the job that is
+       running: they stay alive until it ends (see js_keep_during_job) */
+    JSValue *kept_objects;
+    int kept_count;
+    int kept_size;
 
     bool module_normalize_has_attr;
     union {
@@ -2255,6 +2260,51 @@ bool JS_IsJobPending(JSRuntime *rt)
     return !list_empty(&rt->job_list);
 }
 
+/* AddToKeptObjects (ES2024 9.10.2). An object that a WeakRef was just
+   made for, or that deref() just returned, must not be collected
+   before the job (the script, the promise reaction, the timer
+   callback) that did so has finished: 'if (ref.deref()) use(ref.deref())'
+   may rely on the second call. Upstream kept nothing, so
+   new WeakRef({}).deref() was undefined at once: the engine counts
+   references and frees an object the moment the last one goes.
+   A failed allocation only means the object is not kept. */
+static void js_keep_during_job(JSContext *ctx, JSValueConst val)
+{
+    JSRuntime *rt = ctx->rt;
+
+    if (rt->kept_count > 0 &&
+        JS_VALUE_GET_PTR(rt->kept_objects[rt->kept_count - 1]) ==
+        JS_VALUE_GET_PTR(val))
+        return; /* the same target again, as in a loop over one WeakRef */
+    if (rt->kept_count >= rt->kept_size) {
+        int new_size = rt->kept_size ? rt->kept_size * 2 : 8;
+        JSValue *tab = js_realloc_rt(rt, rt->kept_objects,
+                                     new_size * sizeof(*tab));
+        if (!tab)
+            return;
+        rt->kept_objects = tab;
+        rt->kept_size = new_size;
+    }
+    rt->kept_objects[rt->kept_count++] = js_dup(val);
+}
+
+/* ClearKeptObjects (ES2024 9.10.3): at the end of every job */
+static void js_clear_kept_objects(JSRuntime *rt)
+{
+    JSValue *tab = rt->kept_objects;
+    int i, count = rt->kept_count;
+
+    if (!tab)
+        return;
+    /* detach the table first: freeing a value can run a finalizer */
+    rt->kept_objects = NULL;
+    rt->kept_count = 0;
+    rt->kept_size = 0;
+    for (i = 0; i < count; i++)
+        JS_FreeValueRT(rt, tab[i]);
+    js_free_rt(rt, tab);
+}
+
 /* return < 0 if exception, 0 if no job pending, 1 if a job was
    executed successfully. the context of the job is stored in '*pctx' */
 int JS_ExecutePendingJob(JSRuntime *rt, JSContext **pctx)
@@ -2263,6 +2313,9 @@ int JS_ExecutePendingJob(JSRuntime *rt, JSContext **pctx)
     JSJobEntry *e;
     JSValue res;
     int i, ret;
+
+    /* the caller's own job (the script, a timer callback) has ended */
+    js_clear_kept_objects(rt);
 
     if (list_empty(&rt->job_list)) {
         *pctx = NULL;
@@ -2282,6 +2335,7 @@ int JS_ExecutePendingJob(JSRuntime *rt, JSContext **pctx)
         ret = 1;
     JS_FreeValue(ctx, res);
     js_free(ctx, e);
+    js_clear_kept_objects(rt);
     *pctx = ctx;
     return ret;
 }
@@ -2377,6 +2431,7 @@ void JS_FreeRuntime(JSRuntime *rt)
 
     rt->in_free = true;
     JS_FreeValueRT(rt, rt->current_exception);
+    js_clear_kept_objects(rt);
 
     list_for_each_safe(el, el1, &rt->job_list) {
         JSJobEntry *e = list_entry(el, JSJobEntry, link);
@@ -10582,7 +10637,14 @@ static int JS_SetPropertyValue(JSContext *ctx, JSValueConst this_obj,
         JSAtom atom;
         int ret;
     slow_path:
-        atom = JS_ValueToAtom(ctx, prop);
+        if (unlikely(JS_IsNull(this_obj) || JS_IsUndefined(this_obj))) {
+            /* per spec: ToObject of the base fails before
+               ToPropertyKey, so nothing observable may run for the
+               key (see JS_GetPropertyValue) */
+            atom = JS_ValueToAtomInternal(ctx, prop, JS_TO_STRING_NO_SIDE_EFFECTS);
+        } else {
+            atom = JS_ValueToAtom(ctx, prop);
+        }
         JS_FreeValue(ctx, prop);
         if (unlikely(atom == JS_ATOM_NULL)) {
             JS_FreeValue(ctx, val);
@@ -16218,7 +16280,13 @@ static __exception int js_operator_delete(JSContext *ctx, JSValue *sp)
 
     op1 = sp[-2];
     op2 = sp[-1];
-    atom = JS_ValueToAtom(ctx, op2);
+    if (unlikely(JS_IsNull(op1) || JS_IsUndefined(op1))) {
+        /* per spec: ToObject of the base fails before ToPropertyKey,
+           so nothing observable may run for the key */
+        atom = JS_ValueToAtomInternal(ctx, op2, JS_TO_STRING_NO_SIDE_EFFECTS);
+    } else {
+        atom = JS_ValueToAtom(ctx, op2);
+    }
     if (unlikely(atom == JS_ATOM_NULL))
         return -1;
     ret = JS_DeleteProperty(ctx, op1, atom, JS_PROP_THROW_STRICT);
@@ -16957,9 +17025,16 @@ static __exception int js_append_enumerate(JSContext *ctx, JSValue *sp)
     is_array_iterator = JS_IsCFunction(ctx, iterator,
                                        ft.generic,
                                        JS_ITERATOR_KIND_VALUE);
+    /* the method read above is the one that is called: reading
+       Symbol.iterator a second time (as JS_GetIterator() would) is
+       visible to a getter or a proxy */
+    if (!JS_IsFunction(ctx, iterator)) {
+        JS_FreeValue(ctx, iterator);
+        JS_ThrowTypeError(ctx, "value is not iterable");
+        return -1;
+    }
+    enumobj = JS_GetIterator2(ctx, sp[-1], iterator);
     JS_FreeValue(ctx, iterator);
-
-    enumobj = JS_GetIterator(ctx, sp[-1], false);
     if (JS_IsException(enumobj))
         return -1;
     method = JS_GetProperty(ctx, enumobj, JS_ATOM_next);
@@ -24632,7 +24707,15 @@ static __exception int js_parse_template(JSParseState *s, int call, int *argc)
         if (s->token.val != '}') {
             return js_parse_error(s, "expected '}' after template expression");
         }
-        /* XXX: should convert to string at this stage? */
+        /* Each substitution is converted before the next one is
+           evaluated (ES2024 13.2.8.6). OP_to_propkey runs the
+           toString / valueOf / Symbol.toPrimitive of an object now;
+           the concat() call at the end makes the string. Upstream
+           converted everything at the end, so `${a}${f()}` called
+           f() before a.toString(). (A Symbol still throws its
+           TypeError in concat(), after the later substitutions.) */
+        if (!call)
+            emit_op(s, OP_to_propkey);
         free_token(s, &s->token);
         /* Resume TOK_TEMPLATE parsing (s->token.line_num and
          * s->token.ptr are OK) */
@@ -26072,13 +26155,21 @@ static __exception int get_lvalue(JSParseState *s, int *popcode, int *pscope,
             emit_u16(s, scope);
             break;
         case OP_get_array_el:
-            /* XXX: replace by a single opcode ? */
-            emit_op(s, OP_to_propkey2);
+            /* The key is not converted here. A reference obj[key]
+               keeps the value of the key expression, and it is
+               converted with ToPropertyKey each time the reference
+               is read or written (ES2025 6.2.5.5 GetValue and 6.2.5.6
+               PutValue, after ToObject of the base): once for
+               obj[key] = v, after v is evaluated, and twice for
+               obj[key] += v. Upstream converted it once, before the
+               right-hand side, which is what the specification said
+               before 2024 and what no other engine did. */
             emit_op(s, OP_dup2);
             emit_op(s, OP_get_array_el);
             break;
         case OP_get_super_value:
-            emit_op(s, OP_to_propkey);
+            /* super[key]: the key is converted by each use, as for
+               obj[key] above */
             emit_op(s, OP_dup3);
             emit_op(s, OP_get_super_value);
             break;
@@ -26101,10 +26192,8 @@ static __exception int get_lvalue(JSParseState *s, int *popcode, int *pscope,
             }
             break;
         case OP_get_array_el:
-            emit_op(s, OP_to_propkey2);
-            break;
         case OP_get_super_value:
-            emit_op(s, OP_to_propkey);
+            /* the key is converted when the value is stored: see above */
             break;
         }
     }
@@ -28177,38 +28266,9 @@ static __exception int js_parse_assign_expr2(JSParseState *s, int parse_flags)
         if (get_lvalue(s, &opcode, &scope, &name, &label, NULL, (op != '='), op) < 0)
             return -1;
 
-        /* comply with rather obtuse evaluation order of computed properties: */
-        /* obj[key]=val evaluates val->obj->key when obj is null/undefined */
-        /* but key->obj->val when an object */
-        /* FIXME(bnoordhuis) less stack shuffling; don't to_propkey twice in */
-        /* happy path; replace `dup is_undefined_or_null if_true` with new */
-        /* opcode if_undefined_or_null? replace `swap dup` with over? */
-        if (op == '=' && opcode == OP_get_array_el) {
-            int label_next = -1;
-            JSFunctionDef *fd = s->cur_func;
-            assert(OP_to_propkey2 == fd->byte_code.buf[fd->last_opcode_pos]);
-            fd->byte_code.size = fd->last_opcode_pos;
-            fd->last_opcode_pos = -1;
-            emit_op(s, OP_swap); /* obj key -> key obj */
-            emit_op(s, OP_dup);
-            emit_op(s, OP_is_undefined_or_null);
-            label_next = emit_goto(s, OP_if_true, -1);
-            emit_op(s, OP_swap);
-            emit_op(s, OP_to_propkey);
-            emit_op(s, OP_swap);
-            emit_label(s, label_next);
-            emit_op(s, OP_swap);
-        }
-
         if (js_parse_assign_expr2(s, parse_flags)) {
             JS_FreeAtom(s->ctx, name);
             return -1;
-        }
-
-        if (op == '=' && opcode == OP_get_array_el) {
-            emit_op(s, OP_swap); /* obj key val -> obj val key */
-            emit_op(s, OP_to_propkey);
-            emit_op(s, OP_swap);
         }
 
         if (op == '=') {
@@ -29144,11 +29204,24 @@ static __exception int js_parse_statement_or_decl(JSParseState *s,
                 goto fail;
 
             if (s->token.val == TOK_ELSE) {
-                label2 = emit_goto(s, OP_goto, -1);
                 if (next_token(s))
                     goto fail;
-
-                emit_label(s, label1);
+                if (mask && s->token.val == TOK_FUNCTION) {
+                    /* 'else function f() {}' is a block of its own
+                       (annex B.3.4), beside the one of 'if (c)
+                       function f() {}' and not inside it: in the
+                       scope of the 'if' it would be a second
+                       declaration of that function and replace it.
+                       The scope of the 'if' is closed on the 'then'
+                       path and a new one opened for the 'else'. */
+                    pop_scope(s);
+                    label2 = emit_goto(s, OP_goto, -1);
+                    emit_label(s, label1);
+                    push_scope(s);
+                } else {
+                    label2 = emit_goto(s, OP_goto, -1);
+                    emit_label(s, label1);
+                }
                 if (js_parse_statement_or_decl(s, mask))
                     goto fail;
 
@@ -33975,6 +34048,16 @@ static void add_eval_variables(JSContext *ctx, JSFunctionDef *s)
     int i, scope_level, scope_idx;
     bool has_arguments_binding, has_this_binding, is_arg_scope;
 
+    /* 'arguments' is an ordinary variable of the function for a
+       direct eval: eval("var arguments = 5") assigns it. An eval looks
+       for the variables it declares in the order they were added (see
+       instantiate_hoisted_definitions()), so 'arguments' must come
+       before the variable object; upstream added it after, the eval
+       made a property of the variable object instead and the function
+       went on seeing its arguments object. */
+    if (!s->is_eval && !s->is_strict_mode && s->has_arguments_binding)
+        add_arguments_var(ctx, s);
+
     /* in non strict mode, variables are created in the caller's
        environment object */
     if (!s->is_eval && !s->is_strict_mode) {
@@ -36882,12 +36965,18 @@ static __exception int js_parse_function_decl2(JSParseState *s,
     }
 
     if (func_type == JS_PARSE_FUNC_VAR) {
+        /* a second declaration of the same function in the same block
+           (allowed by annex B.3.3.4) is copied to the 'var' as well */
+        int lex_idx = find_lexical_decl(ctx, fd, func_name, fd->scope_first, false);
+        if (lex_idx >= 0 && lex_idx < GLOBAL_VAR_OFFSET &&
+            fd->vars[lex_idx].scope_level == fd->scope_level &&
+            fd->vars[lex_idx].var_kind == JS_VAR_FUNCTION_DECL)
+            lex_idx = -1;
         if (!fd->is_strict_mode
         && func_kind == JS_FUNC_NORMAL
-        &&  find_lexical_decl(ctx, fd, func_name, fd->scope_first, false) < 0
+        &&  lex_idx < 0
         &&  !((func_idx = find_var(ctx, fd, func_name)) >= 0 && (func_idx & ARGUMENT_VAR_OFFSET))
-        &&  find_param_scope_var(ctx, fd, func_name) < 0
-        &&  !(func_name == JS_ATOM_arguments && fd->has_arguments_binding)) {
+        &&  find_param_scope_var(ctx, fd, func_name) < 0) {
             create_func_var = true;
         }
         /* Create the lexical name here so that the function closure
@@ -37297,8 +37386,25 @@ done:
                 }
             }
         } else if (func_type == JS_PARSE_FUNC_VAR) {
-            emit_op(s, OP_fclosure);
-            emit_u32(s, idx);
+            /* A function declared in a block. Its block-scoped
+               binding gets the function object when the block is
+               entered (func_pool_idx below). Where the declaration
+               stands, annex B.3.3 copies the value that binding has
+               at that moment to the 'var' of the same name. Upstream
+               made a second function object here and stored that:
+               { function q() {} inner = q } left inner !== q, and an
+               assignment to q inside the block before a later
+               declaration was lost. */
+            if (lexical_func_idx >= 0) {
+                if (create_func_var) {
+                    emit_op(s, OP_scope_get_var);
+                    emit_atom(s, func_name);
+                    emit_u16(s, s->cur_func->scope_level);
+                }
+            } else {
+                emit_op(s, OP_fclosure);
+                emit_u32(s, idx);
+            }
             if (create_func_var) {
                 if (s->cur_func->is_global_var) {
                     JSGlobalVar *hf;
@@ -37313,7 +37419,8 @@ done:
                     hf->scope_level = 0;
                     hf->force_init = s->cur_func->is_strict_mode;
                     /* store directly into global var, bypass lexical scope */
-                    emit_op(s, OP_dup);
+                    if (lexical_func_idx < 0)
+                        emit_op(s, OP_dup);
                     emit_op(s, OP_scope_put_var);
                     emit_atom(s, func_name);
                     emit_u16(s, 0);
@@ -37321,12 +37428,19 @@ done:
                     /* do not call define_var to bypass lexical scope check */
                     func_idx = find_var(ctx, s->cur_func, func_name);
                     if (func_idx < 0) {
-                        func_idx = add_var(ctx, s->cur_func, func_name);
+                        /* { function arguments() {} } assigns the
+                           variable that holds the arguments object */
+                        if (func_name == JS_ATOM_arguments &&
+                            s->cur_func->has_arguments_binding)
+                            func_idx = add_arguments_var(ctx, s->cur_func);
+                        else
+                            func_idx = add_var(ctx, s->cur_func, func_name);
                         if (func_idx < 0)
                             goto fail;
                     }
                     /* store directly into local var, bypass lexical catch scope */
-                    emit_op(s, OP_dup);
+                    if (lexical_func_idx < 0)
+                        emit_op(s, OP_dup);
                     emit_op(s, OP_scope_put_var);
                     emit_atom(s, func_name);
                     emit_u16(s, 0);
@@ -37335,7 +37449,6 @@ done:
             if (lexical_func_idx >= 0) {
                 /* lexical variable will be initialized upon entering scope */
                 s->cur_func->vars[lexical_func_idx].func_pool_idx = idx;
-                emit_op(s, OP_drop);
             } else {
                 /* store function object into its lexical name */
                 /* XXX: could use OP_put_loc directly */
@@ -41545,6 +41658,15 @@ static JSValue js_object_isSealed(JSContext *ctx, JSValueConst this_val,
     if (!JS_IsObject(obj))
         return JS_TRUE;
 
+    /* TestIntegrityLevel (ES2024 7.3.16) asks IsExtensible first and
+       looks at no property of an extensible object. Upstream listed
+       and read the properties first, which a proxy can observe. */
+    res = JS_IsExtensible(ctx, obj);
+    if (res < 0)
+        return JS_EXCEPTION;
+    if (res)
+        return JS_FALSE;
+
     p = JS_VALUE_GET_OBJ(obj);
     flags = JS_GPN_STRING_MASK | JS_GPN_SYMBOL_MASK;
     if (JS_GetOwnPropertyNamesInternal(ctx, &props, &len, p, flags))
@@ -41566,10 +41688,7 @@ static JSValue js_object_isSealed(JSContext *ctx, JSValueConst this_val,
             }
         }
     }
-    res = JS_IsExtensible(ctx, obj);
-    if (res < 0)
-        return JS_EXCEPTION;
-    res ^= 1;
+    res = true;
 done:
     js_free_prop_enum(ctx, props, len);
     return js_bool(res);
@@ -42437,8 +42556,21 @@ static JSValue js_error_capture_stack_trace(JSContext *ctx, JSValueConst this_va
                                             int argc, JSValueConst *argv)
 {
     JSValueConst v = argv[0];
+    int ret;
     if (JS_VALUE_GET_TAG(v) != JS_TAG_OBJECT)
         return JS_ThrowTypeErrorNotAnObject(ctx);
+    /* an object that cannot take a 'stack' property is an error, as
+       in V8; build_backtrace() would fail silently */
+    ret = JS_IsExtensible(ctx, v);
+    if (ret < 0)
+        return JS_EXCEPTION;
+    if (!ret) {
+        ret = JS_GetOwnProperty(ctx, NULL, v, JS_ATOM_stack);
+        if (ret < 0)
+            return JS_EXCEPTION;
+        if (!ret)
+            return JS_ThrowTypeError(ctx, "cannot define property 'stack', object is not extensible");
+    }
     build_backtrace(ctx, v, argv[1], NULL, 0, 0, JS_BACKTRACE_FLAG_SKIP_FIRST_LEVEL|JS_BACKTRACE_FLAG_FILTER_FUNC);
     return JS_UNDEFINED;
 }
@@ -44851,49 +44983,58 @@ fail:
 static JSValue js_iterator_from(JSContext *ctx, JSValueConst this_val,
                                 int argc, JSValueConst *argv)
 {
-    JSValue method, iter;
+    JSValue method, iter, next;
     JSIteratorWrapData *it;
     int ret;
 
+    /* Iterator.from (ES2025 27.1.3.2.1): take the iterator the argument
+       gives (GetIteratorFlattenable: its Symbol.iterator method if it
+       has one, else the argument itself), read its 'next', and return
+       it as it is when it inherits from %Iterator.prototype%, wrapped
+       otherwise. Upstream tested the ARGUMENT for the inheritance and
+       returned what its Symbol.iterator method gave unwrapped, so
+       Iterator.from(plainIterable).toArray() threw "not a function". */
     JSValueConst obj = argv[0];
-    if (JS_IsString(obj)) {
-        method = JS_GetProperty(ctx, obj, JS_ATOM_Symbol_iterator);
-        if (JS_IsException(method))
-            return JS_EXCEPTION;
-        return JS_CallFree(ctx, method, obj, 0, NULL);
-    }
-    if (!JS_IsObject(obj))
+    if (!JS_IsObject(obj) && !JS_IsString(obj))
         return JS_ThrowTypeError(ctx, "Iterator.from called on non-object");
-    ret = JS_OrdinaryIsInstanceOf(ctx, obj, ctx->iterator_ctor);
-    if (ret < 0)
-        return JS_EXCEPTION;
-    if (ret)
-        return js_dup(obj);
     method = JS_GetProperty(ctx, obj, JS_ATOM_Symbol_iterator);
     if (JS_IsException(method))
         return JS_EXCEPTION;
     if (JS_IsNull(method) || JS_IsUndefined(method)) {
-        method = JS_GetProperty(ctx, obj, JS_ATOM_next);
-        if (JS_IsException(method))
-            return JS_EXCEPTION;
-        iter = JS_NewObjectClass(ctx, JS_CLASS_ITERATOR_WRAP);
-        if (JS_IsException(iter))
-            goto fail;
-        it = js_malloc(ctx, sizeof(*it));
-        if (!it)
-            goto fail;
-        it->wrapped_iter = js_dup(obj);
-        it->wrapped_next = method;
-        JS_SetOpaqueInternal(iter, it);
+        if (!JS_IsObject(obj))
+            return JS_ThrowTypeError(ctx, "Iterator.from called on non-object");
+        iter = js_dup(obj);
     } else {
         iter = JS_GetIterator2(ctx, obj, method);
         JS_FreeValue(ctx, method);
         if (JS_IsException(iter))
             return JS_EXCEPTION;
     }
-    return iter;
+    next = JS_GetProperty(ctx, iter, JS_ATOM_next);
+    if (JS_IsException(next))
+        goto fail;
+    ret = JS_OrdinaryIsInstanceOf(ctx, iter, ctx->iterator_ctor);
+    if (ret < 0)
+        goto fail1;
+    if (ret) {
+        JS_FreeValue(ctx, next);
+        return iter;
+    }
+    method = JS_NewObjectClass(ctx, JS_CLASS_ITERATOR_WRAP);
+    if (JS_IsException(method))
+        goto fail1;
+    it = js_malloc(ctx, sizeof(*it));
+    if (!it) {
+        JS_FreeValue(ctx, method);
+        goto fail1;
+    }
+    it->wrapped_iter = iter;
+    it->wrapped_next = next;
+    JS_SetOpaqueInternal(method, it);
+    return method;
+fail1:
+    JS_FreeValue(ctx, next);
 fail:
-    JS_FreeValue(ctx, method);
     JS_FreeValue(ctx, iter);
     return JS_EXCEPTION;
 }
@@ -45089,6 +45230,7 @@ static JSValue js_iterator_proto_func(JSContext *ctx, JSValueConst this_val,
                     }
                     break;
                 }
+                JS_FreeValue(ctx, item); /* upstream leaked every item find() rejected */
                 index_val = JS_UNDEFINED;
                 ret = JS_UNDEFINED;
                 item = JS_UNDEFINED;
@@ -45433,6 +45575,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
             selected = JS_Call(ctx, it->func, JS_UNDEFINED, countof(args), args);
             JS_FreeValue(ctx, index_val);
             if (JS_IsException(selected)) {
+                JS_FreeValue(ctx, item); /* upstream leaked it */
                 JS_FreeValue(ctx, method);
                 goto fail;
             }
@@ -45441,6 +45584,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
                 ret = item;
                 goto done;
             }
+            JS_FreeValue(ctx, item); /* upstream leaked every item filter() rejected */
             goto filter_again;
         }
         break;
@@ -45552,6 +45696,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
             args[1] = index_val;
             ret = JS_Call(ctx, it->func, JS_UNDEFINED, countof(args), args);
             JS_FreeValue(ctx, index_val);
+            JS_FreeValue(ctx, item); /* upstream leaked every mapped item */
             if (JS_IsException(ret))
                 goto fail;
             goto done;
@@ -61092,6 +61237,7 @@ static JSValue js_weakref_constructor(JSContext *ctx, JSValueConst new_target,
     insert_weakref_record(arg, wr);
 
     JS_SetOpaqueInternal(obj, wrd);
+    js_keep_during_job(ctx, arg);
     return obj;
 }
 
@@ -61102,6 +61248,7 @@ static JSValue js_weakref_deref(JSContext *ctx, JSValueConst this_val, int argc,
         return JS_EXCEPTION;
     if (wrd == &js_weakref_sentinel)
         return JS_UNDEFINED;
+    js_keep_during_job(ctx, wrd->target);
     return js_dup(wrd->target);
 }
 
