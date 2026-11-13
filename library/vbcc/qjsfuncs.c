@@ -650,6 +650,33 @@ long QJS_EvalSimple_impl(
 extern JSValue JS_EvalFunction(struct JSContext *ctx, JSValue fun_obj);
 extern int JS_ResolveModule(struct JSContext *ctx, JSValue obj);
 extern JSValue js_std_await(struct JSContext *ctx, JSValue obj);
+extern JSValue JS_Throw(struct JSContext *ctx, JSValue obj);
+
+extern int js_module_set_import_meta(struct JSContext *ctx, JSValue func_val,
+                                     int use_realpath, int is_main);
+
+/* Run a module that QJS_EvalBuf has just compiled: resolve its imports,
+ * give it its import.meta, evaluate it and wait for it to finish.
+ * Takes ownership of `module`; returns the result or an exception.
+ *
+ * import.meta used to be left empty for the file given on the command
+ * line (url and main both undefined), although modules it imported got
+ * theirs from the loader. Names in angle brackets ("<cmdline>",
+ * "<input>") are not files, so no attempt is made to resolve them to a
+ * full path. */
+static JSValue qjs_run_main_module(struct JSContext *ctx, JSValue module,
+                                   const char *filename)
+{
+    JSValue val;
+
+    if (JS_ResolveModule(ctx, module) < 0 ||
+        js_module_set_import_meta(ctx, module, filename[0] != '<', 1) < 0) {
+        JS_FreeValue(ctx, module);
+        return JS_Throw(ctx, JS_GetException(ctx));
+    }
+    val = JS_EvalFunction(ctx, module);
+    return js_std_await(ctx, val);
+}
 
 /* QJS_EvalBuf — eval with module support, runs entirely in library.
  * Returns 0 on success, -1 on exception.
@@ -679,9 +706,7 @@ long QJS_EvalBuf_impl(
         val = JS_Eval(ctx, input, (size_t)input_len, filename,
                       (eval_flags & ~0x03) | 1 | 0x20);
         if (!JS_IsException(val)) {
-            JS_ResolveModule(ctx, val);
-            val = JS_EvalFunction(ctx, val);
-            val = js_std_await(ctx, val);
+            val = qjs_run_main_module(ctx, val, filename);
             ret = JS_IsException(val) ? -1 : 0;
             JS_FreeValue(ctx, val);
             return ret;
@@ -691,7 +716,6 @@ long QJS_EvalBuf_impl(
             /* It did not compile as a module. A module whose import
              * cannot be loaded is still a module, and that is its
              * error; anything else means: evaluate it as a script. */
-            extern JSValue JS_Throw(JSContext *ctx, JSValue obj);
             extern void JS_FreeCString(JSContext *ctx, const char *ptr);
             extern char *strstr(const char *, const char *);
             JSValue exception = JS_GetException(ctx);
@@ -724,11 +748,8 @@ long QJS_EvalBuf_impl(
          * rejection into the proper JS exception. */
         val = JS_Eval(ctx, input, (size_t)input_len, filename,
                       eval_flags | 0x20); /* JS_EVAL_FLAG_COMPILE_ONLY */
-        if (!JS_IsException(val)) {
-            JS_ResolveModule(ctx, val);
-            val = JS_EvalFunction(ctx, val);
-            val = js_std_await(ctx, val);
-        }
+        if (!JS_IsException(val))
+            val = qjs_run_main_module(ctx, val, filename);
     } else {
         val = JS_Eval(ctx, input, (size_t)input_len, filename, eval_flags);
     }
@@ -753,13 +774,32 @@ long QJS_EvalBuf_impl(
  * nowhere. Importing qjs:std and qjs:os never called the loader, which
  * is why it went unnoticed. */
 extern void js_module_loader(void);
-extern int js_module_set_import_meta(void *ctx, JSValue func_val,
-                                     int use_realpath, int is_main);
+
+/* The loader takes the import attributes as a fourth argument
+ * (`import x from "./a.json" with { type: "json" }`), so it has to be
+ * installed with JS_SetModuleLoaderFunc2. Until 0.231 it was installed
+ * with JS_SetModuleLoaderFunc, which calls a three-argument loader:
+ * js_module_loader then read its `attributes` from whatever was on the
+ * stack. */
+typedef JSModuleDef *JSModuleLoaderFunc2(JSContext *ctx,
+    const char *module_name, void *opaque, JSValue attributes);
+typedef int JSModuleCheckSupportedImportAttributes(JSContext *ctx,
+    void *opaque, JSValue attributes);
+extern void JS_SetModuleLoaderFunc2(JSRuntime *rt,
+    JSModuleNormalizeFunc *module_normalize,
+    JSModuleLoaderFunc2 *module_loader,
+    JSModuleCheckSupportedImportAttributes *module_check_attrs,
+    void *opaque);
+extern int js_module_check_attributes(JSContext *ctx, void *opaque,
+                                      JSValue attributes);
 
 void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
 {
-    JS_SetModuleLoaderFunc(rt, NULL,
-        (void *)&js_module_loader, NULL);
+    /* No normalizer of our own: the engine's default one knows AmigaOS
+     * paths (js_default_module_normalize_name in quickjs.c). */
+    JS_SetModuleLoaderFunc2(rt, NULL,
+        (JSModuleLoaderFunc2 *)&js_module_loader,
+        &js_module_check_attributes, NULL);
 }
 
 /* QJS_InstallExtended_impl — runs precompiled extended.js bytecode.
