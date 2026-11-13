@@ -10,6 +10,8 @@
  * and VBCC handles the register allocation.
  */
 
+#include "dcmp.h"   /* NaN-aware double comparisons */
+
 /* These must match the linker symbol names VBCC generates.
  * VBCC prefixes with _ in C, but assembly xdef uses __ prefix.
  * The C function _flt64tosint64 becomes linker symbol __flt64tosint64. */
@@ -18,7 +20,7 @@ long long _flt64tosint64(double x)
 {
     /* Truncate double to signed 64-bit integer */
     /* For values in 32-bit range, cast directly */
-    if (x >= -2147483648.0 && x < 2147483648.0) {
+    if (D_GE(x, -2147483648.0) && D_LT(x, 2147483648.0)) {
         return (long)(int)x;
     }
     /* For larger values, decompose manually */
@@ -26,7 +28,7 @@ long long _flt64tosint64(double x)
         int neg = 0;
         unsigned long hi, lo;
         double rem;
-        if (x < 0) { neg = 1; x = -x; }
+        if (D_LT(x, 0)) { neg = 1; x = -x; }
         hi = (unsigned long)(x / 4294967296.0);
         rem = x - (double)hi * 4294967296.0;
         lo = (unsigned long)rem;
@@ -42,8 +44,8 @@ long long _flt64tosint64(double x)
 
 unsigned long long _flt64touint64(double x)
 {
-    if (x < 0.0) return 0;
-    if (x < 4294967296.0) {
+    if (D_LT(x, 0.0)) return 0;
+    if (D_LT(x, 4294967296.0)) {
         return (unsigned long)x;
     }
     {

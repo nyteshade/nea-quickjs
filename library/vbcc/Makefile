@@ -199,6 +199,7 @@ SOFT_SUPPORT = $(OBJDIR_SOFT)/sharedlib_mem.o \
                $(OBJDIR_SOFT)/sharedlib_printf.o \
                $(OBJDIR_SOFT)/sharedlib_vbcc.o \
                $(OBJDIR_SOFT)/sharedlib_int64_soft.o \
+               $(OBJDIR_SOFT)/sharedlib_softfp.o \
                $(OBJDIR_SOFT)/sharedlib_int64_conv.o \
                $(OBJDIR_SOFT)/sharedlib_dbl_helpers.o \
                $(OBJDIR_SOFT)/sharedlib_posix.o \
@@ -240,7 +241,31 @@ endif
 TARGET_FPU  = $(LIBSDIR)/quickjs.$(CPU_TAG)fpu.library
 TARGET_SOFT = $(LIBSDIR)/quickjs.$(CPU_TAG)soft.library
 
-.PHONY: all fpu soft clean variants 020 040 060 default-library
+.PHONY: all fpu soft clean variants 020 040 060 default-library check-dcmp
+
+# Every C file that goes into a soft-float library. check-dcmp compiles
+# each to assembly with the soft flags and fails if the compiler emitted
+# a double comparison of its own, which is wrong for NaN: see
+# quickjs-master/dcmp.h and scripts/check_dcmp.py. Run it after touching
+# floating-point code. (-g only adds line markers to the assembly.)
+DCMP_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c $(QJS)/libregexp.c \
+           $(QJS)/libunicode.c $(TEMPLATE)/library.c \
+           $(LIBVBCC)/qjsfuncs.c $(LIBVBCC)/execinline.c \
+           $(LIBVBCC)/qjs_dbg_stub.c $(LIBVBCC)/quickjs_libc_lib.c \
+           $(LIBVBCC)/amiga_ssl_lib.c $(LIBVBCC)/sharedlib_worker.c \
+           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/sharedlib_mem.c \
+           $(LIBVBCC)/sharedlib_string.c $(LIBVBCC)/sharedlib_math_soft.c \
+           $(LIBVBCC)/sharedlib_time.c $(LIBVBCC)/sharedlib_strtod.c \
+           $(LIBVBCC)/sharedlib_printf.c $(LIBVBCC)/sharedlib_vbcc.c \
+           $(LIBVBCC)/sharedlib_int64_conv.c \
+           $(LIBVBCC)/sharedlib_dbl_helpers.c $(LIBVBCC)/sharedlib_posix.c \
+           $(LIBVBCC)/sharedlib_stdio.c $(LIBVBCC)/sharedlib_clib.c \
+           $(LIBVBCC)/sharedlib_fetch.c
+
+check-dcmp:
+	python3 $(ROOT)/scripts/check_dcmp.py $(OBJDIR_SOFT)/dcmp \
+	    $(VC) $(filter-out -c,$(CFLAGS_SOFT)) $(QJS_INTERP_FLAGS) -g \
+	    -- $(DCMP_SRC)
 
 all: fpu soft default-library
 
@@ -476,6 +501,11 @@ $(OBJDIR_SOFT)/sharedlib_printf.o: $(LIBVBCC)/sharedlib_printf.c | $(OBJDIR_SOFT
 
 $(OBJDIR_SOFT)/sharedlib_vbcc.o: $(LIBVBCC)/sharedlib_vbcc.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+# Double comparison (and, from 0.232, the soft-float arithmetic) for the
+# soft variants only; the FPU variants use the FPU's own instructions.
+$(OBJDIR_SOFT)/sharedlib_softfp.o: $(LIBVBCC)/sharedlib_softfp.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_int64_soft.o: $(LIBVBCC)/sharedlib_int64_soft.s | $(OBJDIR_SOFT)
 	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
