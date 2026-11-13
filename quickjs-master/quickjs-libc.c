@@ -1136,8 +1136,11 @@ static int interrupt_handler(JSRuntime *rt, void *opaque)
      * test-and-clearing the Ctrl-C break bit and calling whatever the
      * REPL registered through os.signal(). Without this the handler was
      * recorded and never run, so Ctrl-C inside the interactive prompt
-     * did nothing and left the prompt locked. */
+     * did nothing and left the prompt locked. (Only the Amiga build
+     * has the poll; elsewhere the C library delivers the signal.) */
+#if defined(__VBCC__)
     qjs_signal_poll();
+#endif
 
     return (os_pending_signals >> SIGINT) & 1;
 }
