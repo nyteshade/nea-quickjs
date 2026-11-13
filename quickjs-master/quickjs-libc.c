@@ -3013,7 +3013,7 @@ static int call_handler(JSContext *ctx, JSValue func)
 static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, int *min_delay)
 {
     JSValue func;
-    JSOSTimer *th;
+    JSOSTimer *th, *due;
     int64_t cur_time, delay;
     struct list_head *el;
     int r;
@@ -3026,22 +3026,33 @@ static int js_os_run_timers(JSRuntime *rt, JSContext *ctx, JSThreadState *ts, in
     cur_time = js__hrtime_ms();
     *min_delay = INT32_MAX;
 
+    /* Of the timers that have expired, run the one that was due first
+       (the oldest of those due at the same moment). Upstream ran the
+       first expired one in creation order, so when more than one had
+       expired by the time the loop came round - the normal case on a
+       slow machine - setTimeout(a, 50) ran before a later
+       setTimeout(b, 0). */
+    due = NULL;
     list_for_each(el, &ts->os_timers) {
         th = list_entry(el, JSOSTimer, link);
         delay = th->timeout - cur_time;
         if (delay > 0) {
             *min_delay = min_int(*min_delay, delay);
-        } else {
-            *min_delay = 0;
-            func = JS_DupValueRT(rt, th->func);
-            if (th->repeats)
-                th->timeout = cur_time + th->delay;
-            else
-                free_timer(rt, th);
-            r = call_handler(ctx, func);
-            JS_FreeValueRT(rt, func);
-            return r;
+        } else if (!due || th->timeout < due->timeout) {
+            due = th;
         }
+    }
+    if (due) {
+        th = due;
+        *min_delay = 0;
+        func = JS_DupValueRT(rt, th->func);
+        if (th->repeats)
+            th->timeout = cur_time + th->delay;
+        else
+            free_timer(rt, th);
+        r = call_handler(ctx, func);
+        JS_FreeValueRT(rt, func);
+        return r;
     }
 
     return 0;
