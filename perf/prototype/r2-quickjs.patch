@@ -1,0 +1,768 @@
+--- a/quickjs-master/quickjs.c
++++ b/quickjs-master/quickjs.c
+@@ -17400,6 +17400,53 @@
+ }
+ 
+ /* argv[] is modified if (flags & JS_CALL_FLAG_COPY_ARGV) = 0. */
++#ifdef R2_TABLE_PRAGMA
++/* r2(c): compile only the interpreter loop without the optimizer pass that splits the
++   opcode switch into five range tables.  #pragma lines are not macro-expanded. */
++#pragma opt 1
++#endif
++#ifdef R2_FAST
++/* r2(a): inside JS_CallInternal the tiny helpers are macros.  Statement macros use
++   'if (1) {...} else (void)0', not do/while: vbcc's -O=1 register allocator weights
++   every use by 10 per enclosing loop, do/while(0) included, and the macro temporaries
++   then take the address registers away from pc.  vbcc -O0/-O1 does not
++   inline, and every by-value JSValue argument costs a 16-byte byte-loop push. */
++static int32_t r2_mulv(__reg("d0") int32_t a, __reg("d1") int32_t b, __reg("a0") char *ov) =
++    "\tmuls.l\td1,d0\n\tsvs\t(a0)\n";
++#ifdef R2_PRIME_VARBUF
++#define R2_PRIME opcode = 0; r2y = opcode; opcode = r2y; r2y = opcode; var_buf = var_buf;
++#else
++#define R2_PRIME opcode = 0; r2y = opcode; opcode = r2y; r2y = opcode;
++#endif
++#define R2_HASRC(pv) ((uint32_t)(int32_t)(pv)->tag >= (uint32_t)JS_TAG_FIRST)
++#define R2_REF(pv)   (((JSRefCountHeader *)(pv)->u.ptr)->ref_count)
++#define R2_FREE(pv)  if (1) { if (R2_HASRC(pv) && --R2_REF(pv) <= 0) js_free_value_rt(rt, *(pv)); } else (void)0
++#define R2_PUSH_INT(x) if (1) { sp->u.int32 = (x); sp->tag = JS_TAG_INT; sp++; } else (void)0
++#define R2_PUSH_DUP(src) if (1) { r2p = (JSValue *)&(src); *sp = *r2p; if (R2_HASRC(sp)) R2_REF(sp)++; sp++; } else (void)0
++#define R2_SET(dst, srcp) if (1) { r2p = (dst); \
++        if (R2_HASRC(r2p)) { JSValue r2o_ = *r2p; *r2p = *(srcp); if (--R2_REF(&r2o_) <= 0) js_free_value_rt(rt, r2o_); } \
++        else *r2p = *(srcp); } else (void)0
++#define R2_SET_POP(dst) if (1) { sp--; R2_SET(dst, sp); } else (void)0
++#define R2_SET_DUP(dst) if (1) { if (R2_HASRC(sp - 1)) R2_REF(sp - 1)++; R2_SET(dst, sp - 1); } else (void)0
++#define get_u16(p) (*(const uint16_t *)(p))
++#define get_i16(p) (*(const int16_t *)(p))
++#define get_u32(p) (*(const uint32_t *)(p))
++#define js_poll_interrupts(c) (unlikely(--(c)->interrupt_counter <= 0) && __js_poll_interrupts(c))
++#define JS_IsException(v)     (JS_VALUE_GET_TAG(v) == JS_TAG_EXCEPTION)
++#define JS_IsUninitialized(v) (JS_VALUE_GET_TAG(v) == JS_TAG_UNINITIALIZED)
++#define JS_IsUndefined(v)     (JS_VALUE_GET_TAG(v) == JS_TAG_UNDEFINED)
++#define JS_IsNull(v)          (JS_VALUE_GET_TAG(v) == JS_TAG_NULL)
++#define JS_IsObject(v)        (JS_VALUE_GET_TAG(v) == JS_TAG_OBJECT)
++#define js_int32(x) (r2s.v.u.int32 = (x), r2s.v.tag = JS_TAG_INT, r2s.v)
++#define js_bool(x)  (r2s.v.u.int32 = ((x) != 0), r2s.v.tag = JS_TAG_BOOL, r2s.v)
++#define js_dup(v)   (r2s.p = (JSValue *)&(v), (void)(R2_HASRC(r2s.p) ? R2_REF(r2s.p)++ : 0), *r2s.p)
++#define JS_FreeValue(ctx, v) if (1) { r2p = (JSValue *)&(v); R2_FREE(r2p); } else (void)0
++#define set_value(ctx, pval, nv) if (1) { JSValue r2so_; r2p = (pval); r2so_ = *r2p; *r2p = (nv); R2_FREE(&r2so_); } else (void)0
++#else
++#define R2_PUSH_DUP(src) (*sp++ = js_dup(src))
++#define R2_SET_POP(dst)  set_value(ctx, dst, *--sp)
++#define R2_SET_DUP(dst)  set_value(ctx, dst, js_dup(sp[-1]))
++#endif
+ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
+                                JSValueConst this_obj, JSValueConst new_target,
+                                int argc, JSValueConst *argv, int flags)
+@@ -17414,6 +17461,15 @@
+     JSValue *local_buf, *stack_buf, *var_buf, *arg_buf, *sp, ret_val, *pval;
+     JSVarRef **var_refs;
+     size_t alloca_size;
++#ifdef R2_FAST
++    /* in a struct on purpose: under "#pragma opt 1" registers go to the most-used
++       scalars, and a scalar scratch pointer used by every js_dup() would take the
++       register away from pc */
++    struct { JSValue v; JSValue *p; } r2s;
++    /* scalars on purpose: used by every fast path so that they win registers */
++    JSValue *r2p;
++    int32_t r2y;
++#endif
+ 
+ #ifdef ENABLE_DUMPS /* JS_DUMP_BYTECODE_STEP */
+ #define DUMP_BYTECODE_OR_DONT(pc) \
+@@ -17426,7 +17482,12 @@
+ #define SWITCH(pc)      DUMP_BYTECODE_OR_DONT(pc) switch (opcode = *pc++)
+ #define CASE(op)        case op
+ #define DEFAULT         default
++#if defined(R2_FAST) && R2_FAST >= 2
++/* same target as break (nothing follows the switch inside for(;;)), one branch less */
++#define BREAK           continue
++#else
+ #define BREAK           break
++#endif
+ #else
+     __extension__ static const void * const dispatch_table[256] = {
+ #define DEF(id, size, n_pop, n_push, f) && case_OP_ ## id,
+@@ -17534,6 +17595,13 @@
+         print_func_name(b);
+ #endif
+ 
++#ifdef R2_FAST
++    /* vbcc -O=1 gives registers to the scalars with the highest use count, each use
++       weighted 10x per enclosing loop.  These dead self-assignments in nested
++       do/while(0) only raise the weight of opcode and the scratch variable (and var_buf) so that
++       they are kept in d6/d7 (and an address register).  A few instructions per call. */
++    do { do { do { do { R2_PRIME } while (0); } while (0); } while (0); } while (0);
++#endif
+  restart:
+     for(;;) {
+         int call_argc;
+@@ -17541,6 +17609,9 @@
+ 
+         SWITCH(pc) {
+         CASE(OP_push_i32):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { R2_PUSH_INT(*(const int32_t *)pc); pc += 4; BREAK; }
++#endif
+             *sp++ = js_int32(get_u32(pc));
+             pc += 4;
+             BREAK;
+@@ -17561,17 +17632,29 @@
+         CASE(OP_push_5):
+         CASE(OP_push_6):
+         CASE(OP_push_7):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { R2_PUSH_INT(opcode - OP_push_0); BREAK; }
++#endif
+             *sp++ = js_int32(opcode - OP_push_0);
+             BREAK;
+         CASE(OP_push_i8):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { R2_PUSH_INT((int8_t)pc[0]); pc += 1; BREAK; }
++#endif
+             *sp++ = js_int32(get_i8(pc));
+             pc += 1;
+             BREAK;
+         CASE(OP_push_i16):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { R2_PUSH_INT(*(const int16_t *)pc); pc += 2; BREAK; }
++#endif
+             *sp++ = js_int32(get_i16(pc));
+             pc += 2;
+             BREAK;
+         CASE(OP_push_const8):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { R2_PUSH_DUP(b->cpool[*pc++]); BREAK; }
++#endif
+             *sp++ = js_dup(b->cpool[*pc++]);
+             BREAK;
+         CASE(OP_fclosure8):
+@@ -17732,6 +17815,9 @@
+             BREAK;
+ 
+         CASE(OP_drop):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { sp--; R2_FREE(sp); BREAK; }
++#endif
+             JS_FreeValue(ctx, sp[-1]);
+             sp--;
+             BREAK;
+@@ -17747,6 +17833,9 @@
+             sp--;
+             BREAK;
+         CASE(OP_dup):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) { *sp = sp[-1]; if (R2_HASRC(sp)) R2_REF(sp)++; sp++; BREAK; }
++#endif
+             sp[0] = js_dup(sp[-1]);
+             sp++;
+             BREAK;
+@@ -18245,8 +18334,12 @@
+                 int idx;
+                 idx = get_u16(pc);
+                 pc += 2;
++#ifdef R2_FAST
++                R2_PUSH_DUP(var_buf[idx]);
++#else
+                 sp[0] = js_dup(var_buf[idx]);
+                 sp++;
++#endif
+             }
+             BREAK;
+         CASE(OP_put_loc):
+@@ -18254,8 +18347,12 @@
+                 int idx;
+                 idx = get_u16(pc);
+                 pc += 2;
++#ifdef R2_FAST
++                R2_SET_POP(&var_buf[idx]);
++#else
+                 set_value(ctx, &var_buf[idx], sp[-1]);
+                 sp--;
++#endif
+             }
+             BREAK;
+         CASE(OP_set_loc):
+@@ -18263,7 +18360,11 @@
+                 int idx;
+                 idx = get_u16(pc);
+                 pc += 2;
++#ifdef R2_FAST
++                R2_SET_DUP(&var_buf[idx]);
++#else
+                 set_value(ctx, &var_buf[idx], js_dup(sp[-1]));
++#endif
+             }
+             BREAK;
+         CASE(OP_get_arg):
+@@ -18271,8 +18372,12 @@
+                 int idx;
+                 idx = get_u16(pc);
+                 pc += 2;
++#ifdef R2_FAST
++                R2_PUSH_DUP(arg_buf[idx]);
++#else
+                 sp[0] = js_dup(arg_buf[idx]);
+                 sp++;
++#endif
+             }
+             BREAK;
+         CASE(OP_put_arg):
+@@ -18280,8 +18385,12 @@
+                 int idx;
+                 idx = get_u16(pc);
+                 pc += 2;
++#ifdef R2_FAST
++                R2_SET_POP(&arg_buf[idx]);
++#else
+                 set_value(ctx, &arg_buf[idx], sp[-1]);
+                 sp--;
++#endif
+             }
+             BREAK;
+         CASE(OP_set_arg):
+@@ -18289,13 +18398,17 @@
+                 int idx;
+                 idx = get_u16(pc);
+                 pc += 2;
++#ifdef R2_FAST
++                R2_SET_DUP(&arg_buf[idx]);
++#else
+                 set_value(ctx, &arg_buf[idx], js_dup(sp[-1]));
++#endif
+             }
+             BREAK;
+ 
+-        CASE(OP_get_loc8): *sp++ = js_dup(var_buf[*pc++]); BREAK;
+-        CASE(OP_put_loc8): set_value(ctx, &var_buf[*pc++], *--sp); BREAK;
+-        CASE(OP_set_loc8): set_value(ctx, &var_buf[*pc++], js_dup(sp[-1])); BREAK;
++        CASE(OP_get_loc8): R2_PUSH_DUP(var_buf[*pc++]); BREAK;
++        CASE(OP_put_loc8): R2_SET_POP(&var_buf[*pc++]); BREAK;
++        CASE(OP_set_loc8): R2_SET_DUP(&var_buf[*pc++]); BREAK;
+ 
+         /* Observation: get_loc0 and get_loc1 are individually very */
+         /* frequent opcodes _and_ they are very often paired together, */
+@@ -18305,42 +18418,42 @@
+             *sp++ = js_dup(var_buf[1]);
+             BREAK;
+ 
+-        CASE(OP_get_loc0): *sp++ = js_dup(var_buf[0]); BREAK;
+-        CASE(OP_get_loc1): *sp++ = js_dup(var_buf[1]); BREAK;
+-        CASE(OP_get_loc2): *sp++ = js_dup(var_buf[2]); BREAK;
+-        CASE(OP_get_loc3): *sp++ = js_dup(var_buf[3]); BREAK;
+-        CASE(OP_put_loc0): set_value(ctx, &var_buf[0], *--sp); BREAK;
+-        CASE(OP_put_loc1): set_value(ctx, &var_buf[1], *--sp); BREAK;
+-        CASE(OP_put_loc2): set_value(ctx, &var_buf[2], *--sp); BREAK;
+-        CASE(OP_put_loc3): set_value(ctx, &var_buf[3], *--sp); BREAK;
+-        CASE(OP_set_loc0): set_value(ctx, &var_buf[0], js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_loc1): set_value(ctx, &var_buf[1], js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_loc2): set_value(ctx, &var_buf[2], js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_loc3): set_value(ctx, &var_buf[3], js_dup(sp[-1])); BREAK;
+-        CASE(OP_get_arg0): *sp++ = js_dup(arg_buf[0]); BREAK;
+-        CASE(OP_get_arg1): *sp++ = js_dup(arg_buf[1]); BREAK;
+-        CASE(OP_get_arg2): *sp++ = js_dup(arg_buf[2]); BREAK;
+-        CASE(OP_get_arg3): *sp++ = js_dup(arg_buf[3]); BREAK;
+-        CASE(OP_put_arg0): set_value(ctx, &arg_buf[0], *--sp); BREAK;
+-        CASE(OP_put_arg1): set_value(ctx, &arg_buf[1], *--sp); BREAK;
+-        CASE(OP_put_arg2): set_value(ctx, &arg_buf[2], *--sp); BREAK;
+-        CASE(OP_put_arg3): set_value(ctx, &arg_buf[3], *--sp); BREAK;
+-        CASE(OP_set_arg0): set_value(ctx, &arg_buf[0], js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_arg1): set_value(ctx, &arg_buf[1], js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_arg2): set_value(ctx, &arg_buf[2], js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_arg3): set_value(ctx, &arg_buf[3], js_dup(sp[-1])); BREAK;
+-        CASE(OP_get_var_ref0): *sp++ = js_dup(*var_refs[0]->pvalue); BREAK;
+-        CASE(OP_get_var_ref1): *sp++ = js_dup(*var_refs[1]->pvalue); BREAK;
+-        CASE(OP_get_var_ref2): *sp++ = js_dup(*var_refs[2]->pvalue); BREAK;
+-        CASE(OP_get_var_ref3): *sp++ = js_dup(*var_refs[3]->pvalue); BREAK;
+-        CASE(OP_put_var_ref0): set_value(ctx, var_refs[0]->pvalue, *--sp); BREAK;
+-        CASE(OP_put_var_ref1): set_value(ctx, var_refs[1]->pvalue, *--sp); BREAK;
+-        CASE(OP_put_var_ref2): set_value(ctx, var_refs[2]->pvalue, *--sp); BREAK;
+-        CASE(OP_put_var_ref3): set_value(ctx, var_refs[3]->pvalue, *--sp); BREAK;
+-        CASE(OP_set_var_ref0): set_value(ctx, var_refs[0]->pvalue, js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_var_ref1): set_value(ctx, var_refs[1]->pvalue, js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_var_ref2): set_value(ctx, var_refs[2]->pvalue, js_dup(sp[-1])); BREAK;
+-        CASE(OP_set_var_ref3): set_value(ctx, var_refs[3]->pvalue, js_dup(sp[-1])); BREAK;
++        CASE(OP_get_loc0): R2_PUSH_DUP(var_buf[0]); BREAK;
++        CASE(OP_get_loc1): R2_PUSH_DUP(var_buf[1]); BREAK;
++        CASE(OP_get_loc2): R2_PUSH_DUP(var_buf[2]); BREAK;
++        CASE(OP_get_loc3): R2_PUSH_DUP(var_buf[3]); BREAK;
++        CASE(OP_put_loc0): R2_SET_POP(&var_buf[0]); BREAK;
++        CASE(OP_put_loc1): R2_SET_POP(&var_buf[1]); BREAK;
++        CASE(OP_put_loc2): R2_SET_POP(&var_buf[2]); BREAK;
++        CASE(OP_put_loc3): R2_SET_POP(&var_buf[3]); BREAK;
++        CASE(OP_set_loc0): R2_SET_DUP(&var_buf[0]); BREAK;
++        CASE(OP_set_loc1): R2_SET_DUP(&var_buf[1]); BREAK;
++        CASE(OP_set_loc2): R2_SET_DUP(&var_buf[2]); BREAK;
++        CASE(OP_set_loc3): R2_SET_DUP(&var_buf[3]); BREAK;
++        CASE(OP_get_arg0): R2_PUSH_DUP(arg_buf[0]); BREAK;
++        CASE(OP_get_arg1): R2_PUSH_DUP(arg_buf[1]); BREAK;
++        CASE(OP_get_arg2): R2_PUSH_DUP(arg_buf[2]); BREAK;
++        CASE(OP_get_arg3): R2_PUSH_DUP(arg_buf[3]); BREAK;
++        CASE(OP_put_arg0): R2_SET_POP(&arg_buf[0]); BREAK;
++        CASE(OP_put_arg1): R2_SET_POP(&arg_buf[1]); BREAK;
++        CASE(OP_put_arg2): R2_SET_POP(&arg_buf[2]); BREAK;
++        CASE(OP_put_arg3): R2_SET_POP(&arg_buf[3]); BREAK;
++        CASE(OP_set_arg0): R2_SET_DUP(&arg_buf[0]); BREAK;
++        CASE(OP_set_arg1): R2_SET_DUP(&arg_buf[1]); BREAK;
++        CASE(OP_set_arg2): R2_SET_DUP(&arg_buf[2]); BREAK;
++        CASE(OP_set_arg3): R2_SET_DUP(&arg_buf[3]); BREAK;
++        CASE(OP_get_var_ref0): R2_PUSH_DUP(*var_refs[0]->pvalue); BREAK;
++        CASE(OP_get_var_ref1): R2_PUSH_DUP(*var_refs[1]->pvalue); BREAK;
++        CASE(OP_get_var_ref2): R2_PUSH_DUP(*var_refs[2]->pvalue); BREAK;
++        CASE(OP_get_var_ref3): R2_PUSH_DUP(*var_refs[3]->pvalue); BREAK;
++        CASE(OP_put_var_ref0): R2_SET_POP(var_refs[0]->pvalue); BREAK;
++        CASE(OP_put_var_ref1): R2_SET_POP(var_refs[1]->pvalue); BREAK;
++        CASE(OP_put_var_ref2): R2_SET_POP(var_refs[2]->pvalue); BREAK;
++        CASE(OP_put_var_ref3): R2_SET_POP(var_refs[3]->pvalue); BREAK;
++        CASE(OP_set_var_ref0): R2_SET_DUP(var_refs[0]->pvalue); BREAK;
++        CASE(OP_set_var_ref1): R2_SET_DUP(var_refs[1]->pvalue); BREAK;
++        CASE(OP_set_var_ref2): R2_SET_DUP(var_refs[2]->pvalue); BREAK;
++        CASE(OP_set_var_ref3): R2_SET_DUP(var_refs[3]->pvalue); BREAK;
+ 
+         CASE(OP_get_var_ref):
+             {
+@@ -18420,6 +18533,14 @@
+             }
+             BREAK;
+         CASE(OP_get_loc_check):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) {
++                r2p = &var_buf[*(const uint16_t *)pc];
++                if (likely((int32_t)r2p->tag != JS_TAG_UNINITIALIZED)) {
++                    pc += 2; *sp = *r2p; if (R2_HASRC(sp)) R2_REF(sp)++; sp++; BREAK;
++                }
++            }
++#endif
+             {
+                 int idx;
+                 idx = get_u16(pc);
+@@ -18434,6 +18555,17 @@
+             }
+             BREAK;
+         CASE(OP_put_loc_check):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) {
++                r2p = &var_buf[*(const uint16_t *)pc];
++                if (likely((int32_t)r2p->tag != JS_TAG_UNINITIALIZED)) {
++                    pc += 2; sp--;
++                    if (R2_HASRC(r2p)) { JSValue r2o_ = *r2p; *r2p = *sp; if (--R2_REF(&r2o_) <= 0) js_free_value_rt(rt, r2o_); }
++                    else *r2p = *sp;
++                    BREAK;
++                }
++            }
++#endif
+             {
+                 int idx;
+                 idx = get_u16(pc);
+@@ -18570,6 +18702,15 @@
+             }
+             BREAK;
+         CASE(OP_if_true8):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((uint32_t)(int32_t)sp[-1].tag <= JS_TAG_UNDEFINED)) {
++                sp--;
++                if (sp->u.int32) pc += (int8_t)pc[0]; else pc += 1;
++                if (unlikely(js_poll_interrupts(ctx)))
++                    goto exception;
++                BREAK;
++            }
++#endif
+             {
+                 int res;
+                 JSValue op1;
+@@ -18590,6 +18731,15 @@
+             }
+             BREAK;
+         CASE(OP_if_false8):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((uint32_t)(int32_t)sp[-1].tag <= JS_TAG_UNDEFINED)) {
++                sp--;
++                if (!sp->u.int32) pc += (int8_t)pc[0]; else pc += 1;
++                if (unlikely(js_poll_interrupts(ctx)))
++                    goto exception;
++                BREAK;
++            }
++#endif
+             {
+                 int res;
+                 JSValue op1;
+@@ -18788,6 +18938,21 @@
+             BREAK;
+ 
+         CASE(OP_get_field):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-1].tag == JS_TAG_OBJECT)) {
++                JSObject *r2o = (JSObject *)sp[-1].u.ptr;
++                JSProperty *r2pr;
++                JSShapeProperty *r2prs = find_own_property(&r2pr, r2o, *(const uint32_t *)pc);
++                if (likely(r2prs && !(r2prs->flags & JS_PROP_TMASK))) {
++                    pc += 4;
++                    r2p = &r2pr->u.value;
++                    sp[-1] = *r2p;
++                    if (R2_HASRC(r2p)) R2_REF(r2p)++;
++                    if (unlikely(--((JSRefCountHeader *)r2o)->ref_count <= 0)) js_free_value_rt(rt, JS_MKPTR(JS_TAG_OBJECT, r2o));
++                    BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue val, obj;
+                 JSAtom atom;
+@@ -18883,6 +19048,21 @@
+             BREAK;
+ 
+         CASE(OP_put_field):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-2].tag == JS_TAG_OBJECT)) {
++                JSObject *r2o = (JSObject *)sp[-2].u.ptr;
++                JSProperty *r2pr;
++                JSShapeProperty *r2prs = find_own_property(&r2pr, r2o, *(const uint32_t *)pc);
++                if (likely(r2prs && (r2prs->flags & (JS_PROP_TMASK | JS_PROP_WRITABLE |
++                                                     JS_PROP_LENGTH)) == JS_PROP_WRITABLE)) {
++                    pc += 4;
++                    R2_SET(&r2pr->u.value, sp - 1);
++                    sp -= 2;
++                    if (unlikely(--((JSRefCountHeader *)r2o)->ref_count <= 0)) js_free_value_rt(rt, JS_MKPTR(JS_TAG_OBJECT, r2o));
++                    BREAK;
++                }
++            }
++#endif
+             {
+                 int ret;
+                 JSValue obj;
+@@ -19101,6 +19281,21 @@
+             BREAK;
+ 
+         CASE(OP_get_array_el):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-2].tag == JS_TAG_OBJECT && (int32_t)sp[-1].tag == JS_TAG_INT)) {
++                JSObject *r2o = (JSObject *)sp[-2].u.ptr;
++                /* same test as the fast path of OP_put_array_el below */
++                if (likely(r2o->ob1.hflags.class_id == JS_CLASS_ARRAY &&
++                           (uint32_t)sp[-1].u.int32 < (uint32_t)r2o->u.array.count)) {
++                    r2p = &r2o->u.array.u.values[(uint32_t)sp[-1].u.int32];
++                    sp--;
++                    sp[-1] = *r2p;
++                    if (R2_HASRC(r2p)) R2_REF(r2p)++;
++                    if (unlikely(--((JSRefCountHeader *)r2o)->ref_count <= 0)) js_free_value_rt(rt, JS_MKPTR(JS_TAG_OBJECT, r2o));
++                    BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue val;
+ 
+@@ -19311,6 +19506,14 @@
+             BREAK;
+ 
+         CASE(OP_add):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
++                r2y = (int32_t)((uint32_t)sp[-2].u.int32 + (uint32_t)sp[-1].u.int32);
++                if (likely(((sp[-2].u.int32 ^ r2y) & (sp[-1].u.int32 ^ r2y)) >= 0)) {
++                    sp[-2].u.int32 = r2y; sp--; BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19338,6 +19541,17 @@
+             }
+             BREAK;
+         CASE(OP_add_loc):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) {
++                r2p = &var_buf[pc[0]];
++                if (likely(((int32_t)r2p->tag | (int32_t)sp[-1].tag) == 0)) {
++                    r2y = (int32_t)((uint32_t)r2p->u.int32 + (uint32_t)sp[-1].u.int32);
++                    if (likely(((r2p->u.int32 ^ r2y) & (sp[-1].u.int32 ^ r2y)) >= 0)) {
++                        r2p->u.int32 = r2y; sp--; pc += 1; BREAK;
++                    }
++                }
++            }
++#endif
+             {
+                 JSValue *pv;
+                 int idx;
+@@ -19381,6 +19595,14 @@
+             }
+             BREAK;
+         CASE(OP_sub):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
++                r2y = (int32_t)((uint32_t)sp[-2].u.int32 - (uint32_t)sp[-1].u.int32);
++                if (likely(((sp[-2].u.int32 ^ sp[-1].u.int32) & (sp[-2].u.int32 ^ r2y)) >= 0)) {
++                    sp[-2].u.int32 = r2y; sp--; BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19405,6 +19627,16 @@
+             }
+             BREAK;
+         CASE(OP_mul):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
++                char r2ov;
++                r2y = r2_mulv(sp[-2].u.int32, sp[-1].u.int32, &r2ov);
++                /* overflow and the -0 result stay on the original path */
++                if (likely(!r2ov && (r2y != 0 || (sp[-2].u.int32 | sp[-1].u.int32) >= 0))) {
++                    sp[-2].u.int32 = r2y; sp--; BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue op1, op2;
+                 double d;
+@@ -19440,6 +19672,20 @@
+             }
+             BREAK;
+         CASE(OP_div):
++#ifdef R2_DIV
++            /* two int32: exact quotient stays an int32.  Excluded (original path):
++               divisor 0, INT32_MIN / -1, inexact results, and 0 / negative (= -0). */
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
++                int32_t r2a = sp[-2].u.int32, r2b = sp[-1].u.int32;
++                if (likely(r2b != 0 && !(r2b == -1 && r2a == INT32_MIN) &&
++                           (r2a != 0 || r2b > 0))) {
++                    int32_t r2q = r2a / r2b;
++                    if (likely(r2q * r2b == r2a)) {
++                        sp[-2].u.int32 = r2q; sp--; BREAK;
++                    }
++                }
++            }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19470,6 +19716,20 @@
+             }
+             BREAK;
+         CASE(OP_mod):
++#ifdef R2_DIV
++            /* two int32, any signs: C truncating remainder has the sign of the dividend
++               like JS.  Excluded: divisor 0 and -1, and a zero result with a negative
++               dividend (= -0). */
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {
++                int32_t r2a = sp[-2].u.int32, r2b = sp[-1].u.int32;
++                if (likely(r2b != 0 && r2b != -1)) {
++                    int32_t r2r = r2a % r2b;
++                    if (likely(r2r != 0 || r2a >= 0)) {
++                        sp[-2].u.int32 = r2r; sp--; BREAK;
++                    }
++                }
++            }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19513,6 +19773,11 @@
+             }
+             BREAK;
+         CASE(OP_neg):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != 0 && sp[-1].u.int32 != INT32_MIN)) {
++                sp[-1].u.int32 = -sp[-1].u.int32; BREAK;
++            }
++#endif
+             {
+                 JSValue op1;
+                 uint32_t tag;
+@@ -19544,6 +19809,11 @@
+             }
+             BREAK;
+         CASE(OP_inc):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MAX)) {
++                sp[-1].u.int32 = sp[-1].u.int32 + 1; BREAK;
++            }
++#endif
+             {
+                 JSValue op1;
+                 int val;
+@@ -19562,6 +19832,11 @@
+             }
+             BREAK;
+         CASE(OP_dec):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MIN)) {
++                sp[-1].u.int32 = sp[-1].u.int32 - 1; BREAK;
++            }
++#endif
+             {
+                 JSValue op1;
+                 int val;
+@@ -19580,6 +19855,11 @@
+             }
+             BREAK;
+         CASE(OP_post_inc):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MAX)) {
++                R2_PUSH_INT(sp[-1].u.int32 + 1); BREAK;
++            }
++#endif
+             {
+                 JSValue op1;
+                 int val;
+@@ -19599,6 +19879,11 @@
+             }
+             BREAK;
+         CASE(OP_post_dec):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((int32_t)sp[-1].tag == JS_TAG_INT && sp[-1].u.int32 != INT32_MIN)) {
++                R2_PUSH_INT(sp[-1].u.int32 - 1); BREAK;
++            }
++#endif
+             {
+                 JSValue op1;
+                 int val;
+@@ -19618,6 +19903,14 @@
+             }
+             BREAK;
+         CASE(OP_inc_loc):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) {
++                r2p = &var_buf[pc[0]];
++                if (likely((int32_t)r2p->tag == JS_TAG_INT && r2p->u.int32 != INT32_MAX)) {
++                    r2p->u.int32 = r2p->u.int32 + 1; pc += 1; BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue op1;
+                 int val;
+@@ -19644,6 +19937,14 @@
+             }
+             BREAK;
+         CASE(OP_dec_loc):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (1) {
++                r2p = &var_buf[pc[0]];
++                if (likely((int32_t)r2p->tag == JS_TAG_INT && r2p->u.int32 != INT32_MIN)) {
++                    r2p->u.int32 = r2p->u.int32 - 1; pc += 1; BREAK;
++                }
++            }
++#endif
+             {
+                 JSValue op1;
+                 int val;
+@@ -19684,6 +19985,9 @@
+             BREAK;
+ 
+         CASE(OP_shl):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 = (int32_t)((uint32_t)sp[-2].u.int32 << (sp[-1].u.int32 & 0x1f)); sp--; BREAK; }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19722,6 +20026,9 @@
+             }
+             BREAK;
+         CASE(OP_sar):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 = sp[-2].u.int32 >> (sp[-1].u.int32 & 0x1f); sp--; BREAK; }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19743,6 +20050,9 @@
+             }
+             BREAK;
+         CASE(OP_and):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 &= sp[-1].u.int32; sp--; BREAK; }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19759,6 +20069,9 @@
+             }
+             BREAK;
+         CASE(OP_or):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 |= sp[-1].u.int32; sp--; BREAK; }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19775,6 +20088,9 @@
+             }
+             BREAK;
+         CASE(OP_xor):
++#if defined(R2_FAST) && R2_FAST >= 2
++            if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) { sp[-2].u.int32 ^= sp[-1].u.int32; sp--; BREAK; }
++#endif
+             {
+                 JSValue op1, op2;
+                 op1 = sp[-2];
+@@ -19792,8 +20108,23 @@
+             BREAK;
+ 
+ 
++#if defined(R2_FAST) && R2_FAST >= 2
+ #define OP_CMP(opcode, binary_op, slow_call)              \
+             CASE(opcode):                                 \
++                if (likely((((int32_t)sp[-2].tag | (int32_t)sp[-1].tag) == 0))) {                         \
++                    sp[-2].u.int32 = (sp[-2].u.int32 binary_op sp[-1].u.int32); \
++                    sp[-2].tag = JS_TAG_BOOL;             \
++                    sp--;                                 \
++                } else {                                  \
++                    sf->cur_pc = pc;                      \
++                    if (slow_call)                        \
++                        goto exception;                   \
++                    sp--;                                 \
++                }                                         \
++            BREAK
++#else
++#define OP_CMP(opcode, binary_op, slow_call)              \
++            CASE(opcode):                                 \
+                 {                                         \
+                 JSValue op1, op2;                         \
+                 op1 = sp[-2];                             \
+@@ -19809,6 +20140,7 @@
+                 }                                                       \
+                 }                                                       \
+             BREAK
++#endif
+ 
+             OP_CMP(OP_lt, <, js_relational_slow(ctx, sp, opcode));
+             OP_CMP(OP_lte, <=, js_relational_slow(ctx, sp, opcode));
+@@ -20118,6 +20450,34 @@
+     rt->current_stack_frame = sf->prev_frame;
+     return ret_val;
+ }
++#undef R2_PUSH_DUP
++#undef R2_SET_POP
++#undef R2_SET_DUP
++#ifdef R2_FAST
++#undef get_u16
++#undef get_i16
++#undef get_u32
++#undef js_poll_interrupts
++#undef JS_IsException
++#undef JS_IsUninitialized
++#undef JS_IsUndefined
++#undef JS_IsNull
++#undef JS_IsObject
++#undef js_int32
++#undef js_bool
++#undef js_dup
++#undef JS_FreeValue
++#undef set_value
++#endif
++#ifdef R2_TABLE_PRAGMA
++#if R2_TABLE_PRAGMA == 0
++/* file built with -O0: back to -O=0 */
++#pragma opt 0
++#else
++/* back to what "vc -O1" passes (-O=991) */
++#pragma opt 991
++#endif
++#endif
+ 
+ JSValue JS_Call(JSContext *ctx, JSValueConst func_obj, JSValueConst this_obj,
+                 int argc, JSValueConst *argv)
