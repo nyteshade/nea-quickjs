@@ -13004,10 +13004,14 @@ static int js_bigint_float64_cmp(JSContext *ctx, const JSBigInt *a,
         /* compute f so that 2^f <= abs(a) < 2^(f+1) */
         a_mant = js_bigint_get_mant_exp(ctx, &f, a);
         if (f != e) {
+            /* a and b have the same sign here and different
+               magnitudes: for negative values the larger magnitude is
+               the smaller number. Upstream returned -1/1 regardless of
+               sign, so -1n < -0.5 and -(2n**64n) < -1 were false. */
             if (f < e)
-                return -1;
+                return 2 * a_sign - 1;
             else
-                return 1;
+                return 1 - 2 * a_sign;
         } else {
             mant = (mant | ((uint64_t)1 << 52)) << 11; /* align to a_mant */
             if (a_mant < mant)
@@ -56283,6 +56287,43 @@ static JSValue js_bigint_asUintN(JSContext *ctx,
     if (bits == 0) {
         JS_FreeValue(ctx, a);
         res = __JS_NewShortBigInt(ctx, 0);
+    } else if (!asIntN && (JS_VALUE_GET_TAG(a) != JS_TAG_SHORT_BIG_INT ||
+                           JS_VALUE_GET_SHORT_BIG_INT(a) < 0)) {
+        /* asUintN of anything but a non-negative short BigInt.
+           The result is the low 'bits' bits of the two's complement
+           value read as an unsigned number, so a negative operand
+           grows (asUintN(64, -1n) is 2^64-1) and a result whose top
+           bit is set needs one more limb of zeros to stay positive.
+           The upstream code returned the operand unchanged when it
+           already fitted in 'bits' bits and stored the truncated limbs
+           without that extra limb, so negative operands came back
+           negative and e.g. asUintN(32, 0x1ffffffffn) came back -1n. */
+        JSBigIntBuf buf;
+        JSBigInt *r, *p = JS_ToBigIntBuf(ctx, &buf, a);
+        int neg = js_bigint_sign(p);
+        if (!neg && bits >= (uint64_t)p->len * JS_LIMB_BITS) {
+            res = a;
+        } else {
+            int len, i;
+            if (bits / JS_LIMB_BITS + 1 > JS_BIGINT_MAX_SIZE) {
+                JS_FreeValue(ctx, a);
+                return JS_ThrowRangeError(ctx, "BigInt is too large to allocate");
+            }
+            len = (int)(bits / JS_LIMB_BITS) + 1;
+            r = js_bigint_new(ctx, len);
+            if (!r) {
+                JS_FreeValue(ctx, a);
+                return JS_EXCEPTION;
+            }
+            for(i = 0; i < len; i++)
+                r->tab[i] = i < p->len ? p->tab[i] : (js_limb_t)-neg;
+            /* the top limb holds the bits % JS_LIMB_BITS highest bits
+               of the result and zeros above them */
+            r->tab[len - 1] &= ((js_limb_t)1 << (int)(bits % JS_LIMB_BITS)) - 1;
+            r = js_bigint_normalize(ctx, r);
+            JS_FreeValue(ctx, a);
+            res = JS_CompactBigInt(ctx, r);
+        }
     } else if (JS_VALUE_GET_TAG(a) == JS_TAG_SHORT_BIG_INT) {
         /* fast case */
         if (bits >= JS_SHORT_BIG_INT_BITS) {
@@ -61900,6 +61941,38 @@ static void js_print_value(JSPrintValueState *s, JSValueConst val)
         break;
     case JS_TAG_MODULE:
         js_pv_puts(s, "[module]");
+        break;
+    case JS_TAG_SHORT_BIG_INT:
+        js_pv_printf(s, "%dn", (int)JS_VALUE_GET_SHORT_BIG_INT(val));
+        break;
+    case JS_TAG_BIG_INT:
+        /* Decimal digits and the literal's 'n' suffix, as node prints
+           it. Without a context (or memory) for the conversion the
+           limbs are dumped in hexadecimal instead. */
+        {
+            JSBigInt *bp = JS_VALUE_GET_PTR(val);
+            const char *cstr = NULL;
+            int i;
+            if (s->ctx) {
+                JSValue bs = js_bigint_to_string(s->ctx, val);
+                if (JS_IsException(bs)) {
+                    JS_FreeValue(s->ctx, JS_GetException(s->ctx));
+                } else {
+                    cstr = JS_ToCString(s->ctx, bs);
+                    JS_FreeValue(s->ctx, bs);
+                }
+            }
+            if (cstr) {
+                js_pv_puts(s, cstr);
+                js_pv_putc(s, 'n');
+                JS_FreeCString(s->ctx, cstr);
+            } else {
+                js_pv_puts(s, "[BigInt 0x");
+                for (i = bp->len - 1; i >= 0; i--)
+                    js_pv_printf(s, "%08x", (unsigned int)bp->tab[i]);
+                js_pv_putc(s, ']');
+            }
+        }
         break;
     default:
         js_pv_printf(s, "[tag %d]", tag);
