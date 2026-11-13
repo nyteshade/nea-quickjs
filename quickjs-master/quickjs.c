@@ -16735,6 +16735,14 @@ static JSValue JS_IteratorNext(JSContext *ctx, JSValueConst enum_obj,
     return JS_EXCEPTION;
 }
 
+/* An iterator whose next() threw, or returned something that is not a
+   proper result, is broken and must not be closed: IteratorClose is
+   for the consumer that stops early for a reason of its own (ES2024
+   7.4.8 IteratorStep and 7.4.10 IfAbruptCloseIterator apply to
+   different steps). Upstream called return() in both cases. The
+   places that step an iterator below jump to a label after the
+   JS_IteratorClose() call when the step itself failed. */
+
 /* return < 0 in case of exception */
 static int JS_IteratorClose(JSContext *ctx, JSValueConst enum_obj,
                             bool is_exception_pending)
@@ -16983,7 +16991,7 @@ static __exception int js_append_enumerate(JSContext *ctx, JSValue *sp)
             int done;
             value = JS_IteratorNext(ctx, enumobj, method, 0, NULL, &done);
             if (JS_IsException(value))
-                goto exception;
+                goto exception_next;
             if (done) {
                 /* value is JS_UNDEFINED */
                 break;
@@ -17000,6 +17008,7 @@ static __exception int js_append_enumerate(JSContext *ctx, JSValue *sp)
 
 exception:
     JS_IteratorClose(ctx, enumobj, true);
+exception_next:
     JS_FreeValue(ctx, enumobj);
     JS_FreeValue(ctx, method);
     return -1;
@@ -24036,6 +24045,27 @@ not_found:
     return find_arg(ctx, fd, name);
 }
 
+static int find_var_in_scope(JSContext *ctx, JSFunctionDef *fd,
+                             JSAtom name, int scope_level);
+
+/* In a function whose parameter list has expressions, the parameters
+   are the lexical variables of the argument scope. Return the index
+   of the one called 'name', or -1. The function body reaches them
+   through this function after it has looked at its own scopes and at
+   its 'var' declarations (find_var()), which hide a parameter of the
+   same name. */
+static int find_param_scope_var(JSContext *ctx, JSFunctionDef *fd, JSAtom name)
+{
+    int idx;
+    if (!fd->has_parameter_expressions || fd->scope_count <= ARG_SCOPE_INDEX)
+        return -1;
+    idx = find_var_in_scope(ctx, fd, name, ARG_SCOPE_INDEX);
+    /* not the copy of 'arguments' that add_arguments_arg() makes */
+    if (idx >= 0 && idx == fd->arguments_arg_idx)
+        idx = -1;
+    return idx;
+}
+
 /* find a variable declaration in a given scope */
 static int find_var_in_scope(JSContext *ctx, JSFunctionDef *fd,
                              JSAtom name, int scope_level)
@@ -24365,7 +24395,8 @@ static int define_var(JSParseState *s, JSFunctionDef *fd, JSAtom name,
         if (var_def_type != JS_VAR_DEF_FUNCTION_DECL &&
             var_def_type != JS_VAR_DEF_NEW_FUNCTION_DECL &&
             fd->scope_level == fd->body_scope &&
-            find_arg(ctx, fd, name) >= 0) {
+            (find_arg(ctx, fd, name) >= 0 ||
+             find_param_scope_var(ctx, fd, name) >= 0)) {
             /* lexical variable redefines a parameter name */
             return js_parse_error(s, "invalid redefinition of parameter name");
         }
@@ -28665,6 +28696,7 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
     bool has_initializer, is_for_of, has_destructuring;
     int tok, tok1, opcode, scope, block_scope_level;
     int label_next, label_expr, label_cont, label_body, label_break;
+    int label_throw = -1; /* for await: handler of an exception in the body */
     int pos_next, pos_expr;
     BlockEnv break_entry;
 
@@ -28808,10 +28840,23 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
         break_entry.has_iterator = true;
         break_entry.is_async_iterator = is_async;
         break_entry.drop_count += 2;
-        if (is_async)
+        if (is_async) {
             emit_op(s, OP_for_await_of_start);
-        else
+            /* An exception thrown out of the body must close the
+               iterator and wait for its return() before it goes on
+               (AsyncIteratorClose with a throw completion). The
+               unwinder of the interpreter cannot await, so the catch
+               offset 0 that tells it to close the iterator itself is
+               replaced by a real handler, emitted at the end of the
+               loop. Upstream left the 0: return() was called and not
+               awaited, and a promise it rejected with was reported
+               as unhandled. */
+            label_throw = new_label(s);
+            emit_op(s, OP_drop);
+            emit_goto(s, OP_catch, label_throw);
+        } else {
             emit_op(s, OP_for_of_start);
+        }
         /* on stack: enum_rec */
     } else {
         emit_op(s, OP_for_in_start);
@@ -28850,16 +28895,36 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
     emit_label(s, label_cont);
     if (is_for_of) {
         if (is_async) {
+            int label_next_throw, label_next_ok;
             /* call the next method */
             /* stack: iter_obj next catch_offset */
             emit_op(s, OP_dup3);
             emit_op(s, OP_drop);
+            /* If next() throws, its promise rejects or its result is
+               not an object, the iterator is broken and must not be
+               closed: a handler of its own keeps the exception away
+               from label_throw. */
+            label_next_throw = emit_goto(s, OP_catch, -1);
+            emit_op(s, OP_rot3l);
+            emit_op(s, OP_rot3l);
+            /* stack: iter_obj next catch_offset catch2 iter_obj next */
             emit_op(s, OP_call_method);
             emit_u16(s, 0);
             /* get the result of the promise */
             emit_op(s, OP_await);
             /* unwrap the value and done values */
             emit_op(s, OP_iterator_get_value_done);
+            /* stack: iter_obj next catch_offset catch2 value done */
+            emit_op(s, OP_rot3l);
+            emit_op(s, OP_drop);
+            label_next_ok = emit_goto(s, OP_goto, -1);
+            emit_label(s, label_next_throw);
+            /* stack: iter_obj next catch_offset exception */
+            emit_op(s, OP_nip);
+            emit_op(s, OP_nip);
+            emit_op(s, OP_nip);
+            emit_op(s, OP_throw);
+            emit_label(s, label_next_ok);
         } else {
             emit_op(s, OP_for_of_next);
             emit_u8(s, 0);
@@ -28881,6 +28946,48 @@ static __exception int js_parse_for_in_of(JSParseState *s, int label_name,
         emit_op(s, OP_drop); /* next */
         emit_op(s, OP_drop); /* iter_obj */
         label_done = emit_goto(s, OP_goto, -1);
+
+        /* The handler of an exception thrown in the body (see
+           OP_for_await_of_start above): call return() if there is
+           one, await what it returns, then throw the exception again.
+           Whatever goes wrong while closing (the getter of 'return'
+           throws, return() throws, its promise rejects) is dropped:
+           the exception of the body wins. */
+        {
+            int label_close_throw, label_no_return, label_closed;
+            emit_label(s, label_throw);
+            /* stack: iter_obj next exception */
+            emit_op(s, OP_nip);
+            label_close_throw = emit_goto(s, OP_catch, -1);
+            /* stack: iter_obj exception catch2 */
+            emit_op(s, OP_dup3);
+            emit_op(s, OP_drop);
+            emit_op(s, OP_drop);
+            /* stack: iter_obj exception catch2 iter_obj */
+            emit_op(s, OP_get_field2);
+            emit_atom(s, JS_ATOM_return);
+            emit_op(s, OP_dup);
+            emit_op(s, OP_is_undefined_or_null);
+            label_no_return = emit_goto(s, OP_if_true, -1);
+            emit_op(s, OP_call_method);
+            emit_u16(s, 0);
+            emit_op(s, OP_await);
+            label_closed = emit_goto(s, OP_goto, -1);
+            emit_label(s, label_no_return);
+            emit_op(s, OP_drop);
+            emit_label(s, label_closed);
+            /* stack: iter_obj exception catch2 x */
+            emit_op(s, OP_drop);
+            emit_op(s, OP_drop);
+            emit_op(s, OP_nip);
+            emit_op(s, OP_throw);
+            emit_label(s, label_close_throw);
+            /* stack: iter_obj exception exception2 */
+            emit_op(s, OP_drop);
+            emit_op(s, OP_nip);
+            emit_op(s, OP_throw);
+        }
+
         emit_label(s, label_break);
         /* stack: iter_obj next catch_offset */
         emit_op(s, OP_drop);
@@ -33163,6 +33270,9 @@ static int resolve_scope_var(JSContext *ctx, JSFunctionDef *s,
     JSFunctionDef *fd;
     JSVarDef *vd;
     bool is_pseudo_var, is_arg_scope;
+    /* true if var_idx is a parameter of this function reached from
+       its body: it is a lexical variable, but always initialized */
+    bool is_body_param = false;
 
     label_done = -1;
 
@@ -33202,6 +33312,27 @@ static int resolve_scope_var(JSContext *ctx, JSFunctionDef *s,
            variables are visible */
         if (!is_arg_scope) {
             var_idx = find_var(ctx, s, var_name);
+            if (var_idx < 0 && !is_pseudo_var) {
+                var_idx = find_param_scope_var(ctx, s, var_name);
+                if (var_idx >= 0) {
+                    if (op == OP_scope_put_var_init) {
+                        /* cannot happen: a lexical declaration of a
+                           parameter name is a syntax error */
+                        var_idx = -1;
+                    } else {
+                        is_body_param = true;
+                        /* a 'var' made by a direct eval in the body
+                           lives in the variable object and hides the
+                           parameter */
+                        if (s->var_object_idx >= 0) {
+                            dbuf_putc(bc, OP_get_loc);
+                            dbuf_put_u16(bc, s->var_object_idx);
+                            var_object_test(ctx, s, var_name, op, bc,
+                                            &label_done, 0);
+                        }
+                    }
+                }
+            }
         }
 
         if (var_idx < 0 && is_pseudo_var)
@@ -33250,7 +33381,7 @@ static int resolve_scope_var(JSContext *ctx, JSFunctionDef *s,
                     get_op = OP_get_arg;
                     var_idx -= ARGUMENT_VAR_OFFSET;
                 } else {
-                    if (s->vars[var_idx].is_lexical)
+                    if (s->vars[var_idx].is_lexical && !is_body_param)
                         get_op = OP_get_loc_check;
                     else
                         get_op = OP_get_loc;
@@ -33294,7 +33425,7 @@ static int resolve_scope_var(JSContext *ctx, JSFunctionDef *s,
                 dbuf_put_u16(bc, var_idx - ARGUMENT_VAR_OFFSET);
             } else {
                 if (is_put) {
-                    if (s->vars[var_idx].is_lexical) {
+                    if (s->vars[var_idx].is_lexical && !is_body_param) {
                         if (op == OP_scope_put_var_init) {
                             /* 'this' can only be initialized once */
                             if (var_name == JS_ATOM_this)
@@ -33308,7 +33439,7 @@ static int resolve_scope_var(JSContext *ctx, JSFunctionDef *s,
                         dbuf_putc(bc, OP_put_loc);
                     }
                 } else {
-                    if (s->vars[var_idx].is_lexical) {
+                    if (s->vars[var_idx].is_lexical && !is_body_param) {
                         dbuf_putc(bc, OP_get_loc_check);
                     } else {
                         dbuf_putc(bc, OP_get_loc);
@@ -33372,6 +33503,27 @@ static int resolve_scope_var(JSContext *ctx, JSFunctionDef *s,
             var_idx = find_var(ctx, fd, var_name);
             if (var_idx >= 0)
                 break;
+            if (!is_pseudo_var) {
+                /* a parameter of an enclosing function whose
+                   parameter list has expressions */
+                var_idx = find_param_scope_var(ctx, fd, var_name);
+                if (var_idx >= 0) {
+                    if (fd->var_object_idx >= 0) {
+                        /* a 'var' made by a direct eval in the body of
+                           that function hides the parameter */
+                        vd = &fd->vars[fd->var_object_idx];
+                        capture_var(fd, vd);
+                        idx = get_closure_var(ctx, s, fd, JS_CLOSURE_LOCAL,
+                                              fd->var_object_idx, vd->var_name,
+                                              false, false, JS_VAR_NORMAL);
+                        dbuf_putc(bc, OP_get_var_ref);
+                        dbuf_put_u16(bc, idx);
+                        var_object_test(ctx, s, var_name, op, bc,
+                                        &label_done, 0);
+                    }
+                    break;
+                }
+            }
         }
         if (is_pseudo_var) {
             var_idx = resolve_pseudo_var(ctx, fd, var_name);
@@ -33936,6 +34088,22 @@ static void add_eval_variables(JSContext *ctx, JSFunctionDef *s)
                                     vd->is_lexical, JS_VAR_NORMAL);
                 }
             }
+            /* add the parameters when they are the variables of the
+               argument scope (see find_param_scope_var()). They come
+               after the 'var' declarations, which hide them. */
+            if (fd->has_parameter_expressions &&
+                fd->scope_count > ARG_SCOPE_INDEX) {
+                for (i = fd->scopes[ARG_SCOPE_INDEX].first; i >= 0;
+                     i = vd->scope_next) {
+                    vd = &fd->vars[i];
+                    if (i == fd->arguments_arg_idx)
+                        continue;
+                    capture_var(fd, vd);
+                    get_closure_var(ctx, s, fd, JS_CLOSURE_LOCAL, i,
+                                    vd->var_name, vd->is_const,
+                                    vd->is_lexical, vd->var_kind);
+                }
+            }
         } else {
             for(i = 0; i < fd->var_count; i++) {
                 vd = &fd->vars[i];
@@ -34020,6 +34188,24 @@ static __exception int add_closure_variables(JSContext *ctx, JSFunctionDef *s,
             if (vd->scope_level == 0 && vd->var_name != JS_ATOM__ret_) {
                 JSClosureVar *cv = &s->closure_var[s->closure_var_count++];
                 set_closure_from_var(ctx, cv, vd, i);
+            }
+        }
+        /* Add the parameters of a function whose parameter list has
+           expressions: they are the variables of the argument scope
+           (see find_param_scope_var()), which is the scope whose
+           chain ends with ARG_SCOPE_END. They come after the 'var'
+           declarations, which hide them. */
+        for(i = 0; i < b->var_count; i++) {
+            if (b->vardefs[b->arg_count + i].scope_next == ARG_SCOPE_END)
+                break;
+        }
+        if (i < b->var_count) {
+            for(i = 0; i < b->var_count; i++) {
+                vd = &b->vardefs[b->arg_count + i];
+                if (vd->scope_level == ARG_SCOPE_INDEX) {
+                    JSClosureVar *cv = &s->closure_var[s->closure_var_count++];
+                    set_closure_from_var(ctx, cv, vd, i);
+                }
             }
         }
     } else {
@@ -34487,6 +34673,20 @@ static __exception int resolve_variables(JSContext *ctx, JSFunctionDef *s)
         case OP_scope_put_var_init:
             var_name = get_u32(bc_buf + pos + 1);
             scope = get_u16(bc_buf + pos + 5);
+            if (op == OP_scope_get_var && s->has_parameter_expressions &&
+                scope == ARG_SCOPE_INDEX && pos_next < bc_len &&
+                bc_buf[pos_next] == OP_scope_put_var &&
+                get_u32(bc_buf + pos_next + 1) == var_name &&
+                get_u16(bc_buf + pos_next + 5) == 0 &&
+                find_var(ctx, s, var_name) < 0) {
+                /* the copy of a parameter to a 'var' of the same name
+                   (see js_parse_function_decl2()), and the body has
+                   no such 'var': nothing to copy */
+                pos_next += opcode_info[OP_scope_put_var].size;
+                JS_FreeAtom(ctx, var_name);
+                JS_FreeAtom(ctx, var_name);
+                break;
+            }
             pos_next = resolve_scope_var(ctx, s, var_name, scope, op, &bc_out,
                                          NULL, NULL, pos_next);
             JS_FreeAtom(ctx, var_name);
@@ -36686,6 +36886,7 @@ static __exception int js_parse_function_decl2(JSParseState *s,
         && func_kind == JS_FUNC_NORMAL
         &&  find_lexical_decl(ctx, fd, func_name, fd->scope_first, false) < 0
         &&  !((func_idx = find_var(ctx, fd, func_name)) >= 0 && (func_idx & ARGUMENT_VAR_OFFSET))
+        &&  find_param_scope_var(ctx, fd, func_name) < 0
         &&  !(func_name == JS_ATOM_arguments && fd->has_arguments_binding)) {
             create_func_var = true;
         }
@@ -36854,11 +37055,32 @@ static __exception int js_parse_function_decl2(JSParseState *s,
                 if (fd->has_parameter_expressions) {
                     if (js_parse_check_duplicate_parameter(s, name))
                         goto fail;
+                    /* the argument is given no name below, so the
+                       check of js_parse_function_check_names() is
+                       made here */
+                    if (fd->is_strict_mode && js_invalid_strict_name(name)) {
+                        js_parse_error(s, "invalid argument name in strict code");
+                        goto fail;
+                    }
                     if (define_var(s, fd, name, JS_VAR_DEF_LET) < 0)
                         goto fail;
                 }
+                /* With parameter expressions the binding of the
+                   parameter is the lexical variable of the argument
+                   scope, the one a closure in a default value
+                   captures, and the function body uses that same
+                   variable (see find_param_scope_var()). The argument
+                   slot only delivers the value passed in, so it has
+                   no name: a 'var' of this name in the body then
+                   makes a variable of its own, as the specification
+                   requires (FunctionDeclarationInstantiation, steps
+                   27-28). Upstream named the slot and let the body
+                   use it, which gave every parameter two bindings:
+                   function f(a, g = () => a) { a = 2; return g(); }
+                   returned 1. */
                 /* XXX: could avoid allocating an argument if rest is true */
-                idx = add_arg(ctx, fd, name);
+                idx = add_arg(ctx, fd, fd->has_parameter_expressions ?
+                              JS_ATOM_NULL : name);
                 if (idx < 0)
                     goto fail;
                 if (next_token(s))
@@ -36867,13 +37089,13 @@ static __exception int js_parse_function_decl2(JSParseState *s,
                     emit_op(s, OP_rest);
                     emit_u16(s, idx);
                     if (fd->has_parameter_expressions) {
-                        emit_op(s, OP_dup);
                         emit_op(s, OP_scope_put_var_init);
                         emit_atom(s, name);
                         emit_u16(s, fd->scope_level);
+                    } else {
+                        emit_op(s, OP_put_arg);
+                        emit_u16(s, idx);
                     }
-                    emit_op(s, OP_put_arg);
-                    emit_u16(s, idx);
                     fd->has_simple_parameter_list = false;
                     has_opt_arg = true;
                 } else if (s->token.val == '=') {
@@ -36896,9 +37118,6 @@ static __exception int js_parse_function_decl2(JSParseState *s,
                     if (js_parse_assign_expr(s))
                         goto fail;
                     set_object_name(s, name);
-                    emit_op(s, OP_dup);
-                    emit_op(s, OP_put_arg);
-                    emit_u16(s, idx);
                     emit_label(s, label);
                     emit_op(s, OP_scope_put_var_init);
                     emit_atom(s, name);
@@ -36939,32 +37158,33 @@ static __exception int js_parse_function_decl2(JSParseState *s,
     if (fd->has_parameter_expressions) {
         int idx;
 
-        /* Copy the variables in the argument scope to the variable
-           scope (see FunctionDeclarationInstantiation() in spec). The
-           normal arguments are already present, so no need to copy
-           them. */
+        /* A 'var' in the body with the name of a parameter is a
+           variable of its own that starts with the parameter's value
+           (FunctionDeclarationInstantiation, step 28). Whether the
+           body has such a 'var' is not known yet, so the copy is
+           written for every parameter name as this pair of opcodes,
+           and resolve_variables() drops the pair when the body
+           declared no variable of that name. Without the 'var' there
+           is nothing to copy: the body uses the parameter itself. */
         idx = fd->scopes[fd->scope_level].first;
         while (idx >= 0) {
             JSVarDef *vd = &fd->vars[idx];
             if (vd->scope_level != fd->scope_level)
                 break;
-            if (find_var(ctx, fd, vd->var_name) < 0) {
-                if (add_var(ctx, fd, vd->var_name) < 0)
-                    goto fail;
-                vd = &fd->vars[idx]; /* fd->vars may have been reallocated */
-                emit_op(s, OP_scope_get_var);
-                emit_atom(s, vd->var_name);
-                emit_u16(s, fd->scope_level);
-                emit_op(s, OP_scope_put_var);
-                emit_atom(s, vd->var_name);
-                emit_u16(s, 0);
-            }
+            emit_op(s, OP_scope_get_var);
+            emit_atom(s, vd->var_name);
+            emit_u16(s, fd->scope_level);
+            emit_op(s, OP_scope_put_var);
+            emit_atom(s, vd->var_name);
+            emit_u16(s, 0);
             idx = vd->scope_next;
         }
 
-        /* the argument scope has no parent, hence we don't use pop_scope(s) */
-        emit_op(s, OP_leave_scope);
-        emit_u16(s, fd->scope_level);
+        /* The argument scope is not left: its variables are the
+           parameters and live as long as the call. (An OP_leave_scope
+           here would detach them from the closures made by the
+           default values, which must keep seeing what the body
+           assigns.) */
 
         /* set the variable scope as the current scope */
         fd->scope_level = 0;
@@ -40996,28 +41216,28 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
         args[1] = js_int64(idx);
         k = JS_Call(ctx, cb, ctx->global_obj, 2, args);
         if (JS_IsException(k))
-            goto exception;
+            goto exception_close;
 
         k = js_dup(k);
         prop = JS_GetPropertyValue(ctx, groups, k);
         if (JS_IsException(prop))
-            goto exception;
+            goto exception_close;
 
         if (JS_IsUndefined(prop)) {
             prop = JS_NewArray(ctx);
             if (JS_IsException(prop))
-                goto exception;
+                goto exception_close;
             k = js_dup(k);
             prop = js_dup(prop);
             if (JS_SetPropertyValue(ctx, groups, k, prop,
                                     JS_PROP_C_W_E|JS_PROP_THROW) < 0) {
-                goto exception;
+                goto exception_close;
             }
         }
 
         res = js_array_push(ctx, prop, 1, vc(&v), /*unshift*/0);
         if (JS_IsException(res))
-            goto exception;
+            goto exception_close;
         /* res is an int64 */
 
         JS_FreeValue(ctx, prop);
@@ -41032,6 +41252,8 @@ static JSValue js_object_groupBy(JSContext *ctx, JSValueConst this_val,
     JS_FreeValue(ctx, next);
     return groups;
 
+exception_close:
+    JS_IteratorClose(ctx, iter, true);
 exception:
     JS_FreeValue(ctx, prop);
     JS_FreeValue(ctx, k);
@@ -41393,13 +41615,18 @@ static JSValue js_object_fromEntries(JSContext *ctx, JSValueConst this_val,
         goto fail;
     next_method = JS_GetProperty(ctx, iter, JS_ATOM_next);
     if (JS_IsException(next_method))
-        goto fail;
+        goto fail_next;
 
     for(;;) {
         JSValue key, value, item;
         item = JS_IteratorNext(ctx, iter, next_method, 0, NULL, &done);
-        if (JS_IsException(item))
+        if (JS_IsException(item)) {
+        fail_next:
+            /* the iterator itself failed: it is not closed */
+            JS_FreeValue(ctx, iter);
+            iter = JS_UNDEFINED;
             goto fail;
+        }
         if (done)
             break;
 
@@ -42031,7 +42258,7 @@ static JSValue iterator_to_array(JSContext *ctx, JSValueConst items)
     for (k = 0;; k++) {
         v = JS_IteratorNext(ctx, iter, next_method, 0, NULL, &done);
         if (JS_IsException(v))
-            goto exception_close;
+            goto exception;
         if (done)
             break;
         if (JS_DefinePropertyValueInt64(ctx, r, k, v,
@@ -42386,7 +42613,7 @@ static JSValue js_array_from(JSContext *ctx, JSValueConst this_val,
         for (k = 0;; k++) {
             v = JS_IteratorNext(ctx, stack[0], stack[1], 0, NULL, &done);
             if (JS_IsException(v))
-                goto exception_close;
+                goto exception;
             if (done)
                 break;
             if (mapping) {
@@ -44084,7 +44311,16 @@ static JSValue js_array_sort(JSContext *ctx, JSValueConst this_val,
     while (n < pos) {
         if (array[n].str)
             JS_FreeValue(ctx, JS_MKPTR(JS_TAG_STRING, array[n].str));
-        if (array[n].pos == n) {
+        /* Every sorted value is written back, also one that is already
+           in its place (ES2024 23.1.3.30, step 9: Set(obj, j, ..., true)
+           for each j): a frozen array, a read-only element, a setter
+           or a proxy must see the write. Upstream skipped the values
+           that had not moved, so Object.freeze([1, 2, 3]).sort()
+           returned the array instead of throwing a TypeError. Only
+           with fewer than two elements nothing is written, which is
+           what V8 does (there Object.freeze([1]).sort() does not
+           throw). */
+        if (array[n].pos == n && len < 2) {
             JS_FreeValue(ctx, array[n].val);
         } else {
             if (JS_SetPropertyInt64(ctx, obj, n, array[n].val) < 0) {
@@ -44803,7 +45039,7 @@ static JSValue js_iterator_proto_func(JSContext *ctx, JSValueConst this_val,
             for (idx = 0; /*empty*/; idx++) {
                 item = JS_IteratorNext(ctx, this_val, method, 0, NULL, &done);
                 if (JS_IsException(item))
-                    goto fail;
+                    goto fail_next;
                 if (done)
                     break;
                 index_val = js_int64(idx);
@@ -44832,7 +45068,7 @@ static JSValue js_iterator_proto_func(JSContext *ctx, JSValueConst this_val,
             for (idx = 0; /*empty*/; idx++) {
                 item = JS_IteratorNext(ctx, this_val, method, 0, NULL, &done);
                 if (JS_IsException(item))
-                    goto fail;
+                    goto fail_next;
                 if (done)
                     break;
                 index_val = js_int64(idx);
@@ -44864,7 +45100,7 @@ static JSValue js_iterator_proto_func(JSContext *ctx, JSValueConst this_val,
             for (idx = 0; /*empty*/; idx++) {
                 item = JS_IteratorNext(ctx, this_val, method, 0, NULL, &done);
                 if (JS_IsException(item))
-                    goto fail;
+                    goto fail_next;
                 if (done)
                     break;
                 index_val = js_int64(idx);
@@ -44888,7 +45124,7 @@ static JSValue js_iterator_proto_func(JSContext *ctx, JSValueConst this_val,
             for (idx = 0; /*empty*/; idx++) {
                 item = JS_IteratorNext(ctx, this_val, method, 0, NULL, &done);
                 if (JS_IsException(item))
-                    goto fail;
+                    goto fail_next;
                 if (done)
                     break;
                 index_val = js_int64(idx);
@@ -44922,6 +45158,7 @@ static JSValue js_iterator_proto_func(JSContext *ctx, JSValueConst this_val,
     return r;
 fail:
     JS_IteratorClose(ctx, this_val, true);
+fail_next:
     JS_FreeValue(ctx, func);
     JS_FreeValue(ctx, method);
     return JS_EXCEPTION;
@@ -44952,7 +45189,7 @@ static JSValue js_iterator_proto_reduce(JSContext *ctx, JSValueConst this_val,
     } else {
         acc = JS_IteratorNext(ctx, this_val, method, 0, NULL, &done);
         if (JS_IsException(acc))
-            goto exception;
+            goto exception_next;
         if (done) {
             JS_ThrowTypeError(ctx, "empty iterator");
             goto exception;
@@ -44962,7 +45199,7 @@ static JSValue js_iterator_proto_reduce(JSContext *ctx, JSValueConst this_val,
     for (/* empty */; /*empty*/; idx++) {
         item = JS_IteratorNext(ctx, this_val, method, 0, NULL, &done);
         if (JS_IsException(item))
-            goto exception;
+            goto exception_next;
         if (done)
             break;
         index_val = js_int64(idx);
@@ -44985,6 +45222,7 @@ static JSValue js_iterator_proto_reduce(JSContext *ctx, JSValueConst this_val,
     return acc;
 exception:
     JS_IteratorClose(ctx, this_val, true);
+exception_next:
     JS_FreeValue(ctx, acc);
     JS_FreeValue(ctx, func);
     JS_FreeValue(ctx, method);
@@ -45147,7 +45385,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
                 item = JS_IteratorNext(ctx, it->obj, method, 0, NULL, pdone);
                 if (JS_IsException(item)) {
                     JS_FreeValue(ctx, method);
-                    goto fail;
+                    goto fail_next;
                 }
                 JS_FreeValue(ctx, item);
                 if (magic == GEN_MAGIC_RETURN)
@@ -45162,7 +45400,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
             item = JS_IteratorNext(ctx, it->obj, method, 0, NULL, pdone);
             JS_FreeValue(ctx, method);
             if (JS_IsException(item))
-                goto fail;
+                goto fail_next;
             ret = item;
             goto done;
         }
@@ -45182,7 +45420,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
             item = JS_IteratorNext(ctx, it->obj, method, 0, NULL, pdone);
             if (JS_IsException(item)) {
                 JS_FreeValue(ctx, method);
-                goto fail;
+                goto fail_next;
             }
             if (*pdone || magic == GEN_MAGIC_RETURN) {
                 JS_FreeValue(ctx, method);
@@ -45222,7 +45460,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
                 item = JS_IteratorNext(ctx, it->obj, method, 0, NULL, pdone);
                 JS_FreeValue(ctx, method);
                 if (JS_IsException(item))
-                    goto fail;
+                    goto fail_next;
                 if (*pdone || magic == GEN_MAGIC_RETURN) {
                     ret = item;
                     goto done;
@@ -45304,7 +45542,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
             item = JS_IteratorNext(ctx, it->obj, method, 0, NULL, pdone);
             JS_FreeValue(ctx, method);
             if (JS_IsException(item))
-                goto fail;
+                goto fail_next;
             if (*pdone || magic == GEN_MAGIC_RETURN) {
                 ret = item;
                 goto done;
@@ -45334,7 +45572,7 @@ static JSValue js_iterator_helper_next(JSContext *ctx, JSValueConst this_val,
                 item = JS_IteratorNext(ctx, it->obj, method, 0, NULL, pdone);
                 JS_FreeValue(ctx, method);
                 if (JS_IsException(item))
-                    goto fail;
+                    goto fail_next;
                 ret = item;
                 goto done;
             }
@@ -45358,6 +45596,7 @@ done:
 fail:
     /* close the iterator object, preserving pending exception */
     JS_IteratorClose(ctx, it->obj, true);
+fail_next:
     ret = JS_EXCEPTION;
     goto done;
 }
@@ -51273,16 +51512,21 @@ static int js_proxy_define_own_property(JSContext *ctx, JSValueConst obj,
                 }
             }
         } else if (flags & JS_PROP_HAS_VALUE) {
-            if ((desc.flags & (JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE)) ==
-                JS_PROP_WRITABLE && !(flags & JS_PROP_WRITABLE)) {
-                /* missing-proxy-check feature */
-                goto fail1;
-            } else if ((desc.flags & (JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE)) == 0 &&
+            if ((desc.flags & (JS_PROP_CONFIGURABLE | JS_PROP_WRITABLE)) == 0 &&
                 !js_same_value(ctx, val, desc.value)) {
                 goto fail1;
             }
         }
-        if (flags & JS_PROP_HAS_WRITABLE) {
+        /* ES2024 10.5.6 step 16.c: the target's property is a data
+           property, not configurable and writable; the trap must not
+           report success for a descriptor that says writable: false.
+           Upstream also refused a descriptor with no 'writable' field
+           at all and one that said writable: true, so every write of
+           'length' through a proxy of an array with a defineProperty
+           trap (push, pop, shift, splice, a.length = n) threw
+           "inconsistent defineProperty". */
+        if ((flags & (JS_PROP_HAS_WRITABLE | JS_PROP_WRITABLE)) ==
+            JS_PROP_HAS_WRITABLE) {
             if ((desc.flags & (JS_PROP_GETSET | JS_PROP_CONFIGURABLE |
                                JS_PROP_WRITABLE)) == JS_PROP_WRITABLE) {
                 /* proxy-missing-checks */
@@ -51902,12 +52146,17 @@ static JSValue js_map_constructor(JSContext *ctx, JSValueConst new_target,
             goto fail;
         next_method = JS_GetProperty(ctx, iter, JS_ATOM_next);
         if (JS_IsException(next_method))
-            goto fail;
+            goto fail_next;
 
         for(;;) {
             item = JS_IteratorNext(ctx, iter, next_method, 0, NULL, &done);
-            if (JS_IsException(item))
+            if (JS_IsException(item)) {
+            fail_next:
+                /* the iterator itself failed: it is not closed */
+                JS_FreeValue(ctx, iter);
+                iter = JS_UNDEFINED;
                 goto fail;
+            }
             if (done)
                 break;
             if (is_set) {
@@ -52415,27 +52664,27 @@ static JSValue js_map_groupBy(JSContext *ctx, JSValueConst this_val,
         args[1] = js_int64(idx);
         k = JS_Call(ctx, cb, ctx->global_obj, 2, args);
         if (JS_IsException(k))
-            goto exception;
+            goto exception_close;
 
         prop = js_map_get(ctx, groups, 1, vc(&k), 0);
         if (JS_IsException(prop))
-            goto exception;
+            goto exception_close;
 
         if (JS_IsUndefined(prop)) {
             prop = JS_NewArray(ctx);
             if (JS_IsException(prop))
-                goto exception;
+                goto exception_close;
             args[0] = k;
             args[1] = prop;
             res = js_map_set(ctx, groups, 2, args, 0);
             if (JS_IsException(res))
-                goto exception;
+                goto exception_close;
             JS_FreeValue(ctx, res);
         }
 
         res = js_array_push(ctx, prop, 1, vc(&v), /*unshift*/0);
         if (JS_IsException(res))
-            goto exception;
+            goto exception_close;
         /* res is an int64 */
 
         JS_FreeValue(ctx, prop);
@@ -52450,6 +52699,8 @@ static JSValue js_map_groupBy(JSContext *ctx, JSValueConst this_val,
     JS_FreeValue(ctx, next);
     return groups;
 
+exception_close:
+    JS_IteratorClose(ctx, iter, true);
 exception:
     JS_FreeValue(ctx, prop);
     JS_FreeValue(ctx, k);
@@ -58140,7 +58391,7 @@ static JSValue js_typed_array_from(JSContext *ctx, JSValueConst this_val,
         for (k = 0;; k++) {
             v = JS_IteratorNext(ctx, stack[0], stack[1], 0, NULL, &done);
             if (JS_IsException(v))
-                goto exception_close;
+                goto exception;
             if (done)
                 break;
             if (JS_DefinePropertyValueInt64(ctx, arr, k, v, JS_PROP_C_W_E | JS_PROP_THROW) < 0)
@@ -59106,6 +59357,10 @@ struct TA_sort_context {
     JSValueConst cmp;
     JSValue (*getfun)(JSContext *ctx, const void *a);
     int elt_size;
+    /* the elements as they were when sort() was called: the comparator
+       may shrink or detach the buffer, and the values to sort are the
+       ones read before it ran (ES2024 23.2.3.29, SortIndexedProperties) */
+    const uint8_t *values;
 };
 
 static int js_TA_cmp_generic(const void *a, const void *b, void *opaque) {
@@ -59114,22 +59369,15 @@ static int js_TA_cmp_generic(const void *a, const void *b, void *opaque) {
     uint32_t a_idx, b_idx;
     JSValue argv[2];
     JSValue res;
-    JSObject *p;
     int cmp;
-
-    p = JS_VALUE_GET_OBJ(psc->arr);
-    if (typed_array_is_oob(p))
-        return 0;
 
     cmp = 0;
     if (!psc->exception) {
         a_idx = *(uint32_t *)a;
         b_idx = *(uint32_t *)b;
-        if (a_idx >= p->u.array.count || b_idx >= p->u.array.count)
-            return 0;
-        argv[0] = psc->getfun(ctx, (char *)p->u.array.u.ptr +
+        argv[0] = psc->getfun(ctx, psc->values +
                               a_idx * (size_t)psc->elt_size);
-        argv[1] = psc->getfun(ctx, (char *)p->u.array.u.ptr +
+        argv[1] = psc->getfun(ctx, psc->values +
                               b_idx * (size_t)(psc->elt_size));
         res = JS_Call(ctx, psc->cmp, JS_UNDEFINED, 2, vc(argv));
         if (JS_IsException(res)) {
@@ -59245,60 +59493,63 @@ static JSValue js_typed_array_sort(JSContext *ctx, JSValueConst this_val,
             array_idx = js_malloc(ctx, len * sizeof(array_idx[0]));
             if (!array_idx)
                 return JS_EXCEPTION;
-            for(i = 0; i < len; i++)
-                array_idx[i] = i;
-            tsc.elt_size = elt_size;
-            rqsort(array_idx, len, sizeof(array_idx[0]),
-                   js_TA_cmp_generic, &tsc);
-            if (tsc.exception)
-                goto fail;
-            /* per spec: typed array can be detached mid-iteration */
-            if (typed_array_is_oob(p))
-                goto done;
-            len = min_int(len, p->u.array.count);
-            if (len == 0)
-                goto done;
+            /* The values are copied before the comparator runs and
+               sorted from the copy; what is written back is the first
+               elements of the sorted list, as many as the array still
+               has. Upstream compared the live elements and treated the
+               ones a shrunk buffer no longer had as equal, which left
+               the array unsorted. */
             array_tmp = js_malloc(ctx, len * elt_size);
             if (!array_tmp) {
-            fail:
                 js_free(ctx, array_idx);
                 return JS_EXCEPTION;
             }
             memcpy(array_tmp, p->u.array.u.ptr, len * elt_size);
+            for(i = 0; i < len; i++)
+                array_idx[i] = i;
+            tsc.elt_size = elt_size;
+            tsc.values = array_tmp;
+            rqsort(array_idx, len, sizeof(array_idx[0]),
+                   js_TA_cmp_generic, &tsc);
+            if (tsc.exception) {
+                js_free(ctx, array_tmp);
+                js_free(ctx, array_idx);
+                return JS_EXCEPTION;
+            }
+            /* per spec: typed array can be detached mid-iteration */
+            if (typed_array_is_oob(p))
+                goto done;
+            len = min_int(len, p->u.array.count);
             switch(elt_size) {
             case 1:
                 for(i = 0; i < len; i++) {
                     j = array_idx[i];
-                    if (j < len)
-                        p->u.array.u.uint8_ptr[i] = ((uint8_t *)array_tmp)[j];
+                    p->u.array.u.uint8_ptr[i] = ((uint8_t *)array_tmp)[j];
                 }
                 break;
             case 2:
                 for(i = 0; i < len; i++) {
                     j = array_idx[i];
-                    if (j < len)
-                        p->u.array.u.uint16_ptr[i] = ((uint16_t *)array_tmp)[j];
+                    p->u.array.u.uint16_ptr[i] = ((uint16_t *)array_tmp)[j];
                 }
                 break;
             case 4:
                 for(i = 0; i < len; i++) {
                     j = array_idx[i];
-                    if (j < len)
-                        p->u.array.u.uint32_ptr[i] = ((uint32_t *)array_tmp)[j];
+                    p->u.array.u.uint32_ptr[i] = ((uint32_t *)array_tmp)[j];
                 }
                 break;
             case 8:
                 for(i = 0; i < len; i++) {
                     j = array_idx[i];
-                    if (j < len)
-                        p->u.array.u.uint64_ptr[i] = ((uint64_t *)array_tmp)[j];
+                    p->u.array.u.uint64_ptr[i] = ((uint64_t *)array_tmp)[j];
                 }
                 break;
             default:
                 abort();
             }
-            js_free(ctx, array_tmp);
         done:
+            js_free(ctx, array_tmp);
             js_free(ctx, array_idx);
         } else {
             rqsort(p->u.array.u.ptr, len, elt_size, cmpfun, &tsc);
