@@ -700,6 +700,24 @@ static int get_class_atom(REParseState *s, CharRange *cr,
             c = CHAR_RANGE_w;
             goto class_range;
         case 'W':
+            if (s->ignore_case && s->is_unicode) {
+                /* With /iu the word characters also include U+017F
+                   (long s) and U+212A (Kelvin sign), which fold to 's'
+                   and 'k' (ES WordCharacters). \W must leave them out:
+                   inside a class the set is case-folded afterwards, so
+                   keeping them put 's' and 'k' into [\W] and took them
+                   out of [^\W]. */
+                if (cr_init_char_range(s, cr, CHAR_RANGE_w))
+                    return -1;
+                if (cr_union_interval(cr, 0x17f, 0x17f) ||
+                    cr_union_interval(cr, 0x212a, 0x212a) ||
+                    cr_invert(cr)) {
+                    cr_free(cr);
+                    return re_parse_out_of_memory(s);
+                }
+                c = CLASS_RANGE_BASE;
+                break;
+            }
             c = CHAR_RANGE_W;
         class_range:
             if (cr_init_char_range(s, cr, c))
@@ -1572,6 +1590,21 @@ static int re_parse_term(REParseState *s, bool is_backward_dir)
                are sure the atom always advances the position. */
             add_zero_advance_check = re_need_check_advance(s->byte_code.buf + last_atom_start,
                                                            s->byte_code.size - last_atom_start);
+
+            /* Each iteration of a quantified atom starts with the
+               atom's capture groups undefined (ES RepeatMatcher), so
+               /(?:(a)|b)+/.exec('ab')[1] is undefined, not 'a'. The
+               reset goes at the start of the atom, inside the loop;
+               upstream only reset once before a loop that may run zero
+               times, so a group kept what an earlier iteration had
+               captured. */
+            if (last_capture_count != s->capture_count) {
+                if (dbuf_insert(&s->byte_code, last_atom_start, 3))
+                    goto out_of_memory;
+                s->byte_code.buf[last_atom_start] = REOP_save_reset;
+                s->byte_code.buf[last_atom_start + 1] = last_capture_count;
+                s->byte_code.buf[last_atom_start + 2] = s->capture_count - 1;
+            }
 
             {
                 int len, pos;
