@@ -21,3 +21,6 @@ perf/tools/hook.dylib
 
 # per-feature sources split out of extended.js by scripts/bundle_extended.py
 quickjs-master/gen/extended-parts/
+
+# agent worktrees
+.claude/worktrees/

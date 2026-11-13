@@ -11,8 +11,11 @@ const {
   CEnumeration,
   ptrOf,
   Struct,
+  withStruct,
+  ExecList,
   IntuiMessage,
   TextAttr,
+  DrawListEntry,
   Image,
   Gadget,
   RastPort,
@@ -23,6 +26,7 @@ const {
   ColorMap,
   Screen,
   makeTags,
+  withTags,
   Window,
   Exec,
   GadTools,
@@ -546,13 +550,14 @@ class BOOPSIBase {
     if (this._publicClassID) {
       /* Never freed: the name must outlive every instance, and the
        * class stays registered for as long as the library is open. */
-      let bytes = this._publicClassID.length + 1;
-      let idPtr = globalThis.amiga.allocMem(bytes);
-      if (!idPtr) {
-        globalThis.amiga.closeLibrary(base);
-        throw new Error(this.name + ': allocMem failed for class name');
+      let idPtr;
+      try {
+        idPtr = globalThis.amiga.allocString(this._publicClassID).ptr;
       }
-      globalThis.amiga.pokeString(idPtr, this._publicClassID);
+      catch (error) {
+        globalThis.amiga.closeLibrary(base);
+        throw error;
+      }
       this._libBase    = base;
       this._classIDPtr = idPtr;
       return 0;
@@ -658,7 +663,7 @@ class BOOPSIBase {
 
       if (!raw) {
         throw new Error(
-          this.constructor.name + ': NewObjectA returned 0 — ' +
+          this.constructor.name + ': NewObjectA returned 0 - ' +
           'class ' + this.constructor._classLibName +
           ' rejected the tag list'
         );
@@ -723,12 +728,12 @@ class BOOPSIBase {
 
       if (desc.type === 'string-owned') {
         if (typeof value === 'string') {
-          let bytes = value.length + 1;
-          let p = globalThis.amiga.allocMem(bytes);
-          if (!p) throw new Error('allocMem failed for ' + key);
-          globalThis.amiga.pokeString(p, value);
-          this._ownedStrings.push({ ptr: p, size: bytes });
-          tagValue = p;
+          /* The class keeps the pointer (it does not copy a title or
+           * a label), so the string lives until dispose(), where
+           * _ownedStrings is freed. */
+          let holder = globalThis.amiga.allocString(value);
+          this._ownedStrings.push(holder);
+          tagValue = holder.ptr;
         }
 
         else {
@@ -896,6 +901,7 @@ class BOOPSIBase {
       globalThis.amiga.poke32(msg, methodID | 0);
 
       for (let i = 0; i < args.length; i++) {
+        /* check-structs: a ULONG array (the method's arguments) */
         globalThis.amiga.poke32(msg + 4 + i * 4, args[i] | 0);
       }
 
@@ -1456,6 +1462,49 @@ class GadgetBase extends BOOPSIBase {
 
   get text()      { return this.get('text'); }
   set text(v)     { this.set({ text: v }); }
+
+  /**
+   * Send a "show your requester" method: GFILE_REQUEST, GFONT_REQUEST,
+   * GSM_REQUEST or GCOLOR_REQUEST. The four pop-up gadgets (getfile,
+   * getfont, getscreenmode, getcolor) do not open their requester when
+   * clicked; the application sends this method when it sees the click.
+   * The message is { MethodID; struct Window *window; } and the
+   * headers say of the window: "MUST be provided". It is the window
+   * that is blocked while the requester is up.
+   *
+   * @internal
+   * @param {string} who - 'GetFile.request' etc., for the error
+   * @param {number} methodID - the class's _REQUEST method
+   * @param {object|number} [window] - the Reaction Window object, a
+   *   struct Window wrapper, or a struct Window pointer. Omitted: the
+   *   open window this gadget is in.
+   * @returns {number} what the class returned: non-zero if the user
+   *   chose something, 0 if the requester was cancelled
+   * @throws {Error} if there is no open window to give the class
+   */
+  _sendRequest(who, methodID, window) {
+    let pointer = 0;
+
+    if (typeof window === 'number') {
+      pointer = window;
+    }
+    else if (window && window.intuiWindow) {
+      pointer = window.intuiWindow.ptr;        /* a Reaction Window */
+    }
+    else if (window && typeof window.ptr === 'number') {
+      pointer = window.ptr;                    /* a struct Window wrapper */
+    }
+    else {
+      pointer = this._findWindowPtr();
+    }
+
+    if (!pointer) {
+      throw new Error(who + ': the gadget is not in an open window, ' +
+                      'and none was given');
+    }
+
+    return this.doMethod(methodID, pointer);
+  }
 }
 
 
@@ -1548,6 +1597,185 @@ class ImageBase extends BOOPSIBase {
 
   get height() { return this.get('height'); }
   set height(v){ this.set({ height: v }); }
+
+  /**
+   * Draw the image again where it already is, in the open window it
+   * belongs to. Changing an image's attributes does not repaint it;
+   * the NDK's Examples/LED.c shows the way to do that, and this is
+   * it:
+   *
+   *     SetAttrs(image, ...);
+   *     DrawImageState(window->RPort, image, 0, 0, IDS_NORMAL, drawInfo);
+   *
+   * The offsets are 0 because the layout has already put the image's
+   * position in the window into the image itself.
+   *
+   * Only right for an image that paints its whole box, as led.image
+   * does; one that draws just its text (label.image) would leave the
+   * old text showing through.
+   *
+   * @returns {boolean} false if the image is not in an open window,
+   *   in which case nothing was drawn (it is drawn when the window
+   *   opens)
+   */
+  redraw() {
+    let windowPointer = this.ptr ? this._findWindowPtr() : 0;
+
+    if (!windowPointer) return false;
+
+    const Intuition = globalThis.amiga.Intuition;
+    let window   = new globalThis.amiga.intuition.Window(windowPointer);
+    let screen   = window.screen;
+    let drawInfo = Intuition.GetScreenDrawInfo(screen);
+
+    if (!drawInfo) return false;
+
+    try {
+      Intuition.DrawImageState(window.rastPort, this.ptr, 0, 0,
+                               Intuition.consts.IDS_NORMAL, drawInfo);
+    }
+    finally {
+      Intuition.FreeScreenDrawInfo(screen, drawInfo);
+    }
+
+    return true;
+  }
+}
+
+
+/* === boopsi/NodeList.js === */
+/* quickjs-master/amiga/ffi/boopsi/NodeList.js
+ *
+ * Builds the exec list of nodes that a Reaction gadget takes for its
+ * labels: CHOOSER_Labels, CLICKTAB_Labels, RADIOBUTTON_Labels,
+ * LISTBROWSER_Labels, SPEEDBAR_Buttons.
+ *
+ * All five work the same way. The gadget's class library has an
+ * AllocXxxNodeA(tags) function that returns a struct Node with the
+ * class's private data behind it, and a FreeXxxNode(node). The
+ * application links the nodes into a struct List of its own and gives
+ * the gadget a pointer to it. The gadget does not copy anything: the
+ * list, the nodes and (unless the class says otherwise) the strings
+ * the nodes point at must stay until the gadget is disposed, and are
+ * then freed by the application, nodes first.
+ *
+ * Until 0.231 each of the five wrappers had its own copy of this,
+ * with the list offsets typed in.
+ */
+
+
+/**
+ * What describe() is handed to keep things alive as long as the list.
+ *
+ * @typedef {object} NodeListKeeper
+ * @property {function(string): number} string - copy a string into
+ *   memory that lives until freeAll(); returns the C string pointer
+ * @property {function(function(): undefined): undefined} afterNodes -
+ *   register something to run in freeAll() once the nodes are freed
+ *   (to dispose an image a node pointed at, say)
+ */
+
+/**
+ * Build a list of class-allocated nodes.
+ *
+ * @param {object} spec
+ * @param {string} spec.owner - the wrapper's name, for error messages
+ * @param {number} spec.libBase - the class library's base
+ * @param {number} spec.allocLvo - offset of its AllocXxxNodeA
+ * @param {number} spec.freeLvo - offset of its FreeXxxNode
+ * @param {number} spec.count - how many nodes to make
+ * @param {function(number, NodeListKeeper): {pairs: Array<[number, number]>, d0: (number|undefined)}} spec.describe -
+ *   called once per node with its index; returns the node's tag pairs
+ *   and, for an allocator that takes a number in d0 (a column count or
+ *   an ordinal), that number
+ * @returns {{listPtr: number, freeAll: function(): undefined}} the
+ *   struct List pointer to give the gadget, and the function that
+ *   frees the nodes, the strings and the list: call it after the
+ *   gadget is disposed, never before
+ * @throws {Error} if a node cannot be allocated; nothing is leaked
+ */
+function buildNodeList(spec) {
+  const amiga = globalThis.amiga;
+  const list  = new ExecList();
+
+  /** @type {number[]} node pointers, in list order */
+  const nodes = [];
+  /** @type {Array<{free: function(): undefined}>} amiga.allocString holders */
+  const strings = [];
+  /** @type {Array<function(): undefined>} */
+  const afterNodes = [];
+
+  let freed = false;
+
+  /**
+   * Free the nodes, then what they pointed at, then the list header.
+   * Each step is attempted even if an earlier one throws. Safe to
+   * call twice.
+   *
+   * @returns {undefined}
+   */
+  function freeAll() {
+    if (freed) return;
+    freed = true;
+
+    for (const node of nodes) {
+      try { amiga.call(spec.libBase, spec.freeLvo, { a0: node }); }
+      catch (_) { /* keep going: the rest must still be freed */ }
+    }
+
+    for (const callback of afterNodes) {
+      try { callback(); } catch (_) { /* as above */ }
+    }
+
+    for (const holder of strings) {
+      try { holder.free(); } catch (_) { /* as above */ }
+    }
+
+    list.free();
+  }
+
+  /** @type {NodeListKeeper} */
+  const keep = {
+    string(text) {
+      const holder = amiga.allocString(text);
+
+      strings.push(holder);
+      return holder.ptr;
+    },
+
+    afterNodes(callback) {
+      afterNodes.push(callback);
+    },
+  };
+
+  try {
+    for (let index = 0; index < spec.count; index++) {
+      const described = spec.describe(index, keep);
+      const regs = { a0: 0 };
+
+      if (described.d0 !== undefined) {
+        regs.d0 = described.d0;
+      }
+
+      const node = amiga.withTags(described.pairs, (tags) => {
+        regs.a0 = tags;
+        return amiga.call(spec.libBase, spec.allocLvo, regs);
+      });
+
+      if (!node) {
+        throw new Error(spec.owner + ': could not allocate node ' + index);
+      }
+
+      nodes.push(node);
+      list.addTail(node);
+    }
+  }
+  catch (error) {
+    freeAll();
+    throw error;
+  }
+
+  return { listPtr: list.ptr, freeAll };
 }
 
 
@@ -1664,7 +1892,7 @@ const LabelJustify = Object.freeze({
 const LED = Object.freeze({
   /* check-constants: prefix LED_ header images/led.h */
   Pairs:       0x84000001,  /* (WORD) number of digit pairs */
-  Values:      0x84000002,  /* (UBYTE*) array of digit values */
+  Values:      0x84000002,  /* (WORD *) one value per pair of digits */
   Colon:       0x84000003,  /* (BOOL) show colon between pairs */
   Negative:    0x84000004,  /* (BOOL) display as negative */
   Signed:      0x84000005,  /* (BOOL) signed display */
@@ -1673,8 +1901,34 @@ const LED = Object.freeze({
   Raw:         0x84000008,  /* (BOOL) raw mode (V47.3) */
 });
 
+/** Size of one entry of the LED_Values array: a WORD. */
+const WORD_BYTES = 2;
+
+/** The largest number of pairs a led.image shows (images/led.h). */
+const MAX_PAIRS = 8;
+
 /**
- * led.image — segmented-digit display.
+ * led.image - a row of seven-segment digits, in pairs.
+ *
+ * What it shows is an array of WORDs, one per PAIR of digits
+ * (LED_Values in images/led.h, and `WORD ledvalues[4][8]` in the NDK's
+ * Examples/LED.c). The value of a WORD is the two-digit number its
+ * pair shows: 26 shows "26", 7 shows "07". With `hexadecimal` it is
+ * 0x00..0xFF and shows two hex digits; with `raw` the high byte is the
+ * left digit's segments and the low byte the right digit's.
+ *
+ * Give the values as a JavaScript array and the wrapper keeps the WORD
+ * array for you:
+ *
+ *     let clock = new Led({ pairs: 3, values: [12, 34, 56], colon: true });
+ *     ...
+ *     clock.setValues([12, 34, 57]);       // shows 12:34:57 at once
+ *     clock.setValues(Led.pairsOf(123457, 3));   // the same
+ *
+ * (Until 0.231 `values` could only be a pointer, and the examples that
+ * used it wrote one BYTE per DIGIT, which is not what the image reads:
+ * six digits 1 2 3 4 5 6 are the WORDs 0x0102 0x0304 0x0506, shown as
+ * the numbers 258, 772 and 1286.)
  *
  * @extends ImageBase
  */
@@ -1694,6 +1948,149 @@ class Led extends ImageBase {
     hexadecimal: { tagID: LED.Hexadecimal, type: 'bool'  },
     raw:         { tagID: LED.Raw,         type: 'bool' },   /* (BOOL) raw mode; was string-owned until 0.224 */
   };
+
+  /**
+   * Split a whole number into the values of a display's pairs, most
+   * significant pair first: pairsOf(123456, 3) is [12, 34, 56], and
+   * pairsOf(7, 2) is [0, 7]. Digits that do not fit are dropped from
+   * the front, as on a counter that rolls over.
+   *
+   * @param {number} value - a whole number, 0 or more
+   * @param {number} pairCount - how many pairs the display has
+   * @returns {number[]} pairCount values, each 0 to 99
+   */
+  static pairsOf(value, pairCount) {
+    const PAIR_MODULUS = 100;       /* two decimal digits */
+    let rest  = Math.max(0, Math.floor(Number(value) || 0));
+    let pairs = [];
+
+    for (let index = 0; index < pairCount; index++) {
+      pairs.unshift(rest % PAIR_MODULUS);
+      rest = Math.floor(rest / PAIR_MODULUS);
+    }
+
+    return pairs;
+  }
+
+  /**
+   * @param {object|number} init - attributes, or a pointer to an
+   *   existing led.image to wrap
+   * @param {number} [init.pairs] - how many pairs of digits, 1 to 8.
+   *   Defaults to the length of `values` when that is an array.
+   * @param {number[]|number} [init.values] - one number per pair (the
+   *   wrapper keeps the WORD array), or a pointer to a WORD array the
+   *   caller keeps alive
+   * @param {boolean} [init.colon] - light the colons between pairs
+   * @param {boolean} [init.time] - leave room for colons
+   * @param {boolean} [init.signed] - leave room for a minus sign
+   * @param {boolean} [init.negative] - light the minus sign
+   * @param {boolean} [init.hexadecimal] - show values as two hex digits
+   * @param {boolean} [init.raw] - values are segment patterns
+   */
+  constructor(init) {
+    if (typeof init === 'number') {
+      super(init);
+
+      /** @type {number} the WORD array this wrapper owns, or 0 */
+      this._valuesPtr = 0;
+      /** @type {number} how many WORDs it holds */
+      this._valuesCount = 0;
+      return;
+    }
+
+    let clean  = (init && typeof init === 'object') ? { ...init } : {};
+    let buffer = 0;
+    let count  = 0;
+
+    if (Array.isArray(clean.values)) {
+      count = (clean.pairs === undefined) ? clean.values.length
+                                          : (clean.pairs | 0);
+
+      if (count < 1 || count > MAX_PAIRS) {
+        throw new RangeError('Led: pairs must be 1 to ' + MAX_PAIRS +
+                             ', not ' + count);
+      }
+
+      buffer = globalThis.amiga.allocMem(count * WORD_BYTES);
+      if (!buffer) throw new Error('Led: out of memory for the values');
+
+      Led._writeValues(buffer, count, clean.values);
+      clean.pairs  = count;
+      clean.values = buffer;
+    }
+
+    try {
+      super(clean);
+    }
+    catch (error) {
+      if (buffer) globalThis.amiga.freeMem(buffer, count * WORD_BYTES);
+      throw error;
+    }
+
+    this._valuesPtr   = buffer;
+    this._valuesCount = count;
+
+    /* The image keeps the pointer, not a copy: the array must live as
+     * long as the image. Freed with the wrapper's other owned memory,
+     * in dispose(). */
+    if (buffer) {
+      this._ownedStrings.push({ ptr: buffer, size: count * WORD_BYTES });
+    }
+  }
+
+  /**
+   * Write pair values into a WORD array. Missing values are 0.
+   *
+   * @internal
+   * @param {number} buffer - the array
+   * @param {number} count - how many WORDs it holds
+   * @param {number[]} values - one number per pair
+   * @returns {undefined}
+   */
+  static _writeValues(buffer, count, values) {
+    for (let index = 0; index < count; index++) {
+      /* check-structs: a WORD array (LED_Values) */
+      globalThis.amiga.poke16(buffer + index * WORD_BYTES,
+                              (values[index] | 0) & 0xFFFF);
+    }
+  }
+
+  /**
+   * Show new values, at once if the window is open.
+   *
+   * @param {number[]} values - one number per pair, as for the
+   *   constructor; extra ones are ignored, missing ones are 0
+   * @returns {undefined}
+   * @throws {Error} if this Led was not made with an array of values
+   *   (then the caller owns the WORD array: write to it and call
+   *   set({ values: pointer }))
+   */
+  setValues(values) {
+    if (!this._valuesPtr) {
+      throw new Error('Led.setValues: this Led was not created with ' +
+                      'an array of values');
+    }
+
+    Led._writeValues(this._valuesPtr, this._valuesCount, values);
+
+    /* The image does not watch the array: it has to be handed the
+     * pointer again, and then drawn (see set()). */
+    this.set({ values: this._valuesPtr });
+  }
+
+  /**
+   * Set attributes, then draw the image again if its window is open.
+   * An image is not repainted because its attributes changed; the
+   * NDK's LED.c follows every SetAttrs() with a DrawImageState(), and
+   * so does this.
+   *
+   * @param {object} patch - attribute names and their new values
+   * @returns {undefined}
+   */
+  set(patch) {
+    super.set(patch);
+    this.redraw();
+  }
 }
 
 
@@ -1915,9 +2312,6 @@ const DrawOp = Object.freeze({
   LINESIZE: 14,  /* DLST_LINESIZE - line thickness in the pen field  */
 });
 
-/** @internal sizeof(struct DrawList): WORD, UWORD x4, WORD. */
-const DRAWLIST_ENTRY_BYTES = 12;
-
 /**
  * drawlist.image - scalable vector glyph.
  *
@@ -1950,19 +2344,20 @@ class DrawList extends ImageBase {
    *   owns it and must freeMem(ptr, size)
    */
   static packDirectives(list) {
-    let size = (list.length + 1) * DRAWLIST_ENTRY_BYTES;
+    let size = (list.length + 1) * DrawListEntry.SIZE;
     let ptr = globalThis.amiga.allocMem(size);
     if (!ptr) throw new Error('DrawList: allocMem failed for directives');
 
     for (let i = 0; i <= list.length; i++) {
       let d = (i < list.length) ? list[i] : [DrawOp.END, 0, 0, 0, 0, 0];
-      let at = ptr + i * DRAWLIST_ENTRY_BYTES;
-      globalThis.amiga.poke16(at + 0,  d[0] | 0);
-      globalThis.amiga.poke16(at + 2,  d[1] | 0);
-      globalThis.amiga.poke16(at + 4,  d[2] | 0);
-      globalThis.amiga.poke16(at + 6,  d[3] | 0);
-      globalThis.amiga.poke16(at + 8,  d[4] | 0);
-      globalThis.amiga.poke16(at + 10, (d[5] === undefined) ? 1 : (d[5] | 0));
+      let entry = new DrawListEntry(ptr + i * DrawListEntry.SIZE);
+
+      entry.directive = d[0] | 0;
+      entry.x1  = d[1] | 0;
+      entry.y1  = d[2] | 0;
+      entry.x2  = d[3] | 0;
+      entry.y2  = d[4] | 0;
+      entry.pen = (d[5] === undefined) ? 1 : (d[5] | 0);
     }
     return { ptr, size };
   }
@@ -2140,6 +2535,10 @@ class Button extends GadgetBase {
    * @param {object} init
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -2194,6 +2593,10 @@ class CheckBox extends GadgetBase {
    * @param {object} init
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;
@@ -2293,6 +2696,10 @@ class RadioButton extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;
@@ -2312,93 +2719,32 @@ class RadioButton extends GadgetBase {
   }
 
   /**
-   * @internal
-   * Allocate an RBNA node per label, link into a struct List, return
-   * { listPtr, freeAll }. The list's lifetime is tied to the owning
-   * RadioButton's dispose.
+   * Build the RADIOBUTTON_Labels list: one AllocRadioButtonNodeA node
+   * per label, each with RBNA_Label. The gadget keeps pointers to the
+   * list and the strings, so all of it lives until dispose().
    *
+   * @internal
    * @param   {string[]} labels
-   * @returns {{listPtr: number, freeAll: Function}}
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
    */
   static _buildLabelList(labels) {
-    /* Ensure the class library is open so we can reach its LVOs. */
     RadioButton.ensureClass();
-    const libBase = RadioButton._libBase;
-    if (!libBase) {
+    if (!RadioButton._libBase) {
       throw new Error('RadioButton: class library base not cached');
     }
 
-    /* Allocate a standard exec List header: 14 bytes, 16 for padding. */
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('RadioButton: allocMem list failed');
-
-    /* NewList() inline: lh_Head = &lh_Tail; lh_Tail = NULL; lh_TailPred = &lh_Head. */
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);  /* lh_Head = &lh_Tail */
-    globalThis.amiga.poke32(listPtr + 4, 0);            /* lh_Tail */
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);  /* lh_TailPred = &lh_Head */
-
-    const nodes = [];          /* { nodePtr, labelPtr, labelBytes } */
-    const labelAllocs = [];    /* [strPtr, strBytes] for cleanup */
-
-    for (let lbl of labels) {
-      const s = String(lbl);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      /* Build a two-tag array: [RBNA_Label, sP], [TAG_END, 0].
-       * Use makeTags in pair-array form. */
-      const tags = globalThis.amiga.makeTags([[RBNA.Label, sP]]);
-      if (!tags) throw new Error('RadioButton: makeTags failed');
-
-      /* Call AllocRadioButtonNodeA(columns=1, tags=tags).
-       * LVO -36. Returns Node* in D0, which amiga.call forwards. */
-      const nodePtr = globalThis.amiga.call(libBase, LVO_ALLOC_NODE, {
-        d0: 1,
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 16);
-
-      if (!nodePtr) {
-        /* Roll back partial allocs. */
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('RadioButton: AllocRadioButtonNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr, labelPtr: sP, labelBytes: sB });
-    }
-
-    /* Link each node at the tail. AddTail equivalent:
-     *   pred = list->lh_TailPred;
-     *   node->ln_Succ = &list->lh_Tail;       (+0 inside node = ln_Succ)
-     *   node->ln_Pred = pred;                 (+4 inside node = ln_Pred)
-     *   pred->ln_Succ = node;
-     *   list->lh_TailPred = node;
-     */
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);      /* lh_TailPred */
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);    /* ln_Succ = &lh_Tail */
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);           /* ln_Pred = old pred */
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);    /* pred->ln_Succ = node */
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);    /* lh_TailPred = node */
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'RadioButton',
+      libBase:  RadioButton._libBase,
+      /* AllocRadioButtonNodeA(d0 columns, a0 tags) */
+      allocLvo: LVO_ALLOC_NODE,
+      freeLvo:  LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        d0:    1,
+        pairs: [[RBNA.Label, keep.string(labels[index])]],
+      }),
+    });
   }
 
   /**
@@ -2518,6 +2864,10 @@ class Slider extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (typeof clean.orientation === 'string') {
       clean.orientation = clean.orientation.toLowerCase() === 'vertical'
@@ -2593,6 +2943,10 @@ class Scroller extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (typeof clean.orientation === 'string') {
       clean.orientation = clean.orientation.toLowerCase() === 'vertical'
@@ -2656,6 +3010,10 @@ class Integer extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;
@@ -2787,6 +3145,10 @@ class StringGadget extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;
@@ -2936,6 +3298,10 @@ class Chooser extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     if (clean.tabCycle  === undefined) clean.tabCycle  = true;
@@ -2952,80 +3318,30 @@ class Chooser extends GadgetBase {
   }
 
   /**
-   * @internal
-   * Allocate a CNA-node per label, link into a struct List, return
-   * { listPtr, freeAll }. Lifetime tied to the owning Chooser's dispose.
+   * Build the CHOOSER_Labels list: one AllocChooserNodeA node per
+   * label, each with CNA_Text. The gadget keeps pointers to the list
+   * and the strings, so all of it lives until dispose().
    *
+   * @internal
    * @param   {string[]} labels
-   * @returns {{listPtr: number, freeAll: Function}}
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
    */
   static _buildLabelList(labels) {
     Chooser.ensureClass();
-    const libBase = Chooser._libBase;
-    if (!libBase) throw new Error('Chooser: class library base not cached');
-
-    /* Standard exec struct List header: 14 bytes, 16 for padding. */
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('Chooser: allocMem list failed');
-
-    /* NewList() inline. */
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];  /* { nodePtr } */
-    const labelAllocs = [];  /* [strPtr, strBytes] — keep alive for node lifetime */
-
-    for (let lbl of labels) {
-      const s = String(lbl);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      const tags = globalThis.amiga.makeTags([[CNA.Text, sP]]);
-      if (!tags) throw new Error('Chooser: makeTags failed');
-
-      /* AllocChooserNodeA takes (tags) in a0 ONLY — no d0. */
-      const nodePtr = globalThis.amiga.call(libBase, CHOOSER_LVO_ALLOC_NODE, {
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 16);
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CHOOSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('Chooser: AllocChooserNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr });
+    if (!Chooser._libBase) {
+      throw new Error('Chooser: class library base not cached');
     }
 
-    /* AddTail() each node. See RadioButton._buildLabelList for the
-     * struct List layout: ln_Succ at +0, ln_Pred at +4, lh_TailPred
-     * at listPtr+8. */
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CHOOSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'Chooser',
+      libBase:  Chooser._libBase,
+      allocLvo: CHOOSER_LVO_ALLOC_NODE,   /* AllocChooserNodeA(a0 tags) */
+      freeLvo:  CHOOSER_LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        pairs: [[CNA.Text, keep.string(labels[index])]],
+      }),
+    });
   }
 
   /** Dispose the chooser + its owned label list. */
@@ -3160,6 +3476,10 @@ class ClickTab extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
 
@@ -3174,73 +3494,34 @@ class ClickTab extends GadgetBase {
     this._ownedLabels = ownedLabels;
   }
 
-  /** @internal See RadioButton._buildLabelList for list-layout mechanics. */
+  /**
+   * Build the CLICKTAB_Labels list: one AllocClickTabNodeA node per
+   * label, with TNA_Text and TNA_Number (the tab's index, which is
+   * what CLICKTAB_Current reports). Everything lives until dispose().
+   *
+   * @internal
+   * @param   {string[]} labels
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
+   */
   static _buildLabelList(labels) {
     ClickTab.ensureClass();
-    const libBase = ClickTab._libBase;
-    if (!libBase) throw new Error('ClickTab: class library base not cached');
-
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('ClickTab: allocMem list failed');
-
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];
-    const labelAllocs = [];
-
-    for (let i = 0; i < labels.length; i++) {
-      const s = String(labels[i]);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      /* TNA_Text + TNA_Number = index. Number is documented as a
-       * stable per-tab id useful for CLICKTAB_Current lookup. */
-      const tags = globalThis.amiga.makeTags([
-        [TNA.Text,   sP],
-        [TNA.Number, i],
-      ]);
-      if (!tags) throw new Error('ClickTab: makeTags failed');
-
-      const nodePtr = globalThis.amiga.call(libBase, CLICKTAB_LVO_ALLOC_NODE, {
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 24);  /* 3 tag items × 8 bytes */
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CLICKTAB_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('ClickTab: AllocClickTabNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr });
+    if (!ClickTab._libBase) {
+      throw new Error('ClickTab: class library base not cached');
     }
 
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, CLICKTAB_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'ClickTab',
+      libBase:  ClickTab._libBase,
+      allocLvo: CLICKTAB_LVO_ALLOC_NODE,  /* AllocClickTabNodeA(a0 tags) */
+      freeLvo:  CLICKTAB_LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        pairs: [
+          [TNA.Text,   keep.string(labels[index])],
+          [TNA.Number, index],
+        ],
+      }),
+    });
   }
 
   dispose() {
@@ -3465,6 +3746,10 @@ class ListBrowser extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
 
@@ -3479,78 +3764,38 @@ class ListBrowser extends GadgetBase {
     this._ownedLabels = ownedLabels;
   }
 
-  /** @internal */
+  /**
+   * Build the LISTBROWSER_Labels list: one single-column
+   * AllocListBrowserNodeA node per label. LBNCA_CopyText makes the
+   * class copy the text, so our strings could be freed at once; they
+   * are kept until dispose() like every other gadget's, so that there
+   * is one clean-up path.
+   *
+   * @internal
+   * @param   {string[]} labels
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
+   */
   static _buildLabelList(labels) {
     ListBrowser.ensureClass();
-    const libBase = ListBrowser._libBase;
-    if (!libBase) throw new Error('ListBrowser: class library base not cached');
-
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('ListBrowser: allocMem list failed');
-
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];
-    const labelAllocs = [];
-
-    for (let lbl of labels) {
-      const s = String(lbl);
-      const sB = s.length + 1;
-      const sP = globalThis.amiga.allocMem(sB);
-      globalThis.amiga.pokeString(sP, s);
-      labelAllocs.push([sP, sB]);
-
-      /* LBNCA_CopyText=TRUE tells listbrowser to copy the text into
-       * its own buffer; after Alloc returns we could free sP, but we
-       * keep the same discipline as RadioButton and hold the JS side
-       * until dispose. Consistent cleanup path matters more than the
-       * few bytes saved. */
-      const tags = globalThis.amiga.makeTags([
-        [LBNCA.CopyText, 1],
-        [LBNCA.Text,     sP],
-      ]);
-      if (!tags) throw new Error('ListBrowser: makeTags failed');
-
-      /* AllocListBrowserNodeA(numcolumns=1, tags). d0=1, a0=tags. */
-      const nodePtr = globalThis.amiga.call(libBase, LISTBROWSER_LVO_ALLOC_NODE, {
-        d0: 1,
-        a0: tags,
-      });
-      globalThis.amiga.freeMem(tags, 24);  /* 3 tag items × 8 bytes */
-
-      if (!nodePtr) {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LISTBROWSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-        throw new Error('ListBrowser: AllocListBrowserNodeA returned 0');
-      }
-
-      nodes.push({ nodePtr });
+    if (!ListBrowser._libBase) {
+      throw new Error('ListBrowser: class library base not cached');
     }
 
-    for (let n of nodes) {
-      const pred = globalThis.amiga.peek32(listPtr + 8);
-      globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-      globalThis.amiga.poke32(n.nodePtr + 4, pred);
-      globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-      globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-    }
-
-    return {
-      listPtr,
-      freeAll() {
-        for (let n of nodes) {
-          globalThis.amiga.call(libBase, LISTBROWSER_LVO_FREE_NODE, { a0: n.nodePtr });
-        }
-        for (let [p, b] of labelAllocs) globalThis.amiga.freeMem(p, b);
-        globalThis.amiga.freeMem(listPtr, LIST_BYTES);
-      },
-    };
+    return buildNodeList({
+      owner:    'ListBrowser',
+      libBase:  ListBrowser._libBase,
+      /* AllocListBrowserNodeA(d0 columns, a0 tags) */
+      allocLvo: LISTBROWSER_LVO_ALLOC_NODE,
+      freeLvo:  LISTBROWSER_LVO_FREE_NODE,
+      count:    labels.length,
+      describe: (index, keep) => ({
+        d0:    1,
+        pairs: [
+          [LBNCA.CopyText, 1],
+          [LBNCA.Text,     keep.string(labels[index])],
+        ],
+      }),
+    });
   }
 
   dispose() {
@@ -3626,6 +3871,10 @@ class Palette extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -3775,6 +4024,10 @@ class FuelGauge extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (typeof clean.orientation === 'string') {
       clean.orientation = clean.orientation.toLowerCase() === 'vertical'
@@ -3936,6 +4189,10 @@ class SpeedBar extends GadgetBase {
    * @param {boolean} [init.relVerify=true]
    */
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
 
@@ -3951,151 +4208,87 @@ class SpeedBar extends GadgetBase {
   }
 
   /**
-   * Build a struct List of speedbar nodes from an array of strings or
-   * per-button option objects.
+   * Build the SPEEDBAR_Buttons list from an array of strings or
+   * per-button option objects: one AllocSpeedButtonNodeA node each.
+   * Everything a node points at lives until dispose().
    *
    * @internal
    * @param {(string|object)[]} buttons
-   * @returns {{listPtr: number, freeAll: function(): void}}
+   * @returns {{listPtr: number, freeAll: function(): undefined}}
    */
   static _buildButtonList(buttons) {
     SpeedBar.ensureClass();
-    const libBase = SpeedBar._libBase;
-    if (!libBase) throw new Error('SpeedBar: class library base not cached');
-
-    const LIST_BYTES = 16;
-    const listPtr = globalThis.amiga.allocMem(LIST_BYTES);
-    if (!listPtr) throw new Error('SpeedBar: allocMem list failed');
-
-    /* Initialise an empty exec struct List (16 bytes):
-     *   +0  lh_Head     -> &lh_Tail (which sits at +4 — empty marker)
-     *   +4  lh_Tail     -> NULL
-     *   +8  lh_TailPred -> &lh_Head
-     *   +12 lh_Type/Pad
-     */
-    globalThis.amiga.poke32(listPtr + 0, listPtr + 4);
-    globalThis.amiga.poke32(listPtr + 4, 0);
-    globalThis.amiga.poke32(listPtr + 8, listPtr + 0);
-
-    const nodes       = [];
-    const labelAllocs = [];
-    const ownedLabels = [];
-
-    /* Tag-pair budget per node: at most 11 SBNA_* attrs + TAG_END.
-     * makeTags emits 8 bytes per pair plus 8 for the TAG_END terminator,
-     * so a 12-pair buffer would be 96 bytes. We only ever feed makeTags
-     * the pairs that are actually present, but the freeMem call below
-     * needs a stable size; computed per-call from pairs.length. */
-
-    try {
-      for (let i = 0; i < buttons.length; i++) {
-        const raw = buttons[i];
-        const opts = (typeof raw === 'string') ? { text: raw }
-                   : (raw && typeof raw === 'object') ? raw
-                   : {};
-
-        let imagePtr = SpeedBar._resolveImagePtr(opts.image);
-
-        /* If text is supplied without an image, build an internal
-         * label.image and use its .ptr as SBNA_Image. The Label is
-         * tracked in ownedLabels[] for disposal alongside the node. */
-        if (!imagePtr && typeof opts.text === 'string' && opts.text.length > 0) {
-          const lbl = new Label({ text: opts.text });
-          ownedLabels.push(lbl);
-          imagePtr = lbl.ptr;
-        }
-
-        const selImagePtr = SpeedBar._resolveImagePtr(opts.selImage);
-
-        /* Stage the SBNA_Text string into a Reaction-owned buffer.
-         * SpeedBar copies the string at OM_NEW per V45 semantics, but
-         * we keep ownership through the gadget's lifetime to be safe.
-         * Both `text` and `image` are passed when both are supplied —
-         * V45 renders the text below the image. */
-        let textPtr = 0;
-        if (typeof opts.text === 'string' && opts.text.length > 0) {
-          const sB = opts.text.length + 1;
-          textPtr = globalThis.amiga.allocMem(sB);
-          if (!textPtr) throw new Error('SpeedBar: allocMem text failed');
-          globalThis.amiga.pokeString(textPtr, opts.text);
-          labelAllocs.push([textPtr, sB]);
-        }
-
-        const pairs = [];
-        if (imagePtr)                            pairs.push([SBNA.Image,     imagePtr]);
-        if (selImagePtr)                         pairs.push([SBNA.SelImage,  selImagePtr]);
-        if (textPtr)                             pairs.push([SBNA.Text,      textPtr]);
-        if (opts.help !== undefined) {
-          const helpPtr = SpeedBar._stageString(opts.help, labelAllocs);
-          if (helpPtr)                           pairs.push([SBNA.Help,      helpPtr]);
-        }
-        if (opts.enabled !== undefined)          pairs.push([SBNA.Enabled,   opts.enabled ? 1 : 0]);
-        if (opts.disabled !== undefined)         pairs.push([SBNA.Disabled,  opts.disabled ? 1 : 0]);
-        if (opts.highlight !== undefined)        pairs.push([SBNA.Highlight, opts.highlight | 0]);
-        if (opts.spacing !== undefined)          pairs.push([SBNA.Spacing,   opts.spacing | 0]);
-        if (opts.toggle !== undefined)           pairs.push([SBNA.Toggle,    opts.toggle ? 1 : 0]);
-        if (opts.selected !== undefined)         pairs.push([SBNA.Selected,  opts.selected ? 1 : 0]);
-        if (opts.mxGroup !== undefined)          pairs.push([SBNA.MXGroup,   opts.mxGroup | 0]);
-
-        const tagBytes = (pairs.length + 1) * 8;
-        const tags = globalThis.amiga.makeTags(pairs);
-        if (!tags) throw new Error('SpeedBar: makeTags failed');
-
-        /* AllocSpeedButtonNodeA(ordinal, tags). d0=index (ordinal),
-         * a0=tags. Each button gets a stable ordinal id for SPEEDBAR
-         * event dispatch via SPEEDBAR_Selected. */
-        const nodePtr = globalThis.amiga.call(libBase, SPEEDBAR_LVO_ALLOC_NODE, {
-          d0: i,
-          a0: tags,
-        });
-        globalThis.amiga.freeMem(tags, tagBytes);
-
-        if (!nodePtr) throw new Error('SpeedBar: AllocSpeedButtonNodeA returned 0');
-
-        nodes.push({ nodePtr });
-      }
-
-      /* Link nodes into the list AddTail-style. */
-      for (let n of nodes) {
-        const pred = globalThis.amiga.peek32(listPtr + 8);
-        globalThis.amiga.poke32(n.nodePtr + 0, listPtr + 4);
-        globalThis.amiga.poke32(n.nodePtr + 4, pred);
-        globalThis.amiga.poke32(pred        + 0, n.nodePtr);
-        globalThis.amiga.poke32(listPtr     + 8, n.nodePtr);
-      }
-    }
-    catch (e) {
-      /* Partial-failure cleanup, reverse order. */
-      for (let n of nodes) {
-        try { globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr }); }
-        catch (_) { /* best effort */ }
-      }
-      for (let lbl of ownedLabels) { try { lbl.dispose(); } catch (_) {} }
-      for (let [p, b] of labelAllocs) {
-        try { globalThis.amiga.freeMem(p, b); } catch (_) {}
-      }
-      try { globalThis.amiga.freeMem(listPtr, LIST_BYTES); } catch (_) {}
-      throw e;
+    if (!SpeedBar._libBase) {
+      throw new Error('SpeedBar: class library base not cached');
     }
 
-    return {
-      listPtr,
-      freeAll() {
-        /* Free nodes first — they reference the Label's Image*. */
-        for (let n of nodes) {
-          try { globalThis.amiga.call(libBase, SPEEDBAR_LVO_FREE_NODE, { a0: n.nodePtr }); }
-          catch (_) { /* best effort */ }
-        }
-        /* Then dispose any auto-built Labels. */
-        for (let lbl of ownedLabels) {
-          try { lbl.dispose(); } catch (_) {}
-        }
-        for (let [p, b] of labelAllocs) {
-          try { globalThis.amiga.freeMem(p, b); } catch (_) {}
-        }
-        try { globalThis.amiga.freeMem(listPtr, LIST_BYTES); } catch (_) {}
-      },
-    };
+    return buildNodeList({
+      owner:    'SpeedBar',
+      libBase:  SpeedBar._libBase,
+      /* AllocSpeedButtonNodeA(d0 ordinal, a0 tags): the ordinal is
+       * what SPEEDBAR_Selected reports when the button is clicked. */
+      allocLvo: SPEEDBAR_LVO_ALLOC_NODE,
+      freeLvo:  SPEEDBAR_LVO_FREE_NODE,
+      count:    buttons.length,
+      describe: (index, keep) => ({
+        d0:    index,
+        pairs: SpeedBar._nodePairs(buttons[index], keep),
+      }),
+    });
+  }
+
+  /**
+   * The SBNA_* tag pairs for one button.
+   *
+   * @internal
+   * @param {string|object} raw - a label, or the button's options
+   *   (text, image, selImage, help, enabled, disabled, highlight,
+   *   spacing, toggle, selected, mxGroup)
+   * @param {object} keep - the list's keeper (see buildNodeList)
+   * @returns {Array<[number, number]>}
+   */
+  static _nodePairs(raw, keep) {
+    const opts = (typeof raw === 'string') ? { text: raw }
+               : (raw && typeof raw === 'object') ? raw
+               : {};
+    const hasText = typeof opts.text === 'string' && opts.text.length > 0;
+
+    let imagePtr = SpeedBar._resolveImagePtr(opts.image);
+
+    /* Text without an image: make a label.image of the text and use
+     * that as SBNA_Image. It is disposed once the nodes, which point
+     * at it, have been freed. */
+    if (!imagePtr && hasText) {
+      const label = new Label({ text: opts.text });
+
+      keep.afterNodes(() => label.dispose());
+      imagePtr = label.ptr;
+    }
+
+    const selImagePtr = SpeedBar._resolveImagePtr(opts.selImage);
+    const pairs = [];
+
+    if (imagePtr)    pairs.push([SBNA.Image,    imagePtr]);
+    if (selImagePtr) pairs.push([SBNA.SelImage, selImagePtr]);
+
+    /* SBNA_Text is passed along with the image when both are given
+     * (V45 draws the text below the image). The class is documented
+     * to copy the string; ours is kept until dispose() regardless. */
+    if (hasText)     pairs.push([SBNA.Text, keep.string(opts.text)]);
+
+    if (typeof opts.help === 'string' && opts.help.length > 0) {
+      pairs.push([SBNA.Help, keep.string(opts.help)]);
+    }
+
+    if (opts.enabled !== undefined)   pairs.push([SBNA.Enabled,   opts.enabled ? 1 : 0]);
+    if (opts.disabled !== undefined)  pairs.push([SBNA.Disabled,  opts.disabled ? 1 : 0]);
+    if (opts.highlight !== undefined) pairs.push([SBNA.Highlight, opts.highlight | 0]);
+    if (opts.spacing !== undefined)   pairs.push([SBNA.Spacing,   opts.spacing | 0]);
+    if (opts.toggle !== undefined)    pairs.push([SBNA.Toggle,    opts.toggle ? 1 : 0]);
+    if (opts.selected !== undefined)  pairs.push([SBNA.Selected,  opts.selected ? 1 : 0]);
+    if (opts.mxGroup !== undefined)   pairs.push([SBNA.MXGroup,   opts.mxGroup | 0]);
+
+    return pairs;
   }
 
   /**
@@ -4112,25 +4305,6 @@ class SpeedBar extends GadgetBase {
     if (typeof v === 'number') return v;
     if (typeof v === 'object' && typeof v.ptr === 'number') return v.ptr;
     return 0;
-  }
-
-  /**
-   * Allocate a NUL-terminated copy of `s` and track it in `track[]`.
-   * Returns 0 if `s` isn't a non-empty string.
-   *
-   * @internal
-   * @param {string} s
-   * @param {Array<[number, number]>} track
-   * @returns {number}
-   */
-  static _stageString(s, track) {
-    if (typeof s !== 'string' || s.length === 0) return 0;
-    const sB = s.length + 1;
-    const sP = globalThis.amiga.allocMem(sB);
-    if (!sP) return 0;
-    globalThis.amiga.pokeString(sP, s);
-    track.push([sP, sB]);
-    return sP;
   }
 
   dispose() {
@@ -4195,6 +4369,12 @@ const GETFILE = Object.freeze({
   FilePartOnly:   0x85060017,
 });
 
+/** @internal getfile.gadget's own methods (gadgets/getfile.h). */
+const GFILE = Object.freeze({
+  /* check-constants: prefix GFILE_ header gadgets/getfile.h */
+  REQUEST: 0x620001,
+});
+
 /**
  * getfile.gadget — file-requester popup button.
  *
@@ -4230,9 +4410,41 @@ class GetFile extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
+  }
+
+  /**
+   * Open the file requester and wait for the user. The gadget does
+   * not do this by itself when clicked: gadgets/getfile.h says the
+   * GFILE_REQUEST method "should be called whenever you want to open
+   * the requester", and gives the macro gfRequestFile(obj, win) for
+   * it. The usual place is the handler of the gadget's own
+   * FILE_SELECTED event, which arrives when the gadget is clicked:
+   *
+   *   if (event.kind === EventKind.FILE_SELECTED &&
+   *       fileChooser.request()) {
+   *     print(fileChooser.get('fullFile'));
+   *   }
+   *
+   * (Until 0.231 this wrapper had no such method, so a GetFile could
+   * be clicked but never showed a requester.)
+   *
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer. Omit it for the window the gadget is in.
+   * @returns {boolean} true if a file was chosen. The autodoc notes
+   *   that the method returns 0 when the file field was left empty,
+   *   even if the user pressed OK, unless drawersOnly is set.
+   * @throws {Error} if there is no open window
+   */
+  request(window) {
+    return this._sendRequest('GetFile.request', GFILE.REQUEST, window) !== 0;
   }
 }
 
@@ -4277,6 +4489,12 @@ const GETFONT = Object.freeze({
   Width:          0x8504000B,   /* +11 */
 });
 
+/** @internal getfont.gadget's own methods (gadgets/getfont.h). */
+const GFONT = Object.freeze({
+  /* check-constants: prefix GFONT_ header gadgets/getfont.h */
+  REQUEST: 0x600001,
+});
+
 /**
  * getfont.gadget — pop-up font requester.
  *
@@ -4303,6 +4521,10 @@ class GetFont extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -4325,13 +4547,16 @@ class GetFont extends GadgetBase {
    * Demos should filter for textAttr being non-null before treating
    * the event as a real pick — empty-state clicks have textAttr=0.
    *
-   * @param {number} winStructPtr — struct Window * (NOT the wrapper).
-   *                                Use `win.intuiWindow.ptr` from a
-   *                                ReactionWindow.
-   * @returns {number} method dispatcher result
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer (`win.intuiWindow.ptr`). Omit it for the window the
+   *   gadget is in.
+   * @returns {number} what the class returned: non-zero if a font was
+   *   chosen
+   * @throws {Error} if there is no open window
    */
-  request(winStructPtr) {
-    return this.doMethod(0x600001, winStructPtr | 0);
+  request(window) {
+    return this._sendRequest('GetFont.request', GFONT.REQUEST, window);
   }
 }
 
@@ -4391,6 +4616,12 @@ const GETSCREENMODE = Object.freeze({
   PropertyMask:    0x85041015,   /* +25 */
 });
 
+/** @internal getscreenmode.gadget's own methods (gadgets/getscreenmode.h). */
+const GSM = Object.freeze({
+  /* check-constants: prefix GSM_ header gadgets/getscreenmode.h */
+  REQUEST: 0x610001,
+});
+
 /**
  * getscreenmode.gadget — Reaction screen-mode requester.
  *
@@ -4431,6 +4662,10 @@ class GetScreenMode extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -4449,11 +4684,16 @@ class GetScreenMode extends GadgetBase {
    * NOTE: SCREENMODE_SELECTED fires on every preview-gadget click, not
    * only after an actual pick — filter for displayID being non-zero.
    *
-   * @param {number} winStructPtr — struct Window * (use win.intuiWindow.ptr)
-   * @returns {number}
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer (`win.intuiWindow.ptr`). Omit it for the window the
+   *   gadget is in.
+   * @returns {number} what the class returned: non-zero if a mode was
+   *   chosen
+   * @throws {Error} if there is no open window
    */
-  request(winStructPtr) {
-    return this.doMethod(0x610001, winStructPtr | 0);
+  request(window) {
+    return this._sendRequest('GetScreenMode.request', GSM.REQUEST, window);
   }
 }
 
@@ -4498,6 +4738,12 @@ const GETCOLOR = Object.freeze({
   SmallTextAttr:0x85043013,
 });
 
+/** @internal getcolor.gadget's own methods (gadgets/getcolor.h). */
+const GCOLOR = Object.freeze({
+  /* check-constants: prefix GCOLOR_ header gadgets/getcolor.h */
+  REQUEST: 0x630001,
+});
+
 /**
  * getcolor.gadget — color-picker popup.
  *
@@ -4532,9 +4778,39 @@ class GetColor extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
+  }
+
+  /**
+   * Open the colour requester and wait for the user. The gadget does
+   * not do this by itself when clicked: gadgets/getcolor.h gives the
+   * GCOLOR_REQUEST method and the macro RequestColor(obj, win) for
+   * it, and the NDK's Examples/GetColor.c sends it when the gadget's
+   * WMHI_GADGETUP arrives. Here that is the COLOR_SELECTED event:
+   *
+   *   if (event.kind === EventKind.COLOR_SELECTED &&
+   *       colorChooser.request()) {
+   *     print(colorChooser.get('color').toString(16));
+   *   }
+   *
+   * (Until 0.231 this wrapper had no such method, so a GetColor could
+   * be clicked but never showed a requester.)
+   *
+   * @param {object|number} [window] - the window to block while the
+   *   requester is up: the Reaction Window object, or a struct Window
+   *   pointer. Omit it for the window the gadget is in.
+   * @returns {boolean} true if a colour was chosen, false if the
+   *   requester was cancelled
+   * @throws {Error} if there is no open window
+   */
+  request(window) {
+    return this._sendRequest('GetColor.request', GCOLOR.REQUEST, window) !== 0;
   }
 }
 
@@ -4602,6 +4878,10 @@ class DateBrowser extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -4615,6 +4895,289 @@ EventKind.define('DATE_CHANGE', {
   from:  'gadgets/datebrowser.gadget',
   wraps: 'ATTR_UPDATE',
 });
+
+
+/* === boopsi/gadgets/texteditor/ARexxCmdMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/ARexxCmdMessage.js
+ *
+ * struct GP_TEXTEDITOR_ARexxCmd (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_ARexxCmd.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class ARexxCmdMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_ARexxCmd */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID: 0,
+    GInfo:    4,
+    command:  8,
+  });
+
+  /** @type {number} */
+  static SIZE = 12;
+
+  /** @param {number} id - TextEditor.METHOD.ARexxCmd */
+  set methodID(id) { this.write32(ARexxCmdMessage.OFFSET.MethodID, id); }
+
+  /** @param {number} value - the command, as a C string pointer */
+  set command(value) { this.write32(ARexxCmdMessage.OFFSET.command, value); }
+}
+
+
+/* === boopsi/gadgets/texteditor/BlockInfoMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/BlockInfoMessage.js
+ *
+ * struct GP_TEXTEDITOR_BlockInfo (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_BlockInfo.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class BlockInfoMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_BlockInfo */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID: 0,
+    GInfo:    4,
+    startx:   8,
+    starty:   12,
+    stopx:    16,
+    stopy:    20,
+  });
+
+  /** @type {number} */
+  static SIZE = 24;
+
+  /** @param {number} id - TextEditor.METHOD.BlockInfo */
+  set methodID(id) { this.write32(BlockInfoMessage.OFFSET.MethodID, id); }
+
+  /** @param {number} value - where to store the start column: a ULONG pointer */
+  set startX(value) { this.write32(BlockInfoMessage.OFFSET.startx, value); }
+
+  /** @param {number} value - where to store the start line: a ULONG pointer */
+  set startY(value) { this.write32(BlockInfoMessage.OFFSET.starty, value); }
+
+  /** @param {number} value - where to store the end column: a ULONG pointer */
+  set stopX(value) { this.write32(BlockInfoMessage.OFFSET.stopx, value); }
+
+  /** @param {number} value - where to store the end line: a ULONG pointer */
+  set stopY(value) { this.write32(BlockInfoMessage.OFFSET.stopy, value); }
+}
+
+
+/* === boopsi/gadgets/texteditor/ClearTextMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/ClearTextMessage.js
+ *
+ * struct GP_TEXTEDITOR_ClearText (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_ClearText.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class ClearTextMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_ClearText */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID: 0,
+    GInfo:    4,
+  });
+
+  /** @type {number} */
+  static SIZE = 8;
+
+  /** @param {number} id - TextEditor.METHOD.ClearText */
+  set methodID(id) { this.write32(ClearTextMessage.OFFSET.MethodID, id); }
+}
+
+
+/* === boopsi/gadgets/texteditor/ExportTextMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/ExportTextMessage.js
+ *
+ * struct GP_TEXTEDITOR_ExportText (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_ExportText.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class ExportTextMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_ExportText */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID: 0,
+    GInfo:    4,
+  });
+
+  /** @type {number} */
+  static SIZE = 8;
+
+  /** @param {number} id - TextEditor.METHOD.ExportText */
+  set methodID(id) { this.write32(ExportTextMessage.OFFSET.MethodID, id); }
+}
+
+
+/* === boopsi/gadgets/texteditor/InsertTextMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/InsertTextMessage.js
+ *
+ * struct GP_TEXTEDITOR_InsertText (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_InsertText.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class InsertTextMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_InsertText */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID: 0,
+    GInfo:    4,
+    text:     8,
+    pos:      12,
+  });
+
+  /** @type {number} */
+  static SIZE = 16;
+
+  /** @param {number} id - TextEditor.METHOD.InsertText */
+  set methodID(id) { this.write32(InsertTextMessage.OFFSET.MethodID, id); }
+
+  /** @param {number} value - the text to insert, as a C string pointer */
+  set text(value) { this.write32(InsertTextMessage.OFFSET.text, value); }
+
+  /** @param {number} value - TextEditor.InsertPos.*: where to insert */
+  set pos(value) { this.write32(InsertTextMessage.OFFSET.pos, value); }
+}
+
+
+/* === boopsi/gadgets/texteditor/MarkTextMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/MarkTextMessage.js
+ *
+ * struct GP_TEXTEDITOR_MarkText (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_MarkText.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class MarkTextMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_MarkText */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID:     0,
+    GInfo:        4,
+    start_crsr_x: 8,
+    start_crsr_y: 12,
+    stop_crsr_x:  16,
+    stop_crsr_y:  20,
+  });
+
+  /** @type {number} */
+  static SIZE = 24;
+
+  /** @param {number} id - TextEditor.METHOD.MarkText */
+  set methodID(id) { this.write32(MarkTextMessage.OFFSET.MethodID, id); }
+
+  /** @param {number} value - column where the block starts */
+  set startX(value) { this.write32(MarkTextMessage.OFFSET.start_crsr_x, value); }
+
+  /** @param {number} value - line where the block starts */
+  set startY(value) { this.write32(MarkTextMessage.OFFSET.start_crsr_y, value); }
+
+  /** @param {number} value - column where the block ends */
+  set stopX(value) { this.write32(MarkTextMessage.OFFSET.stop_crsr_x, value); }
+
+  /** @param {number} value - line where the block ends */
+  set stopY(value) { this.write32(MarkTextMessage.OFFSET.stop_crsr_y, value); }
+}
+
+
+/* === boopsi/gadgets/texteditor/SearchMessage.js === */
+/* quickjs-master/amiga/ffi/boopsi/gadgets/texteditor/SearchMessage.js
+ *
+ * struct GP_TEXTEDITOR_Search (gadgets/texteditor.h): the message
+ * TextEditor sends for GM_TEXTEDITOR_Search.
+ *
+ * A new one is zero-filled. GInfo is left that way on purpose: the
+ * message goes through Intuition.DoGadgetMethodA(), which fills it in.
+ */
+
+
+class SearchMessage extends Struct {
+  /* check-structs: struct GP_TEXTEDITOR_Search */
+  /**
+   * Byte offsets of the message's fields, named as in
+   * gadgets/texteditor.h. Checked against the compiler's own layout
+   * of the struct by scripts/check_structs.py.
+   *
+   * @type {Object<string, number>}
+   */
+  static OFFSET = Object.freeze({
+    MethodID: 0,
+    GInfo:    4,
+    string:   8,
+    flags:    12,
+  });
+
+  /** @type {number} */
+  static SIZE = 16;
+
+  /** @param {number} id - TextEditor.METHOD.Search */
+  set methodID(id) { this.write32(SearchMessage.OFFSET.MethodID, id); }
+
+  /** @param {number} value - the text to find, as a C string pointer */
+  set string(value) { this.write32(SearchMessage.OFFSET.string, value); }
+
+  /** @param {number} value - TextEditor.SearchFlags.* bits */
+  set flags(value) { this.write32(SearchMessage.OFFSET.flags, value); }
+}
 
 
 /* === boopsi/gadgets/TextEditor.js === */
@@ -4759,6 +5322,41 @@ class TextEditor extends GadgetBase {
   };
 
   /**
+   * Send one of the class's methods. Every GM_TEXTEDITOR_ message
+   * starts { MethodID; GadgetInfo *GInfo; } and must go through
+   * DoGadgetMethodA, which fills GInfo from the window: the class
+   * needs it to draw. (A plain DoMethodA left GInfo NULL and locked up
+   * keyboard input on the editor: reported at 0.176.)
+   *
+   * @internal
+   * @param {string} who - the calling method's name, for the error
+   * @param {function(new: Struct)} Message - the message's wrapper
+   *   class, from ./texteditor/
+   * @param {number} methodID - TextEditor.METHOD.*
+   * @param {function(Struct): undefined} [fill] - sets the message's
+   *   other fields
+   * @returns {number} what the class returned
+   * @throws {Error} if the editor's window is not open
+   */
+  _send(who, Message, methodID, fill) {
+    let winPtr = this._findWindowPtr();
+
+    if (!winPtr) {
+      throw new Error('TextEditor.' + who + ': window not open');
+    }
+
+    return withStruct(Message, (message) => {
+      message.methodID = methodID;
+
+      if (fill) fill(message);
+
+      return globalThis.amiga.Intuition.DoGadgetMethodA(
+        this.ptr, winPtr, 0, message.ptr
+      );
+    });
+  }
+
+  /**
    * Empty the editor's contents. GA_TEXTEDITOR_Contents is OM_NEW-only
    * on OS3.2 — SetAttrs at runtime silently no-ops. Runtime mutation
    * is via GM_TEXTEDITOR_ClearText (struct GP_TEXTEDITOR_ClearText
@@ -4772,25 +5370,8 @@ class TextEditor extends GadgetBase {
    * @returns {number} class dispatcher result
    */
   clearText() {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.clearText: window not open');
-    }
-    /* Build GP_TEXTEDITOR_ClearText: { ULONG MethodID; GadgetInfo*; }
-     * — 8 bytes. DoGadgetMethodA writes the GInfo slot. */
-    const MSG_BYTES = 8;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.clearText: allocMem failed');
-    try {
-      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ClearText);
-      globalThis.amiga.poke32(msg + 4, 0);  /* GInfo — filled by LVO */
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-    }
+    return this._send('clearText', ClearTextMessage,
+                      TextEditor.METHOD.ClearText);
   }
 
   /**
@@ -4807,36 +5388,15 @@ class TextEditor extends GadgetBase {
    */
   insertText(text, pos) {
     if (pos === undefined) pos = TextEditor.InsertPos.CURSOR;
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.insertText: window not open');
-    }
-    let s = String(text == null ? '' : text);
-    let strBytes = s.length + 1;
-    let strBuf = globalThis.amiga.allocMem(strBytes);
-    if (!strBuf) throw new Error('TextEditor.insertText: allocMem(str) failed');
-    /* Build GP_TEXTEDITOR_InsertText: { MethodID; GInfo*; STRPTR; LONG pos; }
-     * — 16 bytes. */
-    const MSG_BYTES = 16;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) {
-      globalThis.amiga.freeMem(strBuf, strBytes);
-      throw new Error('TextEditor.insertText: allocMem(msg) failed');
-    }
-    try {
-      globalThis.amiga.pokeString(strBuf, s);
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.InsertText);
-      globalThis.amiga.poke32(msg + 4,  0);             /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  strBuf);        /* STRPTR text */
-      globalThis.amiga.poke32(msg + 12, pos | 0);       /* LONG pos */
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(strBuf, strBytes);
-    }
+
+    /* The class copies the text into its own buffer, so the C string
+     * is only needed for the length of the call. */
+    return globalThis.amiga.withString(text, (pointer) =>
+      this._send('insertText', InsertTextMessage,
+                 TextEditor.METHOD.InsertText, (message) => {
+                   message.text = pointer;
+                   message.pos  = pos | 0;
+                 }));
   }
 
   /**
@@ -4854,32 +5414,18 @@ class TextEditor extends GadgetBase {
    * @returns {string} current editor text
    */
   exportText() {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.exportText: window not open');
-    }
-    const MSG_BYTES = 8;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.exportText: allocMem failed');
-    let textPtr = 0;
+    let textPtr = this._send('exportText', ExportTextMessage,
+                             TextEditor.METHOD.ExportText) | 0;
+
+    if (!textPtr) return '';
+
+    /* The class allocated the text with AllocVec; it is ours to free. */
     try {
-      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ExportText);
-      globalThis.amiga.poke32(msg + 4, 0);  /* GInfo */
-      textPtr = globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      ) | 0;
-      if (!textPtr) return '';
       return globalThis.amiga.peekString(textPtr);
     }
     finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      /* The class allocates the exported text via AllocVec; free it
-       * with exec.library FreeVec (LVO -690, a1=mem). Routed through
-       * Exec.call which lazy-opens exec.library. */
-      if (textPtr) {
-        try { globalThis.amiga.Exec.call(-690, { a1: textPtr }); }
-        catch (e) { /* leak rather than crash; small and bounded */ }
-      }
+      try { globalThis.amiga.Exec.FreeVec(textPtr); }
+      catch (e) { /* leak rather than crash; small and bounded */ }
     }
   }
 
@@ -4918,34 +5464,12 @@ class TextEditor extends GadgetBase {
    * @returns {number} class dispatcher result (command-specific)
    */
   arexxCmd(cmd) {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.arexxCmd: window not open');
-    }
-    let s = String(cmd == null ? '' : cmd);
-    let strBytes = s.length + 1;
-    let strBuf = globalThis.amiga.allocMem(strBytes);
-    if (!strBuf) throw new Error('TextEditor.arexxCmd: allocMem(str) failed');
-    /* GP_TEXTEDITOR_ARexxCmd: { MethodID; GInfo*; STRPTR } — 12 bytes */
-    const MSG_BYTES = 12;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) {
-      globalThis.amiga.freeMem(strBuf, strBytes);
-      throw new Error('TextEditor.arexxCmd: allocMem(msg) failed');
-    }
-    try {
-      globalThis.amiga.pokeString(strBuf, s);
-      globalThis.amiga.poke32(msg + 0, TextEditor.METHOD.ARexxCmd);
-      globalThis.amiga.poke32(msg + 4, 0);       /* GInfo — filled by LVO */
-      globalThis.amiga.poke32(msg + 8, strBuf);  /* STRPTR command */
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(strBuf, strBytes);
-    }
+    /* The command is parsed during the call; nothing keeps the string. */
+    return globalThis.amiga.withString(cmd, (pointer) =>
+      this._send('arexxCmd', ARexxCmdMessage,
+                 TextEditor.METHOD.ARexxCmd, (message) => {
+                   message.command = pointer;
+                 }));
   }
 
   /**
@@ -5002,28 +5526,13 @@ class TextEditor extends GadgetBase {
    * @returns {number}
    */
   markText(startX, startY, stopX, stopY) {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.markText: window not open');
-    }
-    /* GP_TEXTEDITOR_MarkText: { MethodID; GInfo*; ULONG x4 } — 24 bytes */
-    const MSG_BYTES = 24;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.markText: allocMem failed');
-    try {
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.MarkText);
-      globalThis.amiga.poke32(msg + 4,  0);            /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  startX >>> 0);
-      globalThis.amiga.poke32(msg + 12, startY >>> 0);
-      globalThis.amiga.poke32(msg + 16, stopX  >>> 0);
-      globalThis.amiga.poke32(msg + 20, stopY  >>> 0);
-      return globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      );
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-    }
+    return this._send('markText', MarkTextMessage,
+                      TextEditor.METHOD.MarkText, (message) => {
+                        message.startX = startX >>> 0;
+                        message.startY = startY >>> 0;
+                        message.stopX  = stopX  >>> 0;
+                        message.stopY  = stopY  >>> 0;
+                      });
   }
 
   /**
@@ -5034,45 +5543,45 @@ class TextEditor extends GadgetBase {
    *             stopX: number, stopY: number}}
    */
   blockInfo() {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.blockInfo: window not open');
-    }
-    /* GP_TEXTEDITOR_BlockInfo: { MethodID; GInfo*; ULONG* x4 } — 24
-     * bytes of message + 16 bytes of result slots the pointers aim at. */
-    const MSG_BYTES = 24, RES_BYTES = 16;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) throw new Error('TextEditor.blockInfo: allocMem(msg) failed');
-    let res = globalThis.amiga.allocMem(RES_BYTES);
-    if (!res) {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      throw new Error('TextEditor.blockInfo: allocMem(res) failed');
-    }
+    /* The message holds four ULONG pointers; the class stores the
+     * block's corners through them. One zeroed block of four ULONGs
+     * receives all of them. */
+    const ULONG_BYTES = 4;
+    const RESULT_BYTES = 4 * ULONG_BYTES;
+
+    let result = globalThis.amiga.allocMem(RESULT_BYTES);
+
+    if (!result) throw new Error('TextEditor.blockInfo: allocMem failed');
+
+    /**
+     * One of the four results.
+     *
+     * @param {number} index - 0 startX, 1 startY, 2 stopX, 3 stopY
+     * @returns {number}
+     */
+    let read = (index) => globalThis.amiga.peek32(
+      result + index * ULONG_BYTES);   /* check-structs: a ULONG array */
+
     try {
-      globalThis.amiga.poke32(res + 0, 0);
-      globalThis.amiga.poke32(res + 4, 0);
-      globalThis.amiga.poke32(res + 8, 0);
-      globalThis.amiga.poke32(res + 12, 0);
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.BlockInfo);
-      globalThis.amiga.poke32(msg + 4,  0);          /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  res + 0);    /* &startx */
-      globalThis.amiga.poke32(msg + 12, res + 4);    /* &starty */
-      globalThis.amiga.poke32(msg + 16, res + 8);    /* &stopx  */
-      globalThis.amiga.poke32(msg + 20, res + 12);   /* &stopy  */
-      let marked = globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      ) | 0;
+      let marked = this._send('blockInfo', BlockInfoMessage,
+                              TextEditor.METHOD.BlockInfo, (message) => {
+                                message.startX = result;
+                                message.startY = result + ULONG_BYTES;
+                                message.stopX  = result + 2 * ULONG_BYTES;
+                                message.stopY  = result + 3 * ULONG_BYTES;
+                              }) | 0;
+
       if (!marked) return null;
+
       return {
-        startX: globalThis.amiga.peek32(res + 0),
-        startY: globalThis.amiga.peek32(res + 4),
-        stopX:  globalThis.amiga.peek32(res + 8),
-        stopY:  globalThis.amiga.peek32(res + 12),
+        startX: read(0),
+        startY: read(1),
+        stopX:  read(2),
+        stopY:  read(3),
       };
     }
     finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(res, RES_BYTES);
+      globalThis.amiga.freeMem(result, RESULT_BYTES);
     }
   }
 
@@ -5086,35 +5595,13 @@ class TextEditor extends GadgetBase {
    * @returns {boolean} true when found
    */
   search(needle, flags) {
-    let winPtr = this._findWindowPtr();
-    if (!winPtr) {
-      throw new Error('TextEditor.search: window not open');
-    }
-    let s = String(needle == null ? '' : needle);
-    let strBytes = s.length + 1;
-    let strBuf = globalThis.amiga.allocMem(strBytes);
-    if (!strBuf) throw new Error('TextEditor.search: allocMem(str) failed');
-    /* GP_TEXTEDITOR_Search: { MethodID; GInfo*; STRPTR; ULONG } — 16 bytes */
-    const MSG_BYTES = 16;
-    let msg = globalThis.amiga.allocMem(MSG_BYTES);
-    if (!msg) {
-      globalThis.amiga.freeMem(strBuf, strBytes);
-      throw new Error('TextEditor.search: allocMem(msg) failed');
-    }
-    try {
-      globalThis.amiga.pokeString(strBuf, s);
-      globalThis.amiga.poke32(msg + 0,  TextEditor.METHOD.Search);
-      globalThis.amiga.poke32(msg + 4,  0);                 /* GInfo */
-      globalThis.amiga.poke32(msg + 8,  strBuf);            /* STRPTR */
-      globalThis.amiga.poke32(msg + 12, (flags || 0) >>> 0);/* ULONG flags */
-      return !!(globalThis.amiga.Intuition.DoGadgetMethodA(
-        this.ptr, winPtr, 0, msg
-      ) | 0);
-    }
-    finally {
-      globalThis.amiga.freeMem(msg, MSG_BYTES);
-      globalThis.amiga.freeMem(strBuf, strBytes);
-    }
+    /* The needle is read during the call; nothing keeps the string. */
+    return !!(globalThis.amiga.withString(needle, (pointer) =>
+      this._send('search', SearchMessage,
+                 TextEditor.METHOD.Search, (message) => {
+                   message.string = pointer;
+                   message.flags  = (flags || 0) >>> 0;
+                 })) | 0);
   }
 }
 
@@ -5304,6 +5791,10 @@ class TapeDeck extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -5386,6 +5877,10 @@ class ColorWheel extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -5450,6 +5945,10 @@ class GradientSlider extends GadgetBase {
   };
 
   constructor(init) {
+    /* A number is an existing object to wrap: nothing is created, and
+     * the defaults below do not apply. */
+    if (typeof init === 'number') { super(init); return; }
+
     let clean = (init && typeof init === 'object') ? { ...init } : {};
     if (clean.relVerify === undefined) clean.relVerify = true;
     super(clean);
@@ -6283,7 +6782,7 @@ class ReactionWindow extends BOOPSIBase {
     let winPtr = this.doMethod(WM_OPEN);
 
     if (!winPtr) {
-      throw new Error('Window.open: WM_OPEN returned 0 — ' +
+      throw new Error('Window.open: WM_OPEN returned 0 - ' +
         'likely missing WA_Flags bit, bad screen, or out of memory');
     }
 
@@ -6447,61 +6946,78 @@ class ReactionWindow extends BOOPSIBase {
   }
 
   /**
-   * Phase D helper — populate `event.attrs` with the most relevant
-   * current attribute(s) for the source gadget's class, so handlers
-   * don't need an explicit `event.source.get(...)` round-trip after
-   * each event. Class → attrs mapping is intentionally minimal:
-   *   slider/scroller/fuelgauge      → { level }
-   *   checkbox/radiobutton/clicktab  → { selected }
-   *   string/integer/texteditor      → { text }    (or `value` for integer)
-   *   chooser                        → { selected }
-   *   speedbar                       → { selected }
-   * Buttons get nothing extra — the click is the event, no state.
+   * Which attribute of the source gadget an event carries, by class:
+   * the names under which it appears in `event.attrs`, and the
+   * wrapper attribute it is read from. The first name is the
+   * gadget's own name for it (what the wrapper's ATTRS table and the
+   * header call it); `selected` is added where 0.156-0.231 documented
+   * that name.
    *
-   * Errors during get() are silently swallowed: if a class hasn't
-   * defined the named property, we don't surface attrs rather than
-   * blowing up the event pump.
+   * Until 0.231 radiobutton, chooser and clicktab all read
+   * `selected`, which for those classes is the inherited GA_Selected
+   * (is the gadget drawn pressed?), not the chosen entry; so
+   * `event.attrs.active` and `event.attrs.current` were never set and
+   * `event.attrs.selected` held 0 or 1. Scroller and gradient slider
+   * read `level`, an attribute neither has, so theirs was undefined.
    *
-   * @param {object} event
-   * @param {string} className — source.constructor._classLibName
+   * @type {Object<string, {names: string[], from: string}>}
+   */
+  static EVENT_ATTRS = Object.freeze({
+    'gadgets/slider.gadget':         { names: ['level'],    from: 'level' },
+    /* SCROLLER_Top: the scroller has no attribute called level */
+    'gadgets/scroller.gadget':       { names: ['top', 'level'],
+                                       from: 'top' },
+    'gadgets/fuelgauge.gadget':      { names: ['level'],    from: 'level' },
+    /* GRAD_CurVal: nor has the gradient slider */
+    'gadgets/gradientslider.gadget': { names: ['curVal', 'level'],
+                                       from: 'curVal' },
+    /* GA_Selected is the checkbox's own state */
+    'gadgets/checkbox.gadget':       { names: ['selected'], from: 'selected' },
+    /* RADIOBUTTON_Selected: index of the chosen button */
+    'gadgets/radiobutton.gadget':    { names: ['selected'], from: 'selectedIx' },
+    'gadgets/string.gadget':         { names: ['text'],     from: 'text' },
+    'gadgets/integer.gadget':        { names: ['value'],    from: 'value' },
+    /* CHOOSER_Active, which the header also names CHOOSER_Selected */
+    'gadgets/chooser.gadget':        { names: ['active', 'selected'],
+                                       from: 'active' },
+    /* CLICKTAB_Current: number of the chosen tab */
+    'gadgets/clicktab.gadget':       { names: ['current', 'selected'],
+                                       from: 'current' },
+    /* LISTBROWSER_Selected / SPEEDBAR_Selected */
+    'gadgets/listbrowser.gadget':    { names: ['selected'], from: 'selected' },
+    'gadgets/speedbar.gadget':       { names: ['selected'], from: 'selected' },
+    'gadgets/texteditor.gadget':     { names: ['text'],     from: 'contents' },
+  });
+
+  /**
+   * Put the source gadget's current value into `event.attrs`, so that
+   * a handler need not call `event.source.get(...)` itself. What is
+   * read, and under which names, is in EVENT_ATTRS. A button gets
+   * nothing: the click is the event.
+   *
+   * If the gadget cannot be asked (get() throws), the names are left
+   * undefined rather than stopping the event loop.
+   *
+   * @param {object} event - the event being built; its attrs are set
+   * @param {string} className - source.constructor._classLibName
+   * @returns {undefined}
    */
   static _fillAttrsForClass(event, className) {
     if (!className || !event.source) return;
-    let pull = (name) => {
-      try { return event.source.get(name); }
-      catch (_) { return undefined; }
-    };
-    switch (className) {
-      case 'gadgets/slider.gadget':
-      case 'gadgets/scroller.gadget':
-      case 'gadgets/fuelgauge.gadget':
-      case 'gadgets/gradientslider.gadget':
-        event.attrs.level = pull('level');
-        break;
-      case 'gadgets/checkbox.gadget':
-      case 'gadgets/radiobutton.gadget':
-        event.attrs.selected = pull('selected');
-        break;
-      case 'gadgets/string.gadget':
-        event.attrs.text = pull('text');
-        break;
-      case 'gadgets/integer.gadget':
-        event.attrs.value = pull('value');
-        break;
-      case 'gadgets/clicktab.gadget':
-      case 'gadgets/chooser.gadget':
-      case 'gadgets/listbrowser.gadget':
-      case 'gadgets/speedbar.gadget':
-      case 'gadgets/page.gadget':
-        event.attrs.selected = pull('selected');
-        break;
-      case 'gadgets/texteditor.gadget':
-        event.attrs.text = pull('contents');
-        break;
-      default:
-        /* Unknown class — leave attrs empty. Handlers can still
-         * call event.source.get(...) for any specific attr. */
-        break;
+
+    let entry = ReactionWindow.EVENT_ATTRS[className];
+
+    /* A class that is not in the table: attrs stay empty, and the
+     * handler can still call event.source.get(...). */
+    if (!entry) return;
+
+    let value;
+
+    try { value = event.source.get(entry.from); }
+    catch (_) { value = undefined; }
+
+    for (let name of entry.names) {
+      event.attrs[name] = value;
     }
   }
 
@@ -6649,7 +7165,7 @@ class ReactionWindow extends BOOPSIBase {
     let winSig = this.get('sigMask') >>> 0;
     if (!winSig) {
       throw new Error(
-        'Window.events: WINDOW_SigMask returned 0 — window not properly opened'
+        'Window.events: WINDOW_SigMask returned 0 - window not properly opened'
       );
     }
 
