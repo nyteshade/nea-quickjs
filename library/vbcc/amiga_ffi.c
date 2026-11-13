@@ -595,11 +595,88 @@ static JSValue js_amiga_doMethod(JSContext *ctx, JSValueConst this_val,
  * handles this.
  * ----------------------------------------------------------------- */
 
+extern const unsigned char qjsc_ffi_core[];
+extern const unsigned long qjsc_ffi_core_size;
+extern const unsigned char qjsc_ffi_boopsi[];
+extern const unsigned long qjsc_ffi_boopsi_size;
+extern void js_std_eval_binary(JSContext *ctx, const unsigned char *buf,
+                               unsigned long buf_len, int flags);
+
+/* __qjs_loadBundle(group) - evaluate one of the FFI bundles in this
+ * context. Called once per group by amiga/ffi/lazy.js, which keeps
+ * the "already loaded" state.
+ *   0  core: enumerations, structs, library wrappers
+ *   1  BOOPSI / Reaction classes (lazy.js loads group 0 first) */
+static JSValue qjs_load_ffi_bundle(JSContext *ctx, JSValueConst this_val,
+                                   int argc, JSValueConst *argv)
+{
+    int32_t group = -1;
+
+    if (argc < 1 || JS_ToInt32(ctx, &group, argv[0]))
+        return JS_EXCEPTION;
+
+    if (group == 0)
+        js_std_eval_binary(ctx, qjsc_ffi_core, qjsc_ffi_core_size, 0);
+    else if (group == 1)
+        js_std_eval_binary(ctx, qjsc_ffi_boopsi, qjsc_ffi_boopsi_size, 0);
+    else
+        return JS_ThrowRangeError(ctx, "no FFI bundle %d", (int)group);
+
+    return JS_UNDEFINED;
+}
+
+/* __qjs_memoryUsage() - what this runtime has allocated, as counted by
+ * the engine (JS_ComputeMemoryUsage). Sizes are bytes. Used by
+ * process.memoryUsage() in extended.js, and by the perf/ scripts to
+ * measure heap use per invocation.
+ *   mallocSize    bytes obtained from the allocator, with its overhead
+ *   mallocCount   live allocations
+ *   usedSize      bytes in use by engine data
+ *   objects, atoms, strings, shapes, functions   live counts
+ *   bytecodeSize  bytes of function bytecode */
+static JSValue qjs_memory_usage(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv)
+{
+    JSMemoryUsage stats;
+    JSValue result;
+
+    JS_ComputeMemoryUsage(JS_GetRuntime(ctx), &stats);
+
+    result = JS_NewObject(ctx);
+    if (JS_IsException(result))
+        return result;
+
+    /* the fields are int64_t; none can reach 2 GB on this machine */
+    JS_SetPropertyStr(ctx, result, "mallocSize",
+                      JS_NewInt32(ctx, (int32_t)stats.malloc_size));
+    JS_SetPropertyStr(ctx, result, "mallocCount",
+                      JS_NewInt32(ctx, (int32_t)stats.malloc_count));
+    JS_SetPropertyStr(ctx, result, "usedSize",
+                      JS_NewInt32(ctx, (int32_t)stats.memory_used_size));
+    JS_SetPropertyStr(ctx, result, "objects",
+                      JS_NewInt32(ctx, (int32_t)stats.obj_count));
+    JS_SetPropertyStr(ctx, result, "atoms",
+                      JS_NewInt32(ctx, (int32_t)stats.atom_count));
+    JS_SetPropertyStr(ctx, result, "strings",
+                      JS_NewInt32(ctx, (int32_t)stats.str_count));
+    JS_SetPropertyStr(ctx, result, "shapes",
+                      JS_NewInt32(ctx, (int32_t)stats.shape_count));
+    JS_SetPropertyStr(ctx, result, "functions",
+                      JS_NewInt32(ctx, (int32_t)stats.js_func_count));
+    JS_SetPropertyStr(ctx, result, "bytecodeSize",
+                      JS_NewInt32(ctx, (int32_t)stats.js_func_code_size));
+    return result;
+}
+
 void qjs_install_amiga_ffi_global(JSContext *ctx)
 {
     JSValue global, fn;
     global = JS_GetGlobalObject(ctx);
 
+    fn = JS_NewCFunction(ctx, qjs_memory_usage,      "__qjs_memoryUsage",        0);
+    JS_SetPropertyStr(ctx, global, "__qjs_memoryUsage", fn);
+    fn = JS_NewCFunction(ctx, qjs_load_ffi_bundle,   "__qjs_loadBundle",         1);
+    JS_SetPropertyStr(ctx, global, "__qjs_loadBundle", fn);
     fn = JS_NewCFunction(ctx, js_amiga_openLibrary,  "__qjs_amiga_openLibrary",  2);
     JS_SetPropertyStr(ctx, global, "__qjs_amiga_openLibrary", fn);
     fn = JS_NewCFunction(ctx, js_amiga_closeLibrary, "__qjs_amiga_closeLibrary", 1);

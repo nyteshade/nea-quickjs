@@ -1,21 +1,37 @@
 #!/usr/bin/env python3
-"""Bundle quickjs-master/amiga/ffi/*.js into a single script for qjsc.
+"""Bundle quickjs-master/amiga/ffi/*.js into scripts for qjsc.
 
-The Q2 FFI source files use ES modules (import/export) for IDE
-ergonomics on Mac/Cursor, but qjsc -m emits a separate bytecode
-array per module. The library loader evaluates a single blob, so we
-flatten everything into one script with imports stripped.
+The FFI source files use ES modules (import/export) for IDE ergonomics,
+but the library evaluates precompiled classic scripts, so the sources
+are concatenated in dependency order with imports stripped.
 
-Output: quickjs-master/gen/ffi-bundle.js — fed to qjsc to produce
-gen/ffi.c. The .js sources stay as the source of truth.
+Three scripts are written to quickjs-master/gen/:
+
+  ffi_lazy.js    runs at start-up; installs load-on-first-use accessors
+                 (from amiga/ffi/lazy.js, with the name lists filled in)
+  ffi_core.js    group 0: enumerations, structs, library wrappers
+  ffi_boopsi.js  group 1: the BOOPSI / Reaction classes
+
+Compile all three into gen/ffi.c, which then holds the arrays
+qjsc_ffi_lazy, qjsc_ffi_core and qjsc_ffi_boopsi:
+
+  ./quickjs-master/build/qjsc -ss -C -o quickjs-master/gen/ffi.c \
+      quickjs-master/gen/ffi_lazy.js quickjs-master/gen/ffi_core.js \
+      quickjs-master/gen/ffi_boopsi.js
+
+The .js sources stay the source of truth.
 """
+import json
 import os
 import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FFI = os.path.join(ROOT, 'quickjs-master/amiga/ffi')
-OUT = os.path.join(ROOT, 'quickjs-master/gen/ffi-bundle.js')
+GEN = os.path.join(ROOT, 'quickjs-master/gen')
+OUT_LAZY = os.path.join(GEN, 'ffi_lazy.js')
+OUT_CORE = os.path.join(GEN, 'ffi_core.js')
+OUT_BOOPSI = os.path.join(GEN, 'ffi_boopsi.js')
 
 # Dependency order — base classes / helpers first, then libs and structs,
 # then index.js wiring. ES module resolver would do this for us, but
@@ -106,6 +122,8 @@ ORDER = [
     'boopsi/gadgets/Virtual.js',   # extends Layout
     'boopsi/classes/Window.js',
     'boopsi/classes/Requester.js',
+    # Wiring for the BOOPSI bundle (amiga.boopsi.* and its globals)
+    'boopsi/index.js',
     # Wiring (sets up globals + amiga.<libname>.X)
     'index.js',
 ]
@@ -145,35 +163,172 @@ def strip_imports_exports(text):
     return '\n'.join(out)
 
 
-def emit():
-    with open(OUT, 'w') as out:
+DECLARATION = re.compile(
+    r'^(?:class|const|let|var|function\*?|async\s+function\*?)\s+'
+    r'([A-Za-z_$][\w$]*)', re.M)
+
+
+def read_source(name):
+    """The text of one source file, imports and exports stripped."""
+    if name == '__VENDORED_ENUMERATION__':
+        path = VENDORED_ENUMERATION
+    else:
+        path = os.path.join(FFI, name)
+
+    with open(path) as f:
+        return strip_imports_exports(f.read())
+
+
+def object_literal_names(text, variable):
+    """The property names of `const <variable> = { ... };` in text.
+
+    Understands the two shapes the index files use: shorthand names
+    (`Exec, Dos,`) and `Name: value` pairs. Nested literals are not
+    descended into; use nested_literal_names for those.
+    """
+    match = re.search(r'const\s+%s\s*=\s*\{(.*?)\n\};' % re.escape(variable),
+                      text, re.S)
+    if not match:
+        match = re.search(r'const\s+%s\s*=\s*\{(.*?)\};' % re.escape(variable),
+                          text, re.S)
+    if not match:
+        sys.exit(f'bundle_ffi: cannot find `const {variable} = {{...}}`')
+
+    body = re.sub(r'/\*.*?\*/', '', match.group(1), flags=re.S)
+    body = re.sub(r'\{[^{}]*\}', '', body)          # drop nested literals
+
+    names = []
+    for part in body.split(','):
+        part = part.strip()
+        if part:
+            names.append(part.split(':')[0].strip())
+    return names
+
+
+def nested_literal_names(text, variable):
+    """For `const v = { key: { A, B }, ... };` return [(key, name)]."""
+    match = re.search(r'const\s+%s\s*=\s*\{(.*?)\n\};' % re.escape(variable),
+                      text, re.S)
+    if not match:
+        sys.exit(f'bundle_ffi: cannot find `const {variable} = {{...}}`')
+
+    body = re.sub(r'/\*.*?\*/', '', match.group(1), flags=re.S)
+    pairs = []
+    for key, inner in re.findall(r'([A-Za-z_$][\w$]*)\s*:\s*\{([^{}]*)\}', body):
+        for name in inner.split(','):
+            name = name.strip()
+            if name:
+                pairs.append((key, name.split(':')[0].strip()))
+    return pairs
+
+
+def write_bundle(path, title, names, shared_in=(), shared_out=()):
+    """Concatenate the named sources into one classic script.
+
+    The whole script is one function body, so nothing it declares
+    becomes a global: a bundle publishes only what its index file
+    assigns to globalThis and amiga. (Until 0.226 the single bundle was
+    compiled as a module, which scoped it the same way.)
+
+    shared_out: names handed to a later bundle through
+    globalThis.__qjs_ffiShared, which lazy.js collects and removes.
+    shared_in: names taken from there at the top of this bundle.
+    """
+    with open(path, 'w') as out:
         out.write(
-            '/* AUTO-GENERATED by scripts/bundle_ffi.py — DO NOT EDIT.\n'
-            ' *\n'
+            '/* AUTO-GENERATED by scripts/bundle_ffi.py - DO NOT EDIT.\n'
+            f' * {title}\n'
             ' * Sources: quickjs-master/amiga/ffi/**.js\n'
-            ' * Compile: ./quickjs-master/build/qjsc -ss -N qjsc_ffi \\\n'
-            ' *            -o quickjs-master/gen/ffi.c \\\n'
-            ' *            quickjs-master/gen/ffi-bundle.js\n'
             ' */\n\n'
+            '(function () {\n'
             '"use strict";\n\n'
         )
 
-        for name in ORDER:
-            if name == '__VENDORED_ENUMERATION__':
-                path = VENDORED_ENUMERATION
-            else:
-                path = os.path.join(FFI, name)
+        if shared_in:
+            out.write('const {\n  ' + ',\n  '.join(shared_in) +
+                      ',\n} = globalThis.__qjs_ffiShared;\n\n')
 
-            with open(path) as f:
-                text = f.read()
-
-            stripped = strip_imports_exports(text)
-
+        for name in names:
             out.write(f'/* === {name} === */\n')
-            out.write(stripped)
-            out.write('\n\n')
+            out.write(read_source(name) + '\n\n')
 
-    print(f'wrote {OUT} ({os.path.getsize(OUT)} bytes)')
+        if shared_out:
+            out.write('globalThis.__qjs_ffiShared = {\n  ' +
+                      ',\n  '.join(shared_out) + ',\n};\n\n')
+
+        out.write('})();\n')
+
+    print(f'wrote {path} ({os.path.getsize(path)} bytes)')
+
+
+def declared_names(names):
+    """Top-level declarations of the named sources, index files apart."""
+    declared = []
+    for name in names:
+        if os.path.basename(name) != 'index.js':
+            declared += DECLARATION.findall(read_source(name))
+    return declared
+
+
+def emit():
+    """Write the three scripts qjsc compiles into gen/ffi.c."""
+    core = [n for n in ORDER if not n.startswith('boopsi/')]
+    boopsi = [n for n in ORDER if n.startswith('boopsi/')]
+
+    core_declared = declared_names(core)
+    boopsi_declared = declared_names(boopsi)
+
+    # What the BOOPSI sources use from the core: every core declaration
+    # whose name appears in them as a word and is not redeclared there.
+    boopsi_text = '\n'.join(read_source(n) for n in boopsi)
+    boopsi_words = set(re.findall(r'[A-Za-z_$][\w$]*', boopsi_text))
+    shared = [n for n in dict.fromkeys(core_declared)
+              if n in boopsi_words and n not in boopsi_declared]
+
+    write_bundle(OUT_CORE, 'Core FFI wrappers (group 0).', core,
+                 shared_out=shared)
+    write_bundle(OUT_BOOPSI, 'BOOPSI / Reaction wrappers (group 1).', boopsi,
+                 shared_in=shared)
+
+    core_index = read_source('index.js')
+    boopsi_index = read_source('boopsi/index.js')
+
+    core_globals = object_literal_names(core_index, 'everyGlobal')
+    boopsi_globals = object_literal_names(boopsi_index, 'boopsiGlobals')
+
+    core_amiga = [['', n] for n in object_literal_names(core_index, 'libs')]
+    core_amiga += [['', n] for n in
+                   ('ScreenFont', 'LibraryBase', 'CEnumeration', 'Struct')]
+    core_amiga += [[lib, n] for lib, n in
+                   nested_literal_names(core_index, 'structsByLib')]
+
+    for name in core_globals:
+        if name not in core_declared:
+            sys.exit(f'bundle_ffi: global {name} is not declared by the core')
+    for name in boopsi_globals:
+        if name not in boopsi_declared:
+            sys.exit(f'bundle_ffi: global {name} is not declared by boopsi')
+
+    names = {
+        'globals': [core_globals, boopsi_globals],
+        # the whole amiga.boopsi table arrives with group 1
+        'amiga': [core_amiga, [['', 'boopsi']]],
+    }
+
+    with open(os.path.join(FFI, 'lazy.js')) as f:
+        lazy = f.read()
+
+    marker = '/*@LAZY_NAMES@*/null'
+    if marker not in lazy:
+        sys.exit('bundle_ffi: lazy.js has lost its LAZY_NAMES marker')
+
+    with open(OUT_LAZY, 'w') as out:
+        out.write('/* AUTO-GENERATED by scripts/bundle_ffi.py from '
+                  'amiga/ffi/lazy.js - DO NOT EDIT. */\n')
+        out.write(lazy.replace(marker, json.dumps(names)))
+
+    print(f'wrote {OUT_LAZY} ({os.path.getsize(OUT_LAZY)} bytes); '
+          f'{len(shared)} core names shared with the BOOPSI bundle')
 
 
 if __name__ == '__main__':

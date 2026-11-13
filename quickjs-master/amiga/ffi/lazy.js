@@ -1,0 +1,172 @@
+/* quickjs-master/amiga/ffi/lazy.js
+ *
+ * Loads the FFI wrappers on first use.
+ *
+ * The wrappers (Intuition, Exec, the struct classes, the Reaction
+ * classes, ...) are two bundles of precompiled JavaScript inside
+ * quickjs.library. Building them costs more than half of qjs's
+ * start-up time and several hundred kilobytes of heap, and most
+ * scripts use none or only some of them. So at start-up only this file
+ * runs. It puts a small accessor wherever a bundle would have put a
+ * value; the first read of any of them loads that bundle, which
+ * replaces the accessors with the real values.
+ *
+ *   group 0, "core":   CEnumeration, LibraryBase, the struct wrappers,
+ *                      the library wrappers, ScreenFont
+ *   group 1, "boopsi": the BOOPSI / Reaction classes; needs group 0
+ *
+ * scripts/bundle_ffi.py fills in LAZY_NAMES from the sources, so the
+ * lists cannot drift from what the bundles define:
+ *
+ *   globals[group]   names a bundle sets on globalThis
+ *   amiga[group]     [path, name] pairs: amiga.<path>.<name>, with an
+ *                    empty path for amiga.<name> itself
+ *
+ * Each bundle is one function body, so it publishes nothing else. The
+ * BOOPSI bundle needs classes that are private to the core bundle;
+ * the core leaves them in globalThis.__qjs_ffiShared, which is taken
+ * away here at once and put back only while the BOOPSI bundle loads.
+ */
+
+(function () {
+  'use strict';
+
+  const LAZY_NAMES = /*@LAZY_NAMES@*/null;
+
+  /* The native loader is handed over through a global, which is
+   * removed so scripts cannot call it. */
+  const loadBundle = globalThis.__qjs_loadBundle;
+
+  delete globalThis.__qjs_loadBundle;
+
+  if (typeof loadBundle !== 'function' || LAZY_NAMES === null) {
+    return;
+  }
+
+  const NOT_LOADED = 0;
+  const LOADING    = 1;
+  const LOADED     = 2;
+
+  const BOOPSI_GROUP = 1;
+  const CORE_GROUP   = 0;
+
+  /** Per group: NOT_LOADED, LOADING or LOADED. */
+  const state = [NOT_LOADED, NOT_LOADED];
+
+  /** Per group: the accessors installed, as [object, key, getter]. */
+  const installed = [[], []];
+
+  /** The core bundle's private classes that the BOOPSI bundle uses. */
+  let shared;
+
+  /**
+   * Load a group's bundle if that has not been done yet.
+   *
+   * The accessors are removed first, because a bundle only sets a
+   * global whose name is free.
+   *
+   * @param {number} group - CORE_GROUP or BOOPSI_GROUP
+   * @returns {undefined}
+   */
+  function ensureLoaded(group) {
+    if (state[group] !== NOT_LOADED) {
+      return;
+    }
+
+    if (group === BOOPSI_GROUP) {
+      ensureLoaded(CORE_GROUP);
+    }
+
+    state[group] = LOADING;
+
+    for (const [object, key, getter] of installed[group]) {
+      const descriptor = Object.getOwnPropertyDescriptor(object, key);
+
+      /* Only remove what is still ours: a script may have assigned
+       * its own value under the same name. */
+      if (descriptor && descriptor.get === getter) {
+        delete object[key];
+      }
+    }
+
+    installed[group].length = 0;
+
+    if (group === BOOPSI_GROUP) {
+      globalThis.__qjs_ffiShared = shared;
+    }
+
+    try {
+      loadBundle(group);
+    }
+    finally {
+      if (group === CORE_GROUP) {
+        shared = globalThis.__qjs_ffiShared;
+      }
+
+      delete globalThis.__qjs_ffiShared;
+    }
+
+    state[group] = LOADED;
+  }
+
+  /**
+   * Put a load-on-first-use accessor at object[key].
+   *
+   * @param {number} group - the bundle that defines the real value
+   * @param {object} object - globalThis, amiga or one of amiga's tables
+   * @param {string} key - the property name
+   * @returns {undefined}
+   */
+  function installLazy(group, object, key) {
+    if (key in object) {
+      return;
+    }
+
+    /**
+     * Load the bundle, then answer with what it put here.
+     *
+     * @returns {*} the real value
+     */
+    const getter = function () {
+      ensureLoaded(group);
+
+      return object[key];
+    };
+
+    /**
+     * Assigning to the name replaces the accessor with a plain value.
+     *
+     * @param {*} value - what the script assigned
+     * @returns {undefined}
+     */
+    const setter = function (value) {
+      Object.defineProperty(object, key, {
+        value, writable: true, enumerable: true, configurable: true,
+      });
+    };
+
+    Object.defineProperty(object, key, {
+      get: getter, set: setter, enumerable: true, configurable: true,
+    });
+
+    installed[group].push([object, key, getter]);
+  }
+
+  const amiga = globalThis.amiga = globalThis.amiga || {};
+
+  for (let group = 0; group < state.length; group++) {
+    for (const name of LAZY_NAMES.globals[group]) {
+      installLazy(group, globalThis, name);
+    }
+
+    for (const [path, name] of LAZY_NAMES.amiga[group]) {
+      let table = amiga;
+
+      if (path !== '') {
+        table = amiga[path] = amiga[path] || {};
+      }
+
+      installLazy(group, table, name);
+    }
+  }
+})();

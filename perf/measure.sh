@@ -15,6 +15,7 @@
 #   libs/mathieeedoubbas.library  a real one, for the soft-float variants
 # and amitools' vamos for the python named in tools/prof.py.
 #
+# PERF_ARGS adds qjs options, e.g. PERF_ARGS=-d to dump memory usage at exit.
 # PERF_CPU=68040 selects the emulated CPU (needed for the FPU variants).
 #
 # Prints "<bench> <instructions>" per benchmark. Counts are exact and
@@ -36,7 +37,7 @@ one() {
   ( cd "$W/vm" && PROF_OUT=$W/prof "$HERE/tools/prof.py" -S --vols-base-dir "$W/vols" \
       -l main:info -C ${PERF_CPU:-68020} -m 65536 -H disable -s 2048 --cwd sys: -V "sys:$PWD" \
       -a libs:sys:libs -a s:sys:s -a c:sys:c -a t:sys:s \
-      -O mathieeedoubbas.library=mode:amiga -- c/qjs $b.js < /dev/null > "$W/raw" 2>&1 )
+      -O mathieeedoubbas.library=mode:amiga -- c/qjs ${PERF_ARGS:-} $b.js < /dev/null > "$W/raw" 2>&1 )
   /usr/bin/grep -v -E "orphan|AllocSignal|FreeSignal|GetSysTime|exit code|total cycles|libmgr:|main: |^PROF " "$W/raw" > "$OUT/$b.out"
   n=$(/usr/bin/grep -o "instr=[0-9]*" "$W/raw" | cut -d= -f2)
   echo "$b ${n:-FAILED}" > "$OUT/$b.instr"

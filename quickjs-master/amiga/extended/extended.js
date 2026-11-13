@@ -24,6 +24,12 @@
 import * as std from 'qjs:std';
 import * as os  from 'qjs:os';
 
+/* The native behind process.memoryUsage(). Taken out of globalThis so
+ * that it is not one more name in every script's global scope. */
+const nativeMemoryUsage = globalThis.__qjs_memoryUsage;
+
+delete globalThis.__qjs_memoryUsage;
+
 /* ----------------------------------------------------------
  * Date.now — VBCC int64-mul / int64-div miscompile bypass.
  *
@@ -309,15 +315,36 @@ _manifests.push(new LocalManifest({
                 /* Seconds since this process initialised globalThis.process. */
                 return (os.now() - _startUs) / 1e6;
             },
+            /**
+             * Memory this JavaScript runtime holds, in bytes, in Node's
+             * shape. The figures are the engine's own count
+             * (JS_ComputeMemoryUsage through __qjs_memoryUsage); they
+             * do not include quickjs.library itself, which is shared.
+             *
+             * @returns {{rss: number, heapTotal: number, heapUsed: number, external: number, arrayBuffers: number, engine: object}}
+             *   rss and heapTotal are what was taken from the system
+             *   allocator, heapUsed what the engine's data occupies;
+             *   engine holds the raw counts (objects, atoms, strings,
+             *   shapes, functions, bytecodeSize, mallocCount)
+             */
             memoryUsage() {
-                /* Shape matches Node.js. Classic AmigaOS doesn't give us the
-                 * V8 heap telemetry Node exposes — we return the shape with
-                 * zeros so scripts that call this don't crash. Wire to a
-                 * native LVO (JS_ComputeMemoryUsage) when demand appears. */
-                return { rss: 0, heapTotal: 0, heapUsed: 0, external: 0, arrayBuffers: 0 };
+                const engine = typeof nativeMemoryUsage === 'function'
+                    ? nativeMemoryUsage() : {};
+                const total  = engine.mallocSize || 0;
+
+                return {
+                    rss: total, heapTotal: total,
+                    heapUsed: engine.usedSize || 0,
+                    external: 0, arrayBuffers: 0, engine,
+                };
             },
         };
-        globalThis.process.memoryUsage.rss = () => 0;
+        /**
+         * Bytes taken from the system allocator.
+         *
+         * @returns {number}
+         */
+        globalThis.process.memoryUsage.rss = () => globalThis.process.memoryUsage().rss;
     },
 }));
 
