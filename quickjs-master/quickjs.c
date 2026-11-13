@@ -45314,7 +45314,13 @@ static const JSCFunctionListEntry js_number_funcs[] = {
     JS_CFUNC_DEF("isSafeInteger", 1, js_number_isSafeInteger ),
     /* Number constants: IEEE 754 double precision */
 #ifndef __SASC
+#ifdef __VBCC__
+    /* vbcc converts the decimal constant 7 units in the last place too
+     * low (0x7FEFFFFFFFFFFFF9): give the bits */
+    JS_PROP_U2D_DEF("MAX_VALUE", 0x7FEFFFFFFFFFFFFFull, 0 ),
+#else
     JS_PROP_DOUBLE_DEF("MAX_VALUE", 1.7976931348623157e+308, 0 ),
+#endif
     JS_PROP_DOUBLE_DEF("MIN_VALUE", 5e-324, 0 ),
     JS_PROP_DOUBLE_DEF("EPSILON", 2.220446049250313e-16, 0 ), /* ES6 */
     JS_PROP_DOUBLE_DEF("MAX_SAFE_INTEGER", 9007199254740991.0, 0 ), /* ES6 */
@@ -47504,7 +47510,14 @@ static double js_math_f16round(double a)
 
 static double js_math_fround(double a)
 {
+#if defined(__VBCC__) && (defined(__M68881) || defined(__M68882))
+    /* an FPU register does not round to float: see the helper
+     * (library/vbcc/sharedlib_dbl_helpers.c) */
+    extern double qjs_dbl_fround(double x);
+    return qjs_dbl_fround(a);
+#else
     return (float)a;
+#endif
 }
 
 static JSValue js_math_imul(JSContext *ctx, JSValueConst this_val,

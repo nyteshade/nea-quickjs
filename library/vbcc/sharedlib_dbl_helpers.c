@@ -32,3 +32,23 @@ double qjs_dbl_add(double a, double b)
 {
     return a + b;
 }
+
+#if defined(__M68881) || defined(__M68882)
+/*
+ * x rounded to single precision, for Math.fround on the FPU variants.
+ *
+ * "(float)x" alone does nothing there: vbcc keeps the value in an FPU
+ * register, which holds 64 mantissa bits whatever the C type, so until
+ * 0.231 Math.fround(7.9) returned 7.9 and Math.fround(1e300) returned
+ * 1e300. Storing to memory as a single is what rounds (FMOVE.S to
+ * memory rounds to the destination format: MC68881UM 2.2.2). The
+ * volatile keeps the compiler from removing the store.
+ */
+double qjs_dbl_fround(double x)
+{
+    volatile float f;
+
+    f = (float)x;
+    return (double)f;
+}
+#endif
