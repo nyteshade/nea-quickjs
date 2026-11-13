@@ -617,6 +617,8 @@ typedef enum {
     JS_WEAK_REF_KIND_MAP,
     JS_WEAK_REF_KIND_WEAK_REF,
     JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_ENTRY,
+    /* the object is the unregister token of a registry entry */
+    JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_TOKEN,
 } JSWeakRefKindEnum;
 
 typedef struct JSWeakRefRecord {
@@ -61261,13 +61263,33 @@ static const JSClassShortDef js_weakref_class_def[] = {
     { JS_ATOM_WeakRef, js_weakref_finalizer, NULL }, /* JS_CLASS_WEAK_REF */
 };
 
+/* One registration of a FinalizationRegistry.
+ *
+ * The unregister token is held WEAKLY, as the language requires
+ * (ES2024 26.2.3.2 step 6: [[UnregisterToken]] of a cell does not keep
+ * the token alive). Upstream held it strongly, so the commonest use,
+ * registry.register(obj, held, obj), kept obj alive for ever and its
+ * callback never ran.
+ *
+ * When the target dies the entry stays in the registry, marked dead,
+ * and a job is queued that calls the callback for one dead entry
+ * (CleanupFinalizationRegistry). Upstream queued the callback itself
+ * and dropped the entry at once; this engine frees an object the
+ * moment its last reference goes, so in
+ *     obj = null; registry.unregister(token);
+ * the callback was already queued when unregister() ran, unregister()
+ * returned false and the callback was called all the same. */
 typedef struct JSFinRecEntry {
     struct list_head link;
-    JSValueConst target;
+    JSValueConst target;   /* weak; JS_UNDEFINED once dead */
     JSValue held_val;
-    JSValue token;
+    JSValueConst token;    /* weak; JS_UNDEFINED if none, if it died, or
+                              if it is the target (token_is_target) */
     JSValue cb;
     JSContext *ctx;
+    JSObject *registry;    /* not counted: the registry owns the entry */
+    bool token_is_target;
+    bool dead;             /* the target was collected; a job is queued */
 } JSFinRecEntry;
 
 typedef struct JSFinalizationRegistryData {
@@ -61292,10 +61314,30 @@ static void delete_finrec_weakref(JSRuntime *rt, JSFinRecEntry *fre)
     js_free_rt(rt, wr);
 }
 
+/* remove the weak reference record that a live unregister token
+   carries for this entry */
+static void delete_finrec_token_weakref(JSRuntime *rt, JSFinRecEntry *fre)
+{
+    JSWeakRefRecord **pwr, *wr;
+
+    if (JS_IsUndefined(fre->token))
+        return;
+    pwr = get_first_weak_ref(fre->token);
+    for(;;) {
+        wr = *pwr;
+        assert(wr != NULL);
+        if (wr->kind == JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_TOKEN && wr->u.fin_rec_entry == fre)
+            break;
+        pwr = &wr->next_weak_ref;
+    }
+    *pwr = wr->next_weak_ref;
+    js_free_rt(rt, wr);
+    fre->token = JS_UNDEFINED;
+}
+
 static void js_finrec_free(JSRuntime *rt, JSFinRecEntry *fre)
 {
     JS_FreeValueRT(rt, fre->held_val);
-    JS_FreeValueRT(rt, fre->token);
     JS_FreeValueRT(rt, fre->cb);
     JS_FreeContext(fre->ctx);
     js_free_rt(rt, fre);
@@ -61307,10 +61349,12 @@ static void js_finrec_finalizer(JSRuntime *rt, JSValueConst val)
     if (frd) {
         struct list_head *el, *el1;
         /* first pass to remove the weak ref entries and avoid having them modified
-           by freeing a token / held value. */
+           by freeing a held value. */
         list_for_each_safe(el, el1, &frd->entries) {
             JSFinRecEntry *fre = list_entry(el, JSFinRecEntry, link);
-            delete_finrec_weakref(rt, fre);
+            if (!fre->dead)
+                delete_finrec_weakref(rt, fre);
+            delete_finrec_token_weakref(rt, fre);
         }
         /* second pass to actually free all objects. */
         list_for_each_safe(el, el1, &frd->entries) {
@@ -61334,7 +61378,6 @@ static void js_finrec_mark(JSRuntime *rt, JSValueConst val,
         list_for_each(el, &frd->entries) {
             JSFinRecEntry *fre = list_entry(el, JSFinRecEntry, link);
             JS_MarkValue(rt, fre->held_val, mark_func);
-            JS_MarkValue(rt, fre->token, mark_func);
             JS_MarkValue(rt, fre->cb, mark_func);
             mark_func(rt, &fre->ctx->header);
         }
@@ -61400,11 +61443,30 @@ static JSValue js_finrec_register(JSContext *ctx, JSValueConst this_val,
         js_free(ctx, fre);
         return JS_EXCEPTION;
     }
+    fre->token = JS_UNDEFINED;
+    fre->token_is_target = false;
+    fre->dead = false;
+    fre->registry = JS_VALUE_GET_OBJ(this_val);
+    if (!JS_IsUndefined(token)) {
+        if (js_same_value(ctx, token, target)) {
+            fre->token_is_target = true;
+        } else {
+            JSWeakRefRecord *wr_token = js_malloc(ctx, sizeof(*wr_token));
+            if (!wr_token) {
+                js_free(ctx, wr);
+                js_free(ctx, fre);
+                return JS_EXCEPTION;
+            }
+            fre->token = token;
+            wr_token->kind = JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_TOKEN;
+            wr_token->u.fin_rec_entry = fre;
+            insert_weakref_record(token, wr_token);
+        }
+    }
     fre->cb = js_dup(frd->cb);
     fre->ctx = JS_DupContext(frd->ctx);
     fre->target = target;
     fre->held_val = js_dup(held_val);
-    fre->token = js_dup(token);
     list_add_tail(&fre->link, &frd->entries);
     wr->kind = JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_ENTRY;
     wr->u.fin_rec_entry = fre;
@@ -61430,9 +61492,18 @@ static JSValue js_finrec_unregister(JSContext *ctx, JSValueConst this_val, int a
     removed = false;
     list_for_each_safe(el, el1, &frd->entries) {
         JSFinRecEntry *fre = list_entry(el, JSFinRecEntry, link);
-        if (js_same_value(ctx, fre->token, token)) {
+        bool match;
+        if (fre->token_is_target)
+            match = !fre->dead && js_same_value(ctx, fre->target, token);
+        else
+            match = !JS_IsUndefined(fre->token) && js_same_value(ctx, fre->token, token);
+        if (match) {
+            /* also an entry whose target is already dead: its
+               callback has not run yet and must not */
             list_del(&fre->link);
-            delete_finrec_weakref(ctx->rt, fre);
+            if (!fre->dead)
+                delete_finrec_weakref(ctx->rt, fre);
+            delete_finrec_token_weakref(ctx->rt, fre);
             js_finrec_free(ctx->rt, fre);
             removed = true;
         }
@@ -61451,9 +61522,32 @@ static const JSClassShortDef js_finrec_class_def[] = {
     { JS_ATOM_FinalizationRegistry, js_finrec_finalizer, js_finrec_mark }, /* JS_CLASS_FINALIZATION_REGISTRY */
 };
 
+/* One job is queued per collected target; each calls the callback for
+   one dead entry of the registry (argv[0]) that is still registered. */
 static JSValue js_finrec_job(JSContext *ctx, int argc, JSValueConst *argv)
 {
-    return JS_Call(ctx, argv[0], JS_UNDEFINED, 1, &argv[1]);
+    JSFinalizationRegistryData *frd;
+    struct list_head *el;
+    JSValue cb, held, ret;
+
+    frd = JS_GetOpaque(argv[0], JS_CLASS_FINALIZATION_REGISTRY);
+    if (!frd)
+        return JS_UNDEFINED;
+    list_for_each(el, &frd->entries) {
+        JSFinRecEntry *fre = list_entry(el, JSFinRecEntry, link);
+        if (fre->dead) {
+            list_del(&fre->link);
+            delete_finrec_token_weakref(ctx->rt, fre);
+            cb = js_dup(fre->cb);
+            held = js_dup(fre->held_val);
+            js_finrec_free(ctx->rt, fre);
+            ret = JS_Call(ctx, cb, JS_UNDEFINED, 1, vc(&held));
+            JS_FreeValue(ctx, cb);
+            JS_FreeValue(ctx, held);
+            return ret;
+        }
+    }
+    return JS_UNDEFINED; /* unregistered in the meantime */
 }
 
 int JS_AddIntrinsicWeakRef(JSContext *ctx)
@@ -61526,8 +61620,7 @@ static void reset_weak_ref(JSRuntime *rt, JSWeakRefRecord **first_weak_ref)
             wrd->target = JS_UNDEFINED;
             break;
         case JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_ENTRY:
-            fre = wr->u.fin_rec_entry;
-            list_del(&fre->link);
+        case JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_TOKEN:
             break;
         default:
             abort();
@@ -61570,15 +61663,32 @@ static void reset_weak_ref(JSRuntime *rt, JSWeakRefRecord **first_weak_ref)
                 if (p->ob1.hflags.free_mark || p->ob1.header.mark)
                     enqueue = false;
             }
+            /* nor when the registry itself is being collected */
+            if (enqueue && (fre->registry->ob1.hflags.free_mark ||
+                            fre->registry->ob1.header.mark))
+                enqueue = false;
+            fre->target = JS_UNDEFINED;
             if (enqueue) {
-                JSValueConst args[2];
-                args[0] = fre->cb;
-                args[1] = fre->held_val;
-                JS_EnqueueJob(fre->ctx, js_finrec_job, 2, args);
+                /* the entry stays registered, dead, until the job
+                   runs or unregister() removes it; the job keeps the
+                   registry alive */
+                JSValueConst args[1];
+                args[0] = JS_MKPTR(JS_TAG_OBJECT, fre->registry);
+                fre->dead = true;
+                if (JS_EnqueueJob(fre->ctx, js_finrec_job, 1, args) < 0)
+                    enqueue = false;
             }
-            js_finrec_free(rt, fre);
+            if (!enqueue) {
+                list_del(&fre->link);
+                delete_finrec_token_weakref(rt, fre);
+                js_finrec_free(rt, fre);
+            }
             break;
         }
+        case JS_WEAK_REF_KIND_FINALIZATION_REGISTRY_TOKEN:
+            /* the token died: the entry can no longer be unregistered */
+            wr->u.fin_rec_entry->token = JS_UNDEFINED;
+            break;
         default:
             abort();
         }
