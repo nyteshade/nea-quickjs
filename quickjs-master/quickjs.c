@@ -435,6 +435,12 @@ typedef struct JSStackFrame {
     /* only used in generators. Current stack pointer value. NULL if
        the function is running. */
     JSValue *cur_sp;
+    /* NULL for a frame on the C stack. For the heap frame of an async
+       function, generator or async generator: the GC object that owns
+       the frame (the JSAsyncFunctionData, or the generator object).
+       A closure variable that still lives in such a frame keeps the
+       owner alive through its JSVarRef; see get_var_ref(). */
+    struct JSGCObjectHeader *gc_owner;
 } JSStackFrame;
 
 typedef enum {
@@ -1511,6 +1517,33 @@ static void add_gc_object(JSRuntime *rt, JSGCObjectHeader *h,
                           JSGCObjectTypeEnum type);
 static void remove_gc_object(JSGCObjectHeader *h);
 static void js_async_function_free0(JSRuntime *rt, JSAsyncFunctionData *s);
+static void js_async_function_free(JSRuntime *rt, JSAsyncFunctionData *s);
+
+/* The owner of the heap frame an attached variable reference points
+   into, or NULL when the variable is in a frame on the C stack. */
+static inline JSGCObjectHeader *var_ref_frame_owner(const JSVarRef *var_ref)
+{
+    return var_ref->val.vstk.stack_frame->gc_owner;
+}
+
+/* True if 'var_ref' is in the GC object list and the collector has to
+   follow it: a detached reference owns its value, an attached one into
+   a heap frame holds a reference to the frame's owner. An attached
+   reference into a C stack frame is neither. */
+static inline bool var_ref_is_gc_object(const JSVarRef *var_ref)
+{
+    return var_ref->hdr.vflags.is_detached ||
+        var_ref_frame_owner(var_ref) != NULL;
+}
+
+/* Drop the reference a JSVarRef held to the owner of a heap frame. */
+static void free_frame_owner(JSRuntime *rt, JSGCObjectHeader *owner)
+{
+    if (owner->gc_obj_type == JS_GC_OBJ_TYPE_ASYNC_FUNCTION)
+        js_async_function_free(rt, (JSAsyncFunctionData *)owner);
+    else
+        JS_FreeValueRT(rt, JS_MKPTR(JS_TAG_OBJECT, owner));
+}
 static JSValue js_instantiate_prototype(JSContext *ctx, JSObject *p, JSAtom atom, void *opaque);
 static JSValue js_module_ns_autoinit(JSContext *ctx, JSObject *p, JSAtom atom,
                                  void *opaque);
@@ -6568,8 +6601,17 @@ static void free_var_ref(JSRuntime *rt, JSVarRef *var_ref)
                 remove_gc_object(&var_ref->hdr.header);
             } else {
                 JSStackFrame *sf = var_ref->val.vstk.stack_frame;
+                JSGCObjectHeader *owner = sf->gc_owner;
                 assert(sf->var_refs[var_ref->val.vstk.var_ref_idx] == var_ref);
                 sf->var_refs[var_ref->val.vstk.var_ref_idx] = NULL;
+                if (owner) {
+                    /* last, and after the reference is gone: this may
+                       free the frame */
+                    remove_gc_object(&var_ref->hdr.header);
+                    js_free_rt(rt, var_ref);
+                    free_frame_owner(rt, owner);
+                    return;
+                }
             }
             js_free_rt(rt, var_ref);
         }
@@ -6668,7 +6710,7 @@ static void js_bytecode_function_mark(JSRuntime *rt, JSValueConst val,
         if (var_refs) {
             for(i = 0; i < b->closure_var_count; i++) {
                 JSVarRef *var_ref = var_refs[i];
-                if (var_ref && var_ref->hdr.vflags.is_detached) {
+                if (var_ref && var_ref_is_gc_object(var_ref)) {
                     mark_func(rt, &var_ref->hdr.header);
                 }
             }
@@ -6951,7 +6993,7 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
                             if (pr->u.getset.setter)
                                 mark_func(rt, &pr->u.getset.setter->ob1.header);
                         } else if ((prs->flags & JS_PROP_TMASK) == JS_PROP_VARREF) {
-                            if (pr->u.var_ref->hdr.vflags.is_detached) {
+                            if (var_ref_is_gc_object(pr->u.var_ref)) {
                                 /* Note: the tag does not matter
                                    provided it is a GC object */
                                 mark_func(rt, &pr->u.var_ref->hdr.header);
@@ -6993,9 +7035,17 @@ static void mark_children(JSRuntime *rt, JSGCObjectHeader *gp,
     case JS_GC_OBJ_TYPE_VAR_REF:
         {
             JSVarRef *var_ref = (JSVarRef *)gp;
-            /* only detached variable referenced are taken into account */
-            assert(var_ref->hdr.vflags.is_detached);
-            JS_MarkValue(rt, *var_ref->pvalue, mark_func);
+            if (var_ref->hdr.vflags.is_detached) {
+                JS_MarkValue(rt, *var_ref->pvalue, mark_func);
+            } else {
+                /* attached to the heap frame of an async function or
+                   generator: it holds a reference to the frame's
+                   owner, which marks the value itself */
+                JSGCObjectHeader *owner = var_ref_frame_owner(var_ref);
+                assert(owner != NULL);
+                if (owner)
+                    mark_func(rt, owner);
+            }
         }
         break;
     case JS_GC_OBJ_TYPE_ASYNC_FUNCTION:
@@ -16308,7 +16358,7 @@ static void js_mapped_arguments_mark(JSRuntime *rt, JSValueConst val,
         int i;
         if (var_refs) {
             for(i = 0; i < p->u.array.count; i++) {
-                if (var_refs[i] && var_refs[i]->hdr.vflags.is_detached)
+                if (var_refs[i] && var_ref_is_gc_object(var_refs[i]))
                     mark_func(rt, &var_refs[i]->hdr.header);
             }
         }
@@ -17108,6 +17158,20 @@ static JSVarRef *get_var_ref(JSContext *ctx, JSStackFrame *sf, int var_idx,
         var_ref->val.vstk.stack_frame = sf;
         sf->var_refs[var_ref_idx] = var_ref;
         var_ref->pvalue = pvalue;
+        if (sf->gc_owner) {
+            /* The variable is in the heap frame of an async function
+               or generator, which outlives this call. The reference
+               must keep that frame alive and the collector must see
+               it doing so. Without this a suspended async function
+               reachable only through a closure over one of its locals
+                   let done; const p = new Promise(r => { done = r; });
+                   setTimeout(() => done(), 100); await p;
+               was freed as an unreachable cycle by the next collection
+               and the closure was left with a freed function (a crash
+               or "not a function" when the timer fired). */
+            sf->gc_owner->ref_count++;
+            add_gc_object(ctx->rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+        }
         return var_ref;
     } else {
         /* Variable is not captured (e.g., from eval closures on uncaptured vars).
@@ -17353,11 +17417,19 @@ static int js_op_define_class(JSContext *ctx, JSValue *sp,
 
 static void close_var_ref(JSRuntime *rt, JSVarRef *var_ref)
 {
+    /* read before val.value overwrites val.vstk */
+    JSGCObjectHeader *owner = var_ref_frame_owner(var_ref);
+
     var_ref->val.value = js_dup(*var_ref->pvalue);
     var_ref->pvalue = &var_ref->val.value;
     /* the reference is no longer to a local variable */
     var_ref->hdr.vflags.is_detached = true;
-    add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+    if (owner) {
+        /* already a GC object; it no longer needs the frame */
+        free_frame_owner(rt, owner);
+    } else {
+        add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+    }
 }
 
 static void close_var_refs(JSRuntime *rt, JSStackFrame *sf)
@@ -17767,6 +17839,7 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     stack_buf = var_buf + b->var_count;
     sf->var_refs = (JSVarRef **)(stack_buf + b->stack_size);
     sf->var_ref_count = b->var_ref_count;
+    sf->gc_owner = NULL; /* a frame on the C stack */
     for(i = 0; i < b->var_ref_count; i++)
         sf->var_refs[i] = NULL;
     sp = stack_buf;
@@ -20860,6 +20933,7 @@ static __exception int async_func_init(JSContext *ctx, JSAsyncFunctionState *s,
     size_t alloc_size;
 
     sf = &s->frame;
+    sf->gc_owner = NULL; /* set by async_func_set_gc_owner() */
     p = JS_VALUE_GET_OBJ(func_obj);
     b = p->u.func.function_bytecode;
     sf->is_strict_mode = b->is_strict_mode;
@@ -20887,6 +20961,29 @@ static __exception int async_func_init(JSContext *ctx, JSAsyncFunctionState *s,
     for(i = argc; i < n; i++)
         sf->arg_buf[i] = JS_UNDEFINED;
     return 0;
+}
+
+/* Name the GC object that owns the heap frame of 's'. From then on a
+   closure variable of the frame holds a reference to 'owner' for as
+   long as it is attached. Variable references made before the owner
+   existed (a generator runs its parameter initialisers before its
+   object is created) are brought under the same rule here. */
+static void async_func_set_gc_owner(JSRuntime *rt, JSAsyncFunctionState *s,
+                                    JSGCObjectHeader *owner)
+{
+    JSStackFrame *sf = &s->frame;
+    int i;
+
+    sf->gc_owner = owner;
+    if (!sf->arg_buf)
+        return;
+    for(i = 0; i < sf->var_ref_count; i++) {
+        JSVarRef *var_ref = sf->var_refs[i];
+        if (var_ref) {
+            owner->ref_count++;
+            add_gc_object(rt, &var_ref->hdr.header, JS_GC_OBJ_TYPE_VAR_REF);
+        }
+    }
 }
 
 static void async_func_mark(JSRuntime *rt, JSAsyncFunctionState *s,
@@ -21114,6 +21211,8 @@ static JSValue js_call_generator_function(JSContext *ctx, JSValueConst func_obj,
     if (JS_IsException(obj))
         goto fail;
     JS_SetOpaqueInternal(obj, s);
+    async_func_set_gc_owner(ctx->rt, &s->func_state,
+                            &JS_VALUE_GET_OBJ(obj)->ob1.header);
     return obj;
  fail:
     free_generator_stack_rt(ctx->rt, s);
@@ -21313,6 +21412,7 @@ static JSValue js_async_function_call(JSContext *ctx, JSValueConst func_obj,
         return JS_EXCEPTION;
     }
     s->is_active = true;
+    async_func_set_gc_owner(ctx->rt, &s->func_state, &s->header);
 
     if (!js_async_function_resume(ctx, s))
         goto fail;
@@ -21760,6 +21860,8 @@ static JSValue js_async_generator_function_call(JSContext *ctx,
         goto fail;
     s->generator = JS_VALUE_GET_OBJ(obj);
     JS_SetOpaqueInternal(obj, s);
+    async_func_set_gc_owner(ctx->rt, &s->func_state,
+                            &JS_VALUE_GET_OBJ(obj)->ob1.header);
     return obj;
  fail:
     js_async_generator_free(ctx->rt, s);
