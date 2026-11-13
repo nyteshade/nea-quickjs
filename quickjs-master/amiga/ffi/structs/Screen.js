@@ -14,6 +14,7 @@
 
 import { Struct } from './Struct.js';
 import { TextAttr } from './TextAttr.js';
+import { RastPort } from './RastPort.js';
 
 export class Screen extends Struct {
   /* check-structs: struct Screen */
@@ -33,6 +34,7 @@ export class Screen extends Struct {
     Title:     22,
     BarHeight: 30,
     Font:      40,
+    RastPort:  84,
   });
 
   /* SIZE not exposed — Screen is allocated by Intuition. */
@@ -50,7 +52,9 @@ where:
         allocate a Screen from scratch - only Intuition may.
 
 Fields (read-only getters): leftEdge, topEdge, width, height,
-  flags, title, barHeight, font (TextAttr wrapper).
+  flags, title, barHeight, font (TextAttr wrapper), rastPort (the
+  screen's own RastPort: measure text in the screen's font with
+  screen.rastPort.textWidth(text) and .fontHeight; do not draw in it).
 
 Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
   }
@@ -79,6 +83,18 @@ Lifecycle is managed by Intuition.CloseScreen or UnlockPubScreen.`;
 
   /** @returns {number} */
   get barHeight() { return this.read8(Screen.OFFSET.BarHeight); }
+
+  /**
+   * The screen's own RastPort, which is part of the struct. Its font
+   * is the screen's font, so text can be measured in it before any
+   * window is open: textWidth(), fontHeight, fontBaseline. Drawing in
+   * it would draw over the screen's title bar and windows.
+   *
+   * @returns {RastPort}
+   */
+  get rastPort() {
+    return new RastPort(this.ptr + Screen.OFFSET.RastPort);
+  }
 
   /** @returns {TextAttr|null} */
   get font() {

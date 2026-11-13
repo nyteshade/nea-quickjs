@@ -6,6 +6,9 @@ Usage:
     python3 scripts/check_examples.py FILE [FILE...] # just these
     python3 scripts/check_examples.py --verbose      # print each output
     python3 scripts/check_examples.py --library amiga/libs/quickjs.040soft.library
+    python3 scripts/check_examples.py --past-open    # run on past the
+                                                     # open, to the first
+                                                     # wait (see below)
 
 Exit status is 1 if any example fails, else 0.
 
@@ -41,6 +44,14 @@ What this cannot see: anything after the window opens (the event loop,
 drawing, what a gadget does), and whether the values passed to the OS
 are right. Those need an Amiga.
 
+--past-open goes one step further. The window "opens" as zeroed
+memory, the script carries on (it sets its font, paints for the first
+time) and is stopped at its first wait for a message. Every size,
+border and font metric reads 0 there, so this proves only that the
+code between the open and the loop names things that exist and calls
+them in a way the wrappers accept. It is a separate mode because an
+example may fairly refuse to go on with a window 0 pixels wide.
+
 Needs the same things as perf/measure.sh: a template directory
 (perf/.vm, or the one PERF_VM names) with c/qjs and
 libs/mathieeedoubbas.library, amitools' vamos, and node.
@@ -69,12 +80,14 @@ PARALLEL = 6
 
 # Method IDs the prelude needs: (name, header).
 METHOD_IDS = [('WM_OPEN', 'classes/window.h'),
+              ('WM_HANDLEINPUT', 'classes/window.h'),
               ('RM_OPENREQ', 'classes/requester.h')]
 
 # Lines of output that mean the script failed. The marker's own error
 # ("Error: CHECK-EXAMPLES-OPEN ...") is removed before these are tried.
 FAILURES = re.compile(
-    r'ReferenceError|TypeError|SyntaxError|RangeError|InternalError'
+    r'^\w*Error: '               # any error nothing caught
+    r'|ReferenceError|TypeError|SyntaxError|RangeError|InternalError'
     r'|has no constant|is not defined|is not a function'
     r'|not a constructor|Invalid File Lock|Traceback \(most recent'
     r'|unimplemented|Guru|InvalidMemoryAccess|invalid memory')
@@ -245,6 +258,7 @@ def check_constants_exist(files, library):
 
 def main(argv):
     verbose = '--verbose' in argv
+    past_open = '--past-open' in argv
     library = DEFAULT_LIBRARY
     if '--library' in argv:
         library = os.path.abspath(argv[argv.index('--library') + 1])
@@ -261,7 +275,9 @@ def main(argv):
     with open(PRELUDE) as handle:
         prelude_text = handle.read().replace('const VALUES = __CHECK_EXAMPLES_VALUES__;',
                                              'const VALUES = %s;' %
-                                             json.dumps(method_ids()))
+                                             json.dumps(dict(
+                                                 method_ids(),
+                                                 PAST_OPEN=past_open)))
 
 
     bad = 0

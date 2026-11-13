@@ -188,6 +188,12 @@ export class Intuition extends LibraryBase {
     NOITEM:   0x003F,
     NOSUB:    0x001F,
 
+    /* Menu item layout: pixels to leave for the checkmark (left) and the Amiga-key shortcut (right); LOW for a low-resolution screen (intuition/intuition.h) */
+    CHECKWIDTH:    19,
+    COMMWIDTH:     27,
+    LOWCHECKWIDTH: 13,
+    LOWCOMMWIDTH:  16,
+
     /* Gadget flags, activation and types (intuition/intuition.h) */
     GFLG_GADGHIGHBITS: 0x0003,
     GFLG_GADGHCOMP:    0x0000,

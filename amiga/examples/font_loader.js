@@ -41,6 +41,13 @@ const fontName = (scriptArgs && scriptArgs[1]) || DEFAULT_FONT_NAME;
 const fontSize = parseInt((scriptArgs && scriptArgs[2]) || DEFAULT_FONT_SIZE,
                           10);
 
+/* A size that is not a number would reach OpenDiskFont as 0. */
+if (!(fontSize > 0)) {
+  print('The size must be a number of pixels, e.g. 11; got "' +
+        scriptArgs[2] + '"');
+  std.exit(1);
+}
+
 /** What the window title and the last-but-one line both say. */
 const fontCaption = 'Font: ' + fontName + ' @ ' + fontSize + 'pt';
 

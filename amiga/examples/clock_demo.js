@@ -25,9 +25,10 @@
  *   - timer.device is present (it is in every Kickstart ROM)
  *   - ticks come from the vertical-blank unit, so each is accurate to
  *     about a fiftieth (PAL) or sixtieth (NTSC) of a second
- *   - the window draws its text in the screen's font, which is what a
- *     window gets unless it asks for another. The window is sized from
- *     that font before it opens (see part 1)
+ *   - the text is drawn in the screen's font. The window is sized
+ *     from that font before it opens, and told to draw in it once it
+ *     is open, because a window on Workbench would otherwise draw in
+ *     the system default font (see part 1)
  *   - pen 0 is the window background and pen 1 is visible against it
  *   - a timer request that has come back does not need ReplyMsg
  *   - a request must never be sent while it is still out. Doing so
@@ -35,19 +36,18 @@
  *     which is why this file keeps two requests and tracks whether
  *     the tick is out (see part 2)
  *
- * Requires quickjs.library 0.218+.
+ * Requires quickjs.library 0.237+ (ScreenFont.useIn arrived then).
  * Run: qjs examples/clock_demo.js
  */
 
 import * as std from 'qjs:std';
 
-/* WA_InnerWidth arrived in 0.217, with the window titles this file
- * relies on, so its presence is the test for a new enough library. */
+/* The newest thing this script uses is ScreenFont.useIn, 0.237. */
 if (typeof TimerRequest !== 'function' || typeof Exec !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    !('WA_InnerWidth' in Intuition.consts) ||
+    typeof amiga.ScreenFont.prototype.useIn !== 'function' ||
     TimerRequest.consts === undefined) {
-  print('Need quickjs.library 0.218 or later');
+  print('Need quickjs.library 0.237 or later');
   std.exit(1);
 }
 
@@ -134,6 +134,13 @@ let window = Intuition.OpenWindowTags([
                    | C.WFLG_CLOSEGADGET | C.WFLG_ACTIVATE],
   [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_REFRESHWINDOW],
 ]);
+
+/* A window on Workbench does not start with the screen's font: its
+ * RastPort gets the system default font, which the user sets
+ * separately (intuition.doc, OpenScreenTagList, SA_SysFont). Every
+ * size above was measured in the screen's font, so the window is told
+ * to draw in that one. */
+if (window) screenFont.useIn(window);
 
 /* The window keeps the screen open from here on, so the lock that
  * ScreenFont holds can go. LINE and the margins stay usable. */

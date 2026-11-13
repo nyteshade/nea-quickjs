@@ -27,7 +27,7 @@ qjs examples/react_hello.js
 Every example runs with no arguments and says on the Shell what to do
 and how to quit. The header of each file gives the `quickjs.library`
 version it needs and lists what it assumes about the machine; the
-newest any of them needs is **0.213**.
+newest any of them needs is **0.237**.
 
 ## How much there is to hold in your head
 
@@ -53,40 +53,40 @@ Before: 45 low, 15 medium, 1 high.
 |---|---|---|---|
 | `bevels_demo.js` | Every Reaction bevel style, labelled with its name. | 8 low | 8 low |
 | `buttons_demo.js` | A row of four buttons that say which one you clicked. | 12 low | 13 low |
-| `calculator_demo.js` | A working four-function calculator. | 31 medium | 43 medium |
+| `calculator_demo.js` | A working four-function calculator. | 36 medium | 43 medium |
 | `checkbox_demo.js` | Two checkboxes that report each time they change. | 12 low | 11 low |
 | `chooser_demo.js` | A drop-down list of colours with a live readout. | 19 low | 18 low |
 | `clicktab_demo.js` | Three tabbed pages that switch with no code at all. | 16 low | 14 low |
-| `color_mixer_demo.js` | Mix a colour with three sliders, shown as hex. | 25 low | 29 medium |
+| `color_mixer_demo.js` | Mix a colour with three sliders, shown as hex. | 23 low | 29 medium |
 | `datebrowser_demo.js` | A month calendar that reports the day you click. | 10 low | 8 low |
 | `fuelgauge_demo.js` | A progress bar you fill up five percent at a time. | 15 low | 13 low |
-| `getcolor_demo.js` | A colour-chooser gadget that reports the colour. | 10 low | 8 low |
-| `getfile_demo.js` | A file-chooser gadget that reports the file picked. | 10 low | 8 low |
+| `getcolor_demo.js` | A colour-chooser gadget that reports the colour. | 15 low | 8 low |
+| `getfile_demo.js` | A file-chooser gadget that reports the file picked. | 14 low | 8 low |
 | `getfont_demo.js` | A font-chooser gadget, opened from a button. | 17 low | 17 low |
-| `getscreenmode_demo.js` | A screen-mode chooser, opened from a button. | 16 low | 15 low |
-| `glyph_demo.js` | Every standard Reaction glyph, next to its name. | 7 low | 8 low |
+| `getscreenmode_demo.js` | A screen-mode chooser, opened from a button. | 13 low | 15 low |
+| `glyph_demo.js` | Every standard Reaction glyph, next to its name. | 9 low | 8 low |
 | `integer_demo.js` | A number field from 0 to 999 with spin arrows. | 10 low | 8 low |
 | `led_demo.js` | A six-digit LED readout with a Reset button. | 12 low | 17 low |
 | `listbrowser_demo.js` | A scrolling list of planets to pick from. | 18 low | 17 low |
 | `login_demo.js` | A sign-in form that locks after three wrong tries. | 26 medium | 27 medium |
-| `notes_demo.js` | A scratchpad built on the system text editor gadget. | 29 medium | 34 medium |
+| `notes_demo.js` | A scratchpad built on the system text editor gadget. | 28 medium | 34 medium |
 | `palette_demo.js` | A strip of the screen's colours to click on. | 10 low | 9 low |
 | `progress_demo.js` | A progress bar you can start, pause and reset. | 21 low | 24 low |
 | `quiz_demo.js` | A five-question multiple-choice quiz about the Amiga. | 31 medium | 34 medium |
 | `radiobutton_demo.js` | Pick one of three fruits with radio buttons. | 9 low | 9 low |
 | `react_hello.js` | The smallest Reaction window: a label and two buttons. | 14 low | 14 low |
-| `reaction_clock_demo.js` | A seconds counter driven by timer.device. | 23 low | 16 low |
+| `reaction_clock_demo.js` | A seconds counter driven by timer.device. | 24 low | 16 low |
 | `requester_demo.js` | Ask a question with a Reaction requester. | 2 low | 1 low |
 | `scroller_demo.js` | Two scrollbars that report their position. | 13 low | 11 low |
 | `settings_panel_demo.js` | A preferences dialog that reports your choices. | 22 low | 23 low |
 | `slider_demo.js` | A slider from 0 to 100 that reports where it is. | 10 low | 9 low |
 | `speedbar_demo.js` | A toolbar of five text buttons that reports clicks. | 18 low | 18 low |
-| `stopwatch_demo.js` | A start / stop / reset stopwatch with LED digits. | 20 low | 30 medium |
+| `stopwatch_demo.js` | A start / stop / reset stopwatch with LED digits. | 19 low | 30 medium |
 | `string_demo.js` | Two text fields, one of them hiding what you type. | 16 low | 15 low |
 | `tabs_demo.js` | Three pages in one window, switched by a row of buttons. | 16 low | 19 low |
 | `tapedeck_demo.js` | A tape deck front panel in Reaction, from JavaScript. | 49 medium | 46 medium |
 | `tapedeck_gadget_demo.js` | Both forms of the system's tape deck gadget. | 29 medium | 29 medium |
-| `todo_demo.js` | A to-do list of up to eight tasks, saved to RAM:. | 31 medium | 32 medium |
+| `todo_demo.js` | A to-do list of up to eight tasks, saved to RAM:. | 28 medium | 32 medium |
 | `wizard_demo.js` | A three-step setup wizard with Back, Next and Finish. | 21 low | 29 medium |
 
 ## Classic Intuition examples
@@ -94,18 +94,18 @@ Before: 45 low, 15 medium, 1 high.
 | Example | What it is | Load | Was |
 |---|---|---|---|
 | `asl_filereq.js` | Ask for a file with the standard file requester. | 4 low | 4 low |
-| `clock_demo.js` | A window that counts the seconds since it opened. | 33 medium | 29 medium |
-| `dir_listing.js` | List a directory, the way the Dir command does. Optional arguments: `[directory=SYS:]`. | 18 low | 16 low |
-| `drawing_demo.js` | Lines, boxes and text drawn straight into a window. | 16 low | 11 low |
-| `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 24 low | 19 low |
-| `frameidemo.js` | The four standard frame styles, raised and recessed. | 24 low | 28 medium |
-| `keyboard_echo.js` | Type into a window and see the text appear. | 27 medium | 28 medium |
-| `memory_probe.js` | Print how much memory of each kind is free. Optional arguments: `[iterations=1]`. | 12 low | 14 low |
-| `menu_demo.js` | A classic Intuition menu bar, built struct by struct. | 38 medium | 48 medium |
+| `clock_demo.js` | A window that counts the seconds since it opened. | 34 medium | 29 medium |
+| `dir_listing.js` | List a directory, the way the Dir command does. Optional arguments: `[directory=SYS:]`. | 17 low | 16 low |
+| `drawing_demo.js` | Lines, boxes and text drawn straight into a window. | 17 low | 11 low |
+| `font_loader.js` | Load a disk font by name and draw sample text in it. Optional arguments: `[fontname.font=topaz.font] [size=11]`. | 25 medium | 19 low |
+| `frameidemo.js` | The four standard frame styles, raised and recessed. | 20 low | 28 medium |
+| `keyboard_echo.js` | Type into a window and see the text appear. | 31 medium | 28 medium |
+| `memory_probe.js` | Print how much memory of each kind is free. Optional arguments: `[iterations=1]`. | 13 low | 14 low |
+| `menu_demo.js` | A classic Intuition menu bar, built struct by struct. | 45 medium | 48 medium |
 | `mouse_tracker.js` | Draw in a window by dragging the mouse. | 19 low | 18 low |
-| `screen_custom.js` | A screen of our own, with one window drawn into. | 11 low | 10 low |
+| `screen_custom.js` | A screen of our own, with one window drawn into. | 13 low | 10 low |
 | `screen_info.js` | Print the size, title and font of the Workbench screen. | 8 low | 8 low |
-| `sysi_gallery.js` | A labelled gallery of the system's own gadget images. | 31 medium | 19 low |
+| `sysi_gallery.js` | A labelled gallery of the system's own gadget images. | 28 medium | 19 low |
 | `timer_demo.js` | Wait two seconds with timer.device and time the wait. | 12 low | 11 low |
 | `window_hello.js` | The smallest useful Intuition window, from JavaScript. | 9 low | 9 low |
 

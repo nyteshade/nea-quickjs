@@ -122,6 +122,16 @@ something different, use a table keyed by gadget ID rather than a long
   place things from `window.borderLeft` / `borderTop` and the
   RastPort's `fontHeight` / `fontBaseline` (clock_demo.js and
   drawing_demo.js show how).
+- A window you draw text into yourself must be told its font:
+  `screenFont.useIn(window)` as soon as it is open. A window on
+  Workbench does not start with the screen's font but with the system
+  default font, which the user sets separately, so text measured with
+  `ScreenFont` and drawn without `useIn` can be the wrong size
+  (intuition.doc, OpenScreenTagList, SA_SysFont). Reaction gadgets and
+  menus use the screen's font by themselves.
+- Nothing clips drawing to the inside of a window. Text that is too
+  long, or a line drawn to where the mouse is, goes over the borders
+  unless the script stops it.
 
 ## 8. Comments
 

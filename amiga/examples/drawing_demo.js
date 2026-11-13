@@ -25,21 +25,22 @@
  *   - opens on the default public screen (normally Workbench)
  *   - pens 1, 2 and 3 are visible against the window background. On a
  *     standard four-colour Workbench they are black, white and blue.
- *   - the window draws its text in the screen's font, which is what a
- *     window gets unless it asks for another
+ *   - the text is drawn in the screen's font. The window is sized
+ *     from that font before it opens and told to draw in it once it
+ *     is open, because a window on Workbench would otherwise draw in
+ *     the system default font
  *
- * Requires quickjs.library 0.217+.
+ * Requires quickjs.library 0.237+ (ScreenFont.useIn arrived then).
  * Run: qjs examples/drawing_demo.js
  */
 
 import * as std from 'qjs:std';
 
-/* WA_InnerWidth arrived in 0.217, with the window titles this file
- * relies on, so its presence is the test for a new enough library. */
+/* The newest thing this script uses is ScreenFont.useIn, 0.237. */
 if (typeof Intuition !== 'function' ||
     typeof amiga.ScreenFont !== 'function' ||
-    !('WA_InnerWidth' in Intuition.consts)) {
-  print('Need quickjs.library 0.217 or later');
+    typeof amiga.ScreenFont.prototype.useIn !== 'function') {
+  print('Need quickjs.library 0.237 or later');
   std.exit(1);
 }
 
@@ -240,6 +241,13 @@ let window = Intuition.OpenWindowTags([
                    | C.IDCMP_REFRESHWINDOW],
 ]);
 
+/* A window on Workbench does not start with the screen's font: its
+ * RastPort gets the system default font, which the user sets
+ * separately (intuition.doc, OpenScreenTagList, SA_SysFont). Every
+ * size above was measured in the screen's font, so the window is told
+ * to draw in that one. */
+if (window) screenFont.useIn(window);
+
 /* The window keeps the screen open from here on, so the lock that
  * ScreenFont holds can go. The sizes measured above stay usable. */
 screenFont.close();
@@ -251,9 +259,9 @@ if (!window) {
 
 print('Window open. Click or close to exit.');
 
-paint(window);
-
 try {
+  paint(window);
+
   for (let message of window.messages()) {
 
     if (message.class === C.IDCMP_CLOSEWINDOW ||

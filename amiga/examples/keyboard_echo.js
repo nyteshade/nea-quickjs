@@ -18,24 +18,27 @@
  *
  * Assumptions:
  *   - opens on the default public screen (normally Workbench)
- *   - the screen font is the font the window draws with; the window
- *     is sized from it before it opens
- *   - a line is wrapped after 55 characters. The window is made wide
- *     enough for 55 characters of the font's usual width, so a
- *     proportional font may show slightly more or less
+ *   - the text is drawn in the screen's font. The window is sized
+ *     from that font before it opens and told to draw in it once it
+ *     is open, because a window on Workbench would otherwise draw in
+ *     the system default font
+ *   - a line is wrapped after 55 characters, or sooner if it would no
+ *     longer fit: the window is made wide enough for 55 characters of
+ *     the font's usual width, and a proportional font's wide letters
+ *     take more than that
  *   - pen 0 is the window background and pen 1 shows against it
  *
- * Requires quickjs.library 0.217+.
+ * Requires quickjs.library 0.237+ (ScreenFont.useIn arrived then).
  * Run: qjs examples/keyboard_echo.js
  */
 
 import * as std from 'qjs:std';
 
-/* WA_InnerWidth arrived in 0.217, with ScreenFont and window titles;
- * its presence is the test for a new enough library. */
+/* The newest thing this script uses is ScreenFont.useIn, 0.237. */
 if (typeof Intuition !== 'function' ||
-    !('WA_InnerWidth' in Intuition.consts)) {
-  print('Need quickjs.library 0.217 or later');
+    typeof amiga.ScreenFont !== 'function' ||
+    typeof amiga.ScreenFont.prototype.useIn !== 'function') {
+  print('Need quickjs.library 0.237 or later');
   std.exit(1);
 }
 
@@ -60,19 +63,30 @@ const lines = [''];
 let cursorRow = 0;
 
 /**
- * Add one character to the current line, moving to a fresh line when
- * this one is full.
+ * Add one character to the current line. A line that is full, by
+ * count or because the character would not fit in the window, is
+ * left as it is and the character starts a new one.
+ *
+ * Until 0.237 a full line was followed by a new one without dropping
+ * any from the top, so after eight full lines the typing went on
+ * below the bottom of the window, unseen.
  *
  * @param {string} character - a single character
+ * @param {function(string): boolean} fits - whether a line of text
+ *   is narrow enough to be drawn
+ * @param {number} maxVisibleLines - how many lines the window can show
  * @returns {undefined}
  */
-function putChar(character) {
-  lines[cursorRow] += character;
+function putChar(character, fits, maxVisibleLines) {
+  let longer = lines[cursorRow] + character;
 
-  if (lines[cursorRow].length >= MAX_LINE_CHARS) {
-    cursorRow++;
-    lines[cursorRow] = '';
+  if (lines[cursorRow].length > 0 &&
+      (longer.length > MAX_LINE_CHARS || !fits(longer))) {
+    newline(maxVisibleLines);
+    longer = character;
   }
+
+  lines[cursorRow] = longer;
 }
 
 /**
@@ -132,7 +146,7 @@ const MARGIN_ACROSS = screenFont.across(MARGIN_DOWN);
 
 /* WA_InnerWidth and WA_InnerHeight give the size inside the borders;
  * Intuition adds the title bar and borders itself. nominalWidth is the
- * font's usual character width, which is near enough for "about 48
+ * font's usual character width, which is near enough for "about 55
  * columns". */
 let window = Intuition.OpenWindowTags([
   [C.WA_Left,        30],
@@ -146,6 +160,13 @@ let window = Intuition.OpenWindowTags([
   [C.WA_IDCMP,       C.IDCMP_CLOSEWINDOW | C.IDCMP_VANILLAKEY
                    | C.IDCMP_REFRESHWINDOW],
 ]);
+
+/* A window on Workbench does not start with the screen's font: its
+ * RastPort gets the system default font, which the user sets
+ * separately (intuition.doc, OpenScreenTagList, SA_SysFont). Every
+ * size above was measured in the screen's font, so the window is told
+ * to draw in that one. */
+if (window) screenFont.useIn(window);
 
 /* The window keeps the screen open from here on. */
 screenFont.close();
@@ -162,9 +183,8 @@ let rastPort = window.rastPort;
 /** Pens: the window background, and the text drawn on it. */
 const PEN = { BACKGROUND: 0, TEXT: 1 };
 
-/** Height of one line of text in pixels, used as the line spacing.
- *  The window was given no font of its own, so it draws with the
- *  screen's. */
+/** Height of one line of text in pixels, used as the line spacing:
+ *  the screen font's, which the window now draws in. */
 const fontHeight = rastPort.fontHeight;
 
 /* The area the text may use, in pixels from the top left corner of
@@ -181,6 +201,20 @@ const TEXT_LEFT = AREA_LEFT + MARGIN_ACROSS;
  *  it is given, so this is the top of the first line plus the font's
  *  baseline. */
 const firstBaseline = AREA_TOP + MARGIN_DOWN + rastPort.fontBaseline;
+
+/**
+ * Whether a line of text can be drawn without running into the
+ * window's right border. Nothing clips text to the inside of a
+ * window: too long a line would be drawn over the border.
+ *
+ * @param {string} text - the line
+ * @returns {boolean}
+ */
+function fitsAcross(text) {
+  let room = window.width - window.borderRight - MARGIN_ACROSS - TEXT_LEFT;
+
+  return rastPort.textWidth(text) <= room;
+}
 
 /**
  * How many lines of text fit inside the window.
@@ -246,7 +280,7 @@ function typeKey(code) {
     newline(visibleLineCount());
   }
   else if (code >= FIRST_PRINTABLE && code < KEY_DEL) {
-    putChar(String.fromCharCode(code));
+    putChar(String.fromCharCode(code), fitsAcross, visibleLineCount());
   }
   else {
     return;

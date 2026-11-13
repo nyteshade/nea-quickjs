@@ -12,7 +12,19 @@
  *   font.height                           // pixels, one line of text
  *   font.widthOf('Quit')                  // pixels, in that font
  *   font.across(font.height)              // the same distance, sideways
+ *   font.useIn(window);                   // a plain window: draw in it
  *   font.close();                         // when the window is open
+ *
+ * useIn() matters for a window you draw into yourself. Such a window
+ * does NOT start with the screen's font. On a screen opened with a
+ * font of its own (SA_Font) it does; on Workbench, and on any screen
+ * that takes its font from the user's preferences, the window's
+ * RastPort starts with the system default font instead (intuition.doc,
+ * OpenScreenTagList, SA_SysFont: "windows opened on your screen will
+ * not inherit the screen font"). The RKRM's advice is to SetFont() the
+ * window once it is open if its size was worked out beforehand; that
+ * is what useIn() does. Reaction gadgets need none of this: they use
+ * the DrawInfo font themselves.
  *
  * How it works (all from NDK 3.2R4 headers):
  *   LockPubScreen(name)        keeps the screen from closing
@@ -64,6 +76,9 @@ Properties:
 
 Methods:
   widthOf(text) {number} pixel width of text in this font
+  useIn(window)          make an open window draw its text in this
+                         font; without it a window on Workbench draws
+                         in the system default font, not this one
   across(down)  {number} pixels across that look as long as 'down'
                          pixels do vertically
   close()                unlock the screen; call when your window is open
@@ -189,6 +204,29 @@ Typical use:
     /* TextLength() measures during the call and keeps nothing. */
     return globalThis.amiga.withString(text, (pointer) =>
       Graphics.TextLength(this._rastPortPtr, pointer, text.length));
+  }
+
+  /**
+   * Make an open window draw its text in this font, so that what was
+   * measured here before the window opened is what gets drawn.
+   *
+   * The window must be on the screen this object was made for. The
+   * font belongs to the screen, which the window keeps open, so this
+   * may be called before or after close().
+   *
+   * @param {object} window - an open window: a struct Window wrapper
+   *   (from Intuition.OpenWindowTags), anything with a rastPort
+   * @returns {undefined}
+   * @throws {TypeError} if window has no rastPort
+   */
+  useIn(window) {
+    let rastPort = window && window.rastPort;
+
+    if (!rastPort) {
+      throw new TypeError('ScreenFont.useIn: not an open window');
+    }
+
+    Graphics.SetFont(rastPort, this._fontPtr);
   }
 
   /**

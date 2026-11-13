@@ -18,8 +18,8 @@
  *   - pens 1, 2 and 3 are visible against the window background
  *   - nothing is remembered: a stroke that gets covered by another
  *     window is not redrawn
- *   - the pointer stays inside the window while drawing; coordinates
- *     to the left of or above the window are not handled specially
+ *   - a stroke stops at the inside of the window's borders: a drag
+ *     that leaves the window draws along the edge until it comes back
  *
  * Requires quickjs.library 0.221+.
  * Run: qjs examples/mouse_tracker.js
@@ -59,6 +59,42 @@ let stroke = 0;
 /** Where the current stroke has got to, in window coordinates. */
 let lastX = 0;
 let lastY = 0;
+
+/**
+ * Keep a number within a range.
+ *
+ * @param {number} value
+ * @param {number} low - the least it may be
+ * @param {number} high - the most it may be
+ * @returns {number}
+ */
+function clamp(value, low, high) {
+  return Math.max(low, Math.min(high, value));
+}
+
+/**
+ * The point inside the window's borders that is nearest to where the
+ * pointer is.
+ *
+ * Mouse positions are in pixels from the top left corner of the
+ * window FRAME, and go negative, or past the far edge, while the
+ * pointer is outside the window with the button held. Nothing stops
+ * a window drawing on its own title bar and borders, so the stroke is
+ * kept off them here.
+ *
+ * @param {Window} window - the open window
+ * @param {number} x - mouse position across
+ * @param {number} y - mouse position down
+ * @returns {{x: number, y: number}}
+ */
+function insideBorders(window, x, y) {
+  return {
+    x: clamp(x, window.borderLeft,
+             window.width - window.borderRight - 1),
+    y: clamp(y, window.borderTop,
+             window.height - window.borderBottom - 1),
+  };
+}
 
 /**
  * Put the pen down at (x, y) and move on to the next colour.
@@ -160,16 +196,21 @@ try {
 
       case C.IDCMP_MOUSEBUTTONS:
         if (message.code === SELECTDOWN) {
-          beginStroke(rastPort, message.mouseX, message.mouseY);
+          let at = insideBorders(window, message.mouseX, message.mouseY);
+
+          beginStroke(rastPort, at.x, at.y);
         }
         else if (message.code === SELECTUP) {
           endStroke();
         }
         break;
 
-      case C.IDCMP_MOUSEMOVE:
-        drawTo(rastPort, message.mouseX, message.mouseY);
+      case C.IDCMP_MOUSEMOVE: {
+        let at = insideBorders(window, message.mouseX, message.mouseY);
+
+        drawTo(rastPort, at.x, at.y);
         break;
+      }
     }
   }
 }
