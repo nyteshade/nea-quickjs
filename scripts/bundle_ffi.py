@@ -12,10 +12,13 @@ Three scripts are written to quickjs-master/gen/:
   ffi_core.js    group 0: enumerations, structs, library wrappers
   ffi_boopsi.js  group 1: the BOOPSI / Reaction classes
 
-and compiled, by this script, into quickjs-master/gen/ffi.c, which
-holds the arrays qjsc_ffi_lazy, qjsc_ffi_core and qjsc_ffi_boopsi plus
-the tables of names the library registers as lazy properties when a
-context starts:
+The handler is compiled into quickjs-master/gen/ffi.c (array
+qjsc_ffi_lazy), which the library links. The two bundles are compiled
+to bytecode and left in quickjs-master/gen/qjsb/ for
+`scripts/qjsb.py core` to pack as LIBS:quickjs/amiga.qjsb (entry
+"core") and LIBS:quickjs/reaction.qjsb (entry "boopsi"); see
+docs/QJSB-FORMAT.md. gen/ffi.c also gets the tables of names the
+library registers as lazy properties when a context starts:
 
   qjsc_ffi_lazy_globals[] / _global_tags[] / _global_count
   qjsc_ffi_lazy_amiga_paths[] / _amiga_names[] / _amiga_tags[] / _amiga_count
@@ -25,11 +28,16 @@ The name tables come from the index files (`everyGlobal`, `libs`,
 bundles publish. The .js sources stay the source of truth.
 
 Usage: python3 scripts/bundle_ffi.py     (runs qjsc itself)
+       python3 scripts/qjsb.py core      (then packs the .qjsb files)
 """
 import os
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import qjsb                                             # noqa: E402
+import qjsb_format                                      # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FFI = os.path.join(ROOT, 'quickjs-master/amiga/ffi')
@@ -43,6 +51,11 @@ QJSC = os.path.join(ROOT, 'quickjs-master/build/qjsc')
 CORE_GROUP = 0
 BOOPSI_GROUP = 1
 FFI_TAG_BASE = 1000     # as in amiga/ffi/lazy.js and amiga_ffi.c
+
+# The bundles' entry names in their files; as in qjs_load_ffi_bundle of
+# library/vbcc/amiga_ffi.c.
+CORE_ENTRY = 'core'         # in LIBS:quickjs/amiga.qjsb
+BOOPSI_ENTRY = 'boopsi'     # in LIBS:quickjs/reaction.qjsb
 
 # Dependency order — base classes / helpers first, then libs and structs,
 # then index.js wiring. ES module resolver would do this for us, but
@@ -345,13 +358,24 @@ def emit():
     print(f'wrote {OUT_LAZY} ({os.path.getsize(OUT_LAZY)} bytes); '
           f'{len(shared)} core names shared with the BOOPSI bundle')
 
-    # Compile the three scripts into gen/ffi.c and add the tables of
-    # names the library registers as host lazy properties.
+    # The handler is compiled into gen/ffi.c, for the library; the two
+    # bundles are left for scripts/qjsb.py to pack as amiga.qjsb and
+    # reaction.qjsb. Then the tables of names the library registers as
+    # host lazy properties are added to gen/ffi.c.
     result = subprocess.run(
-        [QJSC, '-ss', '-C', '-o', OUT_C, OUT_LAZY, OUT_CORE, OUT_BOOPSI],
+        [QJSC, '-ss', '-C', '-o', OUT_C, OUT_LAZY],
         capture_output=True, text=True)
     if result.returncode != 0:
         sys.exit('bundle_ffi: qjsc failed:\n' + result.stderr)
+
+    core_blob = qjsb.compile_blob(OUT_CORE, False)
+    boopsi_blob = qjsb.compile_blob(OUT_BOOPSI, False)
+    qjsb.write_parts('amiga', [(CORE_ENTRY, qjsb_format.KIND_SCRIPT,
+                                core_blob)])
+    qjsb.write_parts('reaction', [(BOOPSI_ENTRY, qjsb_format.KIND_SCRIPT,
+                                   boopsi_blob)])
+    print(f'amiga.qjsb entry {CORE_ENTRY}: {len(core_blob)} bytes; '
+          f'reaction.qjsb entry {BOOPSI_ENTRY}: {len(boopsi_blob)} bytes')
 
     globals_table = ([(name, CORE_GROUP) for name in core_globals] +
                      [(name, BOOPSI_GROUP) for name in boopsi_globals])

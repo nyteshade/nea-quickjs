@@ -6390,9 +6390,94 @@ function _findFeature(name) {
 }
 
 /**
- * Apply a feature now: the features it requires first, then itself,
- * then the features that extend it. Does nothing if it is applied or
- * being applied.
+ * List the features that applying `feature` will apply and that are
+ * not applied yet: itself, those it requires, those that extend any of
+ * them.
+ *
+ * @param {object} feature - the feature record
+ * @param {Array<object>} found - the list being built
+ * @returns {undefined}
+ */
+function _collectUnapplied(feature, found) {
+    if (feature.applied || feature.applying || found.indexOf(feature) >= 0) {
+        return;
+    }
+
+    found.push(feature);
+
+    for (let index = 0; index < feature.requires.length; index++) {
+        const dependency = _findFeature(feature.requires[index]);
+
+        if (dependency) _collectUnapplied(dependency, found);
+    }
+
+    for (let index = 0; index < _features.length; index++) {
+        const other = _features[index];
+
+        if (other.globals.length === 0 && other.requires[0] === feature.name) {
+            _collectUnapplied(other, found);
+        }
+    }
+}
+
+/**
+ * Read the install() bodies that applying the given features needs.
+ *
+ * The bodies are in a file, LIBS:quickjs/extended.qjsb, and opening a
+ * file is slow on a real disk: everything one use of a name will need
+ * is read in a single opening. Nothing has been changed yet when this
+ * throws because the file is missing, damaged or of another version,
+ * so the script gets an error it can catch and the name stays usable
+ * for a later attempt.
+ *
+ * @param {Array<object>} roots - the feature records about to be applied
+ * @returns {undefined}
+ * @throws {Error} if the file or one of the bodies cannot be read
+ */
+function _fetchFeatures(roots) {
+    const found = [];
+
+    for (let index = 0; index < roots.length; index++) {
+        _collectUnapplied(roots[index], found);
+    }
+
+    const wanted = [];
+    const names  = [];
+
+    for (let index = 0; index < found.length; index++) {
+        if (found[index].install === null) {
+            wanted.push(found[index]);
+            names.push(found[index].name);
+        }
+    }
+
+    if (wanted.length === 0) {
+        return;
+    }
+
+    const bodies = _loadFeatureBodies(names);
+
+    for (let index = 0; index < wanted.length; index++) {
+        wanted[index].install = bodies[index];
+    }
+}
+
+/**
+ * Apply a feature now, reading what it needs from disk first.
+ *
+ * @param {object} feature - the feature record
+ * @returns {undefined}
+ * @throws {Error} if its install() body cannot be read
+ */
+function _applyFetched(feature) {
+    _fetchFeatures([feature]);
+    _applyFeature(feature);
+}
+
+/**
+ * Apply a feature whose install() body has been read (_fetchFeatures):
+ * the features it requires first, then itself, then the features that
+ * extend it. Does nothing if it is applied or being applied.
  *
  * @param {object} feature - the feature record
  * @returns {undefined}
@@ -6440,7 +6525,7 @@ function _applyFeature(feature) {
     }
 
     try {
-        _loadFeature(feature, feature.index);
+        _runInstall(feature);
     }
     catch (error) {
         _reportApplyFailure(feature, error);
@@ -6483,7 +6568,7 @@ globalThis.__qjs_lazyHandler(0, function (index, object, key) {
     }
 
     if (index < _features.length) {
-        _applyFeature(_features[index]);
+        _applyFetched(_features[index]);
     }
 });
 
@@ -6493,7 +6578,7 @@ for (let index = 0; index < _features.length; index++) {
     const feature = _features[index];
 
     if (feature.globals.length === 0 && feature.requires.length === 0) {
-        _applyFeature(feature);
+        _applyFetched(feature);
     }
 }
 
@@ -6569,7 +6654,7 @@ globalThis.qjs.modules  = {
 
         if (!feature) return false;
 
-        _applyFeature(feature);
+        _applyFetched(feature);
 
         return true;
     },
@@ -6580,6 +6665,8 @@ globalThis.qjs.modules  = {
      * @returns {undefined}
      */
     applyAll() {
+        _fetchFeatures(_features);
+
         for (const feature of _features) {
             _applyFeature(feature);
         }

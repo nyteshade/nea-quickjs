@@ -595,58 +595,120 @@ static JSValue js_amiga_doMethod(JSContext *ctx, JSValueConst this_val,
  * handles this.
  * ----------------------------------------------------------------- */
 
-extern const unsigned char qjsc_ffi_core[];
-extern const unsigned long qjsc_ffi_core_size;
-extern const unsigned char qjsc_ffi_boopsi[];
-extern const unsigned long qjsc_ffi_boopsi_size;
-extern void js_std_eval_binary(JSContext *ctx, const unsigned char *buf,
-                               unsigned long buf_len, int flags);
+/* The bundled JavaScript is bytecode in LIBS:quickjs/<name>.qjsb, read
+ * one entry at a time: see qjsb_loader.c. */
+#include "qjsb_format.h"
+#include "qjsb_loader.h"
 
-/* __qjs_loadBundle(group) - evaluate one of the FFI bundles in this
- * context. Called once per group by amiga/ffi/lazy.js, which keeps
- * the "already loaded" state.
+static void lazy_clear_tag(JSContext *ctx, int32_t tag);
+
+/* __qjs_loadBundle(group) - read and evaluate one of the FFI bundles
+ * in this context. Called once per group by amiga/ffi/lazy.js, which
+ * keeps the "already loaded" state.
  *   0  core: enumerations, structs, library wrappers
- *   1  BOOPSI / Reaction classes (lazy.js loads group 0 first) */
+ *      (entry "core" of LIBS:quickjs/amiga.qjsb)
+ *   1  BOOPSI / Reaction classes (lazy.js loads group 0 first)
+ *      (entry "boopsi" of LIBS:quickjs/reaction.qjsb)
+ * The group's names that are still lazy are removed once the bundle
+ * has been read and before it runs, because a bundle only sets a
+ * global whose name is free. If the file cannot be read this throws
+ * with the names untouched, so a later use can try again. */
 static JSValue qjs_load_ffi_bundle(JSContext *ctx, JSValueConst this_val,
                                    int argc, JSValueConst *argv)
 {
     int32_t group = -1;
+    QJSBFile *file;
+    JSValue bundle;
 
     if (argc < 1 || JS_ToInt32(ctx, &group, argv[0]))
         return JS_EXCEPTION;
 
-    if (group == 0)
-        js_std_eval_binary(ctx, qjsc_ffi_core, qjsc_ffi_core_size, 0);
-    else if (group == 1)
-        js_std_eval_binary(ctx, qjsc_ffi_boopsi, qjsc_ffi_boopsi_size, 0);
-    else
+    if (group != 0 && group != 1)
         return JS_ThrowRangeError(ctx, "no FFI bundle %d", (int)group);
 
-    return JS_UNDEFINED;
-}
-
-/* __qjs_loadFeature(index) - evaluate the install() body of one
- * extended.js feature. The bodies are separate bytecode blobs (see
- * scripts/bundle_extended.py); the script leaves a function in
- * globalThis.__qjs_extInstall, which extended.js collects and calls. */
-extern const unsigned char *const qjsc_ext_features[];
-extern const unsigned long qjsc_ext_feature_sizes[];
-extern const unsigned long qjsc_ext_feature_count;
-
-static JSValue qjs_load_extended_feature(JSContext *ctx, JSValueConst this_val,
-                                         int argc, JSValueConst *argv)
-{
-    int32_t index = -1;
-
-    if (argc < 1 || JS_ToInt32(ctx, &index, argv[0]))
+    if (qjsb_open(ctx, group == 0 ? "amiga" : "reaction", 0,
+                  group == 0 ? "the Amiga library wrappers"
+                             : "the BOOPSI and Reaction classes", &file) < 0)
         return JS_EXCEPTION;
 
-    if (index < 0 || (unsigned long)index >= qjsc_ext_feature_count)
-        return JS_ThrowRangeError(ctx, "no extended feature %d", (int)index);
+    bundle = qjsb_read_entry(ctx, file, group == 0 ? "core" : "boopsi",
+                             QJSB_KIND_SCRIPT);
+    qjsb_close(ctx, file);
+    if (JS_IsException(bundle))
+        return bundle;
 
-    js_std_eval_binary(ctx, qjsc_ext_features[index],
-                       qjsc_ext_feature_sizes[index], 0);
-    return JS_UNDEFINED;
+    lazy_clear_tag(ctx, 1000 + group);      /* LAZY_FFI_TAG + group */
+
+    return JS_EvalFunction(ctx, bundle);
+}
+
+/* __qjs_loadFeatures(names) - read and evaluate the install() bodies
+ * of the named extended.js features: entries of
+ * LIBS:quickjs/extended.qjsb (see scripts/bundle_extended.py). Each
+ * entry is a script that leaves a function in
+ * globalThis.__qjs_extInstall; the functions are returned as an array
+ * in the order asked for. The file is opened once for all of them. */
+static JSValue qjs_load_extended_features(JSContext *ctx, JSValueConst this_val,
+                                          int argc, JSValueConst *argv)
+{
+    JSValue global, result, value, script;
+    const char *name;
+    QJSBFile *file = NULL;
+    uint32_t count = 0, index;
+
+    if (argc < 1)
+        return JS_ThrowTypeError(ctx, "__qjs_loadFeatures(names)");
+
+    value = JS_GetPropertyStr(ctx, argv[0], "length");
+    if (JS_IsException(value) || JS_ToUint32(ctx, &count, value))
+        return JS_EXCEPTION;
+    JS_FreeValue(ctx, value);
+
+    result = JS_NewArray(ctx);
+    global = JS_GetGlobalObject(ctx);
+
+    for (index = 0; index < count; index++) {
+        value = JS_GetPropertyUint32(ctx, argv[0], index);
+        name = JS_ToCString(ctx, value);
+        JS_FreeValue(ctx, value);
+        if (!name)
+            goto fail;
+
+        if (!file && qjsb_open(ctx, "extended", 0, name, &file) < 0) {
+            JS_FreeCString(ctx, name);
+            goto fail;
+        }
+
+        script = qjsb_read_entry(ctx, file, name, QJSB_KIND_SCRIPT);
+        JS_FreeCString(ctx, name);
+        if (JS_IsException(script))
+            goto fail;
+
+        value = JS_EvalFunction(ctx, script);
+        if (JS_IsException(value))
+            goto fail;
+        JS_FreeValue(ctx, value);
+
+        value = JS_GetPropertyStr(ctx, global, "__qjs_extInstall");
+        JS_SetPropertyStr(ctx, global, "__qjs_extInstall", JS_UNDEFINED);
+        if (!JS_IsFunction(ctx, value)) {
+            JS_FreeValue(ctx, value);
+            JS_ThrowPlainError(ctx, "%s: an entry defined no function",
+                               qjsb_path(file));
+            goto fail;
+        }
+        JS_SetPropertyUint32(ctx, result, index, value);
+    }
+
+    qjsb_close(ctx, file);
+    JS_FreeValue(ctx, global);
+    return result;
+
+fail:
+    qjsb_close(ctx, file);
+    JS_FreeValue(ctx, global);
+    JS_FreeValue(ctx, result);
+    return JS_EXCEPTION;
 }
 
 /* ------------------------------------------------------------------
@@ -668,6 +730,13 @@ static JSValue qjs_load_extended_feature(JSContext *ctx, JSValueConst this_val,
  *                 qjsc_ffi_lazy, likewise
  * Each of the two registers a JavaScript handler with
  * __qjs_lazyHandler(slot, fn); the handler gives the name its value.
+ * Those two pieces of JavaScript are part of the library image
+ * (gen/extended.c, gen/ffi.c), like the tables of names, so that
+ * starting a context opens no file. What the handlers load is in
+ * LIBS:quickjs/ (extended.qjsb, amiga.qjsb, reaction.qjsb). If a
+ * handler throws, typically because such a file is missing or belongs
+ * to another library version, the script gets that exception from its
+ * use of the name and the name is made lazy again.
  *
  * Until 0.230 the same thing was done by evaluating both of those at
  * start-up and putting an accessor on every name, which was half of
@@ -690,6 +759,8 @@ extern const unsigned char qjsc_extended[];
 extern const unsigned long qjsc_extended_size;
 extern const unsigned char qjsc_ffi_lazy[];
 extern const unsigned long qjsc_ffi_lazy_size;
+extern void js_std_eval_binary(JSContext *ctx, const unsigned char *buf,
+                               unsigned long buf_len, int flags);
 
 extern const char *const qjsc_ext_lazy_names[];
 extern const unsigned short qjsc_ext_lazy_tags[];
@@ -816,8 +887,13 @@ static int qjs_host_lazy(JSContext *ctx, JSValueConst object, JSAtom prop,
     JS_FreeValue(ctx, arguments[2]);
     JS_FreeValue(ctx, handler);
 
-    if (JS_IsException(result))
+    if (JS_IsException(result)) {
+        /* Nothing was loaded. The handler removed the placeholder; make
+         * the name lazy again, so that the next use tries once more
+         * (does nothing if the name exists). */
+        JS_DefineHostLazyProperty(ctx, object, prop, tag);
         return -1;
+    }
 
     JS_FreeValue(ctx, result);
     return 0;
@@ -900,20 +976,15 @@ static JSValue qjs_lazy_attach_ffi(JSContext *ctx, JSValueConst this_val,
     return JS_UNDEFINED;
 }
 
-/* __qjs_lazyClear(tag) - remove every name that is STILL lazy and has
- * this tag (a feature index, or 1000 + an FFI group), so that the code
- * about to define those names finds them free. Names a script has
- * already used or assigned are no longer lazy and are not touched. */
-static JSValue qjs_lazy_clear(JSContext *ctx, JSValueConst this_val,
-                              int argc, JSValueConst *argv)
+/* Remove every name that is STILL lazy and has this tag (a feature
+ * index, or 1000 + an FFI group), so that the code about to define
+ * those names finds them free. Names a script has already used or
+ * assigned are no longer lazy and are not touched. */
+static void lazy_clear_tag(JSContext *ctx, int32_t tag)
 {
     JSValue global, state, attached, amiga, object;
     unsigned long index;
-    int32_t tag = -1;
     JSAtom atom;
-
-    if (argc < 1 || JS_ToInt32(ctx, &tag, argv[0]))
-        return JS_EXCEPTION;
 
     global = JS_GetGlobalObject(ctx);
 
@@ -969,6 +1040,19 @@ static JSValue qjs_lazy_clear(JSContext *ctx, JSValueConst this_val,
     }
 
     JS_FreeValue(ctx, global);
+}
+
+/* __qjs_lazyClear(tag) - lazy_clear_tag for the extended features'
+ * JavaScript, which calls it just before a feature's install() runs. */
+static JSValue qjs_lazy_clear(JSContext *ctx, JSValueConst this_val,
+                              int argc, JSValueConst *argv)
+{
+    int32_t tag = -1;
+
+    if (argc < 1 || JS_ToInt32(ctx, &tag, argv[0]))
+        return JS_EXCEPTION;
+
+    lazy_clear_tag(ctx, tag);
     return JS_UNDEFINED;
 }
 
@@ -1118,8 +1202,8 @@ void qjs_install_amiga_ffi_global(JSContext *ctx)
     JSValue global, fn;
     global = JS_GetGlobalObject(ctx);
 
-    fn = JS_NewCFunction(ctx, qjs_load_extended_feature, "__qjs_loadFeature",    1);
-    JS_SetPropertyStr(ctx, global, "__qjs_loadFeature", fn);
+    fn = JS_NewCFunction(ctx, qjs_load_extended_features, "__qjs_loadFeatures",  1);
+    JS_SetPropertyStr(ctx, global, "__qjs_loadFeatures", fn);
     fn = JS_NewCFunction(ctx, qjs_lazy_handler,      "__qjs_lazyHandler",        2);
     JS_SetPropertyStr(ctx, global, "__qjs_lazyHandler", fn);
     fn = JS_NewCFunction(ctx, qjs_lazy_clear,        "__qjs_lazyClear",          1);

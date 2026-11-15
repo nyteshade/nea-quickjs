@@ -134,6 +134,10 @@ def vamos(library, copies, texts, arguments):
         os.mkdir(volumes)
         shutil.copytree(VM, machine)
         shutil.copy(library, os.path.join(machine, 'libs', 'quickjs.library'))
+        # the library's bytecode files, LIBS:quickjs/*.qjsb, are beside it
+        bytecode = os.path.join(os.path.dirname(library), 'quickjs')
+        if os.path.isdir(bytecode):
+            shutil.copytree(bytecode, os.path.join(machine, 'libs', 'quickjs'))
         for name, source in copies.items():
             shutil.copy(source, os.path.join(machine, name))
         for name, text in texts.items():

@@ -22,5 +22,10 @@ perf/tools/hook.dylib
 # per-feature sources split out of extended.js by scripts/bundle_extended.py
 quickjs-master/gen/extended-parts/
 
+# bytecode blobs left by the bundlers for scripts/qjsb.py, and the stamp
+# header it writes for the library
+quickjs-master/gen/qjsb/
+quickjs-master/gen/qjsb_stamp.h
+
 # agent worktrees
 .claude/worktrees/
