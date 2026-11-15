@@ -7,6 +7,12 @@
  * had given it. Recursion that went deeper than the real stack wrote
  * over whatever memory lay below it: a crash, or worse, later. The
  * limit now follows the task's real stack (tc_SPLower), less a margin.
+ * Since the chained stack (docs/STACK.md) reaching that limit is not
+ * the end: the recursion continues on further blocks, up to the cap
+ * (--stack-size, 1 MB by default), and the error comes there. So the
+ * runaways below go about 1100 calls deep instead of a few dozen, and
+ * what this test watches is the task's own stack on the way: the
+ * blocks have the same margin, checked by test_stack_chain.js.
  *
  * Every kind of recursion below must end in a RangeError that the
  * script can catch, and the interpreter must work afterwards. Where
@@ -71,7 +77,7 @@ function paintStackBottom() {
     stackLower = amiga.peek32(task + TC_SPLOWER);
     stackUpper = amiga.peek32(task + TC_SPUPPER);
     if (stackLower === 0 || stackUpper <= stackLower ||
-        stackUpper - stackLower < 60000)
+        stackUpper - stackLower < 48000)
         return;
     for (let offset = 0; offset < PAINTED_BYTES; offset += 4)
         amiga.poke32(stackLower + offset, PATTERN);
@@ -94,7 +100,7 @@ paintStackBottom();
 if (stackLower !== 0 || stackUpper !== 0)
     print('INFO stack of this task: ' + (stackUpper - stackLower) + ' bytes');
 if (!painted)
-    print('INFO stack bottom not painted (no FFI, unknown bounds, or under 60000 bytes)');
+    print('INFO stack bottom not painted (no FFI, unknown bounds, or under 48000 bytes)');
 
 /* ---- recursion of every kind ---------------------------------------- */
 
@@ -256,8 +262,10 @@ check('a second runaway is caught too', again instanceof RangeError,
 check('RangeError says what happened',
       again !== null && /stack/i.test(again.message), again && again.message);
 
-/* On a 64 KB stack plain recursion gets about 60 calls deep (callbacks
- * through sort or replace far fewer); fewer than 10 means the limit is far too tight to be useful. */
+/* With the default cap of 1 MB plain recursion gets about 1100 calls
+ * deep (callbacks through sort or replace far fewer); with growth off
+ * (--stack-chunk 0) on a 64 KB stack, about 40. Fewer than 10 means the
+ * limit is far too tight to be useful. */
 check('plain recursion gets at least 10 calls deep', plainDepth >= 10,
       'only ' + plainDepth);
 
