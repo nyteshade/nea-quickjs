@@ -124,6 +124,10 @@ override config file options.
 ```
 # S:QJS-Config.txt
 --std
+# the stack: first block, further blocks, most in all (KB); docs/STACK.md
+--stack-floor 64
+--stack-chunk 128
+--stack-size 1024
 ```
 
 ### S:QJS-Startup.js — Auto-run Startup Script
