@@ -11,13 +11,13 @@
 #     their output is compared with perf/out/<baseline>/
 #   - every regression test on 020soft, 040soft and 060soft
 #   - those that an FPU variant can run under vamos on 040fpu and 060fpu
-#   - check_examples, check_feature_globals, the REPL harness
+#   - check_examples, check_feature_globals, check_qjsb, the REPL harness
 # A healthy run prints only "... passed, 0 failed" / "pass 0 fail"
 # lines, the instruction counts, the three check summaries and the
 # version strings. 020fpu cannot run the maths tests in this emulator.
 cd "$(dirname "$0")/.." || exit 1
 label=${1:?usage: verify-all.sh <label> [benchmark-baseline-label]}; base=${2:-}
-T="test_numeric_edge test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_led test_reaction_events test_persistence test_screen_font test_engine_conformance test_engine_scope test_engine_iterators test_engine_objects test_engine_builtins test_engine_host"
+T="test_numeric_edge test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_led test_reaction_events test_persistence test_screen_font test_engine_conformance test_engine_scope test_engine_iterators test_engine_objects test_engine_builtins test_engine_host test_qjsb"
 F="test_fpu_numeric test_compiler_regressions test_dynamic_import test_stack_limit test_ffi_lists test_engine_scope test_engine_iterators test_engine_objects"
 [ -d perf/out/t231 ] && perf/compare-tests.sh "t$label" amiga/libs/quickjs.020soft.library t231 | /usr/bin/grep -v '^same'
 perf/measure.sh "v$label" > /dev/null; tr '\n' ' ' < "perf/out/v$label/instr.txt"; echo
@@ -38,6 +38,7 @@ python3 scripts/check_fp_literals.py 2>&1 | tail -1
 python3 scripts/check_examples.py 2>&1 | tail -1
 python3 scripts/check_examples.py --past-open 2>&1 | tail -1
 python3 scripts/check_feature_globals.py 2>&1 | tail -1
+python3 scripts/check_qjsb.py 2>&1 | tail -1
 node tools/repl-harness/harness.js 2>&1 | tail -1
 for v in 020fpu 020soft 040fpu 040soft 060fpu 060soft; do strings amiga/libs/quickjs.$v.library | /usr/bin/grep 'VER.*quickjs' | head -1; done
 strings amiga/c/qjs | /usr/bin/grep 'VER: qjs'

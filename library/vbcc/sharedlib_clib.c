@@ -138,16 +138,20 @@ static long __dos_GetVar(__reg("a6") struct Library *base,
                          __reg("d4") long flags) = "\tjsr\t-906(a6)";
 #define dos_GetVar(n,b,s,f) __dos_GetVar(sl_DOSBase, (n), (b), (s), (f))
 
+/* Offsets from sdks/NDK3.2R4/FD/dos_lib.fd: SetVar 900, GetVar 906,
+ * DeleteVar 912. Until 0.240 SetVar was called at 912 and DeleteVar at
+ * 918 (FindVar), so std.setenv() deleted the variable it was to set
+ * and std.unsetenv() did nothing. */
 static long __dos_SetVar(__reg("a6") struct Library *base,
                          __reg("d1") const char *name,
                          __reg("d2") const char *value,
                          __reg("d3") long len,
-                         __reg("d4") long flags) = "\tjsr\t-912(a6)";
+                         __reg("d4") long flags) = "\tjsr\t-900(a6)";
 #define dos_SetVar(n,v,l,f) __dos_SetVar(sl_DOSBase, (n), (v), (l), (f))
 
 static long __dos_DeleteVar(__reg("a6") struct Library *base,
                             __reg("d1") const char *name,
-                            __reg("d2") long flags) = "\tjsr\t-918(a6)";
+                            __reg("d2") long flags) = "\tjsr\t-912(a6)";
 #define dos_DeleteVar(n,f) __dos_DeleteVar(sl_DOSBase, (n), (f))
 
 static char _getenv_buf[256];

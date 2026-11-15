@@ -15,6 +15,13 @@
 #   libs/mathieeedoubbas.library  a real one, for the soft-float variants
 # and amitools' vamos for the python named in tools/prof.py.
 #
+# The library's bytecode files (LIBS:quickjs/*.qjsb, see docs/QJSB-FORMAT.md)
+# are copied from the directory "quickjs" beside the library under test
+# into the run's libs/, so the template needs none; PERF_QJSB names
+# another directory, and one that does not exist runs without the files.
+# A directory "addons" in the scripts' directory (amiga/tests/addons, the
+# test add-on) is copied beside the script.
+#
 # PERF_BENCH_DIR takes the scripts from another directory (e.g. amiga/tests).
 # PERF_ARGS adds qjs options, e.g. PERF_ARGS=-d to dump memory usage at exit.
 # PERF_CPU=68040 selects the emulated CPU (needed for the FPU variants).
@@ -28,13 +35,16 @@ label=${1:?usage: measure.sh <label> [library] [bench...]}; shift
 lib=${1:-$ROOT/amiga/libs/quickjs.020soft.library}; [ $# -gt 0 ] && shift
 [ $# -gt 0 ] || set -- empty intloop float prop array call intdiv intops strcat alloc regex edge modchk
 VM=${PERF_VM:-$HERE/.vm}
+QJSB=${PERF_QJSB:-$(dirname "$lib")/quickjs}
 [ -x "$VM/c/qjs" ] || { echo "no $VM/c/qjs - see the header of this script"; exit 1; }
 [ -f "$HERE/tools/hook.dylib" ] || cc -O2 -shared -o "$HERE/tools/hook.dylib" "$HERE/tools/hook.c" || exit 1
 OUT=$HERE/out/$label; mkdir -p "$OUT"
 WORK=$(mktemp -d)
 one() {
   b=$1; W=$WORK/$b; mkdir -p "$W/vols"; cp -R "$VM" "$W/vm"
-  cp "$lib" "$W/vm/libs/quickjs.library"; cp "${PERF_BENCH_DIR:-$HERE/bench}/$b.js" "$W/vm/"
+  [ -d "${PERF_BENCH_DIR:-$HERE/bench}/addons" ] && cp -R "${PERF_BENCH_DIR:-$HERE/bench}/addons" "$W/vm/addons"
+  cp "$lib" "$W/vm/libs/quickjs.library"; [ -d "$QJSB" ] && cp -R "$QJSB" "$W/vm/libs/quickjs"
+  cp "${PERF_BENCH_DIR:-$HERE/bench}/$b.js" "$W/vm/"
   ( cd "$W/vm" && PROF_OUT=$W/prof "$HERE/tools/prof.py" -S --vols-base-dir "$W/vols" \
       -l main:info -C ${PERF_CPU:-68020} -m 65536 -H disable -s 2048 --cwd sys: -V "sys:$PWD" \
       -a libs:sys:libs -a s:sys:s -a c:sys:c -a t:sys:s \

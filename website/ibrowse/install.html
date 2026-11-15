@@ -14,7 +14,7 @@
   <div class="content">
     <div class="box">
       <h2>Runtime layout</h2>
-      <p>Choose the library variant that matches the target machine and copy it to <tt>LIBS:quickjs.library</tt>. Put <tt>qjs</tt> somewhere on the command path, such as <tt>C:</tt> or a project-local tools drawer.</p>
+      <p>Choose the library variant that matches the target machine and copy it to <tt>LIBS:quickjs.library</tt>. Copy the drawer <tt>libs/quickjs</tt> (the bundled JavaScript as bytecode: <tt>extended.qjsb</tt>, <tt>amiga.qjsb</tt>, <tt>reaction.qjsb</tt>; the same files for every variant) to <tt>LIBS:quickjs</tt>, again with every library update. Put <tt>qjs</tt> somewhere on the command path, such as <tt>C:</tt> or a project-local tools drawer. <tt>qjs -v</tt> lists the versions of all of them.</p>
       <table class="data">
         <tr><th>File</th><th>Use</th></tr>
         <tr><td><tt>quickjs.020soft.library</tt></td><td>Safest baseline for 68020+ machines without requiring an FPU.</td></tr>
@@ -28,6 +28,8 @@
     <div class="box">
       <h2>First commands</h2>
       <pre>copy libs/quickjs.020soft.library LIBS:quickjs.library
+makedir LIBS:quickjs
+copy libs/quickjs/#?.qjsb LIBS:quickjs/
 copy c/qjs C:qjs
 stack 65536
 qjs -e "print(100 + 110)"

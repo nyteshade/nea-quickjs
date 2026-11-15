@@ -47,6 +47,9 @@ RAM:qjs-results/
 Prerequisites:
 
 - `quickjs.library` 0.080+ in `LIBS:` (or via assigns).
+- From 0.240: the drawer `amiga/libs/quickjs/` copied to `LIBS:quickjs/`
+  (the bundled JavaScript; see `docs/INSTALL.md`), of the same version
+  as the library. `qjs -v` shows whether they match.
 - `stack 65536` before running — the CLI refuses to start below this
   (see `qjs -e 'print(5)'` error message for details).
 - For `test_fetch.js`: working `bsdsocket.library` and AmiSSL.

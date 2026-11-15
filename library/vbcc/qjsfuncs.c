@@ -868,12 +868,17 @@ extern void JS_SetModuleLoaderFunc2(JSRuntime *rt,
 extern int js_module_check_attributes(JSContext *ctx, void *opaque,
                                       JSValue attributes);
 
+/* The loader installed is qjsb_module_loader (qjsb_modules.c): it
+ * serves "scheme:name" specifiers from add-ons in LIBS:quickjs/ and
+ * hands everything else to js_module_loader. */
+extern void qjsb_module_loader(void);
+
 void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
 {
     /* No normalizer of our own: the engine's default one knows AmigaOS
      * paths (js_default_module_normalize_name in quickjs.c). */
     JS_SetModuleLoaderFunc2(rt, NULL,
-        (JSModuleLoaderFunc2 *)&js_module_loader,
+        (JSModuleLoaderFunc2 *)&qjsb_module_loader,
         &js_module_check_attributes, NULL);
 }
 
@@ -885,16 +890,6 @@ void QJS_SetModuleLoader_impl(struct JSRuntime *rt)
  *
  * Lives in the library so that every app that opens quickjs.library
  * — not just the qjs CLI — gets the full extended JS surface. */
-extern const unsigned char qjsc_extended[];
-extern const unsigned long qjsc_extended_size;
-/* gen/ffi.c holds three scripts (see scripts/bundle_ffi.py): the
- * start-up stub, evaluated here, and the two bundles it loads on
- * first use through __qjs_loadBundle in amiga_ffi.c. */
-extern const unsigned char qjsc_ffi_lazy[];
-extern const unsigned long qjsc_ffi_lazy_size;
-extern void js_std_eval_binary(struct JSContext *ctx, const unsigned char *buf,
-                               unsigned long buf_len, int flags);
-
 void QJS_InstallExtended_impl(struct JSContext *ctx)
 {
     /* Install __qjs_now_ms BEFORE extended.js runs — extended.js

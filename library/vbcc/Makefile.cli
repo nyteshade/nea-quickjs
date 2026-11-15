@@ -68,7 +68,8 @@ OBJS = $(OBJDIR)/qjs.o \
        $(OBJDIR)/amiga_compat_vbcc.o \
        $(OBJDIR)/repl.o \
        $(OBJDIR)/standalone.o \
-       $(OBJDIR)/cli_math_globals.o
+       $(OBJDIR)/cli_math_globals.o \
+       $(OBJDIR)/cli_qjsb_versions.o
 
 TARGET = $(CDIR)/qjs
 
@@ -84,6 +85,10 @@ $(CDIR):
 	@mkdir -p $(CDIR)
 
 $(OBJDIR)/qjs.o: $(CLI_SRC) | $(OBJDIR)
+	$(VC) $(CFLAGS) $< -o $@
+
+# "qjs -v" lists the .qjsb files beside the library
+$(OBJDIR)/cli_qjsb_versions.o: $(LIBVBCC)/cli_qjsb_versions.c $(LIBVBCC)/qjsb_format.h | $(OBJDIR)
 	$(VC) $(CFLAGS) $< -o $@
 
 $(OBJDIR)/quickjs_bridge.o: $(BRIDGE_SRC) | $(OBJDIR)

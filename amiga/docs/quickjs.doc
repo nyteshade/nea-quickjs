@@ -223,6 +223,21 @@ quickjs.library/--background--                  quickjs.library/--background--
 	QuickJS-ng.  QuickJS was originally written by Fabrice Bellard;
 	the -ng fork is community-maintained.
 
+    FILES
+	LIBS:quickjs.library       the engine (one of the variants below)
+	LIBS:quickjs/extended.qjsb the extended features (URL, Buffer, ...)
+	LIBS:quickjs/amiga.qjsb    the Exec/DOS/Intuition/Graphics wrappers
+	LIBS:quickjs/reaction.qjsb the BOOPSI and Reaction classes
+
+	Since 0.240 the JavaScript delivered with the library is bytecode
+	in the drawer LIBS:quickjs/, the same files for every variant,
+	read on first use of a name they provide.  They belong to one
+	library version: copy the drawer whenever the library is
+	replaced.  "qjs -v" and "version file LIBS:quickjs/extended.qjsb"
+	show their versions.  A script that needs a missing or outdated
+	file gets a JavaScript error naming it; plain scripts run without
+	the drawer.
+
     VERSIONS
 	The library ships in seven variants to match every 68k CPU/FPU
 	combination.  The default file LIBS:quickjs.library is the

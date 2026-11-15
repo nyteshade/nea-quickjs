@@ -146,7 +146,7 @@ The test app opens `quickjs.library` via `OpenLibrary()`, runs 30+ tests coverin
 
 ### Deploy on Real Hardware
 
-Copy `library/libs/quickjs.library` to `LIBS:` on your Amiga. Applications using the library will find it there automatically via `OpenLibrary("quickjs.library", 0)`.
+Since 0.240 the bundled JavaScript is in `amiga/libs/quickjs/*.qjsb` and must be copied to `LIBS:quickjs/` as well (see `docs/INSTALL.md`). Copy `library/libs/quickjs.library` to `LIBS:` on your Amiga. Applications using the library will find it there automatically via `OpenLibrary("quickjs.library", 0)`.
 
 ### Build Functions Reference
 

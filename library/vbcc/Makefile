@@ -20,6 +20,7 @@
 #   make soft         — build soft-float variant only
 #   make variants     — build all 6 (020/040/060 × fpu/soft) + default-library
 #   make 020/040/060  — build both variants for one CPU
+#   make qjsb         — pack amiga/libs/quickjs/*.qjsb (every build does)
 #   make clean        — remove object files for current CPU
 #   make clean-variants — remove ALL object files and built libraries
 #
@@ -54,7 +55,7 @@ CFLAGS_COMMON = +aos68k -c -cpu=$(CPU) -O1 \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
          -I$(AMISSL_SDK) \
-         -I$(INCLUDE) -I$(QJS) \
+         -I$(INCLUDE) -I$(QJS) -I$(QJS)/gen \
          -I$(TEMPLATE) -I$(LIBVBCC)
 # JS_NAN_BOXING=0: VBCC at -O1 (and lower) miscompiles the int64 ops
 # that NAN-boxed JSValue construction/extraction requires. User-tested
@@ -187,6 +188,8 @@ FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/ffi.o \
               $(OBJDIR_FPU)/sharedlib_worker.o \
               $(OBJDIR_FPU)/amiga_ffi.o \
+              $(OBJDIR_FPU)/qjsb_loader.o \
+              $(OBJDIR_FPU)/qjsb_modules.o \
               $(OBJDIR_FPU)/amiga_ffi_call.o \
               $(OBJDIR_FPU)/amiga_boopsi_call.o
 
@@ -227,6 +230,8 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/ffi.o \
               $(OBJDIR_SOFT)/sharedlib_worker.o \
               $(OBJDIR_SOFT)/amiga_ffi.o \
+              $(OBJDIR_SOFT)/qjsb_loader.o \
+              $(OBJDIR_SOFT)/qjsb_modules.o \
               $(OBJDIR_SOFT)/amiga_ffi_call.o \
               $(OBJDIR_SOFT)/amiga_boopsi_call.o
 
@@ -252,7 +257,56 @@ endif
 TARGET_FPU  = $(LIBSDIR)/quickjs.$(CPU_TAG)fpu.library
 TARGET_SOFT = $(LIBSDIR)/quickjs.$(CPU_TAG)soft.library
 
-.PHONY: all fpu soft clean variants 020 040 060 default-library check-dcmp
+.PHONY: all fpu soft clean variants 020 040 060 default-library check-dcmp qjsb
+
+# --- Bundled JavaScript: LIBS:quickjs/*.qjsb (0.240) ---
+#
+# The extended features and the FFI wrappers are not linked into the
+# library. They are bytecode in three CPU-independent files, the same
+# for all six variants, which belong in LIBS:quickjs/ beside the
+# library (docs/QJSB-FORMAT.md):
+#     $(LIBSDIR)/quickjs/extended.qjsb  amiga.qjsb  reaction.qjsb
+# The library keeps the small parts that run before any file is opened
+# (gen/extended.c, gen/ffi.c) and qjsb_stamp.h, the version stamp a
+# file must carry. The files carry the library's version, so they are
+# packed again whenever libraryconfig.h changes; that needs python3 but
+# not qjsc. The bytecode itself comes from scripts/bundle_extended.py
+# and scripts/bundle_ffi.py, run by hand after editing the JavaScript
+# (they need the host qjsc).
+#   make qjsb   - pack the three files (also done by every library build)
+QJSB_DIR   = $(LIBSDIR)/quickjs
+QJSB_FILES = $(QJSB_DIR)/extended.qjsb $(QJSB_DIR)/amiga.qjsb \
+             $(QJSB_DIR)/reaction.qjsb
+QJSB_STAMP = $(QJS)/gen/qjsb_stamp.h
+QJSB_HDRS  = $(LIBVBCC)/qjsb_format.h $(LIBVBCC)/qjsb_loader.h
+QJSB_PARTS = $(wildcard $(QJS)/gen/qjsb/*/*)
+
+# The add-on that amiga/tests/test_qjsb.js imports; its sources are
+# beside it. This one does need the host qjsc.
+QJSB_TEST_ADDON = $(ROOT)/amiga/tests/addons/hello.qjsb
+
+qjsb: $(QJSB_FILES) $(QJSB_TEST_ADDON)
+
+$(QJSB_TEST_ADDON): $(ROOT)/amiga/tests/addons/hello/main.js \
+                    $(ROOT)/amiga/tests/addons/hello/util.js $(QJSB_STAMP)
+	python3 $(ROOT)/scripts/qjsb.py compile $@ --version 1.0 \
+	    --date 14.11.2026 \
+	    --main $(ROOT)/amiga/tests/addons/hello/main.js \
+	    util=$(ROOT)/amiga/tests/addons/hello/util.js
+
+# One recipe writes the stamp and all three files; the stamp is the
+# file make tracks, the .qjsb files follow from it.
+$(QJSB_STAMP): $(LIBVBCC)/libraryconfig.h $(QJS)/quickjs-atom.h \
+               $(QJS)/quickjs-opcode.h $(QJS)/quickjs.c \
+               $(ROOT)/scripts/qjsb.py $(ROOT)/scripts/qjsb_format.py
+	python3 $(ROOT)/scripts/qjsb.py stamp
+	@touch $@
+
+$(QJSB_DIR)/extended.qjsb: $(QJSB_STAMP) $(QJSB_PARTS)
+	python3 $(ROOT)/scripts/qjsb.py core --out $(QJSB_DIR)
+
+$(QJSB_DIR)/amiga.qjsb $(QJSB_DIR)/reaction.qjsb: $(QJSB_DIR)/extended.qjsb
+	@true
 
 # Every C file that goes into a soft-float library. check-dcmp compiles
 # each to assembly with the soft flags and fails if the compiler emitted
@@ -264,7 +318,9 @@ DCMP_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c $(QJS)/libregexp.c \
            $(LIBVBCC)/qjsfuncs.c $(LIBVBCC)/execinline.c \
            $(LIBVBCC)/qjs_dbg_stub.c $(LIBVBCC)/quickjs_libc_lib.c \
            $(LIBVBCC)/amiga_ssl_lib.c $(LIBVBCC)/sharedlib_worker.c \
-           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/sharedlib_mem.c \
+           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/qjsb_loader.c \
+           $(LIBVBCC)/qjsb_modules.c \
+           $(LIBVBCC)/sharedlib_mem.c \
            $(LIBVBCC)/sharedlib_string.c $(LIBVBCC)/sharedlib_math_soft.c \
            $(LIBVBCC)/sharedlib_math_prim.c \
            $(LIBVBCC)/sharedlib_math.c $(LIBVBCC)/sharedlib_math_fpu_aux.c \
@@ -327,7 +383,7 @@ variants: 020 040 060 default-library
 # the functions in sharedlib_math_round.c and sharedlib_math.c.
 FPU_MATH_HDRS = $(LIBVBCC)/sharedlib_math_fpu.h $(LIBVBCC)/sharedlib_dblbits.h
 
-$(TARGET_FPU): $(FPU_ALL) | $(LIBSDIR)
+$(TARGET_FPU): $(FPU_ALL) $(QJSB_FILES) $(QJSB_TEST_ADDON) | $(LIBSDIR)
 	$(VLINK) $(LDFLAGS) $(FPU_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
@@ -373,7 +429,13 @@ $(OBJDIR_FPU)/ffi.o: $(QJS)/gen/ffi.c | $(OBJDIR_FPU)
 $(OBJDIR_FPU)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
-$(OBJDIR_FPU)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c | $(OBJDIR_FPU)
+$(OBJDIR_FPU)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c $(QJSB_HDRS) | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/qjsb_loader.o: $(LIBVBCC)/qjsb_loader.c $(QJSB_HDRS) $(QJSB_STAMP) | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/qjsb_modules.o: $(LIBVBCC)/qjsb_modules.c $(QJSB_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/amiga_ffi_call.o: $(LIBVBCC)/amiga_ffi_call.s | $(OBJDIR_FPU)
@@ -480,7 +542,7 @@ $(OBJDIR_FPU): | compiler-check
 
 # --- Soft-float variant build rules ---
 
-$(TARGET_SOFT): $(SOFT_ALL) | $(LIBSDIR)
+$(TARGET_SOFT): $(SOFT_ALL) $(QJSB_FILES) $(QJSB_TEST_ADDON) | $(LIBSDIR)
 	$(VLINK) $(LDFLAGS) $(SOFT_ALL) $(LINK_LIBS) -o $@
 	@ls -la $@
 
@@ -534,7 +596,13 @@ $(OBJDIR_SOFT)/ffi.o: $(QJS)/gen/ffi.c | $(OBJDIR_SOFT)
 $(OBJDIR_SOFT)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
-$(OBJDIR_SOFT)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c | $(OBJDIR_SOFT)
+$(OBJDIR_SOFT)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c $(QJSB_HDRS) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/qjsb_loader.o: $(LIBVBCC)/qjsb_loader.c $(QJSB_HDRS) $(QJSB_STAMP) | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/qjsb_modules.o: $(LIBVBCC)/qjsb_modules.c $(QJSB_HDRS) | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/amiga_ffi_call.o: $(LIBVBCC)/amiga_ffi_call.s | $(OBJDIR_SOFT)
@@ -630,3 +698,4 @@ clean-variants:
 	rm -f $(LIBSDIR)/quickjs.020fpu.library $(LIBSDIR)/quickjs.020soft.library
 	rm -f $(LIBSDIR)/quickjs.040fpu.library $(LIBSDIR)/quickjs.040soft.library
 	rm -f $(LIBSDIR)/quickjs.060fpu.library $(LIBSDIR)/quickjs.060soft.library
+	rm -f $(QJSB_FILES) $(QJSB_STAMP)

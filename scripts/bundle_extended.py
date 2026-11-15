@@ -7,26 +7,24 @@ Compiled as one blob, every start of qjs had to read all of it (about
 570 KB of heap and most of the start-up time, measured at 0.227) even
 for a script using none of the features. This script compiles it as:
 
-  qjsc_extended           the module evaluated on first use of any
-                          feature: the file's preamble, a compact
-                          _features table (name, globals, requires per
-                          feature) built here at build time, and the
-                          file's tail, which applies features
-  qjsc_ext_NN_<feature>   one classic script per feature, holding its
-                          install() body; evaluated by the native
-                          __qjs_loadFeature(NN) when the feature is
-                          applied
-  qjsc_ext_NN_registry    the last blob: every feature's metadata
-                          without install(), for qjs.modules.list()
+  qjsc_extended    the module evaluated on first use of any feature:
+                   the file's preamble, a compact _features table
+                   (name, globals, requires per feature) built here at
+                   build time, and the file's tail, which applies
+                   features. Compiled into quickjs.library, from
+                   quickjs-master/gen/extended.c.
+  <feature>        one classic script per feature, holding its
+                   install() body: an entry of LIBS:quickjs/extended.qjsb
+                   named after the feature, read and evaluated by the
+                   native __qjs_loadFeatures when the feature is applied
+  @registry        the last entry: every feature's metadata without
+                   install(), for qjs.modules.list()
 
-and writes them all to quickjs-master/gen/extended.c together with the
-table the native indexes:
-
-  qjsc_ext_features[], qjsc_ext_feature_sizes[], qjsc_ext_feature_count
-
-and the names the library registers as lazy properties when a context
-starts (no JavaScript runs then; the module is evaluated the first time
-one of them is used):
+The entries are left in quickjs-master/gen/qjsb/extended/ for
+`scripts/qjsb.py core` to pack (docs/QJSB-FORMAT.md). gen/extended.c
+also gets the names the library registers as lazy properties when a
+context starts (no JavaScript runs then, and no file is opened; the
+module is evaluated the first time one of them is used):
 
   qjsc_ext_lazy_names[], qjsc_ext_lazy_tags[], qjsc_ext_lazy_count
 
@@ -37,11 +35,16 @@ An install() body may use the module's `std`, `os` and
 it needs from the module must be added to SHARED below.
 
 Usage: python3 scripts/bundle_extended.py     (runs qjsc itself)
+       python3 scripts/qjsb.py core           (then packs the .qjsb files)
 """
 import os
 import re
 import subprocess
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import qjsb                                             # noqa: E402
+import qjsb_format                                      # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(ROOT, 'quickjs-master/amiga/extended/extended.js')
@@ -54,6 +57,10 @@ BLOCK_START = 'defineFeature({'
 INSTALL_START = '\n    install() {\n'
 BLOCK_END = '\n    },\n});\n'
 
+# The name of the registry's entry in extended.qjsb; no feature can be
+# called this.
+REGISTRY_ENTRY = '@registry'
+
 # Module-level names an install() body may use, in argument order.
 SHARED = ['std', 'os', 'nativeMemoryUsage']
 
@@ -61,53 +68,53 @@ SHARED = ['std', 'os', 'nativeMemoryUsage']
 LOADER = '''
 /* ----------------------------------------------------------
  * Added by scripts/bundle_extended.py. Each feature's install() body
- * is a separate bytecode blob in the library; so is the registry, the
- * features' descriptions. __qjs_loadFeature evaluates blob `index`,
- * which leaves a function in globalThis.__qjs_extInstall.
+ * is a separate bytecode entry in LIBS:quickjs/extended.qjsb, named
+ * after the feature; so is the registry, the features' descriptions
+ * (entry "%(registry)s"). __qjs_loadFeatures(names) evaluates the named
+ * entries in one opening of the file and returns the function each of
+ * them defines.
  * ---------------------------------------------------------- */
-const _loadFeatureNative = globalThis.__qjs_loadFeature;
-
-delete globalThis.__qjs_loadFeature;
-
 /**
- * Evaluate a blob and collect the function it leaves behind.
+ * Read and evaluate entries of extended.qjsb (the native
+ * qjs_load_extended_features in library/vbcc/amiga_ffi.c).
  *
- * @param {number} index - which blob
- * @returns {function} what the blob defined
+ * @type {function(Array<string>): Array<function>}
+ * @param {Array<string>} names - the entries wanted
+ * @returns {Array<function>} what each entry defined, in that order
+ * @throws {Error} if the file or an entry cannot be read
  */
-function _takeBlob(index) {
-    _loadFeatureNative(index);
+const _loadFeatureBodies = globalThis.__qjs_loadFeatures;
 
-    const defined = globalThis.__qjs_extInstall;
-
-    delete globalThis.__qjs_extInstall;
-
-    return defined;
-}
+delete globalThis.__qjs_loadFeatures;
 
 /**
- * Evaluate and run the install() body of one feature.
+ * Run the install() body of one feature, read earlier, and let go of
+ * it.
  *
  * @param {object} feature - the feature's record, as `this`
- * @param {number} index - which blob
  * @returns {undefined}
  */
-function _loadFeature(feature, index) {
-    _takeBlob(index).call(feature, %(shared)s);
+function _runInstall(feature) {
+    const install = feature.install;
+
+    feature.install = null;
+    install.call(feature, %(shared)s);
 }
 
 /**
  * Read the features' descriptions.
  *
  * @returns {Array<object>} one object per feature, in source order
+ * @throws {Error} if the file cannot be read
  */
 function _loadRegistry() {
-    return _takeBlob(%(registry)d)();
+    return _loadFeatureBodies(['%(registry)s'])[0]();
 }
 
 /* One row per feature: name, globals, requires. Written from the
  * defineFeature blocks at build time, so nothing but this table is
- * built when qjs starts. */
+ * built when qjs starts. `install` is the feature's body once it has
+ * been read from the file and until it has run. */
 const _features = [];
 
 (function (rows) {
@@ -196,19 +203,20 @@ def main():
         rows.append('    [%r, %r, %r],' % (name, string_list(head, 'globals'),
                                            requires))
 
-    # The module evaluated at start-up.
+    # The module evaluated on first use of any feature.
     main_js = os.path.join(WORK, 'extended_main.js')
     with open(main_js, 'w') as out:
         out.write('/* AUTO-GENERATED by scripts/bundle_extended.py from '
                   'amiga/extended/extended.js - DO NOT EDIT. */\n')
         out.write(preamble)
         out.write(LOADER % {'shared': ', '.join(SHARED),
-                            'registry': len(features),
+                            'registry': REGISTRY_ENTRY,
                             'rows': '\n'.join(rows)})
         out.write(tail)
 
-    # One script per feature, then the registry.
-    part_files = []
+    # One script per feature, then the registry: the entries of
+    # extended.qjsb.
+    entries = []
     for index, (name, _, body) in enumerate(features):
         identifier = re.sub(r'\W', '_', name)
         path = os.path.join(WORK, 'ext_%02d_%s.js' % (index, identifier))
@@ -219,7 +227,8 @@ def main():
                       '"use strict";\n' % ', '.join(SHARED))
             out.write(body)
             out.write('\n};\n')
-        part_files.append(path)
+        entries.append((name, qjsb_format.KIND_SCRIPT,
+                        qjsb.compile_blob(path, False)))
 
     path = os.path.join(WORK, 'ext_%02d_registry.js' % len(features))
     with open(path, 'w') as out:
@@ -231,40 +240,25 @@ def main():
             out.write('{' + head[len(BLOCK_START):].rstrip().rstrip(',')
                       + '\n},\n')
         out.write('];\n};\n')
-    part_files.append(path)
+    entries.append((REGISTRY_ENTRY, qjsb_format.KIND_SCRIPT,
+                    qjsb.compile_blob(path, False)))
+
+    qjsb.write_parts('extended', entries)
 
     main_c = os.path.join(WORK, 'main.c')
-    parts_c = os.path.join(WORK, 'parts.c')
     run_qjsc(['-ss', '-m', '-N', 'qjsc_extended', '-o', main_c, main_js])
-    run_qjsc(['-ss', '-C', '-o', parts_c] + part_files)
 
     with open(main_c) as f:
         main_text = f.read()
-    with open(parts_c) as f:
-        parts_text = f.read()
-
-    arrays = re.findall(r'^const uint8_t (qjsc_ext_\w+)\[(\d+)\]', parts_text,
-                        re.M)
-    if len(arrays) != len(features) + 1:
-        sys.exit(f'bundle_extended: {len(features)} features and a registry '
-                 f'but {len(arrays)} arrays from qjsc')
 
     with open(OUT_C, 'w') as out:
         out.write('/* AUTO-GENERATED by scripts/bundle_extended.py - DO NOT '
-                  'EDIT.\n * qjsc_extended is the module evaluated at '
-                  'start-up; qjsc_ext_NN_* are the\n * feature bodies '
-                  '__qjs_loadFeature(NN) evaluates on first use. */\n\n')
+                  'EDIT.\n * What quickjs.library itself holds of the '
+                  'extended features: qjsc_extended,\n * the module '
+                  'evaluated on first use of any of them, and the names '
+                  'that\n * trigger it. The features themselves are in '
+                  'LIBS:quickjs/extended.qjsb. */\n\n')
         out.write(main_text)
-        out.write('\n')
-        out.write(re.sub(r'^#include .*\n', '', parts_text, flags=re.M))
-        out.write('\nconst uint8_t *const qjsc_ext_features[] = {\n')
-        for array, _ in arrays:
-            out.write('    %s,\n' % array)
-        out.write('};\n\nconst uint32_t qjsc_ext_feature_sizes[] = {\n')
-        for _, size in arrays:
-            out.write('    %s,\n' % size)
-        out.write('};\n\nconst uint32_t qjsc_ext_feature_count = %d;\n'
-                  % len(arrays))
 
         # Every name a feature lists, for the library to register as a
         # host lazy property, with the feature's index as its tag. `qjs`
@@ -287,15 +281,15 @@ def main():
         out.write('};\n\nconst uint32_t qjsc_ext_lazy_count = %d;\n'
                   % len(lazy))
 
-    for leftover in (main_c, parts_c):
-        os.remove(leftover)
+    os.remove(main_c)
 
     main_size = int(re.search(r'qjsc_extended_size = (\d+)', main_text).group(1))
-    total = sum(int(size) for _, size in arrays)
-    print(f'wrote {OUT_C}: start-up module {main_size} bytes, '
-          f'{len(features)} feature blobs and the registry {total} bytes')
-    for (array, size), name in zip(arrays, names + ['(registry)']):
-        print(f'  {int(size):6d}  {name}')
+    total = sum(len(blob) for _, _, blob in entries)
+    print(f'wrote {OUT_C}: start-up module {main_size} bytes, kept in the '
+          f'library; {len(features)} feature blobs and the registry '
+          f'{total} bytes, for extended.qjsb')
+    for name, _, blob in entries:
+        print(f'  {len(blob):6d}  {name}')
 
 
 if __name__ == '__main__':

@@ -104,6 +104,8 @@ export const docsPages = {
         title: 'Deployment',
         body: 'Copy one of quickjs.020soft.library, quickjs.020fpu.library, quickjs.040soft.library, quickjs.040fpu.library, quickjs.060soft.library, or quickjs.060fpu.library to LIBS:quickjs.library. Copy c/qjs to C: or another command path drawer.',
         code: `copy libs/quickjs.020soft.library LIBS:quickjs.library
+makedir LIBS:quickjs
+copy libs/quickjs/#?.qjsb LIBS:quickjs/
 copy c/qjs C:qjs
 stack 65536
 qjs -e "print(100 + 110)"`,
