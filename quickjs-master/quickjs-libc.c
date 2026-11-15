@@ -4980,6 +4980,11 @@ void js_std_set_worker_new_context_func(JSContext *(*func)(JSRuntime *rt))
 
 #define OS_FLAG(x) JS_PROP_INT32_DEF(#x, x, JS_PROP_CONFIGURABLE )
 
+#ifdef __VBCC__
+extern JSValue js_os_stack_info(JSContext *ctx, JSValueConst this_val,
+                                int argc, JSValueConst *argv);
+#endif
+
 static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("open", 2, js_os_open ),
     OS_FLAG(O_RDONLY),
@@ -5028,6 +5033,10 @@ static const JSCFunctionListEntry js_os_funcs[] = {
     JS_CFUNC_DEF("cputime", 0, js_os_cputime ),
 #endif
     JS_CFUNC_DEF("exePath", 0, js_os_exepath ),
+#ifdef __VBCC__
+    /* figures of the growable stack: library/vbcc/qjs_stack_js.c */
+    JS_CFUNC_DEF("stackInfo", 0, js_os_stack_info ),
+#endif
     JS_CFUNC_DEF("now", 0, js_os_now ),
     JS_CFUNC_MAGIC_DEF("setTimeout", 2, js_os_setTimeout, 0 ),
     JS_CFUNC_MAGIC_DEF("setInterval", 2, js_os_setTimeout, 1 ),

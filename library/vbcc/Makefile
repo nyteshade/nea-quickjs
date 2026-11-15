@@ -188,7 +188,11 @@ FPU_LIB     = $(OBJDIR_FPU)/library.o $(OBJDIR_FPU)/qjsfuncs.o \
               $(OBJDIR_FPU)/sharedlib_worker.o \
               $(OBJDIR_FPU)/amiga_ffi.o \
               $(OBJDIR_FPU)/amiga_ffi_call.o \
-              $(OBJDIR_FPU)/amiga_boopsi_call.o
+              $(OBJDIR_FPU)/amiga_boopsi_call.o \
+              $(OBJDIR_FPU)/qjs_stack_chunk.o \
+              $(OBJDIR_FPU)/qjs_stack_switch.o \
+              $(OBJDIR_FPU)/qjs_stack_vectors.o \
+              $(OBJDIR_FPU)/qjs_stack_js.o
 
 FPU_ALL     = $(FPU_LIB) $(FPU_SUPPORT) $(FPU_ENGINE)
 
@@ -228,7 +232,11 @@ SOFT_LIB    = $(OBJDIR_SOFT)/library.o $(OBJDIR_SOFT)/qjsfuncs.o \
               $(OBJDIR_SOFT)/sharedlib_worker.o \
               $(OBJDIR_SOFT)/amiga_ffi.o \
               $(OBJDIR_SOFT)/amiga_ffi_call.o \
-              $(OBJDIR_SOFT)/amiga_boopsi_call.o
+              $(OBJDIR_SOFT)/amiga_boopsi_call.o \
+              $(OBJDIR_SOFT)/qjs_stack_chunk.o \
+              $(OBJDIR_SOFT)/qjs_stack_switch.o \
+              $(OBJDIR_SOFT)/qjs_stack_vectors.o \
+              $(OBJDIR_SOFT)/qjs_stack_js.o
 
 SOFT_ALL    = $(SOFT_LIB) $(SOFT_SUPPORT) $(SOFT_ENGINE)
 
@@ -265,6 +273,7 @@ DCMP_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c $(QJS)/libregexp.c \
            $(LIBVBCC)/qjs_dbg_stub.c $(LIBVBCC)/quickjs_libc_lib.c \
            $(LIBVBCC)/amiga_ssl_lib.c $(LIBVBCC)/sharedlib_worker.c \
            $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/sharedlib_mem.c \
+           $(LIBVBCC)/qjs_stack_chunk.c $(LIBVBCC)/qjs_stack_js.c \
            $(LIBVBCC)/sharedlib_string.c $(LIBVBCC)/sharedlib_math_soft.c \
            $(LIBVBCC)/sharedlib_math_prim.c \
            $(LIBVBCC)/sharedlib_math.c $(LIBVBCC)/sharedlib_math_fpu_aux.c \
@@ -369,6 +378,19 @@ $(OBJDIR_FPU)/extended.o: $(QJS)/gen/extended.c | $(OBJDIR_FPU)
 
 $(OBJDIR_FPU)/ffi.o: $(QJS)/gen/ffi.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
+
+# The growable JavaScript stack (docs/STACK.md)
+$(OBJDIR_FPU)/qjs_stack_chunk.o: $(LIBVBCC)/qjs_stack_chunk.c $(LIBVBCC)/qjs_stack_chunk.h | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/qjs_stack_js.o: $(LIBVBCC)/qjs_stack_js.c | $(OBJDIR_FPU)
+	$(VC) $(CFLAGS_FPU) $< -o $@
+
+$(OBJDIR_FPU)/qjs_stack_switch.o: $(LIBVBCC)/qjs_stack_switch.s | $(OBJDIR_FPU)
+	$(VASM) $(ASMFLAGS_FPU) -I$(ROOT)/sdks/NDK3.2R4/Include_I $< -o $@
+
+$(OBJDIR_FPU)/qjs_stack_vectors.o: $(LIBVBCC)/qjs_stack_vectors.s | $(OBJDIR_FPU)
+	$(VASM) $(ASMFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
@@ -530,6 +552,19 @@ $(OBJDIR_SOFT)/extended.o: $(QJS)/gen/extended.c | $(OBJDIR_SOFT)
 
 $(OBJDIR_SOFT)/ffi.o: $(QJS)/gen/ffi.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+# The growable JavaScript stack (docs/STACK.md)
+$(OBJDIR_SOFT)/qjs_stack_chunk.o: $(LIBVBCC)/qjs_stack_chunk.c $(LIBVBCC)/qjs_stack_chunk.h | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/qjs_stack_js.o: $(LIBVBCC)/qjs_stack_js.c | $(OBJDIR_SOFT)
+	$(VC) $(CFLAGS_SOFT) $< -o $@
+
+$(OBJDIR_SOFT)/qjs_stack_switch.o: $(LIBVBCC)/qjs_stack_switch.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) -I$(ROOT)/sdks/NDK3.2R4/Include_I $< -o $@
+
+$(OBJDIR_SOFT)/qjs_stack_vectors.o: $(LIBVBCC)/qjs_stack_vectors.s | $(OBJDIR_SOFT)
+	$(VASM) $(ASMFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/sharedlib_worker.o: $(LIBVBCC)/sharedlib_worker.c | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@

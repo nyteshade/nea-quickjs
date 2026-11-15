@@ -78,6 +78,7 @@ quickjs.library/QJS_GetPropertyUint32
 quickjs.library/QJS_GetRuntime
 quickjs.library/QJS_GetRuntimeOpaque
 quickjs.library/QJS_GetScriptOrModuleName
+quickjs.library/QJS_GetStackInfo
 quickjs.library/QJS_GetUint8Array
 quickjs.library/QJS_GetVersion
 quickjs.library/QJS_HasException
@@ -175,6 +176,7 @@ quickjs.library/QJS_SetPropertyUint32
 quickjs.library/QJS_SetPrototype
 quickjs.library/QJS_SetRuntimeInfo
 quickjs.library/QJS_SetRuntimeOpaque
+quickjs.library/QJS_SetStackSizes
 quickjs.library/QJS_StdAddHelpers
 quickjs.library/QJS_StdDumpError
 quickjs.library/QJS_StdEvalBinary
@@ -565,7 +567,7 @@ quickjs.library/QJS_SetMemoryLimit         quickjs.library/QJS_SetMemoryLimit
 quickjs.library/QJS_SetMaxStackSize       quickjs.library/QJS_SetMaxStackSize
 
     NAME
-	QJS_SetMaxStackSize -- Cap the JavaScript call stack depth.
+	QJS_SetMaxStackSize -- Cap the stack JavaScript may use.
 
     SYNOPSIS
 	QJS_SetMaxStackSize(rt, stack_size)
@@ -574,35 +576,40 @@ quickjs.library/QJS_SetMaxStackSize       quickjs.library/QJS_SetMaxStackSize
 	VOID QJS_SetMaxStackSize(JSRuntime *rt, ULONG stack_size);
 
     FUNCTION
-	Sets the maximum C stack the engine is allowed to consume
-	during JavaScript evaluation.  When the limit is reached, a
-	RangeError "stack overflow" is thrown.
+	Sets the most C stack the engine may use for JavaScript, in
+	all: the "cap" of the growable stack.  When it is reached a
+	RangeError "Maximum call stack size exceeded" is thrown, which
+	the script can catch.
 
-	The engine samples the current stack pointer to enforce this,
-	so the limit is in bytes of the host C stack, not a count of
-	JS frames.
+	The engine recurses on the C stack, about 800 bytes per nested
+	JavaScript call, so the cap is in bytes, not in calls.  Since
+	the stack grows in blocks when needed (docs/STACK.md), the cap
+	is no longer bounded by the size of the calling Task's stack:
+	counted are the bytes in use on the Task's stack below the
+	point where the runtime was created, plus every further block
+	in use.
 
-	The default is a generous value chosen to handle deeply
-	recursive scripts; lower it if you need to guarantee the
-	caller's stack won't blow on a particular AmigaOS Task.
+	The default is 1 MB.  QJS_SetStackSizes() sets the same number
+	together with the two other sizes.
 
     INPUTS
 	rt         - The runtime to configure.
-	stack_size - Maximum stack usage in bytes; 0 disables the
-		     check (not recommended on AmigaOS).
+	stack_size - The cap in bytes; 0 for no cap (recursion then
+		     ends when the system has no memory for another
+		     block).
 
     RESULT
 	None.
 
     NOTES
-	Your AmigaDOS Stack setting, AmigaOS Task stack, and the
-	Exec stack of whatever Task opens the library all apply.
-	Deep recursion in JS only works if the underlying Task has
-	enough stack, so "stack 65536" before running your program
-	is often wise.
+	Call it on the Task that runs the JavaScript.
+
+	Whatever the cap, the engine never lets the stack pointer
+	come nearer than 16 KB to the bottom of the stack it is on.
 
     SEE ALSO
-	QJS_UpdateStackTop, QJS_NewRuntime
+	QJS_SetStackSizes, QJS_GetStackInfo, QJS_UpdateStackTop,
+	QJS_NewRuntime
 
 
 quickjs.library/QJS_UpdateStackTop         quickjs.library/QJS_UpdateStackTop
@@ -634,8 +641,154 @@ quickjs.library/QJS_UpdateStackTop         quickjs.library/QJS_UpdateStackTop
     NOTES
 	Not needed in typical single-Task use.
 
+	Does nothing while JavaScript is running on a block of the
+	growable stack (i.e. when called from a native function that
+	a deeply recursing script called).
+
     SEE ALSO
-	QJS_SetMaxStackSize
+	QJS_SetMaxStackSize, QJS_SetStackSizes
+
+
+quickjs.library/QJS_SetStackSizes           quickjs.library/QJS_SetStackSizes
+
+    NAME
+	QJS_SetStackSizes -- Set the floor, the block size and the cap
+	    of the growable JavaScript stack.
+
+    SYNOPSIS
+	QJS_SetStackSizes(rt, floor, chunk, cap)
+			  A0  D0     D1     D2
+
+	VOID QJS_SetStackSizes(JSRuntime *rt, ULONG floor, ULONG chunk,
+			       ULONG cap);
+
+    FUNCTION
+	An AmigaOS stack cannot be made longer, so when JavaScript
+	recursion runs the stack low the library continues the nested
+	call on a further block of memory, reached with
+	exec.library/StackSwap(), and leaves the block when that call
+	returns.  This function sets the three sizes that govern it.
+	docs/STACK.md describes the mechanism, lists which kinds of
+	recursion grow the stack, and says what a stack-watching tool
+	sees.
+
+	floor - the least stack JavaScript starts on.  If the calling
+		Task's stack is smaller than this (or its bounds cannot
+		be trusted), the library leaves it the first time it
+		can and runs JavaScript on a first block of at least
+		this size.  A stack within one eighth of the floor
+		counts as meeting it.  Default 64 KB.
+
+	chunk - the size of each further block.  0 turns growth off:
+		the stack is then the Task's own and nothing else.
+		Sizes below 32 KB are raised to 32 KB (16 KB of every
+		block stay free as a margin and 8 KB as a reserve).
+		Default 128 KB, which holds about 135 nested calls.
+
+	cap   - the most stack in all; the same number as
+		QJS_SetMaxStackSize() sets.  0 for no cap.
+		Default 1 MB.
+
+	Pass ~0 (0xFFFFFFFF) for a size that is to stay as it is.
+
+    INPUTS
+	rt    - The runtime to configure.
+	floor - Bytes, or ~0.
+	chunk - Bytes, 0, or ~0.
+	cap   - Bytes, 0, or ~0.
+
+    RESULT
+	None.
+
+    EXAMPLE
+	/* a host with a 16 KB stack of its own: scripts get a first
+	 * block of 96 KB, grow by 64 KB, and stop at 512 KB */
+	QJS_SetStackSizes(rt, 96 * 1024, 64 * 1024, 512 * 1024);
+
+    NOTES
+	Call it on the Task that runs the JavaScript, best right
+	after QJS_NewRuntime().  It may be called at any time; blocks
+	already in use keep their size.
+
+	The host's own stack still has to be large enough for the
+	library calls it makes outside JavaScript.
+
+	Blocks are AllocMem(MEMF_PUBLIC) memory.  One emptied block is
+	kept for reuse; it is released by the next garbage collection
+	and by QJS_FreeRuntime().
+
+	The qjs options --stack-floor, --stack-chunk and --stack-size
+	call this function.
+
+    SEE ALSO
+	QJS_GetStackInfo, QJS_SetMaxStackSize, QJS_UpdateStackTop,
+	exec.library/StackSwap
+
+
+quickjs.library/QJS_GetStackInfo             quickjs.library/QJS_GetStackInfo
+
+    NAME
+	QJS_GetStackInfo -- Read the sizes and the counters of the
+	    growable JavaScript stack.
+
+    SYNOPSIS
+	QJS_GetStackInfo(rt, info, size)
+			 A0  A1    D0
+
+	VOID QJS_GetStackInfo(JSRuntime *rt, struct JSStackInfo *info,
+			      ULONG size);
+
+    FUNCTION
+	Copies at most `size` bytes of the figures below to `info`.
+	The structure consists of ULONGs only and new members are only
+	ever added at its end, so a caller built against an older
+	version receives the members it knows.
+
+	    struct JSStackInfo {
+		ULONG floor_size;    /* the three settings, bytes;  */
+		ULONG chunk_size;    /*   see QJS_SetStackSizes     */
+		ULONG cap_size;
+		ULONG base_size;     /* the Task's own stack; 0 =   */
+				     /*   bounds not trustworthy    */
+		ULONG base_forced;   /* 1: that stack is below the  */
+				     /*   floor, JavaScript runs on */
+				     /*   blocks only               */
+		ULONG depth;         /* blocks in use now           */
+		ULONG depth_max;     /* most blocks in use at once  */
+		ULONG bytes_in_use;  /* memory of the blocks in use */
+		ULONG bytes_cached;  /* memory of the spare block   */
+		ULONG bytes_max;     /* most memory held at once    */
+		ULONG switches;      /* calls continued on another  */
+				     /*   block                     */
+		ULONG allocations;   /* blocks taken from the system*/
+		ULONG frees;         /* blocks given back           */
+		ULONG refusals;      /* times no block could be had */
+		ULONG margin_used;   /* deepest the stack went into */
+				     /*   the 16 KB margin of any   */
+				     /*   block given back so far   */
+	    };
+
+	The declaration is in
+	quickjs-master/amiga/stack/stack-chain-api.h.
+
+    INPUTS
+	rt   - The runtime to ask.
+	info - Where to put the figures.
+	size - sizeof(struct JSStackInfo) as the caller knows it.
+
+    RESULT
+	None.
+
+    NOTES
+	base_size and base_forced are as of the last time the library
+	looked at the Task's stack: when the runtime was created, when
+	a size was set, and whenever the stack ran low while no block
+	was in use.
+
+	In JavaScript the same figures are os.stackInfo().
+
+    SEE ALSO
+	QJS_SetStackSizes, QJS_SetMaxStackSize
 
 
 quickjs.library/QJS_RunGC                           quickjs.library/QJS_RunGC
