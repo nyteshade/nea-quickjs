@@ -326,16 +326,10 @@ DCMP_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c $(QJS)/libregexp.c \
            $(LIBVBCC)/qjsfuncs.c $(LIBVBCC)/execinline.c \
            $(LIBVBCC)/qjs_dbg_stub.c $(LIBVBCC)/quickjs_libc_lib.c \
            $(LIBVBCC)/amiga_ssl_lib.c $(LIBVBCC)/sharedlib_worker.c \
-<<<<<<< HEAD
            $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/qjsb_loader.c \
            $(LIBVBCC)/qjsb_modules.c \
            $(LIBVBCC)/sharedlib_mem.c \
-||||||| 54760a90
-           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/sharedlib_mem.c \
-=======
-           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/sharedlib_mem.c \
            $(LIBVBCC)/qjs_stack_chunk.c $(LIBVBCC)/qjs_stack_js.c \
->>>>>>> worktree-agent-a927e058ecb151139
            $(LIBVBCC)/sharedlib_string.c $(LIBVBCC)/sharedlib_math_soft.c \
            $(LIBVBCC)/sharedlib_math_prim.c \
            $(LIBVBCC)/sharedlib_math.c $(LIBVBCC)/sharedlib_math_fpu_aux.c \
