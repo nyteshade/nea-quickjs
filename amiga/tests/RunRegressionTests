@@ -10,6 +10,8 @@
 
 echo "*N--- qjs -v"
 qjs -v
+echo "*N--- test_qjsb"
+qjs tests/test_qjsb.js
 echo "*N--- test_engine_conformance"
 qjs tests/test_engine_conformance.js
 echo "*N--- test_engine_scope"

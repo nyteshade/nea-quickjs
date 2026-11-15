@@ -34,11 +34,9 @@
 
   /* Natives from library/vbcc/amiga_ffi.c. */
   const loadBundle = globalThis.__qjs_loadBundle;
-  const lazyClear  = globalThis.__qjs_lazyClear;
   const setHandler = globalThis.__qjs_lazyHandler;
 
-  if (typeof loadBundle !== 'function' || typeof lazyClear !== 'function' ||
-      typeof setHandler !== 'function') {
+  if (typeof loadBundle !== 'function' || typeof setHandler !== 'function') {
     return;
   }
 
@@ -48,9 +46,6 @@
 
   const BOOPSI_GROUP = 1;   /* check-constants: skip - our own bundle number */
   const CORE_GROUP   = 0;   /* check-constants: skip - our own bundle number */
-
-  /** The library's tag for a group is this plus the group number. */
-  const FFI_TAG_BASE = 1000;   /* check-constants: skip - our own module tag */
 
   /** Which handler slot is this file's (extended.js has slot 0). */
   const FFI_HANDLER_SLOT = 1;   /* check-constants: skip - our own slot number */
@@ -64,11 +59,16 @@
   /**
    * Load a group's bundle if that has not been done yet.
    *
-   * The group's names that are still lazy are removed first, because
-   * a bundle only sets a global whose name is free.
+   * The bundle is read from its file in LIBS:quickjs/ (amiga.qjsb,
+   * reaction.qjsb) by the native loadBundle. Once it has been read,
+   * and before it runs, the native removes the group's names that are
+   * still lazy, because a bundle only sets a global whose name is
+   * free. If the file is missing or of another version nothing has
+   * been changed and the group can be tried again.
    *
    * @param {number} group - CORE_GROUP or BOOPSI_GROUP
    * @returns {undefined}
+   * @throws {Error} if the bundle's file cannot be read
    */
   function ensureLoaded(group) {
     if (state[group] !== NOT_LOADED) {
@@ -81,14 +81,17 @@
 
     state[group] = LOADING;
 
-    lazyClear(FFI_TAG_BASE + group);
-
     if (group === BOOPSI_GROUP) {
       globalThis.__qjs_ffiShared = shared;
     }
 
     try {
       loadBundle(group);
+    }
+    catch (error) {
+      state[group] = NOT_LOADED;
+
+      throw error;
     }
     finally {
       if (group === CORE_GROUP) {
