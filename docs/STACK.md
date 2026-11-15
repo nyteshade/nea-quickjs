@@ -11,7 +11,7 @@ simply overwritten. The interpreter recurses on the machine stack (one
 nested JavaScript call is one nested C call, about 800 bytes), so the
 depth a script can reach is set by the size of that block.
 
-Until now `qjs` solved this by giving itself 512 KB at start, script or
+Up to 0.239 `qjs` solved this by giving itself 512 KB at start, script or
 no script: about 640 nested calls, and half a megabyte gone on a machine
 that may have two. Now it starts on 64 KB and the stack grows when a
 script needs it.
@@ -74,9 +74,8 @@ a first block of at least the floor's size. The same happens when the
 library cannot tell how large the task's stack is (see "Unknown
 bounds"). For a program other than `qjs` this is what the floor is: it
 need not have a large stack itself to run deep scripts, only enough
-for the library calls it makes outside JavaScript (creating a runtime
-and a context takes a few KB). A stack within one eighth of the floor
-counts as meeting it.
+for the library calls it makes outside JavaScript. A stack within one
+eighth of the floor counts as meeting it.
 
 **Block.** Of every block 24 KB are not available to nested calls: a
 margin of 16 KB at the bottom that must stay free (for the frames
@@ -109,8 +108,8 @@ calls that fit a block):
 | getter | 1298 | 1331 |
 | `f.apply(...)`, `Reflect.apply` | 2009 | 2088 |
 | callback through `Array.prototype.map` | 2958 | 3042 |
-| callback through `sort`, `String.prototype.replace` | 4 to 5 KB | |
-| one nested expression in source text (parser) | about 1.3 KB | |
+| callback through `sort`, `String.prototype.replace` | about 4 and 5 KB | |
+| one nested expression in source text (parser) | 1.3 to 2 KB | |
 | one nested JSON array or object (`JSON.parse`) | about 0.1 KB | |
 
 ## What grows and what does not
@@ -152,8 +151,8 @@ Separately from all this: the arguments, variables and operand stack
 of a running function live in an arena of the runtime
 (`quickjs-master/amiga/stack/frame-arena.h`), a second stack for data.
 On other platforms the engine takes them from the C stack with
-`alloca()`; vbcc has none. Until this was written the port's `alloca`
-was `AllocVec`, never freed: every call of a JavaScript function took
+`alloca()`; vbcc has none. Up to 0.239 the port's `alloca` was
+`AllocVec`, never freed: every call of a JavaScript function took
 its frame from the system for good, even beyond the end of the program
 (200,000 calls: 6.4 MB). The arena grows in chunks of 8 KB from the
 runtime's allocator and is counted by `--memory-limit`, not by the
@@ -167,12 +166,11 @@ segment the stack pointer is in:
 
 - before and after deep recursion, and for `qjs` at the prompt: the
   64 KB block of the start-up code (or the Shell's stack);
-- during deep recursion: the newest block, 128 KB less a 20 byte
+- during deep recursion: the newest block, 128 KB less a 28 byte
   header at its top. The segments below are not visible to such a
   tool, and their contents are not "stack in use" to it;
 - a tool that measures the high-water mark of the Shell's own stack
-  sees what `qjs` used before its start-up code moved away, a few
-  hundred bytes.
+  sees only what `qjs` used before its start-up code moved away.
 
 A tool that samples the stack pointer and compares it with bounds it
 read earlier (rather than at the same moment, under `Forbid()`) can
