@@ -58,4 +58,9 @@
 /* The entry `import ... from 'qjs:<add-on>'` loads from <add-on>.qjsb. */
 #define QJSB_MAIN_ENTRY       "@main"
 
+/* Where the files are: the directory named by this local shell
+ * variable, if it is set, is searched first; then this directory. */
+#define QJSB_DIR_VARIABLE     "QJSB_DIR"
+#define QJSB_DEFAULT_DIR      "LIBS:quickjs"
+
 #endif

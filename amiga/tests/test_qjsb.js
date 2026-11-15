@@ -53,6 +53,8 @@ const H_BUILT_FOR    = 10;   /* check-constants: skip */
 const H_ENGINE_STAMP = 12;   /* check-constants: skip */
 const H_INDEX_SIZE   = 20;   /* check-constants: skip */
 const H_CHECK        = 28;   /* check-constants: skip */
+const H_VERSION_TEXT = 32;   /* check-constants: skip */
+const VERSION_TEXT_SIZE = 96;   /* check-constants: skip */
 const HEADER_SIZE    = 128;  /* check-constants: skip */
 const FLAG_EXACT     = 1;    /* check-constants: skip */
 
@@ -277,7 +279,7 @@ if (hello !== null) {
     /* the header's text is covered by the check too */
     const edited = hello.slice(0);
 
-    new Uint8Array(edited)[32 + 6] = 'X'.charCodeAt(0);   /* check-constants: skip */
+    new Uint8Array(edited)[H_VERSION_TEXT + 6] = 'X'.charCodeAt(0);
     writeBytes(SCRATCH + '/edited.qjsb', edited);
     await expectRefusal('a header changed without its check is refused',
                         'edited:util', ['edited.qjsb', 'damaged']);
@@ -307,6 +309,16 @@ if (hello !== null) {
     if (extended === null) {
         check('LIBS:quickjs/extended.qjsb can be read', false);
     } else {
+        /* the text C:Version prints: "$VER: extended.qjsb 0.240 (14.11.2026)" */
+        const versionText = String.fromCharCode(
+            ...new Uint8Array(extended, H_VERSION_TEXT, VERSION_TEXT_SIZE)).split('\0')[0];
+        const number = new DataView(extended).getUint16(H_BUILT_FOR);
+
+        check('the file carries an AmigaDOS version string (' + versionText + ')',
+              /^\$VER: extended\.qjsb \d+\.\d+ \(\d+\.\d+\.\d+\)$/.test(versionText));
+        check('its text and its binary version field agree',
+              versionText.includes(' ' + text(number) + ' '), text(number));
+
         writeBytes(SCRATCH + '/extended.qjsb', withHeader(extended, (view) => {
             view.setUint16(H_BUILT_FOR, view.getUint16(H_BUILT_FOR) + 1);
         }));

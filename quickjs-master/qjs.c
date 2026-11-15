@@ -613,11 +613,13 @@ static int amiga_ctrl_c_interrupt(JSRuntime *rt, void *opaque)
 
 extern struct Library *QJSBase;
 
-/* -v / --version: one line for the CLI and one for the library that is
- * actually loaded. The library line comes from the loaded library's
+/* -v / --version: one line for the CLI, one for the library that is
+ * actually loaded, and one per bytecode file found beside it. The library line comes from the loaded library's
  * own identification string, so it shows the variant (020soft, 060fpu,
  * ...) and tells an old library still in memory from a new one on
  * disk. */
+extern void qjs_show_qjsb_versions(unsigned long library_version);  /* library/vbcc/cli_qjsb_versions.c */
+
 static void version(void)
 {
     printf("qjs " AMIGA_PORT_VERSION " (" AMIGA_PORT_DATE "), QuickJS-ng %s\n",
@@ -635,6 +637,11 @@ static void version(void)
     } else {
         printf("quickjs.library is not open\n");
     }
+
+    /* The bytecode files beside the library (LIBS:quickjs/#?.qjsb),
+     * each with its own version string, so that a file left over from
+     * another release shows. Only -v opens them all. */
+    qjs_show_qjsb_versions(QJSBase ? QJSBase->lib_Version : 0);
 
     exit(0);
 }

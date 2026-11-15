@@ -16,9 +16,11 @@
  *
  * To modify a built-in feature: edit its section below, run
  *     python3 scripts/bundle_extended.py
- * (which splits this file into a small start-up module plus one
- * bytecode blob per feature and compiles them into gen/extended.c),
- * then rebuild the library (make -C library/vbcc variants).
+ * (which splits this file into a small module that stays in the
+ * library, gen/extended.c, plus one bytecode blob per feature for
+ * LIBS:quickjs/extended.qjsb), then rebuild the library
+ * (make -C library/vbcc variants), which also packs the .qjsb files;
+ * see docs/QJSB-FORMAT.md.
  *
  * A feature is applied on first use of one of the globals it lists;
  * see "Features" below for the rules. An install() body may use the
@@ -6441,24 +6443,22 @@ function _fetchFeatures(roots) {
         _collectUnapplied(roots[index], found);
     }
 
-    const wanted = [];
-    const names  = [];
-
-    for (let index = 0; index < found.length; index++) {
-        if (found[index].install === null) {
-            wanted.push(found[index]);
-            names.push(found[index].name);
-        }
+    if (found.length === 0) {
+        return;
     }
 
-    if (wanted.length === 0) {
-        return;
+    /* (every byte of this module is paid for on first use of any
+     * feature, so the code here is kept short) */
+    const names = [];
+
+    for (let index = 0; index < found.length; index++) {
+        names.push(found[index].name);
     }
 
     const bodies = _loadFeatureBodies(names);
 
-    for (let index = 0; index < wanted.length; index++) {
-        wanted[index].install = bodies[index];
+    for (let index = 0; index < found.length; index++) {
+        found[index].install = bodies[index];
     }
 }
 

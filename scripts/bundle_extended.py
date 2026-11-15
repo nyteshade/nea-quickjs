@@ -74,20 +74,18 @@ LOADER = '''
  * entries in one opening of the file and returns the function each of
  * them defines.
  * ---------------------------------------------------------- */
-const _loadFeaturesNative = globalThis.__qjs_loadFeatures;
-
-delete globalThis.__qjs_loadFeatures;
-
 /**
- * Read and evaluate entries of extended.qjsb.
+ * Read and evaluate entries of extended.qjsb (the native
+ * qjs_load_extended_features in library/vbcc/amiga_ffi.c).
  *
+ * @type {function(Array<string>): Array<function>}
  * @param {Array<string>} names - the entries wanted
  * @returns {Array<function>} what each entry defined, in that order
  * @throws {Error} if the file or an entry cannot be read
  */
-function _loadFeatureBodies(names) {
-    return _loadFeaturesNative(names);
-}
+const _loadFeatureBodies = globalThis.__qjs_loadFeatures;
+
+delete globalThis.__qjs_loadFeatures;
 
 /**
  * Run the install() body of one feature, read earlier, and let go of
@@ -129,7 +127,6 @@ const _features = [];
         _features.push({
             name: row[0], globals: row[1], requires: row[2], index,
             applied: false, applying: false, whenApplied: null,
-            install: null,
         });
     }
 })([

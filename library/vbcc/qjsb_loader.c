@@ -278,15 +278,20 @@ int qjsb_open(JSContext *ctx, const char *container, int optional,
             return 0;
         }
         if (error == QJSB_ERROR_OBJECT_NOT_FOUND ||
-            error == QJSB_ERROR_DIR_NOT_FOUND)
-            JS_ThrowPlainError(ctx,
-                "%s%s%s%s not found: copy the 'quickjs' drawer that comes "
-                "with quickjs.library into LIBS:",
-                what_for ? "'" : "", what_for ? what_for : "",
-                what_for ? "' needs " : "", file->path);
-        else
+            error == QJSB_ERROR_DIR_NOT_FOUND) {
+            if (what_for)
+                JS_ThrowPlainError(ctx,
+                    "'%s' needs %s, which is missing: copy the 'quickjs' "
+                    "drawer that comes with quickjs.library into LIBS:",
+                    what_for, file->path);
+            else
+                JS_ThrowPlainError(ctx,
+                    "%s is missing: copy the 'quickjs' drawer that comes "
+                    "with quickjs.library into LIBS:", file->path);
+        } else {
             JS_ThrowPlainError(ctx, "cannot open %s (DOS error %ld)",
                                file->path, error);
+        }
         goto fail;
     }
 

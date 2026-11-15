@@ -55,7 +55,7 @@ CFLAGS_COMMON = +aos68k -c -cpu=$(CPU) -O1 \
          -I$(VBCC)/targets/m68k-amigaos/include \
          -I$(VBCC)/posixlib/include \
          -I$(AMISSL_SDK) \
-         -I$(INCLUDE) -I$(QJS) \
+         -I$(INCLUDE) -I$(QJS) -I$(QJS)/gen \
          -I$(TEMPLATE) -I$(LIBVBCC)
 # JS_NAN_BOXING=0: VBCC at -O1 (and lower) miscompiles the int64 ops
 # that NAN-boxed JSValue construction/extraction requires. User-tested
@@ -318,7 +318,8 @@ DCMP_SRC = $(QJS)/quickjs.c $(QJS)/dtoa.c $(QJS)/libregexp.c \
            $(LIBVBCC)/qjsfuncs.c $(LIBVBCC)/execinline.c \
            $(LIBVBCC)/qjs_dbg_stub.c $(LIBVBCC)/quickjs_libc_lib.c \
            $(LIBVBCC)/amiga_ssl_lib.c $(LIBVBCC)/sharedlib_worker.c \
-           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/qjsb_modules.c \
+           $(LIBVBCC)/amiga_ffi.c $(LIBVBCC)/qjsb_loader.c \
+           $(LIBVBCC)/qjsb_modules.c \
            $(LIBVBCC)/sharedlib_mem.c \
            $(LIBVBCC)/sharedlib_string.c $(LIBVBCC)/sharedlib_math_soft.c \
            $(LIBVBCC)/sharedlib_math_prim.c \
@@ -432,7 +433,7 @@ $(OBJDIR_FPU)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c $(QJSB_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/qjsb_loader.o: $(LIBVBCC)/qjsb_loader.c $(QJSB_HDRS) $(QJSB_STAMP) | $(OBJDIR_FPU)
-	$(VC) $(CFLAGS_FPU) -I$(QJS)/gen $< -o $@
+	$(VC) $(CFLAGS_FPU) $< -o $@
 
 $(OBJDIR_FPU)/qjsb_modules.o: $(LIBVBCC)/qjsb_modules.c $(QJSB_HDRS) | $(OBJDIR_FPU)
 	$(VC) $(CFLAGS_FPU) $< -o $@
@@ -599,7 +600,7 @@ $(OBJDIR_SOFT)/amiga_ffi.o: $(LIBVBCC)/amiga_ffi.c $(QJSB_HDRS) | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/qjsb_loader.o: $(LIBVBCC)/qjsb_loader.c $(QJSB_HDRS) $(QJSB_STAMP) | $(OBJDIR_SOFT)
-	$(VC) $(CFLAGS_SOFT) -I$(QJS)/gen $< -o $@
+	$(VC) $(CFLAGS_SOFT) $< -o $@
 
 $(OBJDIR_SOFT)/qjsb_modules.o: $(LIBVBCC)/qjsb_modules.c $(QJSB_HDRS) | $(OBJDIR_SOFT)
 	$(VC) $(CFLAGS_SOFT) $< -o $@

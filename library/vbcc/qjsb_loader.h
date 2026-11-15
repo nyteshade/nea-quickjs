@@ -6,16 +6,11 @@
 #define QJSB_LOADER_H
 
 #include "quickjs.h"
+#include "qjsb_format.h"
 
 /* An open .qjsb file whose header and index have been read and
  * checked. */
 typedef struct QJSBFile QJSBFile;
-
-/* The local shell variable naming a directory searched before
- * LIBS:quickjs/, and the directory used when it is not set or has no
- * such file. */
-#define QJSB_DIR_VARIABLE   "QJSB_DIR"
-#define QJSB_DEFAULT_DIR    "LIBS:quickjs"
 
 /* Open <directory>/<container>.qjsb and check that this library may
  * use it.
