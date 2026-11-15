@@ -49,7 +49,7 @@ extern int amiga_force_color;
 #include <proto/dos.h>
 #include "amiga_compat_vbcc.h"
 
-/* The stack qjs gives itself when the Shell's is smaller.
+/* The stack qjs gives itself when the Shell's is smaller: the "floor".
  *
  * vbcc's start-up code reads the variable __stack: if the stack the
  * program was started with is smaller than that many bytes, it
@@ -57,18 +57,24 @@ extern int amiga_force_color;
  * before main() runs, and moves back and frees it on exit. A Shell
  * whose Stack setting is already larger is left alone.
  *
- * The trade-off is memory against depth. A JavaScript call costs about
- * 770 bytes of stack and 16 KB is kept free at the bottom, so:
- *      64 KB (the old required minimum)   about   60 nested calls
- *     512 KB                              about  640
- *       1 MB (what the engine assumes elsewhere)  1300
- * The block is taken from free memory for as long as qjs runs, on top
- * of roughly 1.7 MB for the library, so on a 2 MB machine 512 KB may
- * not be there. To change the size, change this one number (or build
- * with -DQJS_OWN_STACK_SIZE=n); 0 turns the feature off and goes back
- * to asking the user to type "Stack 65536". */
+ * 64 KB is what qjs itself and the engine need to get going. It used
+ * to be 512 KB, because that block was all the stack JavaScript would
+ * ever have (about 640 nested calls). It no longer is: when a script
+ * recurses deeper, quickjs.library continues on further blocks, taken
+ * when needed and given back afterwards, up to the cap (--stack-size,
+ * 1 MB unless told otherwise). docs/STACK.md has the whole story; the
+ * options --stack-floor, --stack-chunk and --stack-size set the three
+ * sizes for one run or, in S:QJS-Config.txt, for every run.
+ *
+ * This number is the floor qjs is built with and cannot be lowered at
+ * run time, because the start-up code has used it before any option is
+ * read. --stack-floor can raise it: the library then runs JavaScript
+ * on a first block of that size instead of on this one. To build a qjs
+ * with another floor, change this one number (or build with
+ * -DQJS_OWN_STACK_SIZE=n); 0 turns the feature off and goes back to
+ * asking the user to type "Stack 65536". */
 #ifndef QJS_OWN_STACK_SIZE
-#define QJS_OWN_STACK_SIZE (512UL * 1024UL)
+#define QJS_OWN_STACK_SIZE (64UL * 1024UL)
 #endif
 #if QJS_OWN_STACK_SIZE > 0
 unsigned long __stack = QJS_OWN_STACK_SIZE;
@@ -93,6 +99,11 @@ extern void  bridge_StdEvalBinary(void *ctx, const void *buf,
 extern void  bridge_StdDumpError(void *ctx);
 extern void *bridge_LoadFile(void *ctx, size_t *plen, const char *fn);
 extern void  bridge_SetModuleLoader(void *rt);
+/* QJS_SetStackSizes: floor, block size and cap of the growable stack,
+ * in bytes; QJS_STACK_KEEP leaves one as it is (docs/STACK.md). */
+extern void  bridge_SetStackSizes(void *rt, unsigned long floor,
+                                  unsigned long chunk, unsigned long cap);
+#define QJS_STACK_KEEP (~0UL)
 
 #define js_init_module_std(ctx, name)    bridge_InitModuleStd(ctx, name)
 #define js_init_module_os(ctx, name)     bridge_InitModuleOS(ctx, name)
@@ -678,8 +689,12 @@ void help(void)
            "    --exe          select the executable to use as the base, defaults to the current one\n"
            "    --memory-limit n       limit the memory usage to 'n' Kbytes\n"
 #ifdef __VBCC__
-           "    --stack-size n         let scripts use at most 'n' Kbytes of the stack\n"
-           "                           (never more than the Shell's Stack setting)\n"
+           "    --stack-size n         let scripts use at most 'n' Kbytes of stack in all\n"
+           "                           (default 1024; the stack grows in blocks as needed)\n"
+           "    --stack-floor n        run scripts on a first stack block of at least\n"
+           "                           'n' Kbytes (default 64)\n"
+           "    --stack-chunk n        grow the stack by blocks of 'n' Kbytes (default 128;\n"
+           "                           0 = never grow, use the Shell's stack only)\n"
 #else
            "    --stack-size n         limit the stack size to 'n' Kbytes\n"
 #endif
@@ -726,6 +741,10 @@ int main(int argc, char **argv)
     JSValue ns, func, call_args[3]; /* C89: hoisted from later if-blocks */
     int64_t memory_limit = -1;
     int64_t stack_size = -1;
+#ifdef __VBCC__
+    int64_t stack_floor = -1;   /* --stack-floor, bytes; -1 = not given */
+    int64_t stack_chunk = -1;   /* --stack-chunk */
+#endif
 
 #if defined(__VBCC__) && defined(QJS_NO_STACK_CHECK)
     /* Host-test hook, never in a release build. vamos leaves
@@ -1009,6 +1028,30 @@ int main(int argc, char **argv)
                 stack_size = parse_limit(optarg);
                 break;
             }
+#ifdef __VBCC__
+            if (!strcmp(longopt, "stack-floor")) {
+                if (!optarg) {
+                    if (optind >= argc) {
+                        fprintf(stderr, "expecting stack floor size");
+                        exit(1);
+                    }
+                    optarg = argv[optind++];
+                }
+                stack_floor = parse_limit(optarg);
+                break;
+            }
+            if (!strcmp(longopt, "stack-chunk")) {
+                if (!optarg) {
+                    if (optind >= argc) {
+                        fprintf(stderr, "expecting stack chunk size");
+                        exit(1);
+                    }
+                    optarg = argv[optind++];
+                }
+                stack_chunk = parse_limit(optarg);
+                break;
+            }
+#endif
             if (opt == 'c' || !strcmp(longopt, "compile")) {
                 if (!optarg) {
                     if (optind >= argc) {
@@ -1072,32 +1115,20 @@ start:
     }
     if (memory_limit >= 0)
         JS_SetMemoryLimit(rt, (size_t)memory_limit);
-    if (stack_size >= 0) {
-#ifdef __VBCC__
-        /* --stack-size can lower the interpreter's limit, never raise it
-         * past the stack this task really has: the library keeps the
-         * limit inside the task's stack whatever is asked for (see
-         * update_stack_limit in quickjs.c). Say so when the request
-         * cannot be met, instead of pretending. Task.tc_SPLower is at
-         * offset 58 and tc_SPUpper at 62, as in the check at the top
-         * of main. */
-        void *sysbase = *(void **)4;
-        void *(*findtask)(__reg("a6") void *, __reg("a1") void *) =
-            (void *)((char *)sysbase - 294);
-        char *task = (char *)findtask(sysbase, (void *)0);
-        unsigned long have = *(unsigned long *)(task + 62) -
-                             *(unsigned long *)(task + 58);
-
-        if (have != 0 && (uint64_t)stack_size > have) {
-            fprintf(stderr,
-                    "qjs: --stack-size asks for %lu KB but this task's stack "
-                    "is %lu KB;\n     using what is there. Give qjs more with "
-                    "the Shell's Stack command.\n",
-                    (unsigned long)(stack_size >> 10), have >> 10);
-        }
-#endif
+#if defined(__VBCC__) && defined(QJS_USE_LIBRARY)
+    /* The three sizes of the growable stack (docs/STACK.md). What was
+     * not given stays at the library's default. --stack-size is the
+     * cap on the whole chain; it used to be limited by the Shell's
+     * Stack setting, and is not any more. */
+    if (stack_size >= 0 || stack_floor >= 0 || stack_chunk >= 0)
+        bridge_SetStackSizes(rt,
+            stack_floor >= 0 ? (unsigned long)stack_floor : QJS_STACK_KEEP,
+            stack_chunk >= 0 ? (unsigned long)stack_chunk : QJS_STACK_KEEP,
+            stack_size >= 0 ? (unsigned long)stack_size : QJS_STACK_KEEP);
+#else
+    if (stack_size >= 0)
         JS_SetMaxStackSize(rt, (size_t)stack_size);
-    }
+#endif
     if (dump_flags != 0)
         JS_SetDumpFlags(rt, dump_flags);
 #ifdef __VBCC__

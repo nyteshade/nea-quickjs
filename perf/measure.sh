@@ -46,7 +46,7 @@ one() {
   cp "$lib" "$W/vm/libs/quickjs.library"; [ -d "$QJSB" ] && cp -R "$QJSB" "$W/vm/libs/quickjs"
   cp "${PERF_BENCH_DIR:-$HERE/bench}/$b.js" "$W/vm/"
   ( cd "$W/vm" && PROF_OUT=$W/prof "$HERE/tools/prof.py" -S --vols-base-dir "$W/vols" \
-      -l main:info -C ${PERF_CPU:-68020} -m 65536 -H disable -s 2048 --cwd sys: -V "sys:$PWD" \
+      -l main:info -C ${PERF_CPU:-68020} -m 65536 -H disable -s ${PERF_STACK:-2048} --cwd sys: -V "sys:$PWD" \
       -a libs:sys:libs -a s:sys:s -a c:sys:c -a t:sys:s \
       -O mathieeedoubbas.library=mode:amiga -- c/qjs ${PERF_ARGS:-} $b.js < /dev/null > "$W/raw" 2>&1 )
   /usr/bin/grep -v -E "orphan|AllocSignal|FreeSignal|GetSysTime|exit code|total cycles|libmgr:|main: |^PROF " "$W/raw" > "$OUT/$b.out"

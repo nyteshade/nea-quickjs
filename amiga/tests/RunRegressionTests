@@ -32,6 +32,10 @@ echo "*N--- test_dynamic_import"
 qjs tests/test_dynamic_import.js
 echo "*N--- test_stack_limit"
 qjs tests/test_stack_limit.js
+echo "*N--- test_stack_chain"
+qjs tests/test_stack_chain.js
+echo "*N--- test_stack_chain, first block 256 KB, blocks of 64 KB, cap 512 KB"
+qjs --stack-floor 256 --stack-chunk 64 --stack-size 512 tests/test_stack_chain.js
 echo "*N--- test_ffi_lists"
 qjs tests/test_ffi_lists.js
 echo "*N--- test_led"

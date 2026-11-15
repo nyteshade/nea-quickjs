@@ -319,6 +319,19 @@ typedef struct JSValueLink {
     JSValueConst value;
 } JSValueLink;
 
+/* AmigaOS: the JavaScript stack grows in chained blocks, docs/STACK.md.
+ * Build with -DQJS_NO_CHAINED_STACK to have the task's stack only. */
+#if defined(__VBCC__) && !defined(QJS_NO_CHAINED_STACK)
+#define QJS_CHAINED_STACK 1
+#include "amiga/stack/stack-chain-types.h"
+#endif
+/* vbcc has no alloca(): function frames come from an arena,
+ * amiga/stack/frame-arena.h. */
+#if defined(__VBCC__)
+#define QJS_FRAME_ARENA 1
+#include "amiga/stack/frame-arena-types.h"
+#endif
+
 struct JSRuntime {
     JSMallocFunctions mf;
     JSMallocState malloc_state;
@@ -352,6 +365,12 @@ struct JSRuntime {
     uintptr_t stack_size; /* in bytes, 0 if no limit */
     uintptr_t stack_top;
     uintptr_t stack_limit; /* lower stack limit */
+#ifdef QJS_CHAINED_STACK
+    JSStackChain stack_chain;
+#endif
+#ifdef QJS_FRAME_ARENA
+    JSFrameArena frame_arena;
+#endif
 
     JSValue current_exception;
     /* true if inside an out of memory error, to avoid recursing */
@@ -2041,8 +2060,61 @@ static inline bool js_check_stack_overflow(JSRuntime *rt, size_t alloca_size)
 {
     uintptr_t sp;
     sp = js_get_stack_pointer() - alloca_size;
+#ifdef QJS_CHAINED_STACK
+    /* the limit of the checks that cannot move to another block */
+    return unlikely(sp < rt->stack_chain.hard_limit);
+#else
     return unlikely(sp < rt->stack_limit);
+#endif
 }
+
+/* The checks where the stack can grow are written
+ *
+ *     if (js_stack_low(rt, n)) {
+ *         if (js_stack_can_grow(rt, n))
+ *             return <the same call>_on_more_stack(...);
+ *         if (js_check_stack_overflow(rt, n))
+ *             <throw, as before>
+ *     }
+ *
+ * and cost one compare while the stack is not low. Where it cannot
+ * grow (every platform but AmigaOS) they are the plain check. */
+#ifdef QJS_CHAINED_STACK
+#include "amiga/stack/stack-chain.h"
+#else
+#define js_stack_low(rt, n) js_check_stack_overflow(rt, n)
+#define js_stack_can_grow(rt, n) false
+/* never reached, js_stack_can_grow being false; they only have to compile */
+#define js_call_on_more_stack(ctx, func, this_obj, new_target, argc, argv, flags, need) \
+    JS_ThrowStackOverflow(ctx)
+#define js_async_resume_on_more_stack(ctx, s) JS_ThrowStackOverflow(ctx)
+#define js_json_to_str_on_more_stack(ctx, jsc, holder, val, indent) (-1)
+#define internalize_json_on_more_stack(ctx, holder, name, reviver) \
+    JS_ThrowStackOverflow(ctx)
+#define js_flatten_on_more_stack(ctx, target, source, len, index, depth, fn, this_arg) \
+    (-1)
+#if defined(__VBCC__)
+#include "amiga/stack/stack-chain-off.h"
+#endif
+#endif
+
+/* The arguments, variables and operand stack of a running function,
+ * and the padded argument lists of native functions:
+ *
+ *     buf = js_frame_alloc(rt, n);     may be NULL where it is an arena
+ *     ...
+ *     js_frame_free(rt, buf);          on every way out
+ *
+ * Everywhere but under vbcc this is alloca() and the free is nothing.
+ * js_frame_stack_need(n) is what such a frame takes from the C stack,
+ * for the stack checks. */
+#ifdef QJS_FRAME_ARENA
+#include "amiga/stack/frame-arena.h"
+#else
+#define js_frame_alloc(rt, n) alloca(n)
+#define js_frame_free(rt, ptr) ((void)0)
+#define js_frame_stack_need(n) (n)
+#endif
 
 JSRuntime *JS_NewRuntime2(const JSMallocFunctions *mf, void *opaque)
 {
@@ -2102,6 +2174,9 @@ JSRuntime *JS_NewRuntime2(const JSMallocFunctions *mf, void *opaque)
     rt->stack_size = JS_DEFAULT_STACK_SIZE;
 #ifdef __wasi__
     rt->stack_size = 0;
+#endif
+#ifdef QJS_CHAINED_STACK
+    js_stack_chain_init(rt);
 #endif
 
     JS_UpdateStackTop(rt);
@@ -2432,6 +2507,9 @@ void JS_FreeRuntime(JSRuntime *rt)
     int i;
 
     rt->in_free = true;
+#ifdef QJS_CHAINED_STACK
+    js_stack_release_spare(rt);
+#endif
     JS_FreeValueRT(rt, rt->current_exception);
     js_clear_kept_objects(rt);
 
@@ -2567,6 +2645,9 @@ void JS_FreeRuntime(JSRuntime *rt)
     js_free_rt(rt, rt->atom_array);
     js_free_rt(rt, rt->atom_hash);
     js_free_rt(rt, rt->shape_hash);
+#ifdef QJS_FRAME_ARENA
+    js_frame_arena_free(rt);
+#endif
 #ifdef ENABLE_DUMPS /* JS_DUMP_LEAKS */
     if (check_dump_flag(rt, JS_DUMP_LEAKS) && !list_empty(&rt->string_list)) {
         if (rt->rt_info) {
@@ -2889,26 +2970,30 @@ JSRuntime *JS_GetRuntime(JSContext *ctx)
     return ctx->rt;
 }
 
-#if defined(__VBCC__)
-/* In library/vbcc/qjsfuncs.c: the lowest address the interpreter may
- * let the stack pointer of the calling task reach, or 0 when the task's
- * stack bounds cannot be trusted. */
-extern uintptr_t qjs_amiga_stack_floor(void);
+#if defined(__VBCC__) && !defined(QJS_CHAINED_STACK)
+/* In library/vbcc/qjs_stack_chunk.c: the bounds of the stack the
+ * calling task is on; returns 0 when they cannot be trusted. */
+extern int qjs_amiga_stack_bounds(unsigned long *lower, unsigned long *upper);
 #endif
 
 static void update_stack_limit(JSRuntime *rt)
 {
 #if defined(__wasi__)
     rt->stack_limit = 0; /* no limit */
-#elif defined(__VBCC__)
+#elif defined(QJS_CHAINED_STACK)
     /* AmigaOS: a task's stack is a fixed block, 4 KB to a few hundred KB,
      * and nothing stops the stack pointer leaving it: there is no guard
      * page, the memory below simply gets overwritten. Upstream assumes
      * JS_DEFAULT_STACK_SIZE (1 MB) below the point where the runtime was
-     * created, so deep recursion never reached the limit and trashed
-     * memory instead of throwing RangeError. Whatever size is asked for
-     * (the default, JS_SetMaxStackSize, or 0 for "no limit"), the limit
-     * is never put below the real bottom of the stack plus a margin.
+     * created. Here the limit is never put below the real bottom of the
+     * stack plus a margin, and when that is reached the stack continues
+     * on another block: amiga/stack/stack-chain.h. */
+    js_stack_update(rt);
+#elif defined(__VBCC__)
+    /* AmigaOS without the chained stack (QJS_NO_CHAINED_STACK): whatever
+     * size is asked for (the default, JS_SetMaxStackSize, or 0 for "no
+     * limit"), the limit is never put below the real bottom of the
+     * stack plus a margin.
      *
      * The subtraction is also guarded: a size larger than the address
      * of the stack top wrapped round to a limit near 4 GB, which made
@@ -2916,13 +3001,16 @@ static void update_stack_limit(JSRuntime *rt)
      */
     {
         uintptr_t limit, floor_address;
+        unsigned long lower, upper;
 
         if (rt->stack_size == 0 || rt->stack_size > rt->stack_top)
             limit = 0;
         else
             limit = rt->stack_top - rt->stack_size;
 
-        floor_address = qjs_amiga_stack_floor();
+        floor_address = 0;
+        if (qjs_amiga_stack_bounds(&lower, &upper))
+            floor_address = lower + 16384UL; /* QJS_STACK_MARGIN */
         if (limit < floor_address)
             limit = floor_address;
 
@@ -2945,6 +3033,13 @@ void JS_SetMaxStackSize(JSRuntime *rt, size_t stack_size)
 
 void JS_UpdateStackTop(JSRuntime *rt)
 {
+#ifdef QJS_CHAINED_STACK
+    /* Called from inside JavaScript running on a block (a native
+     * function of the host): the top of the task's stack is where it
+     * was, and the block's limits are already right. */
+    if (rt->stack_chain.depth != 0)
+        return;
+#endif
     rt->stack_top = js_get_stack_pointer();
     update_stack_limit(rt);
 }
@@ -6405,9 +6500,17 @@ static JSValue js_call_c_function_data(JSContext *ctx, JSValueConst func_obj,
     arg_count = s->length;
     if (unlikely(argc < arg_count)) {
         stack_size = arg_count * sizeof(arg_buf[0]);
-        if (js_check_stack_overflow(rt, stack_size))
-            return JS_ThrowStackOverflow(ctx);
-        arg_buf = alloca(stack_size);
+        if (js_stack_low(rt, js_frame_stack_need(stack_size))) {
+            if (js_stack_can_grow(rt, js_frame_stack_need(stack_size)))
+                return js_call_on_more_stack(ctx, func_obj, this_val,
+                                             JS_UNDEFINED, argc, argv, flags,
+                                             js_frame_stack_need(stack_size));
+            if (js_check_stack_overflow(rt, js_frame_stack_need(stack_size)))
+                return JS_ThrowStackOverflow(ctx);
+        }
+        arg_buf = js_frame_alloc(rt, stack_size);
+        if (unlikely(!arg_buf))
+            return JS_ThrowOutOfMemory(ctx);
         for(i = 0; i < argc; i++)
             arg_buf[i] = argv[i];
         for(i = argc; i < arg_count; i++)
@@ -6422,6 +6525,8 @@ static JSValue js_call_c_function_data(JSContext *ctx, JSValueConst func_obj,
     sf->arg_count = argc;
     ret = s->func(ctx, this_val, argc, arg_buf, s->magic, vc(s->data));
     rt->current_stack_frame = sf->prev_frame;
+    if (unlikely(arg_buf != argv))
+        js_frame_free(rt, arg_buf);
     return ret;
 }
 
@@ -6529,9 +6634,17 @@ static JSValue js_call_c_closure(JSContext *ctx, JSValueConst func_obj,
     arg_count = s->length;
     if (unlikely(argc < arg_count)) {
         stack_size = arg_count * sizeof(arg_buf[0]);
-        if (js_check_stack_overflow(rt, stack_size))
-            return JS_ThrowStackOverflow(ctx);
-        arg_buf = alloca(stack_size);
+        if (js_stack_low(rt, js_frame_stack_need(stack_size))) {
+            if (js_stack_can_grow(rt, js_frame_stack_need(stack_size)))
+                return js_call_on_more_stack(ctx, func_obj, this_val,
+                                             JS_UNDEFINED, argc, argv, flags,
+                                             js_frame_stack_need(stack_size));
+            if (js_check_stack_overflow(rt, js_frame_stack_need(stack_size)))
+                return JS_ThrowStackOverflow(ctx);
+        }
+        arg_buf = js_frame_alloc(rt, stack_size);
+        if (unlikely(!arg_buf))
+            return JS_ThrowOutOfMemory(ctx);
         for (i = 0; i < argc; i++)
             arg_buf[i] = argv[i];
         for (i = argc; i < arg_count; i++)
@@ -6547,6 +6660,8 @@ static JSValue js_call_c_closure(JSContext *ctx, JSValueConst func_obj,
     sf->arg_count = argc;
     ret = s->func(ctx, this_val, argc, arg_buf, s->magic, s->opaque);
     rt->current_stack_frame = sf->prev_frame;
+    if (unlikely(arg_buf != argv))
+        js_frame_free(rt, arg_buf);
 
     return ret;
 }
@@ -7255,6 +7370,16 @@ static void gc_free_cycles(JSRuntime *rt)
 
 void JS_RunGC(JSRuntime *rt)
 {
+#ifdef QJS_CHAINED_STACK
+    /* The spare stack block is memory held for speed only, and a
+     * collection means memory is wanted. (If the stack is deep in
+     * blocks just now it will take another; next to a collection that
+     * costs nothing.) */
+    js_stack_release_spare(rt);
+#endif
+#ifdef QJS_FRAME_ARENA
+    js_frame_release_spare(rt);
+#endif
     /* decrement the reference of the children of each object. mark =
        1 after this pass. */
     gc_decref(rt);
@@ -17565,8 +17690,14 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
     arg_count = p->u.cfunc.length;
 
     /* better to always check stack overflow */
-    if (js_check_stack_overflow(rt, sizeof(arg_buf[0]) * arg_count))
-        return JS_ThrowStackOverflow(ctx);
+    if (js_stack_low(rt, js_frame_stack_need(sizeof(arg_buf[0]) * arg_count))) {
+        if (js_stack_can_grow(rt, js_frame_stack_need(sizeof(arg_buf[0]) * arg_count)))
+            return js_call_on_more_stack(ctx, func_obj, this_obj,
+                                         JS_UNDEFINED, argc, argv, flags,
+                                         js_frame_stack_need(sizeof(arg_buf[0]) * arg_count));
+        if (js_check_stack_overflow(rt, js_frame_stack_need(sizeof(arg_buf[0]) * arg_count)))
+            return JS_ThrowStackOverflow(ctx);
+    }
 
     prev_sf = rt->current_stack_frame;
     sf->prev_frame = prev_sf;
@@ -17580,7 +17711,11 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
 
     if (unlikely(argc < arg_count)) {
         /* ensure that at least argc_count arguments are readable */
-        arg_buf = alloca(sizeof(arg_buf[0]) * arg_count);
+        arg_buf = js_frame_alloc(rt, sizeof(arg_buf[0]) * arg_count);
+        if (unlikely(!arg_buf)) {
+            rt->current_stack_frame = prev_sf;
+            return JS_ThrowOutOfMemory(ctx);
+        }
         for(i = 0; i < argc; i++)
             arg_buf[i] = argv[i];
         for(i = argc; i < arg_count; i++)
@@ -17674,6 +17809,8 @@ static JSValue js_call_c_function(JSContext *ctx, JSValueConst func_obj,
     }
 
     rt->current_stack_frame = sf->prev_frame;
+    if (unlikely(arg_buf != argv))
+        js_frame_free(rt, arg_buf);
     return ret_val;
 }
 
@@ -17684,14 +17821,23 @@ static JSValue js_call_bound_function(JSContext *ctx, JSValueConst func_obj,
     JSObject *p;
     JSBoundFunction *bf;
     JSValueConst *arg_buf, new_target;
+    JSValue ret_val;
     int arg_count, i;
 
     p = JS_VALUE_GET_OBJ(func_obj);
     bf = p->u.bound_function;
     arg_count = bf->argc + argc;
-    if (js_check_stack_overflow(ctx->rt, sizeof(JSValue) * arg_count))
-        return JS_ThrowStackOverflow(ctx);
-    arg_buf = alloca(sizeof(JSValue) * arg_count);
+    if (js_stack_low(ctx->rt, js_frame_stack_need(sizeof(JSValue) * arg_count))) {
+        if (js_stack_can_grow(ctx->rt, js_frame_stack_need(sizeof(JSValue) * arg_count)))
+            return js_call_on_more_stack(ctx, func_obj, this_obj,
+                                         JS_UNDEFINED, argc, argv, flags,
+                                         js_frame_stack_need(sizeof(JSValue) * arg_count));
+        if (js_check_stack_overflow(ctx->rt, js_frame_stack_need(sizeof(JSValue) * arg_count)))
+            return JS_ThrowStackOverflow(ctx);
+    }
+    arg_buf = js_frame_alloc(ctx->rt, sizeof(JSValue) * arg_count);
+    if (unlikely(!arg_buf))
+        return JS_ThrowOutOfMemory(ctx);
     for(i = 0; i < bf->argc; i++) {
         arg_buf[i] = bf->argv[i];
     }
@@ -17702,12 +17848,14 @@ static JSValue js_call_bound_function(JSContext *ctx, JSValueConst func_obj,
         new_target = this_obj;
         if (js_same_value(ctx, func_obj, new_target))
             new_target = bf->func_obj;
-        return JS_CallConstructor2(ctx, bf->func_obj, new_target,
-                                   arg_count, arg_buf);
+        ret_val = JS_CallConstructor2(ctx, bf->func_obj, new_target,
+                                      arg_count, arg_buf);
     } else {
-        return JS_Call(ctx, bf->func_obj, bf->this_val,
-                       arg_count, arg_buf);
+        ret_val = JS_Call(ctx, bf->func_obj, bf->this_val,
+                          arg_count, arg_buf);
     }
+    js_frame_free(ctx->rt, arg_buf);
+    return ret_val;
 }
 
 /* argument of OP_special_object */
@@ -17896,8 +18044,14 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     alloca_size = sizeof(JSValue) * (arg_allocated_size + b->var_count +
                                      b->stack_size) +
         sizeof(JSVarRef *) * b->var_ref_count;
-    if (js_check_stack_overflow(rt, alloca_size))
-        return JS_ThrowStackOverflow(caller_ctx);
+    if (js_stack_low(rt, js_frame_stack_need(alloca_size))) {
+        if (js_stack_can_grow(rt, js_frame_stack_need(alloca_size)))
+            return js_call_on_more_stack(caller_ctx, func_obj, this_obj,
+                                         new_target, argc, argv, flags,
+                                         js_frame_stack_need(alloca_size));
+        if (js_check_stack_overflow(rt, js_frame_stack_need(alloca_size)))
+            return JS_ThrowStackOverflow(caller_ctx);
+    }
 
     sf->is_strict_mode = b->is_strict_mode;
     arg_buf = (JSValue *)argv;
@@ -17905,7 +18059,11 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
     sf->cur_func = unsafe_unconst(func_obj);
     var_refs = p->u.func.var_refs;
 
-    local_buf = alloca(alloca_size);
+    local_buf = js_frame_alloc(rt, alloca_size);
+#ifdef QJS_FRAME_ARENA
+    if (unlikely(!local_buf))
+        return JS_ThrowOutOfMemory(caller_ctx);
+#endif
     if (unlikely(arg_allocated_size)) {
         int n = min_int(argc, b->arg_count);
         arg_buf = local_buf;
@@ -20797,6 +20955,9 @@ static JSValue JS_CallInternal(JSContext *caller_ctx, JSValueConst func_obj,
         for(pval = local_buf; pval < sp; pval++) {
             JS_FreeValue(ctx, *pval);
         }
+        /* Only frames of ordinary functions reach this branch, and
+         * those are the ones taken with js_frame_alloc above. */
+        js_frame_free(rt, local_buf);
     }
     rt->current_stack_frame = sf->prev_frame;
     return ret_val;
@@ -21118,8 +21279,12 @@ static JSValue async_func_resume(JSContext *ctx, JSAsyncFunctionState *s)
 {
     JSValue func_obj;
 
-    if (js_check_stack_overflow(ctx->rt, 0))
-        return JS_ThrowStackOverflow(ctx);
+    if (js_stack_low(ctx->rt, 0)) {
+        if (js_stack_can_grow(ctx->rt, 0))
+            return js_async_resume_on_more_stack(ctx, s);
+        if (js_check_stack_overflow(ctx->rt, 0))
+            return JS_ThrowStackOverflow(ctx);
+    }
 
     /* the tag does not matter provided it is not an object */
     func_obj = JS_MKPTR(JS_TAG_INT, s);
@@ -28073,6 +28238,16 @@ static __exception int js_parse_assign_expr2(JSParseState *s, int parse_flags)
     JSAtom name0 = JS_ATOM_NULL;
     JSAtom name;
 
+#ifdef QJS_CHAINED_STACK
+    /* A switch point of the chained stack: every nested expression
+     * (parentheses, array and object literals, arguments, function
+     * bodies) comes through here. When no block can be had the parser
+     * goes on where it is until next_token's check stops it. */
+    if (js_stack_low(s->ctx->rt, JS_STACK_PARSE_NEED) &&
+        js_stack_can_grow(s->ctx->rt, JS_STACK_PARSE_NEED))
+        return js_parse_on_more_stack(s, parse_flags, js_parse_assign_expr2);
+#endif
+
     if (s->token.val == TOK_YIELD) {
         bool is_star = false, is_async;
 
@@ -29085,6 +29260,15 @@ static __exception int js_parse_statement_or_decl(JSParseState *s,
     JSContext *ctx = s->ctx;
     JSAtom label_name;
     int tok;
+
+#ifdef QJS_CHAINED_STACK
+    /* A switch point of the chained stack, for nested statements
+     * (blocks, if/else chains, loops); see js_parse_assign_expr2. */
+    if (js_stack_low(ctx->rt, JS_STACK_PARSE_NEED) &&
+        js_stack_can_grow(ctx->rt, JS_STACK_PARSE_NEED))
+        return js_parse_on_more_stack(s, decl_mask,
+                                      js_parse_statement_or_decl);
+#endif
 
     /* specific label handling */
     /* XXX: support multiple labels on loop statements */
@@ -44217,9 +44401,15 @@ static int64_t JS_FlattenIntoArray(JSContext *ctx, JSValueConst target,
     int64_t sourceIndex, elementLen;
     int present, is_array;
 
-    if (js_check_stack_overflow(ctx->rt, 0)) {
-        JS_ThrowStackOverflow(ctx);
-        return -1;
+    if (js_stack_low(ctx->rt, 0)) {
+        if (js_stack_can_grow(ctx->rt, 0))
+            return js_flatten_on_more_stack(ctx, target, source, sourceLen,
+                                            targetIndex, depth,
+                                            mapperFunction, thisArg);
+        if (js_check_stack_overflow(ctx->rt, 0)) {
+            JS_ThrowStackOverflow(ctx);
+            return -1;
+        }
     }
 
     for (sourceIndex = 0; sourceIndex < sourceLen; sourceIndex++) {
@@ -50269,6 +50459,13 @@ static JSValue json_parse_value(JSParseState *s)
     JSValue val = JS_NULL;
     int ret;
 
+#ifdef QJS_CHAINED_STACK
+    /* A switch point of the chained stack: nested arrays and objects.
+     * json_next_token's check is the one that throws. */
+    if (js_stack_low(ctx->rt, 0) && js_stack_can_grow(ctx->rt, 0))
+        return json_parse_value_on_more_stack(s);
+#endif
+
     switch(s->token.val) {
     case '{':
         {
@@ -50427,8 +50624,11 @@ static JSValue internalize_json_property(JSContext *ctx, JSValueConst holder,
     JSAtom prop;
     JSPropertyEnum *atoms = NULL;
 
-    if (js_check_stack_overflow(ctx->rt, 0)) {
-        return JS_ThrowStackOverflow(ctx);
+    if (js_stack_low(ctx->rt, 0)) {
+        if (js_stack_can_grow(ctx->rt, 0))
+            return internalize_json_on_more_stack(ctx, holder, name, reviver);
+        if (js_check_stack_overflow(ctx->rt, 0))
+            return JS_ThrowStackOverflow(ctx);
     }
 
     val = JS_GetProperty(ctx, holder, name);
@@ -50608,9 +50808,13 @@ static int js_json_to_str(JSContext *ctx, JSONStringifyContext *jsc,
     tab = JS_UNDEFINED;
     prop = JS_UNDEFINED;
 
-    if (js_check_stack_overflow(ctx->rt, 0)) {
-        JS_ThrowStackOverflow(ctx);
-        goto exception;
+    if (js_stack_low(ctx->rt, 0)) {
+        if (js_stack_can_grow(ctx->rt, 0))
+            return js_json_to_str_on_more_stack(ctx, jsc, holder, val, indent);
+        if (js_check_stack_overflow(ctx->rt, 0)) {
+            JS_ThrowStackOverflow(ctx);
+            goto exception;
+        }
     }
 
     if (JS_IsObject(val)) {
@@ -62783,6 +62987,10 @@ uintptr_t js_std_cmd(int cmd, ...) {
 
     return rv;
 }
+
+#ifdef QJS_CHAINED_STACK
+#include "amiga/stack/stack-chain-calls.h"
+#endif
 
 #undef malloc
 #undef free

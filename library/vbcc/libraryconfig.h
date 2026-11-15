@@ -1010,6 +1010,18 @@ void QJS_InstallCryptoGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
 void QJS_InstallAmigaFFIGlobal(__reg("a6") LIBRARY_BASE_TYPE *base,
                                __reg("a0") struct JSContext *ctx);
 
+/* The growable JavaScript stack (docs/STACK.md); implemented in
+ * qjs_stack_vectors.s. Sizes in bytes; ~0 keeps a size as it is. */
+void QJS_SetStackSizes(__reg("a6") LIBRARY_BASE_TYPE *base,
+                       __reg("a0") struct JSRuntime *rt,
+                       __reg("d0") ULONG floor,
+                       __reg("d1") ULONG chunk,
+                       __reg("d2") ULONG cap);
+void QJS_GetStackInfo(__reg("a6") LIBRARY_BASE_TYPE *base,
+                      __reg("a0") struct JSRuntime *rt,
+                      __reg("a1") void *info,
+                      __reg("d0") ULONG size);
+
 /* EvalSimple: evaluate JS, return int32 result. -9999 on exception. */
 long QJS_EvalSimple(
     __reg("a6") LIBRARY_BASE_TYPE *base,
@@ -1227,6 +1239,8 @@ void QJS_Eval(
     (APTR) QJS_GetMathBase, \
     (APTR) QJS_InstallChildProcessGlobal, \
     (APTR) QJS_InstallCryptoGlobal, \
-    (APTR) QJS_InstallAmigaFFIGlobal
+    (APTR) QJS_InstallAmigaFFIGlobal, \
+    (APTR) QJS_SetStackSizes, \
+    (APTR) QJS_GetStackInfo
 
 #endif /* LIBRARYCONFIG_H */

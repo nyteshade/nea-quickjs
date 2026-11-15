@@ -165,10 +165,13 @@ typedef long ssize_t;
 
 /* -----------------------------------------------------------------------
  * alloca() — VBCC does NOT support alloca as a compiler intrinsic.
- * Replaced with AllocVec via SysBase at address 4. These are
- * short-lived allocations freed before the calling function returns.
- * Note: these leak if not explicitly freed — the engine has been
- * patched to free them where needed.
+ * This stand-in is AllocVec via SysBase at address 4, and NOTHING
+ * frees what it returns: the memory is lost to the system, even
+ * after the program has ended. Do not use alloca() in code for this
+ * port. quickjs.c used to (one frame leaked per JavaScript call); it
+ * now takes its frames from an arena, quickjs-master/amiga/stack/
+ * frame-arena.h. The definition stays only so that a stray alloca()
+ * in imported code still links.
  * --------------------------------------------------------------------- */
 void *_vbcc_alloca(unsigned long size);
 #define alloca(size) _vbcc_alloca(size)

@@ -40,6 +40,7 @@ quickjs-js/os.setReadHandler
 quickjs-js/os.setTimeout
 quickjs-js/os.setvar
 quickjs-js/os.sleep
+quickjs-js/os.stackInfo
 quickjs-js/os.stat
 quickjs-js/os.write
 quickjs-js/print
@@ -158,6 +159,9 @@ quickjs-js/--startup--                                    quickjs-js/--startup--
 	    --std
 	    --color
 	    -m
+	    # let scripts recurse to 2 MB of stack, in blocks of 256 KB
+	    --stack-size 2048
+	    --stack-chunk 256
 
 	The user's actual command-line arguments override entries
 	from this file.
@@ -794,6 +798,46 @@ quickjs-js/os.setTimeout                                  quickjs-js/os.setTimeo
     NOTES
 	Resolution 20ms.  Returns a timer id usable with
 	os.clearTimeout().
+
+
+quickjs-js/os.stackInfo                                    quickjs-js/os.stackInfo
+
+    NAME
+	os.stackInfo() -- The sizes and counters of the growable
+	    JavaScript stack.
+
+    FUNCTION
+	The stack a script runs on starts at 64 KB and grows in
+	blocks when the script recurses deeper (docs/STACK.md).
+	os.stackInfo() returns an object of numbers, sizes in bytes:
+
+	    floor, chunk, cap   the three settings (qjs options
+	                        --stack-floor, --stack-chunk,
+	                        --stack-size); chunk 0 = growth off,
+	                        cap 0 = no cap
+	    baseSize            the stack qjs was started on; 0 if
+	                        it cannot be told
+	    baseForced          true if that is below the floor and
+	                        scripts run on blocks only
+	    depth, depthMax     blocks in use now / at most so far
+	    bytesInUse          memory of the blocks in use
+	    bytesCached         memory of the one spare block
+	    bytesMax            most memory held at once
+	    switches            calls continued on another block
+	    allocations, frees  blocks taken from / returned to the
+	                        system
+	    refusals            times no block could be had
+	    marginUsed          deepest the stack went into the 16 KB
+	                        that stay free at the bottom of a
+	                        block
+
+    NOTES
+	AmigaOS port only.  os.stackInfo(n) with a number is for the
+	test suite: the next n requests to the system for a block are
+	refused, as if memory were short; os.stackInfo(0) ends that.
+
+    SEE ALSO
+	--startup--
 
 
 quickjs-js/os.setReadHandler                            os.setReadHandler

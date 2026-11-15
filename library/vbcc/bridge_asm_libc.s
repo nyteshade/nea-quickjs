@@ -259,6 +259,24 @@ _bridge_InstallCryptoGlobal:
 	movem.l	(sp)+,d2/a2-a6
 	rts
 
+; bridge_SetStackSizes(rt, floor, chunk, cap) -> void
+; LVO -1218 - QJS_SetStackSizes(rt,floor,chunk,cap)(a0/d0/d1/d2):
+; the three sizes of the growable JavaScript stack (docs/STACK.md).
+; Stack after the movem: [saved:24] [ret:4] [rt] [floor] [chunk] [cap]
+	xdef	_bridge_SetStackSizes
+_bridge_SetStackSizes:
+	movem.l	d2/a2-a6,-(sp)
+	move.l	28(sp),a0		; rt
+	move.l	32(sp),d0		; floor
+	move.l	36(sp),d1		; chunk
+	move.l	40(sp),d2		; cap
+	move.l	_QJSBase,a6
+	move.l	a6,a5
+	suba.l	#1218,a5
+	jsr	(a5)
+	movem.l	(sp)+,d2/a2-a6
+	rts
+
 ; bridge_InstallAmigaFFIGlobal(ctx) -> void
 ; LVO -1212 — Q1: install globalThis.__qjs_amiga_* FFI natives.
 	xdef	_bridge_InstallAmigaFFIGlobal
