@@ -29,3 +29,4 @@ quickjs-master/gen/qjsb_stamp.h
 
 # agent worktrees
 .claude/worktrees/
+dist/
